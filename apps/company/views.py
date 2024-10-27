@@ -9,3 +9,7 @@ class CompanyListView:
 
 class CompanyDetailView:
     pass
+
+
+class CompanyCreateView:
+    pass
