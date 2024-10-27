@@ -5,3 +5,7 @@ from django.shortcuts import render
 
 class CompanyListView:
     pass
+
+
+class CompanyDetailView:
+    pass
