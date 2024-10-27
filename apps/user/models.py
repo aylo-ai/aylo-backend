@@ -1,0 +1,59 @@
+from random import randint
+
+from django.contrib.auth.models import AbstractUser
+from django.db import models
+from rest_framework_simplejwt.tokens import RefreshToken
+
+from shared.addons.enums import UserRoles
+from shared.models import BaseModel
+
+from faker import Faker
+fake = Faker()
+
+
+class User(AbstractUser, BaseModel):
+    first_name = models.CharField(max_length=45, null=True, blank=True)
+    last_name = models.CharField(max_length=45, null=True, blank=True)
+    phone_number = models.CharField(max_length=15, unique=True)
+    email = models.EmailField(null=True, blank=True)
+    user_role = models.CharField(
+        max_length=50,
+        choices=UserRoles.choices(),
+        default=UserRoles.CUSTOMER.value
+    )
+
+    class Meta:
+        db_table = "user"
+        indexes = [
+            models.Index(fields=['username']),
+            models.Index(fields=['first_name']),
+            models.Index(fields=['last_name']),
+            models.Index(fields=['phone_number']),
+            models.Index(fields=['user_role']),
+        ]
+
+    def __str__(self):
+        return self.username or self.phone_number
+
+    def generate_username(self):
+        if self.first_name and self.last_name and self.phone_number:
+            first_name_lower = self.first_name.lower()
+            last_name_lower = self.last_name.lower()
+            username = f"{first_name_lower}_{last_name_lower}_{self.phone_number[-4:]}"
+            while User.objects.filter(username=username).exists():
+                username = f"{first_name_lower}_{last_name_lower}{randint(1000, 9999)}"
+        else:
+            username = fake.user_name()
+            while User.objects.filter(username=username).exists():
+                username = fake.user_name()
+        return username
+
+    def save(self, *args, **kwargs):
+        if not self.username:
+            self.username = self.generate_username()
+        super().save(*args, **kwargs)
+
+    def tokens(self):
+        refresh = RefreshToken.for_user(self)
+        return {"access": str(refresh.access_token), "refresh": str(refresh)}
+

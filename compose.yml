@@ -1,0 +1,39 @@
+name: restaurant
+services:
+  web:
+    build:
+      dockerfile: deployment/Dockerfile
+      context: .
+    env_file: .env
+    command: ./deployment/start.sh
+    volumes:
+      - /var/www/static:/app/staticfiles
+      - /var/www/media:/app/media
+    ports:
+      - 8000:8000
+    depends_on:
+      - redis
+      - postgres
+
+  postgres:
+    ports:
+      - 5432:5432
+    image: postgres:latest
+    env_file: .env
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    environment:
+      POSTGRES_DB: ${DB_NAME}
+      POSTGRES_USER: ${DB_USER}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+
+  redis:
+    ports:
+      - 6379:6379
+    image: redis:latest
+    volumes:
+      - redis-data:/data
+
+volumes:
+  postgres_data:
+  redis-data:
