@@ -10,6 +10,9 @@ class CompanySerializer(serializers.ModelSerializer):
         fields = "__all__"
         read_only_fields = ("id",)
 
+    def validate(self, attrs):
+        return attrs
+
 
 class SettingsSerializer(serializers.ModelSerializer):
 
