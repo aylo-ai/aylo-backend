@@ -12,10 +12,12 @@ djangorestframework-simplejwt==5.3.1
 drf-spectacular==0.27.2
 drf-spectacular-sidecar==2024.7.1
 Faker==30.8.1
+gunicorn==23.0.0
 idna==3.10
 inflection==0.5.1
 jsonschema==4.23.0
 jsonschema-specifications==2024.10.1
+packaging==24.1
 phonenumbers==8.13.48
 pillow==10.4.0
 psycopg2-binary==2.9.9

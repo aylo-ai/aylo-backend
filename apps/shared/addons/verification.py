@@ -23,7 +23,7 @@ def send_phone_notification(phone, code):
 
 
 def send_playmobile_sms(phone_number, message):
-    message_id = f"restaurant_{randint(100000, 999999)}"
+    message_id = f"repliuz_{randint(100000, 999999)}"
     redis_connection.set(f"{phone_number}_message_id", message_id)
     redis_connection.expire(f"{phone_number}_message_id", time=3600)
     payload = get_playmobile_payload(phone_number, message_id, originator, message)
