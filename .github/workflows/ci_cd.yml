@@ -25,7 +25,7 @@ jobs:
 
       - name: Deploy using docker compose
         run: |
-            cp /home/mukhammad/.secrets/.env .
+            cp ~/.secrets/.env .
             docker compose down
             docker compose up --build -d
             yes | docker image prune
