@@ -8,3 +8,10 @@ class CompanySerializer(serializers.ModelSerializer):
         model = Company
         fields = "__all__"
         read_only_fields = ("id",)
+
+
+class SettingsSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Company
+        fields = "__all__"
+        read_only_fields = ("id",)
