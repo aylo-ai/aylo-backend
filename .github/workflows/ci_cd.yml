@@ -13,7 +13,7 @@ jobs:
   deploy:
     name: Deploy
 
-    runs-on: debian-latest
+    runs-on: self-hosted
 
     defaults:
       run:
