@@ -42,7 +42,8 @@ class MessageSerializer(serializers.ModelSerializer):
             "id",
             "conversation",
             "sender",
-            "message",
+            "message_content",
+            "message_type",
             "created_time",
             "updated_time",
         ]
