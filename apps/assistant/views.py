@@ -1,3 +1,154 @@
-from django.shortcuts import render
+from rest_framework import permissions, filters, generics
 
-# Create your views here.
+from apps.assistant.models import Assistant
+from apps.assistant.serializers import AssistantSerializer, ConversationSerializer, MessageSerializer
+from shared.addons.validations import success_response
+
+
+class AssistantListCreateView(generics.ListCreateAPIView):
+    queryset = Assistant.objects.all()
+    serializer_class = AssistantSerializer
+    filter_backends = [filters.SearchFilter, filters.OrderingFilter]
+    search_fields = ['name', 'company__name']
+    ordering_fields = ['name', 'company__name']
+    ordering = ['company', 'name']
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get_queryset(self):
+        return super().get_queryset()
+
+    def create(self, request, *args, **kwargs):
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        self.perform_create(serializer)
+        return success_response(message='Assistant created successfully', data=serializer.data, code=201)
+
+
+class AssistantRetrieveView(generics.RetrieveUpdateDestroyAPIView):
+    queryset = Assistant.objects.all()
+    serializer_class = AssistantSerializer
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get_queryset(self):
+        return super().get_queryset()
+
+    def retrieve(self, request, *args, **kwargs):
+        instance = self.get_object()
+        serializer = self.get_serializer(instance)
+        return success_response(data=serializer.data, message='Assistant retrieved successfully', code=200)
+
+    def update(self, request, *args, **kwargs):
+        instance = self.get_object()
+        serializer = self.get_serializer(instance, data=request.data, partial=True)
+        serializer.is_valid(raise_exception=True)
+        self.perform_update(serializer)
+        return success_response(message='Assistant updated successfully', data=serializer.data, code=200)
+
+    def destroy(self, request, *args, **kwargs):
+        instance = self.get_object()
+        self.perform_destroy(instance)
+        return success_response(message='Assistant deleted successfully', code=204)
+
+
+class ConversationListCreateView(generics.ListCreateAPIView):
+    queryset = Assistant.objects.all()
+    serializer_class = ConversationSerializer
+    filter_backends = [filters.SearchFilter, filters.OrderingFilter]
+    search_fields = ['assistant__name', 'session_id']
+    ordering_fields = ['assistant__name', 'session_id']
+    ordering = ['assistant', 'start_time']
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get_queryset(self):
+        return super().get_queryset()
+
+    def create(self, request, *args, **kwargs):
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        self.perform_create(serializer)
+        return success_response(message='Conversation created successfully', data=serializer.data, code=201)
+
+
+class ConversationRetrieveView(generics.RetrieveUpdateDestroyAPIView):
+    queryset = Assistant.objects.all()
+    serializer_class = ConversationSerializer
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get_queryset(self):
+        return super().get_queryset()
+
+    def retrieve(self, request, *args, **kwargs):
+        instance = self.get_object()
+        serializer = self.get_serializer(instance)
+        return success_response(data=serializer.data, message='Conversation retrieved successfully', code=200)
+
+    def update(self, request, *args, **kwargs):
+        instance = self.get_object()
+        serializer = self.get_serializer(instance, data=request.data, partial=True)
+        serializer.is_valid(raise_exception=True)
+        self.perform_update(serializer)
+        return success_response(message='Conversation updated successfully', data=serializer.data, code=200)
+
+    def destroy(self, request, *args, **kwargs):
+        instance = self.get_object()
+        self.perform_destroy(instance)
+        return success_response(message='Conversation deleted successfully', code=204)
+
+
+class MessageListCreateView(generics.ListCreateAPIView):
+    queryset = Assistant.objects.all()
+    serializer_class = MessageSerializer
+    filter_backends = [filters.SearchFilter, filters.OrderingFilter]
+    search_fields = ['conversation__assistant__name', 'message']
+    ordering_fields = ['conversation__assistant__name', 'created_time']
+    ordering = ['conversation', 'created_time']
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get_queryset(self):
+        return super().get_queryset()
+
+    def create(self, request, *args, **kwargs):
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        self.perform_create(serializer)
+        return success_response(message='Message created successfully', data=serializer.data, code=201)
+
+
+class MessageRetrieveView(generics.RetrieveUpdateDestroyAPIView):
+    queryset = Assistant.objects.all()
+    serializer_class = MessageSerializer
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get_queryset(self):
+        return super().get_queryset()
+
+    def retrieve(self, request, *args, **kwargs):
+        instance = self.get_object()
+        serializer = self.get_serializer(instance)
+        return success_response(data=serializer.data, message='Message retrieved successfully', code=200)
+
+    def update(self, request, *args, **kwargs):
+        instance = self.get_object()
+        serializer = self.get_serializer(instance, data=request.data, partial=True)
+        serializer.is_valid(raise_exception=True)
+        self.perform_update(serializer)
+        return success_response(message='Message updated successfully', data=serializer.data, code=200)
+
+    def destroy(self, request, *args, **kwargs):
+        instance = self.get_object()
+        self.perform_destroy(instance)
+        return success_response(message='Message deleted successfully', code=204)
+
+
+class ConversationMessagesListView(generics.ListAPIView):
+    queryset = Assistant.objects.all()
+    serializer_class = MessageSerializer
+    filter_backends = [filters.SearchFilter, filters.OrderingFilter]
+    search_fields = ['conversation__assistant__name', 'message']
+    ordering_fields = ['conversation__assistant__name', 'created_time']
+    ordering = ['conversation', 'created_time']
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get_queryset(self):
+        conversation_id = self.kwargs.get('pk')
+        return self.queryset.filter(conversation_id=conversation_id)

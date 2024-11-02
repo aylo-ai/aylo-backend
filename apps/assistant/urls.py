@@ -1,5 +1,13 @@
 from django.urls import path
+import assistant.views as views
+
 
 urlpatterns = [
-
-    ]
+    path("assistant/", views.AssistantListCreateView.as_view()),
+    path("assistant/<uuid:pk>/", views.AssistantRetrieveView.as_view()),
+    path("conversation/", views.ConversationListCreateView.as_view()),
+    path("conversation/<uuid:pk>/", views.ConversationRetrieveView.as_view()),
+    path("message/", views.MessageListCreateView.as_view()),
+    path("message/<uuid:pk>/", views.MessageRetrieveView.as_view()),
+    path("conversation/<uuid:pk>/messages/", views.ConversationMessagesListView.as_view()),
+]

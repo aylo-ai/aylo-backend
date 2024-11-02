@@ -60,3 +60,27 @@ class SessionStatus(EnumBaseModel):
     EXPIRED = 'expired'
 
 
+class AssistantLanguages(EnumBaseModel):
+    ENGLISH = 'en'
+    RUSSIAN = 'ru'
+    UZBEK = 'uz'
+    KAZAKH = 'kk'
+
+
+class PersonalityStyles(EnumBaseModel):
+    FORMAL = 'formal'
+    FRIENDLY = 'friendly'
+    PROFESSIONAL = 'professional'
+    CASUAL = 'casual'
+    INFORMATIVE = 'informative'
+
+
+class SenderTypes(EnumBaseModel):
+    ASSISTANT = 'assistant'
+    USER = 'user'
+
+
+class MessageStatuses(EnumBaseModel):
+    DELIVERED = 'delivered'
+    SEEN = 'seen'
+    RESPONDED = 'responded'
