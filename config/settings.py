@@ -261,7 +261,6 @@ AUTH_USER_MODEL = "user.User"
 REDIS_HOST = os.environ.get("REDIS_HOST", default="localhost")
 REDIS_PORT = os.environ.get("REDIS_PORT", 6379)
 redis_connection = redis.Redis(host=REDIS_HOST, port=REDIS_PORT, db=0)
-
 LOGGING = {
     "version": 1,
     "disable_existing_loggers": False,
