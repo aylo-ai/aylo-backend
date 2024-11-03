@@ -1,4 +1,4 @@
-from apps.assistant.models import Assistant, Conversation, Message
+from apps.assistant.models import Assistant, Conversation, Message, Settings
 from rest_framework import serializers
 
 
@@ -8,7 +8,11 @@ class AssistantSerializer(serializers.ModelSerializer):
         fields = [
             "id",
             "name",
-            "company",
+            "description",
+            "user",
+            "company_name",
+            "role",
+            "pricing_package",
             "language",
             "personality_style",
             "greeting_message",
@@ -44,6 +48,22 @@ class MessageSerializer(serializers.ModelSerializer):
             "sender",
             "message_content",
             "message_type",
+            "created_time",
+            "updated_time",
+        ]
+        read_only_fields = ["created_time", "updated_time"]
+
+
+class SettingsSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Settings
+        fields = [
+            "id",
+            "assistant",
+            "timezone",
+            "language",
+            "notification_preferences",
+            "escalation_rules",
             "created_time",
             "updated_time",
         ]

@@ -4,10 +4,10 @@ from apps.assistant.models import Assistant, Message, Conversation
 
 @admin.register(Assistant)
 class AssistantAdmin(admin.ModelAdmin):
-    list_display = ('name', 'company', 'language', 'personality_style')
-    list_filter = ('company', 'language', 'personality_style')
-    search_fields = ('name', 'company__name')
-    ordering = ('company', 'name')
+    list_display = ('name', 'user', 'language', 'personality_style')
+    list_filter = ('user', 'language', 'personality_style')
+    search_fields = ('name', 'user__first_name', 'user__last_name', 'user__email')
+    ordering = ('user', 'name')
     list_per_page = 20
     list_max_show_all = 100
     save_as = True
@@ -18,7 +18,7 @@ class AssistantAdmin(admin.ModelAdmin):
     readonly_fields = ('created_time', 'updated_time')
     fieldsets = (
         (None, {
-            'fields': ('name', 'company', 'language', 'personality_style')
+            'fields': ('name', 'user', 'language', 'personality_style')
         }),
         ('Messages', {
             'fields': ('greeting_message', 'fallback_message')
@@ -30,7 +30,7 @@ class AssistantAdmin(admin.ModelAdmin):
     )
     add_fieldsets = (
         (None, {
-            'fields': ('name', 'company', 'language', 'personality_style')
+            'fields': ('name', 'user', 'language', 'personality_style')
         }),
         ('Messages', {
             'fields': ('greeting_message', 'fallback_message')

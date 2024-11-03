@@ -3,6 +3,7 @@ import uuid
 from django.db import models
 from django.utils import timezone
 
+from apps.payment.models import PricingPackage
 from shared.addons.enums import AssistantLanguages, PersonalityStyles, SenderTypes, MessageStatuses, \
     ConversationStatuses, MessageTypes
 from shared.models import BaseModel
@@ -10,11 +11,22 @@ from shared.models import BaseModel
 
 class Assistant(BaseModel):
     name = models.CharField(max_length=255)
-    company = models.ForeignKey(
-        'company.Company',
+    description = models.TextField(null=True, blank=True)
+    user = models.ForeignKey(
+        'user.User',
         on_delete=models.CASCADE,
+        null=True, blank=True,
         related_name='assistants'
     )
+    pricing_package = models.ForeignKey(
+        PricingPackage,
+        on_delete=models.SET_NULL,
+        null=True, blank=True,
+        related_name='assistants'
+    )
+    company_name = models.CharField(max_length=50)
+    role = models.CharField(max_length=50)
+
     language = models.CharField(
         max_length=10,
         choices=AssistantLanguages.choices(),
@@ -84,3 +96,16 @@ class Message(BaseModel):
     def __str__(self):
         return f"Message from {self.sender} in conversation {self.conversation_id}"
 
+
+class Settings(BaseModel):
+    assistant = models.OneToOneField(Assistant, on_delete=models.CASCADE, related_name="settings")
+    timezone = models.CharField(max_length=50, default="UTC")
+    language = models.CharField(max_length=50, default="en")
+    notification_preferences = models.JSONField(default=dict)  # E.g., {"email": True, "sms": False}
+    escalation_rules = models.JSONField(default=dict)
+
+    class Meta:
+        db_table = 'settings'
+
+    def __str__(self):
+        return f"Settings for {self.assistant.name}"

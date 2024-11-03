@@ -39,7 +39,6 @@ PACKAGES = [
 ]
 INTERNAL_APPS = [
     "assistant",
-    "company",
     "integration",
     "payment",
     "shared",
