@@ -109,3 +109,21 @@ class Settings(BaseModel):
 
     def __str__(self):
         return f"Settings for {self.assistant.name}"
+
+
+class AssistantFileUpload(BaseModel):
+    assistant = models.ForeignKey("Assistant", on_delete=models.CASCADE, related_name="files")
+    file = models.FileField(upload_to="assistant/files/")
+    filename = models.CharField(max_length=255, null=True, blank=True)
+
+    def __str__(self):
+        return self.filename
+
+    class Meta:
+        db_table = 'assistant_file_upload'
+        ordering = ['created_time']
+
+    def save(self, *args, **kwargs):
+        if not self.filename:
+            self.filename = self.file.name
+        super().save(*args, **kwargs)

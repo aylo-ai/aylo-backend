@@ -36,6 +36,7 @@ PACKAGES = [
     "drf_spectacular_sidecar",
     "corsheaders",
     "django_filters",
+    "telegram",
 ]
 INTERNAL_APPS = [
     "assistant",

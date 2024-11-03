@@ -84,3 +84,10 @@ class MessageStatuses(EnumBaseModel):
     DELIVERED = 'delivered'
     SEEN = 'seen'
     RESPONDED = 'responded'
+
+
+class IntegrationTypes(EnumBaseModel):
+    TELEGRAM = 'telegram'
+    WHATSAPP = 'whatsapp'
+    WEBSITE = 'website'
+    INSTAGRAM = 'instagram'

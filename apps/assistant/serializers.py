@@ -1,4 +1,4 @@
-from apps.assistant.models import Assistant, Conversation, Message, Settings
+from apps.assistant.models import Assistant, Conversation, Message, Settings, AssistantFileUpload
 from rest_framework import serializers
 
 
@@ -68,3 +68,26 @@ class SettingsSerializer(serializers.ModelSerializer):
             "updated_time",
         ]
         read_only_fields = ["created_time", "updated_time"]
+
+
+class AssistantFileUploadSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = AssistantFileUpload
+        fields = [
+            "id",
+            "assistant",
+            "filename",
+            "file",
+            "created_time",
+            "updated_time",
+        ]
+        read_only_fields = ["created_time", "updated_time"]
+        extra_kwargs = {
+            "assistant": {"required": False},
+        }
+
+    def validate(self, attrs):
+        if attrs.get("file"):
+            if attrs["file"].size > 30 * 1024 * 1024:  # 30MB
+                raise serializers.ValidationError("File size should not exceed 30MB")
+        return attrs

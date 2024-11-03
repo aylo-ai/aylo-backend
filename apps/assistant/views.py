@@ -1,8 +1,8 @@
 from rest_framework import permissions, filters, generics
 
-from apps.assistant.models import Assistant
+from apps.assistant.models import Assistant, AssistantFileUpload
 from apps.assistant.serializers import AssistantSerializer, ConversationSerializer, MessageSerializer, \
-    SettingsSerializer
+    SettingsSerializer, AssistantFileUploadSerializer
 from shared.addons.validations import success_response
 
 
@@ -198,3 +198,49 @@ class SettingsRetrieveView(generics.RetrieveUpdateDestroyAPIView):
         instance = self.get_object()
         self.perform_destroy(instance)
         return success_response(message='Settings deleted successfully', code=204)
+
+
+class AssistantFileUploadListCreateView(generics.ListCreateAPIView):
+    queryset = AssistantFileUpload.objects.all()
+    serializer_class = AssistantFileUploadSerializer
+    filter_backends = [filters.SearchFilter, filters.OrderingFilter]
+    search_fields = ['assistant__name', 'filename']
+    ordering_fields = ['assistant__name', 'created_time']
+    ordering = ['assistant', 'created_time']
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get_queryset(self):
+        assistant_id = self.kwargs.get('pk')
+        return self.queryset.filter(assistant_id=assistant_id)
+
+    def create(self, request, *args, **kwargs):
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        serializer.save(assistant_id=self.kwargs.get('pk'))
+        return success_response(message='File uploaded successfully', data=serializer.data, code=201)
+
+
+class AssistantFileUploadRetrieveView(generics.RetrieveUpdateDestroyAPIView):
+    queryset = AssistantFileUpload.objects.all()
+    serializer_class = AssistantFileUploadSerializer
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get_object(self):
+        return self.queryset.get(pk=self.kwargs.get('pk'), assistant__user=self.request.user)
+
+    def retrieve(self, request, *args, **kwargs):
+        instance = self.get_object()
+        serializer = self.get_serializer(instance)
+        return success_response(data=serializer.data, message='File retrieved successfully', code=200)
+
+    def update(self, request, *args, **kwargs):
+        instance = self.get_object()
+        serializer = self.get_serializer(instance, data=request.data, partial=True)
+        serializer.is_valid(raise_exception=True)
+        self.perform_update(serializer)
+        return success_response(message='File updated successfully', data=serializer.data, code=200)
+
+    def destroy(self, request, *args, **kwargs):
+        instance = self.get_object()
+        self.perform_destroy(instance)
+        return success_response(message='File deleted successfully', code=204)

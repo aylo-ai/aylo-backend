@@ -1,5 +1,5 @@
 from django.contrib import admin
-from apps.assistant.models import Assistant, Message, Conversation
+from apps.assistant.models import Assistant, Message, Conversation, AssistantFileUpload
 
 
 @admin.register(Assistant)
@@ -89,5 +89,35 @@ class MessageAdmin(admin.ModelAdmin):
     add_fieldsets = (
         (None, {
             'fields': ('conversation', 'sender', 'message_content', 'message_type', 'status')
+        }),
+    )
+
+
+@admin.register(AssistantFileUpload)
+class AssistantFileUploadAdmin(admin.ModelAdmin):
+    list_display = ('assistant', 'file', 'created_time')
+    list_filter = ('assistant', 'created_time')
+    search_fields = ('assistant__name', 'file')
+    ordering = ('assistant', 'created_time')
+    list_per_page = 20
+    list_max_show_all = 100
+    save_as = True
+    save_on_top = True
+    actions_on_top = True
+    actions_on_bottom = True
+    date_hierarchy = 'created_time'
+    readonly_fields = ('created_time', 'updated_time')
+    fieldsets = (
+        (None, {
+            'fields': ('assistant', 'file')
+        }),
+        ('System', {
+            'fields': ('created_time', 'updated_time'),
+            'classes': ('collapse',)
+        }),
+    )
+    add_fieldsets = (
+        (None, {
+            'fields': ('assistant', 'file')
         }),
     )

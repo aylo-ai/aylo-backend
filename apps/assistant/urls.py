@@ -10,4 +10,8 @@ urlpatterns = [
     path("message/", views.MessageListCreateView.as_view()),
     path("message/<uuid:pk>/", views.MessageRetrieveView.as_view()),
     path("conversation/<uuid:pk>/messages/", views.ConversationMessagesListView.as_view()),
+
+    # file upload for assistant
+    path("assistant/<uuid:pk>/upload-file/", views.AssistantFileUploadListCreateView.as_view()),
+    path("assistant-files/<uuid:pk>/", views.AssistantFileUploadRetrieveView.as_view()),
 ]
