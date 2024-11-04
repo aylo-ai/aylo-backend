@@ -38,11 +38,24 @@ def save_uploaded_file(assistant, file_data, filename):
     print(f"File uploaded successfully for assistant_id: {assistant.id}")
 
 
-def send_assistant_data(assistant):
-    data = get_assistant_data(assistant)
+def send_assistant_data(assistant, request=None):
+    data = get_assistant_data(assistant, request)
     assistant_id, code = create_assistant_id(data)
     if code == 400:
         raise_validation_error(message=assistant_id)
     assistant.assistant_id = assistant_id
     assistant.save()
     print(f"Assistant ID: {assistant.assistant_id} created successfully")
+
+
+def get_thread_id():
+    url = f"{BASE_URL}/api/v1/thread/initialize"
+    response = requests.get(url)
+    if response.status_code == 200:
+        thread_id = response.json().get("thread_id")
+        return thread_id
+    else:
+        input_field = response.json().get("detail")[0].get("loc")[1]
+        message = response.json().get("detail")[0].get("msg")
+        error_message = f"{input_field}: {message}"
+        raise_validation_error(message=error_message)

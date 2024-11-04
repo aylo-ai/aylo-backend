@@ -1,7 +1,7 @@
 from apps.assistant.models import Assistant, Conversation, Message, Settings, AssistantFileUpload
 from rest_framework import serializers
 
-from shared.addons.ai_requests import create_assistant_id, save_uploaded_file, send_assistant_data
+from shared.addons.ai_requests import create_assistant_id, save_uploaded_file, send_assistant_data, get_thread_id
 from shared.addons.validations import raise_validation_error
 
 
@@ -33,12 +33,35 @@ class ConversationSerializer(serializers.ModelSerializer):
             "id",
             "assistant",
             "status",
+            "thread_id",
             "start_time",
             "end_time",
             "created_time",
             "updated_time",
         ]
         read_only_fields = ["created_time", "updated_time"]
+        extra_kwargs = {
+            "assistant": {"required": False},
+        }
+
+    def validate(self, attrs):
+        assistant = self.context.get("assistant_id")
+        try:
+            assistant = Assistant.objects.get(id=assistant)
+        except Assistant.DoesNotExist:
+            raise_validation_error("Assistant does not exist.")
+        attrs["assistant"] = assistant
+        return attrs
+
+    def create(self, validated_data):
+        thread_id = get_thread_id()
+        assistant = validated_data.get("assistant")
+        Conversation.objects.create(
+            assistant=assistant,
+            thread_id=thread_id
+        )
+        return thread_id
+
 
 
 class MessageSerializer(serializers.ModelSerializer):
@@ -100,6 +123,7 @@ class AssistantFileUploadSerializer(serializers.ModelSerializer):
         return attrs
 
     def create(self, validated_data):
+        request = self.context.get("request")
         files = self.context.get('files')
         assistant = self.context.get("assistant")
         for file in files:
@@ -109,6 +133,6 @@ class AssistantFileUploadSerializer(serializers.ModelSerializer):
                 file=file,
                 filename=filename
             )
-        send_assistant_data(assistant)
+        send_assistant_data(assistant, request)
 
         return assistant

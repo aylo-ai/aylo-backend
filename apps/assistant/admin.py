@@ -9,9 +9,9 @@ class AssistantAdmin(admin.ModelAdmin):
 
 @admin.register(Conversation)
 class ConversationAdmin(admin.ModelAdmin):
-    list_display = ('assistant', 'status', 'start_time', 'end_time')
+    list_display = ('assistant', 'status', 'thread_id', 'start_time', 'end_time')
     list_filter = ('assistant', 'status')
-    search_fields = ('assistant__name',)
+    search_fields = ('assistant__name', 'thread_id')
     ordering = ('assistant', 'start_time')
     list_per_page = 20
     list_max_show_all = 100
@@ -20,10 +20,10 @@ class ConversationAdmin(admin.ModelAdmin):
     actions_on_top = True
     actions_on_bottom = True
     date_hierarchy = 'start_time'
-    readonly_fields = ('start_time', 'end_time')
+    readonly_fields = ('start_time', 'end_time', 'thread_id')
     fieldsets = (
         (None, {
-            'fields': ('assistant', 'status')
+            'fields': ('assistant', 'status', 'thread_id')
         }),
         ('System', {
             'fields': ('start_time', 'end_time'),

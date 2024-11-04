@@ -61,12 +61,14 @@ class ConversationListCreateView(generics.ListCreateAPIView):
     permission_classes = [permissions.IsAuthenticated]
 
     def get_queryset(self):
-        return super().get_queryset()
+        assistant_id = self.kwargs.get("pk")
+        return super().get_queryset().filter(assistant_id=assistant_id)
 
     def create(self, request, *args, **kwargs):
-        serializer = self.get_serializer(data=request.data)
+        assistant_id = self.kwargs.get("pk")
+        serializer = self.get_serializer(data=request.data, context={'assistant_id': assistant_id})
         serializer.is_valid(raise_exception=True)
-        self.perform_create(serializer)
+        serializer.save(assistant_id=assistant_id)
         return success_response(message='Conversation created successfully', data=serializer.data, code=201)
 
 
@@ -222,7 +224,7 @@ class AssistantFileUploadListCreateView(generics.ListCreateAPIView):
         files = request.FILES.getlist('file')  # Handle multiple files
         serializer = self.get_serializer(
             data=request.data,
-            context={'assistant': assistant, 'files': files}
+            context={'assistant': assistant, 'files': files, 'request': request}
         )
         serializer.is_valid(raise_exception=True)
 
