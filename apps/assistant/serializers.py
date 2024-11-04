@@ -1,6 +1,9 @@
 from apps.assistant.models import Assistant, Conversation, Message, Settings, AssistantFileUpload
 from rest_framework import serializers
 
+from shared.addons.ai_requests import create_assistant_id, save_uploaded_file, send_assistant_data
+from shared.addons.validations import raise_validation_error
+
 
 class AssistantSerializer(serializers.ModelSerializer):
     class Meta:
@@ -30,7 +33,6 @@ class ConversationSerializer(serializers.ModelSerializer):
             "id",
             "assistant",
             "status",
-            "session_id",
             "start_time",
             "end_time",
             "created_time",
@@ -87,7 +89,26 @@ class AssistantFileUploadSerializer(serializers.ModelSerializer):
         }
 
     def validate(self, attrs):
-        if attrs.get("file"):
-            if attrs["file"].size > 30 * 1024 * 1024:  # 30MB
-                raise serializers.ValidationError("File size should not exceed 30MB")
+        files = self.context.get("files")
+        if not files:
+            raise serializers.ValidationError("No files were uploaded.")
+
+        for file in files:
+            print(f"File size: {file.size}")
+            if file.size > 30 * 1024 * 1024:  # 30MB limit
+                raise serializers.ValidationError(f"File {file.name} exceeds the 30MB size limit.")
         return attrs
+
+    def create(self, validated_data):
+        files = self.context.get('files')
+        assistant = self.context.get("assistant")
+        for file in files:
+            filename = file.name
+            AssistantFileUpload.objects.create(
+                assistant=assistant,
+                file=file,
+                filename=filename
+            )
+        send_assistant_data(assistant)
+
+        return assistant

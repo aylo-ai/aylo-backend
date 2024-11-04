@@ -61,10 +61,10 @@ class SessionStatus(EnumBaseModel):
 
 
 class AssistantLanguages(EnumBaseModel):
-    ENGLISH = 'en'
-    RUSSIAN = 'ru'
-    UZBEK = 'uz'
-    KAZAKH = 'kk'
+    ENGLISH = 'english'
+    RUSSIAN = 'russian'
+    UZBEK = 'uzbek'
+    KAZAKH = 'kazakh'
 
 
 class PersonalityStyles(EnumBaseModel):

@@ -3,7 +3,7 @@ from rest_framework import permissions, filters, generics
 from apps.assistant.models import Assistant, AssistantFileUpload
 from apps.assistant.serializers import AssistantSerializer, ConversationSerializer, MessageSerializer, \
     SettingsSerializer, AssistantFileUploadSerializer
-from shared.addons.validations import success_response
+from shared.addons.validations import success_response, error_response
 
 
 class AssistantListCreateView(generics.ListCreateAPIView):
@@ -19,9 +19,9 @@ class AssistantListCreateView(generics.ListCreateAPIView):
         return super().get_queryset()
 
     def create(self, request, *args, **kwargs):
-        serializer = self.get_serializer(data=request.data)
+        serializer = self.get_serializer(data=request.data, context={'request': request})
         serializer.is_valid(raise_exception=True)
-        self.perform_create(serializer)
+        serializer.save(user=request.user)
         return success_response(message='Assistant created successfully', data=serializer.data, code=201)
 
 
@@ -214,10 +214,20 @@ class AssistantFileUploadListCreateView(generics.ListCreateAPIView):
         return self.queryset.filter(assistant_id=assistant_id)
 
     def create(self, request, *args, **kwargs):
-        serializer = self.get_serializer(data=request.data)
+        assistant_id = self.kwargs.get('pk')
+        try:
+            assistant = Assistant.objects.get(id=assistant_id)
+        except Assistant.DoesNotExist:
+            return error_response(message="Assistant not found", code=404)
+        files = request.FILES.getlist('file')  # Handle multiple files
+        serializer = self.get_serializer(
+            data=request.data,
+            context={'assistant': assistant, 'files': files}
+        )
         serializer.is_valid(raise_exception=True)
-        serializer.save(assistant_id=self.kwargs.get('pk'))
-        return success_response(message='File uploaded successfully', data=serializer.data, code=201)
+
+        serializer.save()
+        return success_response(message='File uploaded successfully', code=201)
 
 
 class AssistantFileUploadRetrieveView(generics.RetrieveUpdateDestroyAPIView):

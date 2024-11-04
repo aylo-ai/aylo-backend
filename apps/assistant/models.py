@@ -1,3 +1,4 @@
+import os
 import uuid
 
 from django.db import models
@@ -40,6 +41,7 @@ class Assistant(BaseModel):
 
     greeting_message = models.TextField(null=True, blank=True)
     fallback_message = models.TextField(null=True, blank=True)
+    assistant_id = models.CharField(max_length=255, null=True, blank=True)
 
     def __str__(self):
         return self.name
@@ -59,23 +61,18 @@ class Conversation(BaseModel):
         choices=ConversationStatuses.choices(),
         default=ConversationStatuses.OPEN.value
     )
-    session_id = models.CharField(max_length=255, unique=True, db_index=True, editable=False)
+    thread_id = models.CharField(max_length=255, null=True, blank=True)
     start_time = models.DateTimeField(default=timezone.now)
     end_time = models.DateTimeField(null=True, blank=True)
 
     def save(self, *args, **kwargs):
-        if not self.session_id:
-            self.session_id = str(uuid.uuid4())  # Generate a new UUID if it doesn’t exist
         super().save(*args, **kwargs)
 
     class Meta:
         db_table = 'conversation'
-        indexes = [
-            models.Index(fields=['session_id']),
-        ]
 
     def __str__(self):
-        return f"Conversation {self.session_id} with Assistant {self.assistant_id}"
+        return f"Conversation with {self.assistant.name}"
 
 
 class Message(BaseModel):
@@ -127,3 +124,9 @@ class AssistantFileUpload(BaseModel):
         if not self.filename:
             self.filename = self.file.name
         super().save(*args, **kwargs)
+
+    def delete(self, *args, **kwargs):
+        if self.file:
+            if os.path.isfile(self.file.path):
+                os.remove(self.file.path)
+        super(AssistantFileUpload, self).delete(*args, **kwargs)

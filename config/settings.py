@@ -291,14 +291,10 @@ REDIS_HOST: str = os.environ.get("REDIS_HOST", default="localhost")
 REDIS_PASSWORD: str = os.environ.get("REDIS_PASSWORD", default=None)
 REDIS_PORT: int = os.environ.get("REDIS_PORT", default=6379)
 
-if REDIS_PASSWORD:
-    celery_redis_connection_url = "redis://:{}@{}:{}/{}".format(
-        REDIS_PASSWORD, REDIS_HOST, REDIS_PORT, REDIS_DB
-    )
-else:
-    celery_redis_connection_url = "redis://{}:{}/{}".format(
-        REDIS_HOST, REDIS_PORT, REDIS_DB
-    )
+# settings.py
+CELERY_BROKER_URL = f"redis://{REDIS_HOST}:{REDIS_PORT}/{REDIS_DB}"
+CELERY_RESULT_BACKEND = f"redis://{REDIS_HOST}:{REDIS_PORT}/{REDIS_DB}"
+
 
 REDIS_CREDENTIALS: dict[str, str] = {
     "db": REDIS_DB,

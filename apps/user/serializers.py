@@ -63,7 +63,7 @@ class RegisterUserSerializer(serializers.ModelSerializer):
         model = User
         fields = ('id', 'first_name', 'last_name', 'password', 'phone_number', 'username', 'tokens')
         extra_kwargs = {
-            'password': {'write_only': True},
+            'password': {'required': False},
             'phone_number': {'required': True},
             'first_name': {'required': True},
             'last_name': {'required': True},
@@ -88,7 +88,7 @@ class RegisterUserSerializer(serializers.ModelSerializer):
         return value
 
     def validate_phone_number(self, value): # noqa
-        phone_number_validation(value)
+        # phone_number_validation(value)
         return value
 
     def create(self, validated_data):
@@ -99,7 +99,7 @@ class RegisterUserSerializer(serializers.ModelSerializer):
             username=validated_data.get('username', None),
             is_active=True,
         )
-        user.set_password(validated_data['password'])
+        # user.set_password(validated_data['password'])
         user.save()
         return user
 

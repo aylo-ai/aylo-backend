@@ -9,7 +9,7 @@ from django.utils.translation import gettext_lazy as _
 from config.settings import redis_connection
 import user.serializers as serializers
 from shared.addons.validations import error_response, success_response
-from shared.addons.verification import send_code
+from shared.addons.verification import send_code, verify_code_cache
 from apps.user.models import User
 
 
