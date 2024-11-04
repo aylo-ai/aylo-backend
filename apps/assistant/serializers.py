@@ -56,11 +56,11 @@ class ConversationSerializer(serializers.ModelSerializer):
     def create(self, validated_data):
         thread_id = get_thread_id()
         assistant = validated_data.get("assistant")
-        Conversation.objects.create(
+        conversation = Conversation.objects.create(
             assistant=assistant,
             thread_id=thread_id
         )
-        return thread_id
+        return thread_id, conversation
 
 
 

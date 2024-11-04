@@ -68,8 +68,13 @@ class ConversationListCreateView(generics.ListCreateAPIView):
         assistant_id = self.kwargs.get("pk")
         serializer = self.get_serializer(data=request.data, context={'assistant_id': assistant_id})
         serializer.is_valid(raise_exception=True)
-        serializer.save(assistant_id=assistant_id)
-        return success_response(message='Conversation created successfully', data=serializer.data, code=201)
+        thread_id, conversation = serializer.save(assistant_id=assistant_id)
+        data = {
+            "assistant_id": assistant_id,
+            "conversation_id": conversation.id,
+            "thread_id": thread_id
+        }
+        return success_response(message='Conversation created successfully', data=data, code=201)
 
 
 class ConversationRetrieveView(generics.RetrieveUpdateDestroyAPIView):
