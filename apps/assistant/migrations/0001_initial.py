@@ -58,14 +58,6 @@ class Migration(migrations.Migration):
                 ),
                 ("greeting_message", models.TextField(blank=True, null=True)),
                 ("fallback_message", models.TextField(blank=True, null=True)),
-                (
-                    "company",
-                    models.ForeignKey(
-                        on_delete=django.db.models.deletion.CASCADE,
-                        related_name="assistants",
-                        to="company.company",
-                    ),
-                ),
             ],
             options={
                 "db_table": "assistant",
