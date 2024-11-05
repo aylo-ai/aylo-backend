@@ -1,7 +1,8 @@
 from apps.assistant.models import Assistant, Conversation, Message, Settings, AssistantFileUpload
 from rest_framework import serializers
 
-from shared.addons.ai_requests import create_assistant_id, save_uploaded_file, send_assistant_data, get_thread_id
+from shared.addons.ai_requests import create_assistant_id, save_uploaded_file, send_assistant_data, get_thread_id, \
+    get_assistant_response
 from shared.addons.validations import raise_validation_error
 
 
@@ -63,7 +64,6 @@ class ConversationSerializer(serializers.ModelSerializer):
         return thread_id, conversation
 
 
-
 class MessageSerializer(serializers.ModelSerializer):
     class Meta:
         model = Message
@@ -77,6 +77,35 @@ class MessageSerializer(serializers.ModelSerializer):
             "updated_time",
         ]
         read_only_fields = ["created_time", "updated_time"]
+        extra_kwargs = {
+            "conversation": {"required": False},
+        }
+
+    def validate(self, attrs):
+        conversation = self.context.get("conversation_id")
+        try:
+            conversation = Conversation.objects.get(id=conversation)
+        except Conversation.DoesNotExist:
+            raise_validation_error("Conversation does not exist.")
+        attrs["conversation"] = conversation
+        return attrs
+
+    def create(self, validated_data):
+        message_content = validated_data.get("message_content")
+        message = Message.objects.create(**validated_data)
+        # send message to chat assistant
+        response = get_assistant_response(
+            message=message_content,
+            assistant_id=message.conversation.assistant.assistant_id,
+            thread_id=message.conversation.thread_id
+        )
+        assistant_response = Message.objects.create(
+            conversation=message.conversation,
+            sender="assistant",
+            message_content=response,
+            message_type="text",
+        )
+        return assistant_response
 
 
 class SettingsSerializer(serializers.ModelSerializer):
@@ -117,7 +146,6 @@ class AssistantFileUploadSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError("No files were uploaded.")
 
         for file in files:
-            print(f"File size: {file.size}")
             if file.size > 30 * 1024 * 1024:  # 30MB limit
                 raise serializers.ValidationError(f"File {file.name} exceeds the 30MB size limit.")
         return attrs

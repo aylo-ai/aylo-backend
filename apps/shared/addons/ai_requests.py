@@ -59,3 +59,19 @@ def get_thread_id():
         message = response.json().get("detail")[0].get("msg")
         error_message = f"{input_field}: {message}"
         raise_validation_error(message=error_message)
+
+
+def get_assistant_response(message, assistant_id, thread_id):
+    payload = {
+        "message": message,
+        "assistant_id": assistant_id,
+        "thread_id": thread_id
+    }
+    response = requests.post(f"{BASE_URL}/api/v1/assistant/response", json=payload)
+    if response.status_code == 200:
+        return response.json().get("response")
+    else:
+        input_field = response.json().get("detail")[0].get("loc")[1]
+        message = response.json().get("detail")[0].get("msg")
+        error_message = f"{input_field}: {message}"
+        raise_validation_error(message=error_message)

@@ -7,7 +7,7 @@ urlpatterns = [
     path("assistant/<uuid:pk>/", views.AssistantRetrieveView.as_view()),
     path("assistant/<uuid:pk>/conversation/", views.ConversationListCreateView.as_view()),
     path("conversation/<uuid:pk>/", views.ConversationRetrieveView.as_view()),
-    path("message/", views.MessageListCreateView.as_view()),
+    path("conversation/<uuid:pk>/message/", views.MessageListCreateView.as_view()),
     path("message/<uuid:pk>/", views.MessageRetrieveView.as_view()),
     path("conversation/<uuid:pk>/messages/", views.ConversationMessagesListView.as_view()),
 

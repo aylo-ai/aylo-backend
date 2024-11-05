@@ -113,12 +113,14 @@ class MessageListCreateView(generics.ListCreateAPIView):
     permission_classes = [permissions.IsAuthenticated]
 
     def get_queryset(self):
-        return super().get_queryset()
+        conversation_id = self.kwargs.get('pk')
+        return super().get_queryset().filter(conversation_id=conversation_id)
 
     def create(self, request, *args, **kwargs):
-        serializer = self.get_serializer(data=request.data)
+        conversation_id = self.kwargs.get('pk')
+        serializer = self.get_serializer(data=request.data, context={'conversation_id': conversation_id})
         serializer.is_valid(raise_exception=True)
-        self.perform_create(serializer)
+        serializer.save(conversation_id=conversation_id)
         return success_response(message='Message created successfully', data=serializer.data, code=201)
 
 
