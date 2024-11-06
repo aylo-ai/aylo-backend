@@ -4,7 +4,7 @@ from shared.addons.payloads import get_assistant_data
 from shared.addons.validations import raise_validation_error
 
 # BASE_URL = "http://localhost:8000"
-BASE_URL = "https://ai.repli.uz.com"
+BASE_URL = "https://ai.repli.uz"
 
 
 def create_assistant_id(data: dict):
