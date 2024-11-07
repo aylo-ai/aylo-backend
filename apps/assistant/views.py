@@ -1,6 +1,6 @@
 from rest_framework import permissions, filters, generics
 
-from apps.assistant.models import Assistant, AssistantFileUpload
+from apps.assistant.models import Assistant, AssistantFileUpload, Conversation
 from apps.assistant.serializers import AssistantSerializer, ConversationSerializer, MessageSerializer, \
     SettingsSerializer, AssistantFileUploadSerializer
 from shared.addons.validations import success_response, error_response
@@ -52,7 +52,7 @@ class AssistantRetrieveView(generics.RetrieveUpdateDestroyAPIView):
 
 
 class ConversationListCreateView(generics.ListCreateAPIView):
-    queryset = Assistant.objects.all()
+    queryset = Conversation.objects.all()
     serializer_class = ConversationSerializer
     filter_backends = [filters.SearchFilter, filters.OrderingFilter]
     search_fields = ['assistant__name', 'session_id']
