@@ -1,7 +1,7 @@
 from apps.assistant.models import Assistant, Conversation, Message, Settings, AssistantFileUpload
 from rest_framework import serializers
 
-from shared.addons.ai_requests import create_assistant_id, save_uploaded_file, send_assistant_data, get_thread_id, \
+from shared.addons.ai_requests import send_assistant_data, get_thread_id, \
     get_assistant_response
 from shared.addons.validations import raise_validation_error
 
@@ -55,7 +55,8 @@ class ConversationSerializer(serializers.ModelSerializer):
         return attrs
 
     def create(self, validated_data):
-        thread_id = get_thread_id()
+        assistant_id = self.context.get("assistant_id")
+        thread_id = get_thread_id(assistant_id)
         assistant = validated_data.get("assistant")
         conversation = Conversation.objects.create(
             assistant=assistant,

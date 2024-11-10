@@ -49,9 +49,12 @@ def send_assistant_data(assistant, request=None):
     print(f"Assistant ID: {assistant.assistant_id} created successfully")
 
 
-def get_thread_id():
+def get_thread_id(assistant_id):
     url = f"{BASE_URL}/api/v1/thread/initialize"
-    response = requests.get(url)
+    data = {
+        "assistant_id": assistant_id
+    }
+    response = requests.post(url, json=data)
     if response.status_code == 200:
         thread_id = response.json().get("thread_id")
         return thread_id
