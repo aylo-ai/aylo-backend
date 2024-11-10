@@ -41,7 +41,9 @@ def save_uploaded_file(assistant, file_data, filename):
 
 def send_assistant_data(assistant, request=None):
     data = get_assistant_data(assistant, request)
+    print(f"Assistant data: {data}")
     assistant_id, code = create_assistant_id(data)
+    print(f"Assistant ID: {assistant_id}, Code: {code}")
     if code == 400:
         raise_validation_error(message=assistant_id)
     assistant.assistant_id = assistant_id
