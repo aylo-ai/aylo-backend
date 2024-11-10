@@ -55,9 +55,8 @@ class ConversationSerializer(serializers.ModelSerializer):
         return attrs
 
     def create(self, validated_data):
-        assistant_id = self.context.get("assistant_id")
-        thread_id = get_thread_id(str(assistant_id))
         assistant = validated_data.get("assistant")
+        thread_id = get_thread_id(str(assistant.assistant_id))
         conversation = Conversation.objects.create(
             assistant=assistant,
             thread_id=thread_id
