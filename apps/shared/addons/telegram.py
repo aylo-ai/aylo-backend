@@ -21,6 +21,7 @@ def set_telegram_webhook(bot_token, webhook_url):
     payload = {
         'url': webhook_url
     }
+    print(f"Setting webhook to: {webhook_url}")
     response = requests.post(url, data=payload)
     if response.status_code == 200:
         print(f"Webhook set successfully, Status code: {response.status_code}")
