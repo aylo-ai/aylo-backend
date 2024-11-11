@@ -90,14 +90,17 @@ class TelegramWebhookView(APIView):
             send_telegram_message(chat_id, greeting_message, bot_token)
 
             # Create a new conversation
-            conversation = Conversation.objects.create(
+            conversation, created = Conversation.objects.get_or_create(
                 assistant=assistant,
                 telegram_user_id=chat_id,
-                start_time=timezone.now(),
-                status='open'
+                status='open',
+                defaults={'start_time': timezone.now()}
             )
-            conversation.thread_id = get_thread_id(assistant.assistant_id)
-            conversation.save()
+            if not created:
+                conversation.start_time = timezone.now()
+                conversation.status = 'open'
+                conversation.thread_id = get_thread_id(assistant.assistant_id)
+                conversation.save()
 
             return success_response(message=_("Greeting sent and conversation started"), code=200)
 
@@ -111,6 +114,7 @@ class TelegramWebhookView(APIView):
         if not conversation:
             conversation = Conversation.objects.create(
                 assistant=assistant,
+                telegram_user_id=chat_id,
                 start_time=timezone.now(),
                 status='open'
             )
