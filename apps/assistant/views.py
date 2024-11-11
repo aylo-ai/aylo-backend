@@ -78,12 +78,13 @@ class ConversationListCreateView(generics.ListCreateAPIView):
 
 
 class ConversationRetrieveView(generics.RetrieveUpdateDestroyAPIView):
-    queryset = Assistant.objects.all()
+    queryset = Conversation.objects.all()
     serializer_class = ConversationSerializer
     permission_classes = [permissions.IsAuthenticated]
 
     def get_object(self):
-        return self.queryset.get(pk=self.kwargs.get('pk'))
+        conversation_id = self.kwargs.get('pk')
+        return self.queryset.get(pk=conversation_id)
 
     def retrieve(self, request, *args, **kwargs):
         instance = self.get_object()
