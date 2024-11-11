@@ -82,8 +82,8 @@ class ConversationRetrieveView(generics.RetrieveUpdateDestroyAPIView):
     serializer_class = ConversationSerializer
     permission_classes = [permissions.IsAuthenticated]
 
-    def get_queryset(self):
-        return super().get_queryset()
+    def get_object(self):
+        return self.queryset.get(pk=self.kwargs.get('pk'))
 
     def retrieve(self, request, *args, **kwargs):
         instance = self.get_object()
