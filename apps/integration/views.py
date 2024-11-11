@@ -25,8 +25,13 @@ class IntegrationListCreateView(generics.ListCreateAPIView):
         return self.queryset.filter(assistant_id=assistant_id)
 
     def create(self, request, *args, **kwargs):
+        base_url = f"{request.scheme}://{request.get_host()}"
+        context_data = {
+            "base_url": base_url,
+            "assistant_id": self.kwargs.get('pk')
+        }
         assistant_id = self.kwargs.get('pk')
-        serializer = self.get_serializer(data=request.data, context={'assistant_id': assistant_id})
+        serializer = self.get_serializer(data=request.data, context=context_data)
         serializer.is_valid(raise_exception=True)
         serializer.save(assistant_id=assistant_id)
         return success_response(message="Integration created successfully", data=serializer.data, code=201)

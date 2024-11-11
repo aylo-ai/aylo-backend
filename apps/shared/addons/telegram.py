@@ -13,3 +13,30 @@ def send_telegram_message(chat_id, text, token):
     url = f"https://api.telegram.org/bot{token}/sendMessage"
     data = {"chat_id": chat_id, "text": text}
     requests.post(url, json=data)
+
+
+# Function to set the webhook
+def set_telegram_webhook(bot_token, webhook_url):
+    url = f"https://api.telegram.org/bot{bot_token}/setWebhook"
+    payload = {
+        'url': webhook_url
+    }
+    response = requests.post(url, data=payload)
+    if response.status_code == 200:
+        print(f"Webhook set successfully, Status code: {response.status_code}")
+        return 200
+    else:
+        print(f"Failed to set webhook: {response.json()}, Status code: {response.status_code}")
+        return 400
+
+
+# Function to check webhook information
+def get_webhook_info(bot_token):
+    url = f"https://api.telegram.org/bot{bot_token}/getWebhookInfo"
+    response = requests.get(url)
+    if response.status_code == 200:
+        print(f"Webhook info: {response.json()}, Status code: {response.status_code}")
+        return 200
+    else:
+        print("Failed to get webhook info:", response.json())
+        return 400
