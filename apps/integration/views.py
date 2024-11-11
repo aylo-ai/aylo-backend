@@ -92,6 +92,7 @@ class TelegramWebhookView(APIView):
             # Create a new conversation
             conversation = Conversation.objects.create(
                 assistant=assistant,
+                telegram_user_id=chat_id,
                 start_time=timezone.now(),
                 status='open'
             )
