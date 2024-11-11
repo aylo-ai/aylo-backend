@@ -61,6 +61,7 @@ class Conversation(BaseModel):
         choices=ConversationStatuses.choices(),
         default=ConversationStatuses.OPEN.value
     )
+    telegram_user_id = models.CharField(max_length=255, null=True, blank=True)
     thread_id = models.CharField(max_length=255, null=True, blank=True)
     start_time = models.DateTimeField(default=timezone.now)
     end_time = models.DateTimeField(null=True, blank=True)

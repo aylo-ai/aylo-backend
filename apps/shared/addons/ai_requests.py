@@ -1,5 +1,5 @@
 import requests
-
+from django.utils.translation import gettext as _
 from shared.addons.payloads import get_assistant_data
 from shared.addons.validations import raise_validation_error
 
@@ -61,10 +61,7 @@ def get_thread_id(assistant_id):
         thread_id = response.json().get("thread_id")
         return thread_id
     else:
-        input_field = response.json().get("detail")[0].get("loc")[1]
-        message = response.json().get("detail")[0].get("msg")
-        error_message = f"{input_field}: {message}"
-        raise_validation_error(message=error_message)
+        raise_validation_error(message=_(f"Failed to initialize thread for assistant_id: {assistant_id}"))
 
 
 def get_assistant_response(message, assistant_id, thread_id):
