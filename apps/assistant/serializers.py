@@ -83,22 +83,27 @@ class MessageSerializer(serializers.ModelSerializer):
 
     def validate(self, attrs):
         conversation = self.context.get("conversation_id")
+        print(f"validate: conversation_id: {conversation}")
         try:
             conversation = Conversation.objects.get(id=conversation)
         except Conversation.DoesNotExist:
             raise_validation_error("Conversation does not exist.")
         attrs["conversation"] = conversation
+        print(f"validate: conversation: {conversation}")
         return attrs
 
     def create(self, validated_data):
         message_content = validated_data.get("message_content")
+        print(f"create: message_content: {message_content}")
         message = Message.objects.create(**validated_data)
+        print(f"message is created: {message}")
         # send message to chat assistant
         response = get_assistant_response(
             message=message_content,
             assistant_id=message.conversation.assistant.assistant_id,
             thread_id=message.conversation.thread_id
         )
+        print(f"response from ai: {response}")
         assistant_response = Message.objects.create(
             conversation=message.conversation,
             sender="assistant",

@@ -118,6 +118,7 @@ class TelegramWebhookView(APIView):
                 start_time=timezone.now(),
                 status='open'
             )
+            print(f"New conversation created: {conversation}")
 
         # Save the user's message to the Message model
         Message.objects.create(
