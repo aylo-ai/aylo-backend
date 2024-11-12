@@ -121,12 +121,17 @@ class TelegramWebhookView(APIView):
             print(f"New conversation created: {conversation}")
 
         # Save the user's message to the Message model
-        Message.objects.create(
-            conversation=conversation,
-            sender='user',
-            message_content=user_message,
-            message_type='text'
-        )
+        try:
+            print(f"User message: {user_message}, conversation: {conversation}")
+            Message.objects.create(
+                conversation=conversation,
+                sender='user',
+                message_content=user_message,
+                message_type='text'
+            )
+        except Exception as e:
+            print(f"Error saving message: {e}")
+            return error_response(message=_("Failed to save user message"), code=400)
 
         # Generate and send assistant's response
         response_message = get_assistant_response(user_message, assistant.assistant_id, conversation.thread_id)
