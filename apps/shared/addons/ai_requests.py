@@ -70,7 +70,9 @@ def get_assistant_response(message, assistant_id, thread_id):
         "assistant_id": assistant_id,
         "thread_id": thread_id
     }
+    print(f"Payload: {payload}")
     response = requests.post(f"{BASE_URL}/api/v1/assistant/response", json=payload)
+    print(f"response status: {response.status_code}, response: {response.json()}")
     if response.status_code == 200:
         return response.json().get("response")
     else:
