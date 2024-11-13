@@ -1,4 +1,11 @@
+import re
+
 import requests
+
+
+def escape_markdown_v2(text):
+    # Escape special characters for MarkdownV2
+    return re.sub(r'([_*[\]()~`>#+-=|{}.!])', r'\\\1', text)
 
 
 def telegram_get_me(token):
@@ -12,7 +19,12 @@ def telegram_get_me(token):
 def send_telegram_message(chat_id, text, token):
     print(f"Sending message to chat_id: {chat_id}, text: {text}")
     url = f"https://api.telegram.org/bot{token}/sendMessage"
-    data = {"chat_id": chat_id, "text": text}
+    escaped_text = escape_markdown_v2(text)
+    data = {
+        "chat_id": chat_id,
+        "text": escaped_text,
+        "parse_mode": "MarkdownV2"
+    }
     response = requests.post(url, json=data)
     print(f"Message sent to Telegram: {response.status_code}, {response.json()}")
 
