@@ -4,6 +4,7 @@ from django.utils.translation import gettext as _
 from apps.assistant.models import Conversation, Message, Assistant
 from shared.addons.ai_requests import get_thread_id, get_assistant_response
 from shared.addons.telegram import send_telegram_message
+from shared.addons.utils import create_message, get_or_create_conversation, handle_start_command
 from shared.addons.validations import success_response, error_response
 from .models import Integration
 from rest_framework import generics, permissions
@@ -69,82 +70,34 @@ class IntegrationRetrieveUpdateDestroyView(generics.RetrieveUpdateDestroyAPIView
 
 class TelegramWebhookView(APIView):
     def post(self, request, bot_token):  # noqa
-        data = request.data
-        message_data = data.get('message')
-        print(f"Message data: {message_data}")
-        if not message_data:
+        data = request.data.get('message')
+        print(f"Data: {data}")
+        if not data:
             return error_response(message=_("No message data received"))
 
-        chat_id = message_data['chat']['id']
-        user_message = message_data.get('text')
-
+        chat_id = data['chat']['id']
+        user_message = data.get('text')
+        print(f"Chat ID: {chat_id}, Message: {user_message}")
         # Retrieve the assistant based on bot_token
         assistant = Assistant.objects.filter(integrations__api_token=bot_token).first()
         print(f"Assistant: {assistant}")
         if not assistant:
             return error_response(message=_("Invalid bot token"))
 
-        # Check if the message is a start command
+        # Handle `/start` command
         if user_message == '/start':
-            greeting_message = assistant.greeting_message
-            send_telegram_message(chat_id, greeting_message, bot_token)
-            # Create a new conversation
-            thread_id = get_thread_id(str(assistant.assistant_id))
-            print(f"Thread ID: {thread_id}")
-            conversation, created = Conversation.objects.get_or_create(
-                assistant=assistant,
-                thread_id=thread_id,
-                telegram_user_id=chat_id,
-                status='open',
-                defaults={'start_time': timezone.now()}
-            )
-            if not created:
-                conversation.start_time = timezone.now()
-                conversation.status = 'open'
-                conversation.thread_id = thread_id
-                conversation.save()
+            print("user_message: /start")
+            return handle_start_command(chat_id, assistant, bot_token)
 
-            return success_response(message=_("Greeting sent and conversation started"), code=200)
-
-        # For other messages, handle as a regular message
-        conversation = Conversation.objects.filter(
-            assistant=assistant,
-            telegram_user_id=chat_id,
-            status='open'
-        ).order_by('-created_time').first()
-        print(f"existing conversation: {conversation}")
-        if not conversation:
-            conversation = Conversation.objects.create(
-                thread_id=get_thread_id(str(assistant.assistant_id)),
-                assistant=assistant,
-                telegram_user_id=chat_id,
-                start_time=timezone.now(),
-                status='open'
-            )
-            print(f"New conversation created: {conversation}")
-
-        # Save the user's message to the Message model
-        try:
-            print(f"User message: {user_message}, conversation: {conversation}")
-            Message.objects.create(
-                conversation=conversation,
-                sender='user',
-                message_content=user_message,
-                message_type='text'
-            )
-        except Exception as e:
-            print(f"Error saving message: {e}")
-            return error_response(message=_("Failed to save user message"), code=400)
-
+        # Handle regular messages
+        conversation = get_or_create_conversation(chat_id, assistant)
+        print(f"conversation: {conversation}")
+        create_message(conversation, 'user', user_message)
+        print(f"Message created: {user_message}")
         # Generate and send assistant's response
         response_message = get_assistant_response(user_message, assistant.assistant_id, conversation.thread_id)
-        print(f"Assistant response: {response_message}")
-        Message.objects.create(
-            conversation=conversation,
-            sender='assistant',
-            message_content=response_message,
-            message_type='text'
-        )
+        print(f"Response message: {response_message}")
+        create_message(conversation, 'assistant', response_message)
         send_telegram_message(chat_id, response_message, bot_token)
-        print(f"Message processed: {response_message}")
+        print(f"Assistant message sent: {response_message}")
         return success_response(message=_("Message processed successfully"), code=200)

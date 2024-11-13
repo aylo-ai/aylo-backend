@@ -10,9 +10,11 @@ def telegram_get_me(token):
 
 
 def send_telegram_message(chat_id, text, token):
+    print(f"Sending message to chat_id: {chat_id}, text: {text}")
     url = f"https://api.telegram.org/bot{token}/sendMessage"
     data = {"chat_id": chat_id, "text": text}
-    requests.post(url, json=data)
+    response = requests.post(url, json=data)
+    print(f"Message sent to Telegram: {response.status_code}, {response.json()}")
 
 
 # Function to set the webhook
