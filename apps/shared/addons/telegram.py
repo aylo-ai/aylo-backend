@@ -20,6 +20,7 @@ def send_telegram_message(chat_id, text, token):
     print(f"Sending message to chat_id: {chat_id}, text: {text}")
     url = f"https://api.telegram.org/bot{token}/sendMessage"
     escaped_text = escape_markdown_v2(text)
+    print(f"Escaped text: {escaped_text}")
     data = {
         "chat_id": chat_id,
         "text": escaped_text,
