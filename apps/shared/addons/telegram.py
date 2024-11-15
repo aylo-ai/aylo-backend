@@ -23,7 +23,7 @@ def send_telegram_message(chat_id, text, token):
     print(f"Escaped text: {escaped_text}")
     data = {
         "chat_id": chat_id,
-        "text": escaped_text,
+        "text": text,
         "parse_mode": "MarkdownV2"
     }
     response = requests.post(url, json=data)
