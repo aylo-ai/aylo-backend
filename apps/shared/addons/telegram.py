@@ -4,11 +4,8 @@ import requests
 
 
 def escape_markdown_v2(text):
-    """
-    Escapes reserved characters for Telegram's MarkdownV2.
-    """
-    reserved_chars = r'[_*[\]()~`>#+-=|{}.!,-]'
-    return re.sub(f"([{reserved_chars}])", r'\\\1', text)
+    text = re.sub(r'[_*[\]()~>#\+\-=|{}.!]', lambda x: '\\' + x.group(), text)
+    return text
 
 
 def telegram_get_me(token):
