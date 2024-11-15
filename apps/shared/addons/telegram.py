@@ -5,12 +5,10 @@ import requests
 
 def escape_markdown_v2(text):
     """
-    Escapes special characters for Telegram MarkdownV2 formatting.
+    Escapes reserved characters for Telegram's MarkdownV2.
     """
-    # Characters to escape as per MarkdownV2 requirements
-    special_characters = r'[_*[\]()~`>#+-=|{}.!,"\\]'
-    # Escape each instance of these characters
-    return re.sub(f'([{special_characters}])', r'\\\1', text)
+    reserved_chars = r'[_*[\]()~`>#+-=|{}.!,-]'
+    return re.sub(f"([{reserved_chars}])", r'\\\1', text)
 
 
 def telegram_get_me(token):
