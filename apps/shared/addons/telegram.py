@@ -24,7 +24,7 @@ def send_telegram_message(chat_id, text, token):
     data = {
         "chat_id": chat_id,
         "text": escaped_text,
-        "ParseMode": "MarkdownV2"
+        "parse_mode": "MarkdownV2"
     }
     response = requests.post(url, json=data)
     print(f"Message sent to Telegram: {response.status_code}, {response.json()}")
