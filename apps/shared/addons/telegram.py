@@ -4,8 +4,13 @@ import requests
 
 
 def escape_markdown_v2(text):
-    # Escape special characters for MarkdownV2
-    return re.sub(r'([_*[\]()~`>#+-=|{}.!])', r'\\\1', text)
+    """
+    Escapes special characters for Telegram MarkdownV2 formatting.
+    """
+    # Characters to escape as per MarkdownV2 requirements
+    special_characters = r'[_*[\]()~`>#+-=|{}.!,"\\]'
+    # Escape each instance of these characters
+    return re.sub(f'([{special_characters}])', r'\\\1', text)
 
 
 def telegram_get_me(token):
@@ -23,7 +28,7 @@ def send_telegram_message(chat_id, text, token):
     print(f"Escaped text: {escaped_text}")
     data = {
         "chat_id": chat_id,
-        "text": text,
+        "text": escaped_text,
         "parse_mode": "MarkdownV2"
     }
     response = requests.post(url, json=data)
