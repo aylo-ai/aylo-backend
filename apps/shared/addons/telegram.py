@@ -8,6 +8,11 @@ def escape_markdown_v2(text):
     return text
 
 
+def clean_html(text):
+    # Remove unsupported tags like <!doctype>, <html>, <head>, <body>
+    return re.sub(r'(<!doctype.*?>|</?(html|head|body).*?>)', '', text, flags=re.IGNORECASE)
+
+
 def telegram_get_me(token):
     url = f"https://api.telegram.org/bot{token}/getMe"
     response = requests.get(url)
@@ -19,11 +24,11 @@ def telegram_get_me(token):
 def send_telegram_message(chat_id, text, token):
     print(f"Sending message to chat_id: {chat_id}, text: {text}")
     url = f"https://api.telegram.org/bot{token}/sendMessage"
-    escaped_text = escape_markdown_v2(text)
-    print(f"Escaped text: {escaped_text}")
+    cleaned_html = clean_html(text)
+    print(f"Cleaned HTML: {cleaned_html}")
     data = {
         "chat_id": chat_id,
-        "text": text,
+        "text": cleaned_html,
         "parse_mode": "html"
     }
     response = requests.post(url, json=data)
