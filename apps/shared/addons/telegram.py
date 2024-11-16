@@ -10,7 +10,7 @@ def escape_markdown_v2(text):
 
 def clean_html(text):
     # Remove unsupported tags like <!doctype>, <html>, <head>, <body>
-    return re.sub(r'(<!doctype.*?>|</?(html|head|body).*?>)', '', text, flags=re.IGNORECASE)
+    return re.sub(r'(<!doctype.*?>|</?(html|head|body|mark|title).*?>)', '', text, flags=re.IGNORECASE)
 
 
 def telegram_get_me(token):
