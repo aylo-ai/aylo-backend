@@ -1,4 +1,5 @@
 import re
+from bs4 import BeautifulSoup
 
 import requests
 
@@ -8,9 +9,32 @@ def escape_markdown_v2(text):
     return text
 
 
-def clean_html(text):
-    # Remove unsupported tags like <!doctype>, <html>, <head>, <body>
-    return re.sub(r'(<!doctype.*?>|</?(html|head|body|meta|title).*?>)', '', text, flags=re.IGNORECASE)
+def clean_html(input_html, allowed_tags=None):
+    """
+    Clean HTML by removing tags not in the allowed list.
+
+    :param input_html: The HTML string to clean.
+    :param allowed_tags: List of allowed tags. Example: ['b', 'i', 'u', 'a']
+    :return: A sanitized HTML string containing only the allowed tags.
+    """
+    if allowed_tags is None:
+        allowed_tags = ['b', 'i', 'u', 'a']
+
+    soup = BeautifulSoup(input_html, 'html.parser')
+
+    # Remove disallowed tags while keeping their content
+    for tag in soup.find_all(True):  # Find all tags
+        if tag.name not in allowed_tags:
+            tag.unwrap()  # Remove the tag but keep its content
+
+    # Validate 'a' tag attributes (keep only 'href')
+    for tag in soup.find_all('a'):
+        allowed_attrs = {'href'}
+        for attr in list(tag.attrs):
+            if attr not in allowed_attrs:
+                del tag.attrs[attr]
+
+    return str(soup)
 
 
 def telegram_get_me(token):
