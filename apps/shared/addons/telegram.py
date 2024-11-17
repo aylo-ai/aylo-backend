@@ -10,7 +10,7 @@ def escape_markdown_v2(text):
 
 def clean_html(text):
     # Remove unsupported tags like <!doctype>, <html>, <head>, <body>
-    return re.sub(r'(<!doctype.*?>|</?(html|head|body|mark|title).*?>)', '', text, flags=re.IGNORECASE)
+    return re.sub(r'(<!doctype.*?>|</?(html|head|body|meta|title).*?>)', '', text, flags=re.IGNORECASE)
 
 
 def telegram_get_me(token):
@@ -31,6 +31,7 @@ def send_telegram_message(chat_id, text, token):
         "text": cleaned_html,
         "parse_mode": "html"
     }
+    print(f"send telegram message data: {data}, url: {url}")
     response = requests.post(url, json=data)
     print(f"Message sent to Telegram: {response.status_code}, {response.json()}")
 
