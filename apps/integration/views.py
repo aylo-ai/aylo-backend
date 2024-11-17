@@ -92,7 +92,7 @@ class TelegramWebhookView(APIView):
             print("user_message: /start")
             return handle_start_command(chat_id, assistant, bot_token)
         response = send_telegram_message(chat_id, wait_message, bot_token)
-        wait_message_id = response["result"]["message_id"]
+        wait_message_id = response.json().get("result").get("message_id")
         print(f"Wait message sent: {wait_message_id}")
         # Handle regular messages
         conversation = get_or_create_conversation(chat_id, assistant)
