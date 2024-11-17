@@ -60,6 +60,13 @@ def send_telegram_message(chat_id, text, token):
     print(f"Message sent to Telegram: {response.status_code}, {response.json()}")
 
 
+def delete_telegram_message(chat_id, message_id, token):
+    url = f"https://api.telegram.org/bot{token}/deleteMessage"
+    data = {"chat_id": chat_id, "message_id": message_id}
+    response = requests.post(url, json=data).json()
+    return response
+
+
 # Function to set the webhook
 def set_telegram_webhook(bot_token, webhook_url):
     url = f"https://api.telegram.org/bot{bot_token}/setWebhook"

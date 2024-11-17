@@ -3,7 +3,7 @@ from rest_framework.views import APIView
 from django.utils.translation import gettext as _
 from apps.assistant.models import Conversation, Message, Assistant
 from shared.addons.ai_requests import get_thread_id, get_assistant_response
-from shared.addons.telegram import send_telegram_message
+from shared.addons.telegram import send_telegram_message, delete_telegram_message
 from shared.addons.utils import create_message, get_or_create_conversation, handle_start_command
 from shared.addons.validations import success_response, error_response
 from .models import Integration
@@ -83,12 +83,17 @@ class TelegramWebhookView(APIView):
         print(f"Assistant: {assistant}")
         if not assistant:
             return error_response(message=_("Invalid bot token"))
+        wait_message = f"Iltimos, kutib turing. {assistant.name} sizga xabar yozmoqda.\n" \
+                       f"Please wait, {assistant.name} is typing your message.\n" \
+                        f"Пожалуйста, подождите, {assistant.name} печатает ваше сообщение."
 
         # Handle `/start` command
         if user_message == '/start':
             print("user_message: /start")
             return handle_start_command(chat_id, assistant, bot_token)
-
+        response = send_telegram_message(chat_id, wait_message, bot_token)
+        wait_message_id = response["result"]["message_id"]
+        print(f"Wait message sent: {wait_message_id}")
         # Handle regular messages
         conversation = get_or_create_conversation(chat_id, assistant)
         print(f"conversation: {conversation}")
@@ -98,6 +103,8 @@ class TelegramWebhookView(APIView):
         response_message = get_assistant_response(user_message, assistant.assistant_id, conversation.thread_id)
         print(f"Response message: {response_message}")
         create_message(conversation, 'assistant', response_message)
+        delete_telegram_message(chat_id, wait_message_id, bot_token)
+
         send_telegram_message(chat_id, response_message, bot_token)
         print(f"Assistant message sent: {response_message}")
         return success_response(message=_("Message processed successfully"), code=200)
