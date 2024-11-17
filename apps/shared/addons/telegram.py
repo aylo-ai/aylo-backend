@@ -58,6 +58,7 @@ def send_telegram_message(chat_id, text, token):
     print(f"send telegram message data: {data}, url: {url}")
     response = requests.post(url, json=data)
     print(f"Message sent to Telegram: {response.status_code}, {response.json()}")
+    return response
 
 
 def delete_telegram_message(chat_id, message_id, token):
