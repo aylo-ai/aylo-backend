@@ -42,6 +42,7 @@ class Assistant(BaseModel):
     greeting_message = models.TextField(null=True, blank=True)
     fallback_message = models.TextField(null=True, blank=True)
     assistant_id = models.CharField(max_length=255, null=True, blank=True)
+    is_active = models.BooleanField(default=True)
 
     def __str__(self):
         return self.name

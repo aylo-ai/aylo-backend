@@ -84,6 +84,7 @@ class TelegramWebhookView(APIView):
         print(f"Assistant: {assistant}")
         if not assistant:
             return error_response(message=_("Invalid bot token"))
+
         wait_message = f"Iltimos, kutib turing. {assistant.name} sizga xabar yozmoqda.\n" \
                        f"Please wait, {assistant.name} is typing your message.\n" \
                         f"Пожалуйста, подождите, {assistant.name} печатает ваше сообщение."
@@ -96,7 +97,7 @@ class TelegramWebhookView(APIView):
         conversation = get_or_create_conversation(chat_id, assistant, token=bot_token)
         print(f"conversation: {conversation}")
         # Check if the conversation is escalated
-        if conversation.status == ConversationStatuses.ESCALATED.value:
+        if conversation.status == ConversationStatuses.ESCALATED.value or not assistant.is_active:
             # Notify the user that their message is being reviewed by an admin
             escalation_message = f"Iltimos, kutib turing. Sizning xabaringiz admin tomonidan ko'rib chiqilmoqda.\n" \
                                  f"Please wait, your message is being reviewed by an admin.\n" \

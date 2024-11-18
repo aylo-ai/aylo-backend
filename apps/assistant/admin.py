@@ -4,7 +4,16 @@ from apps.assistant.models import Assistant, Message, Conversation, AssistantFil
 
 @admin.register(Assistant)
 class AssistantAdmin(admin.ModelAdmin):
-    list_display = ('name', 'user', 'language', 'personality_style')
+    list_display = ('name', 'user', 'language', 'personality_style', 'is_active')
+    list_filter = ('language', 'personality_style', 'is_active')
+    search_fields = ('name', )
+    ordering = ('name', )
+    fieldsets = (
+        (None, {
+            'fields': ('name', 'description', 'user', 'pricing_package', 'company_name', 'role', 'language',
+                       'personality_style', 'greeting_message', 'fallback_message', 'assistant_id', 'is_active')
+        }),
+    )
 
 
 @admin.register(Conversation)
