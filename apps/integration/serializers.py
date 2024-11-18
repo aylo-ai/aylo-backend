@@ -88,6 +88,11 @@ class SendUserMessageSerializer(serializers.Serializer):  # noqa
             message = validated_data.get("message")
             send_telegram_message(telegram_user_id, message, bot_token)
             create_message(conversation, "admin", message)
+
+        if platform == ConversationPlatforms.WEBSITE.value:
+            message = validated_data.get("message")
+            create_message(conversation, "admin", message)
+
         return success_response(message=_("Message sent successfully"), code=200)
 
 
