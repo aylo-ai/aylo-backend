@@ -78,6 +78,7 @@ class PersonalityStyles(EnumBaseModel):
 class SenderTypes(EnumBaseModel):
     ASSISTANT = 'assistant'
     USER = 'user'
+    ADMIN = 'admin'
 
 
 class MessageStatuses(EnumBaseModel):
@@ -91,3 +92,14 @@ class IntegrationTypes(EnumBaseModel):
     WHATSAPP = 'whatsapp'
     WEBSITE = 'website'
     INSTAGRAM = 'instagram'
+
+
+class ConversationPlatforms(EnumBaseModel):
+    TELEGRAM = 'telegram'
+    WHATSAPP = 'whatsapp'
+    WEBSITE = 'website'
+    INSTAGRAM = 'instagram'
+    EMAIL = 'email'
+    SMS = 'sms'
+    PHONE = 'phone'
+    OTHER = 'other'

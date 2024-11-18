@@ -3,12 +3,14 @@ from rest_framework.views import APIView
 from django.utils.translation import gettext as _
 from apps.assistant.models import Conversation, Message, Assistant
 from shared.addons.ai_requests import get_thread_id, get_assistant_response
+from shared.addons.enums import ConversationStatuses
 from shared.addons.telegram import send_telegram_message, delete_telegram_message
 from shared.addons.utils import create_message, get_or_create_conversation, handle_start_command
 from shared.addons.validations import success_response, error_response
+from shared.permissions import IsAdmin
 from .models import Integration
 from rest_framework import generics, permissions
-from .serializers import IntegrationCreateSerializer, IntegrationSerializer
+from .serializers import IntegrationCreateSerializer, IntegrationSerializer, SendUserMessageSerializer
 
 
 class IntegrationListCreateView(generics.ListCreateAPIView):
@@ -71,7 +73,6 @@ class IntegrationRetrieveUpdateDestroyView(generics.RetrieveUpdateDestroyAPIView
 class TelegramWebhookView(APIView):
     def post(self, request, bot_token):  # noqa
         data = request.data.get('message')
-        print(f"Data: {data}")
         if not data:
             return error_response(message=_("No message data received"))
 
@@ -91,12 +92,22 @@ class TelegramWebhookView(APIView):
         if user_message == '/start':
             print("user_message: /start")
             return handle_start_command(chat_id, assistant, bot_token)
+        # Handle regular messages
+        conversation = get_or_create_conversation(chat_id, assistant, token=bot_token)
+        print(f"conversation: {conversation}")
+        # Check if the conversation is escalated
+        if conversation.status == ConversationStatuses.ESCALATED.value:
+            # Notify the user that their message is being reviewed by an admin
+            escalation_message = f"Iltimos, kutib turing. Sizning xabaringiz admin tomonidan ko'rib chiqilmoqda.\n" \
+                                 f"Please wait, your message is being reviewed by an admin.\n" \
+                                 f"Пожалуйста, подождите, ваше сообщение просматривается администратором."
+            send_telegram_message(chat_id, escalation_message, bot_token)
+            return success_response(message=_("Message forwarded to admin"), code=200)
+
         response = send_telegram_message(chat_id, wait_message, bot_token)
         wait_message_id = response.json().get("result").get("message_id")
         print(f"Wait message sent: {wait_message_id}")
-        # Handle regular messages
-        conversation = get_or_create_conversation(chat_id, assistant)
-        print(f"conversation: {conversation}")
+
         create_message(conversation, 'user', user_message)
         print(f"Message created: {user_message}")
         # Generate and send assistant's response
@@ -108,3 +119,15 @@ class TelegramWebhookView(APIView):
         send_telegram_message(chat_id, response_message, bot_token)
         print(f"Assistant message sent: {response_message}")
         return success_response(message=_("Message processed successfully"), code=200)
+
+
+class SendUserMessageView(generics.CreateAPIView):
+    serializer_class = SendUserMessageSerializer
+    permission_classes = [IsAdmin]
+
+    def create(self, request, *args, **kwargs):
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        response = serializer.save()
+        return success_response(message=response.get("message"), code=200)
+

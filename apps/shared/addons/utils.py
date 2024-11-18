@@ -16,8 +16,11 @@ def create_message(conversation, sender, content):
     print(f"Message created: {conversation}, {sender}")
 
 
-def get_or_create_conversation(chat_id, assistant, reset=False):
-    conversation = Conversation.objects.filter(assistant=assistant, telegram_user_id=chat_id, status='open').first()
+def get_or_create_conversation(chat_id, assistant, reset=False, token=None, platform='telegram'):
+    conversation = Conversation.objects.filter(
+        assistant=assistant,
+        telegram_user_id=chat_id,
+        token=token).first()
     print(f"Conversation: {conversation}")
     if conversation is None:
         thread_id = get_thread_id(str(assistant.assistant_id))
@@ -26,7 +29,9 @@ def get_or_create_conversation(chat_id, assistant, reset=False):
             assistant=assistant,
             telegram_user_id=chat_id,
             thread_id=thread_id,
-            status='open'
+            status='open',
+            token=token,
+            platform=platform
         )
         print(f"Conversation created: {conversation}")
 
@@ -47,6 +52,6 @@ def handle_start_command(chat_id, assistant, bot_token):
     send_telegram_message(chat_id, greeting_message, bot_token)
 
     # Start a new or reopen an existing conversation
-    conversation = get_or_create_conversation(chat_id, assistant, reset=True)
+    conversation = get_or_create_conversation(chat_id, assistant, reset=True, token=bot_token)
     print(f"Conversation get_create: {conversation}")
     return success_response(message=_("Greeting sent and conversation started"), code=200)

@@ -6,7 +6,7 @@ from django.utils import timezone
 
 from apps.payment.models import PricingPackage
 from shared.addons.enums import AssistantLanguages, PersonalityStyles, SenderTypes, MessageStatuses, \
-    ConversationStatuses, MessageTypes
+    ConversationStatuses, MessageTypes, ConversationPlatforms
 from shared.models import BaseModel
 
 
@@ -61,7 +61,13 @@ class Conversation(BaseModel):
         choices=ConversationStatuses.choices(),
         default=ConversationStatuses.OPEN.value
     )
+    platform = models.CharField(
+        max_length=50,
+        choices=ConversationPlatforms.choices(),
+        default=ConversationPlatforms.TELEGRAM.value
+    )
     telegram_user_id = models.CharField(max_length=255, null=True, blank=True)
+    token = models.CharField(max_length=255, null=True, blank=True)
     thread_id = models.CharField(max_length=255, null=True, blank=True)
     start_time = models.DateTimeField(default=timezone.now)
     end_time = models.DateTimeField(null=True, blank=True)

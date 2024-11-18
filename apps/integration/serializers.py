@@ -1,9 +1,12 @@
-from shared.addons.enums import IntegrationTypes
-from shared.addons.telegram import telegram_get_me, set_telegram_webhook, get_webhook_info
-from shared.addons.validations import raise_validation_error
+from apps.assistant.models import Conversation
+from shared.addons.enums import IntegrationTypes, ConversationPlatforms
+from shared.addons.telegram import telegram_get_me, set_telegram_webhook, get_webhook_info, send_telegram_message
+from shared.addons.utils import create_message
+from shared.addons.validations import raise_validation_error, success_response
 from .models import Integration
 from rest_framework import serializers
 from django.utils.translation import gettext as _
+
 
 class IntegrationCreateSerializer(serializers.ModelSerializer):
     class Meta:
@@ -47,3 +50,44 @@ class IntegrationSerializer(serializers.ModelSerializer):
             "is_active",
             "integration_type",
         ]
+
+
+class SendUserMessageSerializer(serializers.Serializer):  # noqa
+    conversation_id = serializers.UUIDField()
+    message = serializers.CharField()
+
+    def validate(self, attrs):
+        conversation_id = attrs.get("conversation_id")
+        message = attrs.get("message")
+        if not conversation_id or not message:
+            raise_validation_error(message=_("Conversation ID and message are required"))
+        conversation = Conversation.objects.filter(id=conversation_id).first()
+        if not conversation:
+            raise_validation_error(message=_("Conversation not found"))
+        platform = conversation.platform
+        attrs["platform"] = platform
+        attrs["conversation"] = conversation
+        if platform == ConversationPlatforms.TELEGRAM.value:
+            telegram_user_id = getattr(conversation, "telegram_user_id", None)
+            bot_token = getattr(conversation, "token", None)
+            if not telegram_user_id:
+                raise_validation_error(message=_("Telegram user ID not found"))
+            attrs["telegram_user_id"] = telegram_user_id
+            if not bot_token:
+                raise_validation_error(message=_("Telegram bot token not found"))
+            attrs["bot_token"] = bot_token
+
+        return attrs
+
+    def create(self, validated_data):
+        platform = validated_data.get("platform")
+        conversation = validated_data.get("conversation")
+        if platform == ConversationPlatforms.TELEGRAM.value:
+            telegram_user_id = validated_data.get("telegram_user_id")
+            bot_token = validated_data.get("bot_token")
+            message = validated_data.get("message")
+            send_telegram_message(telegram_user_id, message, bot_token)
+            create_message(conversation, "admin", message)
+        return success_response(message=_("Message sent successfully"), code=200)
+
+
