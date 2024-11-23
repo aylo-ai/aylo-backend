@@ -1,3 +1,4 @@
+from django.http import HttpResponse
 from django.utils import timezone
 from rest_framework.views import APIView
 from django.utils.translation import gettext as _
@@ -132,3 +133,26 @@ class SendUserMessageView(generics.CreateAPIView):
         response = serializer.save()
         return success_response(message=response.get("message"), code=200)
 
+
+class InstagramWebhookView(APIView):
+    VERIFY_TOKEN = "wqbm2DoK5z9iV8Qb82Z"  # Replace with your actual verify token
+
+    def get(self, request, *args, **kwargs):
+        # Extract query parameters
+        mode = request.query_params.get("hub.mode")
+        token = request.query_params.get("hub.verify_token")
+        challenge = request.query_params.get("hub.challenge")
+
+        # Validate the token
+        if mode == "subscribe" and token == self.VERIFY_TOKEN:
+            return HttpResponse(challenge, content_type="text/plain", status=200)
+
+        # Return 403 if the validation fails
+        return error_response(message="Invalid token", code=403)
+
+    def post(self, request, *args, **kwargs):
+        # Handle incoming webhook data
+        data = request.data
+        print(f"Instagram webhook data: {data}")
+        # Process the incoming data as needed
+        return success_response(message="Webhook data processed successfully", code=200)
