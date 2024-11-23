@@ -1,3 +1,4 @@
+import requests
 from django.http import HttpResponse
 from django.utils import timezone
 from rest_framework.views import APIView
@@ -156,3 +157,33 @@ class InstagramWebhookView(APIView):
         print(f"Instagram webhook data: {data}")
         # Process the incoming data as needed
         return success_response(message="Webhook data processed successfully", code=200)
+
+
+class InstagramCallbackView(APIView):
+    CLIENT_ID = "594572086256263"
+    CLIENT_SECRET = "98f86b623fc762aa440a0bfe7b704b4b"
+    REDIRECT_URI = "https://api.repli.uz/api/v1/integration/instagram/callback/"
+
+    def get(self, request, *args, **kwargs):
+        # Get the authorization code from the query parameters
+        code = request.query_params.get("code")
+        if not code:
+            return error_response(message="Authorization code not found", code=400)
+
+        # Exchange the authorization code for an access token
+        token_url = "https://api.instagram.com/oauth/access_token"
+        data = {
+            "client_id": self.CLIENT_ID,
+            "client_secret": self.CLIENT_SECRET,
+            "grant_type": "authorization_code",
+            "redirect_uri": self.REDIRECT_URI,
+            "code": code,
+        }
+
+        response = requests.post(token_url, data=data)
+        if response.status_code == 200:
+            access_token = response.json().get("access_token")
+            print(f"Instagram access token: {access_token}")
+            return success_response(data={"access_token": access_token}, code=200)
+        else:
+            return error_response(message="Failed to get access token", code=400)
