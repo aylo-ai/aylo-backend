@@ -6,6 +6,7 @@ from shared.addons.ai_requests import send_assistant_data, get_thread_id, \
 from shared.addons.validations import raise_validation_error
 from shared.addons.enums import ConversationStatuses
 
+
 class AssistantSerializer(serializers.ModelSerializer):
     class Meta:
         model = Assistant
@@ -23,6 +24,7 @@ class AssistantSerializer(serializers.ModelSerializer):
             "fallback_message",
             "created_time",
             "updated_time",
+            "is_active",
         ]
         read_only_fields = ["created_time", "updated_time"]
 
