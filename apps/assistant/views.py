@@ -111,7 +111,7 @@ class MessageListCreateView(generics.ListCreateAPIView):
     search_fields = ['conversation__assistant__name', 'message']
     ordering_fields = ['conversation__assistant__name', 'created_time']
     ordering = ['conversation', 'created_time']
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [permissions.AllowAny]
 
     def get_queryset(self):
         conversation_id = self.kwargs.get('pk')
