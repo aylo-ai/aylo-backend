@@ -73,6 +73,32 @@ class ConversationSerializer(serializers.ModelSerializer):
         return response
 
 
+class ConversationRetrieveSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Conversation
+        fields = [
+            "id",
+            "assistant",
+            "status",
+            "thread_id",
+            "platform",
+            "start_time",
+            "end_time",
+            "created_time",
+            "updated_time",
+        ]
+        read_only_fields = ["created_time", "updated_time"]
+        extra_kwargs = {
+            "assistant": {"required": False},
+        }
+
+    def to_representation(self, instance):
+        response = super().to_representation(instance)
+        last_message = instance.messages.last()
+        response["last_message"] = last_message.message_content if last_message else None
+        return response
+
+
 class MessageSerializer(serializers.ModelSerializer):
     class Meta:
         model = Message

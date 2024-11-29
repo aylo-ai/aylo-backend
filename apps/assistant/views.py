@@ -2,7 +2,7 @@ from rest_framework import permissions, filters, generics
 
 from apps.assistant.models import Assistant, AssistantFileUpload, Conversation, Message
 from apps.assistant.serializers import AssistantSerializer, ConversationSerializer, MessageSerializer, \
-    SettingsSerializer, AssistantFileUploadSerializer
+    SettingsSerializer, AssistantFileUploadSerializer, ConversationRetrieveSerializer
 from shared.addons.validations import success_response, error_response
 
 
@@ -79,7 +79,7 @@ class ConversationListCreateView(generics.ListCreateAPIView):
 
 class ConversationRetrieveView(generics.RetrieveUpdateDestroyAPIView):
     queryset = Conversation.objects.all()
-    serializer_class = ConversationSerializer
+    serializer_class = ConversationRetrieveSerializer
     permission_classes = [permissions.IsAuthenticated]
 
     def get_object(self):
