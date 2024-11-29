@@ -37,6 +37,7 @@ class ConversationSerializer(serializers.ModelSerializer):
             "assistant",
             "status",
             "thread_id",
+            "platform",
             "start_time",
             "end_time",
             "created_time",
@@ -64,6 +65,12 @@ class ConversationSerializer(serializers.ModelSerializer):
             thread_id=thread_id
         )
         return thread_id, conversation
+
+    def to_representation(self, instance):
+        response = super().to_representation(instance)
+        last_message = instance.messages.last()
+        response["last_message"] = last_message.message_content if last_message else None
+        return response
 
 
 class MessageSerializer(serializers.ModelSerializer):

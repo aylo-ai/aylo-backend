@@ -1,4 +1,3 @@
-from django.utils import timezone
 from django.utils.translation import gettext as _
 from apps.assistant.models import Message, Conversation
 from shared.addons.ai_requests import get_thread_id
