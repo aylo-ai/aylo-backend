@@ -134,8 +134,7 @@ class MessageSerializer(serializers.ModelSerializer):
         print(f"message is created: {message}")
 
         # check assistant status
-        if message.conversation.status == ConversationStatuses.ESCALATED.value and \
-                not message.conversation.assistant.is_active:
+        if message.conversation.status == ConversationStatuses.ESCALATED.value:  # asssitant active yoki yoqligi tekshiriladi
             escalation_message = f"Iltimos, kutib turing. Sizning xabaringiz admin tomonidan ko'rib chiqilmoqda.\n" \
                                  f"Please wait, your message is being reviewed by an admin.\n" \
                                  f"Пожалуйста, подождите, ваше сообщение просматривается администратором."
