@@ -101,10 +101,10 @@ class TelegramWebhookView(APIView):
         # Check if the conversation is escalated
         if conversation.status == ConversationStatuses.ESCALATED.value or not assistant.is_active:
             # Notify the user that their message is being reviewed by an admin
-            escalation_message = f"Iltimos, kutib turing. Sizning xabaringiz admin tomonidan ko'rib chiqilmoqda.\n" \
-                                 f"Please wait, your message is being reviewed by an admin.\n" \
-                                 f"Пожалуйста, подождите, ваше сообщение просматривается администратором."
-            send_telegram_message(chat_id, escalation_message, bot_token)
+            # escalation_message = f"Iltimos, kutib turing. Sizning xabaringiz admin tomonidan ko'rib chiqilmoqda.\n" \
+            #                      f"Please wait, your message is being reviewed by an admin.\n" \
+            #                      f"Пожалуйста, подождите, ваше сообщение просматривается администратором."
+            # send_telegram_message(chat_id, escalation_message, bot_token)
             return success_response(message=_("Message forwarded to admin"), code=200)
 
         response = send_telegram_message(chat_id, wait_message, bot_token)

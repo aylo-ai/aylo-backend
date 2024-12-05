@@ -135,15 +135,15 @@ class MessageSerializer(serializers.ModelSerializer):
 
         # check assistant status
         if message.conversation.status == ConversationStatuses.ESCALATED.value:  # asssitant active yoki yoqligi tekshiriladi
-            escalation_message = f"Iltimos, kutib turing. Sizning xabaringiz admin tomonidan ko'rib chiqilmoqda.\n" \
-                                 f"Please wait, your message is being reviewed by an admin.\n" \
-                                 f"Пожалуйста, подождите, ваше сообщение просматривается администратором."
-            message = Message.objects.create(
-                conversation=message.conversation,
-                sender="assistant",
-                message_content=escalation_message,
-                message_type="text",
-            )
+            # escalation_message = f"Iltimos, kutib turing. Sizning xabaringiz admin tomonidan ko'rib chiqilmoqda.\n" \
+            #                      f"Please wait, your message is being reviewed by an admin.\n" \
+            #                      f"Пожалуйста, подождите, ваше сообщение просматривается администратором."
+            # message = Message.objects.create(
+            #     conversation=message.conversation,
+            #     sender="assistant",
+            #     message_content=escalation_message,
+            #     message_type="text",
+            # )
             return message
 
         # send message to chat assistant
