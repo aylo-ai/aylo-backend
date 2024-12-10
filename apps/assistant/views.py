@@ -66,7 +66,7 @@ class ConversationListCreateView(generics.ListCreateAPIView):
         return super().get_queryset()\
             .filter(assistant_id=assistant_id)\
             .annotate(latest_message_time=Max('messages__created_time'))\
-            .order_by('latest_message_time')  # Order by the latest message time
+            .order_by('-latest_message_time')  # Order by the latest message time
 
     def create(self, request, *args, **kwargs):
         assistant_id = self.kwargs.get("pk")

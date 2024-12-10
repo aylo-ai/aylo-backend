@@ -96,7 +96,6 @@ class Message(BaseModel):
 
     class Meta:
         db_table = 'messages'
-        ordering = ['created_time']
 
     def __str__(self):
         return f"Message from {self.sender} in conversation {self.conversation_id}"
