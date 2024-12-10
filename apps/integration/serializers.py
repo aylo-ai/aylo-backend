@@ -1,5 +1,5 @@
 from apps.assistant.models import Conversation
-from shared.addons.enums import IntegrationTypes, ConversationPlatforms
+from shared.addons.enums import IntegrationTypes, ConversationPlatforms, ConversationStatuses
 from shared.addons.telegram import telegram_get_me, set_telegram_webhook, get_webhook_info, send_telegram_message
 from shared.addons.utils import create_message
 from shared.addons.validations import raise_validation_error, success_response
@@ -64,10 +64,13 @@ class SendUserMessageSerializer(serializers.Serializer):  # noqa
         conversation = Conversation.objects.filter(id=conversation_id).first()
         if not conversation:
             raise_validation_error(message=_("Conversation not found"))
+        if conversation.status != ConversationStatuses.ESCALATED.value:
+            raise_validation_error(message=_("Conversation is not escalated"))
         platform = conversation.platform
         attrs["platform"] = platform
         attrs["conversation"] = conversation
-        if platform == ConversationPlatforms.TELEGRAM.value:
+        if platform == ConversationPlatforms.TELEGRAM.value and \
+                conversation.status == ConversationStatuses.ESCALATED.value:
             telegram_user_id = getattr(conversation, "telegram_user_id", None)
             bot_token = getattr(conversation, "token", None)
             if not telegram_user_id:

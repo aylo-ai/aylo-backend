@@ -8,6 +8,6 @@ urlpatterns = [
     path("instagram/webhook/", views.InstagramWebhookView.as_view()),
     path("instagram/callback/", views.InstagramCallbackView.as_view()),
 
-    path("send-user-message/", views.SendUserMessageView.as_view()),
+    path("send-telegram-message/", views.SendUserMessageView.as_view()),
 
 ]

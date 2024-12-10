@@ -3,6 +3,7 @@ from django.contrib.auth import get_user_model
 from rest_framework.request import Request
 from rest_framework.permissions import IsAuthenticated
 
+from shared.addons.enums import UserRoles
 
 User = get_user_model()
 
@@ -13,7 +14,7 @@ class IsSuperAdmin(IsAuthenticated):
     def has_permission(self, request: Request, view):
         return bool(
             super().has_permission(request, view)
-            and request.user.user_role == User.UserRoles.SUPER_ADMIN.value
+            and request.user.user_role == UserRoles.SUPER_ADMIN.value
         )
 
 
@@ -23,7 +24,7 @@ class IsAdmin(IsAuthenticated):
     def has_permission(self, request: Request, view):
         return bool(
             super().has_permission(request, view)
-            and request.user.user_role == User.UserRoles.ADMIN.value
+            and request.user.user_role == UserRoles.ADMIN.value
         )
 
 
@@ -33,7 +34,7 @@ class IsManager(IsAuthenticated):
     def has_permission(self, request: Request, view):
         return bool(
             super().has_permission(request, view)
-            and request.user.user_role == User.UserRoles.MANAGER.value
+            and request.user.user_role == UserRoles.MANAGER.value
         )
 
 
@@ -43,7 +44,7 @@ class IsSupportAgent(IsAuthenticated):
     def has_permission(self, request: Request, view):
         return bool(
             super().has_permission(request, view)
-            and request.user.user_role == User.UserRoles.SUPPORT_AGENT.value
+            and request.user.user_role == UserRoles.SUPPORT_AGENT.value
         )
 
 
@@ -53,5 +54,5 @@ class IsCustomer(IsAuthenticated):
     def has_permission(self, request: Request, view):
         return bool(
             super().has_permission(request, view)
-            and request.user.user_role == User.UserRoles.CUSTOMER.value
+            and request.user.user_role == UserRoles.CUSTOMER.value
         )
