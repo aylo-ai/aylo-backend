@@ -57,11 +57,14 @@ class SendUserMessageSerializer(serializers.Serializer):  # noqa
     message = serializers.CharField()
 
     def validate(self, attrs):
+        user = self.context.get("request").user
+        print(f"User: {user}")
         conversation_id = attrs.get("conversation_id")
         message = attrs.get("message")
         if not conversation_id or not message:
             raise_validation_error(message=_("Conversation ID and message are required"))
-        conversation = Conversation.objects.filter(id=conversation_id).first()
+        conversation = Conversation.objects.filter(id=conversation_id, assistant__user=user).first()
+        print(f"Conversation: {conversation}")
         if not conversation:
             raise_validation_error(message=_("Conversation not found"))
         if conversation.status != ConversationStatuses.ESCALATED.value:

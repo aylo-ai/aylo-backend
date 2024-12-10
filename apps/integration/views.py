@@ -9,7 +9,7 @@ from shared.addons.enums import ConversationStatuses
 from shared.addons.telegram import send_telegram_message, delete_telegram_message
 from shared.addons.utils import create_message, get_or_create_conversation, handle_start_command
 from shared.addons.validations import success_response, error_response
-from shared.permissions import IsAdmin
+from shared.permissions import IsAdmin, IsCustomer
 from .models import Integration
 from rest_framework import generics, permissions
 from .serializers import IntegrationCreateSerializer, IntegrationSerializer, SendUserMessageSerializer
@@ -126,10 +126,10 @@ class TelegramWebhookView(APIView):
 
 class SendUserMessageView(generics.CreateAPIView):
     serializer_class = SendUserMessageSerializer
-    permission_classes = [IsAdmin]
+    permission_classes = [IsCustomer]
 
     def create(self, request, *args, **kwargs):
-        serializer = self.get_serializer(data=request.data)
+        serializer = self.get_serializer(data=request.data, context={"request": request})
         serializer.is_valid(raise_exception=True)
         response = serializer.save()
         return success_response(message=response.get("message"), code=200)
