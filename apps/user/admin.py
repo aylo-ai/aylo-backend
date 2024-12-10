@@ -9,8 +9,8 @@ class UserAdmin(admin.ModelAdmin):
     list_filter = ("user_role",)
     fieldsets = (
         (None, {"fields": ("username", "password")}),
-        ("Personal info", {"fields": ("first_name", "last_name", "email", "phone_number")}),
-        ("Permissions", {"fields": ("is_active", "is_staff", "is_superuser", "groups", "user_permissions")}),
+        ("Personal info", {"fields": ("first_name", "last_name", "email", "phone_number", "user_role")}),
+        ("Permissions", {"fields": ("is_active", "is_staff", "is_superuser",)}),
         ("Important dates", {"fields": ("last_login", "date_joined")}),
     )
     add_fieldsets = (
