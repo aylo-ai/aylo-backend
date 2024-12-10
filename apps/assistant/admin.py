@@ -4,7 +4,7 @@ from apps.assistant.models import Assistant, Message, Conversation, AssistantFil
 
 @admin.register(Assistant)
 class AssistantAdmin(admin.ModelAdmin):
-    list_display = ('name', 'user', 'language', 'personality_style', 'is_active')
+    list_display = ('id', 'name', 'user', 'language', 'personality_style', 'is_active')
     list_filter = ('language', 'personality_style', 'is_active')
     search_fields = ('name', )
     ordering = ('name', )
@@ -18,7 +18,7 @@ class AssistantAdmin(admin.ModelAdmin):
 
 @admin.register(Conversation)
 class ConversationAdmin(admin.ModelAdmin):
-    list_display = ('assistant', 'status', 'thread_id', 'start_time', 'end_time')
+    list_display = ('id', 'assistant', 'status', 'thread_id', 'start_time', 'end_time')
     list_filter = ('assistant', 'status')
     search_fields = ('assistant__name', 'thread_id')
     ordering = ('assistant', 'start_time')
@@ -43,7 +43,7 @@ class ConversationAdmin(admin.ModelAdmin):
 
 @admin.register(Message)
 class MessageAdmin(admin.ModelAdmin):
-    list_display = ('conversation', 'sender', 'message_type', 'status', 'created_time')
+    list_display = ('id', 'conversation', 'sender', 'message_type', 'status', 'created_time')
     list_filter = ('conversation', 'sender')
     ordering = ('conversation', 'created_time')
     list_per_page = 20
