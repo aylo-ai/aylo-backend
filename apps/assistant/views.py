@@ -1,3 +1,4 @@
+from django.db.models import Max
 from rest_framework import permissions, filters, generics
 
 from apps.assistant.models import Assistant, AssistantFileUpload, Conversation, Message
@@ -62,7 +63,10 @@ class ConversationListCreateView(generics.ListCreateAPIView):
 
     def get_queryset(self):
         assistant_id = self.kwargs.get("pk")
-        return super().get_queryset().filter(assistant_id=assistant_id)
+        return super().get_queryset()\
+            .filter(assistant_id=assistant_id)\
+            .annotate(latest_message_time=Max('messages__created_time'))\
+            .order_by('-latest_message_time')  # Order by the latest message time
 
     def create(self, request, *args, **kwargs):
         assistant_id = self.kwargs.get("pk")
