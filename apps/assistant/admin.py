@@ -18,7 +18,7 @@ class AssistantAdmin(admin.ModelAdmin):
 
 @admin.register(Conversation)
 class ConversationAdmin(admin.ModelAdmin):
-    list_display = ('id', 'assistant', 'status', 'thread_id', 'start_time', 'end_time')
+    list_display = ('id', 'assistant', 'status', 'thread_id', 'platform', 'start_time', 'end_time')
     list_filter = ('assistant', 'status')
     search_fields = ('assistant__name', 'thread_id')
     ordering = ('assistant', 'start_time')
