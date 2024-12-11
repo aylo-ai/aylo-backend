@@ -105,6 +105,8 @@ class TelegramWebhookView(APIView):
             #                      f"Please wait, your message is being reviewed by an admin.\n" \
             #                      f"Пожалуйста, подождите, ваше сообщение просматривается администратором."
             # send_telegram_message(chat_id, escalation_message, bot_token)
+            create_message(conversation, 'user', user_message)
+
             return success_response(message=_("Message forwarded to admin"), code=200)
 
         response = send_telegram_message(chat_id, wait_message, bot_token)
