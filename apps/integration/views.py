@@ -162,8 +162,8 @@ class InstagramWebhookView(APIView):
 
 
 class InstagramCallbackView(APIView):
-    CLIENT_ID = "594572086256263"
-    CLIENT_SECRET = "98f86b623fc762aa440a0bfe7b704b4b"
+    CLIENT_ID = "601663735749252"
+    CLIENT_SECRET = "5012f3e33700b8b659a9c97c1fc1f7bd"
     REDIRECT_URI = "https://api.repli.uz/api/v1/integration/instagram/callback/"
 
     def get(self, request, *args, **kwargs):
