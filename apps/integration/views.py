@@ -138,7 +138,7 @@ class SendUserMessageView(generics.CreateAPIView):
 
 
 class InstagramWebhookView(APIView):
-    VERIFY_TOKEN = "wqbm2DoK5z9iV8Qb82Z"  # Replace with your actual verify token
+    VERIFY_TOKEN = "wqbm2DoK5zfsF28Qb82Z"  # Replace with your actual verify token
 
     def get(self, request, *args, **kwargs):
         # Extract query parameters
