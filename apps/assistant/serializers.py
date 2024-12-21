@@ -22,6 +22,7 @@ class AssistantSerializer(serializers.ModelSerializer):
             "personality_style",
             "greeting_message",
             "fallback_message",
+            "wait_message",
             "created_time",
             "updated_time",
             "is_active",
@@ -134,16 +135,7 @@ class MessageSerializer(serializers.ModelSerializer):
         print(f"message is created: {message}")
 
         # check assistant status
-        if message.conversation.status == ConversationStatuses.ESCALATED.value:  # asssitant active yoki yoqligi tekshiriladi
-            # escalation_message = f"Iltimos, kutib turing. Sizning xabaringiz admin tomonidan ko'rib chiqilmoqda.\n" \
-            #                      f"Please wait, your message is being reviewed by an admin.\n" \
-            #                      f"Пожалуйста, подождите, ваше сообщение просматривается администратором."
-            # message = Message.objects.create(
-            #     conversation=message.conversation,
-            #     sender="assistant",
-            #     message_content=escalation_message,
-            #     message_type="text",
-            # )
+        if message.conversation.status == ConversationStatuses.ESCALATED.value:
             return message
 
         # send message to chat assistant

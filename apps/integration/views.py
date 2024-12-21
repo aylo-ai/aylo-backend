@@ -1,3 +1,5 @@
+from threading import Thread
+
 import requests
 from django.http import HttpResponse
 from django.utils import timezone
@@ -72,7 +74,7 @@ class IntegrationRetrieveUpdateDestroyView(generics.RetrieveUpdateDestroyAPIView
         return success_response(message="Integration deleted successfully", code=204)
 
 
-class TelegramWebhookView(APIView):
+class TelegramWebhookViewDraft(APIView):
     def post(self, request, bot_token):  # noqa
         data = request.data.get('message')
         if not data:
@@ -100,11 +102,6 @@ class TelegramWebhookView(APIView):
         print(f"conversation: {conversation}")
         # Check if the conversation is escalated
         if conversation.status == ConversationStatuses.ESCALATED.value or not assistant.is_active:
-            # Notify the user that their message is being reviewed by an admin
-            # escalation_message = f"Iltimos, kutib turing. Sizning xabaringiz admin tomonidan ko'rib chiqilmoqda.\n" \
-            #                      f"Please wait, your message is being reviewed by an admin.\n" \
-            #                      f"Пожалуйста, подождите, ваше сообщение просматривается администратором."
-            # send_telegram_message(chat_id, escalation_message, bot_token)
             create_message(conversation, 'user', user_message)
 
             return success_response(message=_("Message forwarded to admin"), code=200)
@@ -189,3 +186,54 @@ class InstagramCallbackView(APIView):
             return success_response(data={"access_token": access_token}, code=200)
         else:
             return error_response(message="Failed to get access token", code=400)
+
+
+class TelegramWebhookView(APIView):
+    def post(self, request, bot_token):  # noqa
+        data = request.data.get('message')
+        if not data:
+            return error_response(message=_("No message data received"))
+
+        chat_id = data['chat']['id']
+        user_message = data.get('text')
+        print(f"Chat ID: {chat_id}, Message: {user_message}")
+
+        # Start processing in a separate thread to return HTTP 200 immediately
+        thread = Thread(target=self.process_message, args=(chat_id, user_message, bot_token))
+        thread.start()
+        print("Thread started")
+        return success_response(message=_("Message received"), code=200)
+
+    def process_message(self, chat_id, user_message, bot_token):  # noqa
+        assistant = Assistant.objects.filter(integrations__api_token=bot_token).first()
+        print(f"Assistant: {assistant}")
+        if not assistant:
+            return  # No assistant found, skip processing
+
+        # Handle `/start` command
+        if user_message == '/start':
+            print("user_message: /start")
+            handle_start_command(chat_id, assistant, bot_token)
+            return
+
+        # Handle regular messages
+        conversation = get_or_create_conversation(chat_id, assistant, token=bot_token)
+        print(f"conversation: {conversation}")
+        if conversation.status == ConversationStatuses.ESCALATED.value or not assistant.is_active:
+            create_message(conversation, 'user', user_message)
+            return
+        if assistant.wait_message:
+            response = send_telegram_message(chat_id, assistant.wait_message, bot_token)
+            wait_message_id = response.json().get("result").get("message_id")
+        else:
+            wait_message_id = None
+        create_message(conversation, 'user', user_message)
+
+        # Generate and send assistant's response
+        response_message = get_assistant_response(user_message, assistant.assistant_id, conversation.thread_id)
+        print(f"Response message: {response_message}")
+        create_message(conversation, 'assistant', response_message)
+        if wait_message_id:
+            delete_telegram_message(chat_id, wait_message_id, bot_token)
+
+        send_telegram_message(chat_id, response_message, bot_token)
