@@ -32,7 +32,7 @@ class ConversationAdmin(admin.ModelAdmin):
     readonly_fields = ('start_time', 'end_time', 'thread_id')
     fieldsets = (
         (None, {
-            'fields': ('assistant', 'status', 'thread_id', 'telegram_user_id', 'token')
+            'fields': ('assistant', 'status', 'thread_id', 'telegram_user_id', 'token', "wait_message")
         }),
         ('System', {
             'fields': ('start_time', 'end_time'),
