@@ -69,7 +69,14 @@ class ConversationSerializer(serializers.ModelSerializer):
 
     def to_representation(self, instance):
         response = super().to_representation(instance)
-        last_message = instance.messages.last()
+        print(f"to_representation: instance: {instance}")
+        print(f"all messages: {instance.messages.all()}")
+        # Fetching the messages ordered by `created_time`
+        last_message = instance.messages.order_by('-created_time').first()
+        print(
+            f"to_representation: last_message: {last_message}, "
+            f"content: {last_message.message_content if last_message else 'No message'}")
+
         response["last_message"] = last_message.message_content if last_message else None
         return response
 
