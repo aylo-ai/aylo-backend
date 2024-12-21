@@ -81,7 +81,7 @@ class Conversation(BaseModel):
         db_table = 'conversation'
 
     def __str__(self):
-        return f"Conversation with {self.assistant.name}"
+        return f"Conversation with {self.assistant.name} - {self.platform} - {self.created_time}"
 
 
 class Message(BaseModel):
