@@ -11,7 +11,8 @@ class AssistantAdmin(admin.ModelAdmin):
     fieldsets = (
         (None, {
             'fields': ('name', 'description', 'user', 'pricing_package', 'company_name', 'role', 'language',
-                       'personality_style', 'greeting_message', 'fallback_message', 'assistant_id', 'is_active')
+                       'personality_style', 'greeting_message', 'fallback_message', 'wait_message',
+                       'assistant_id', 'is_active')
         }),
     )
 
@@ -32,7 +33,7 @@ class ConversationAdmin(admin.ModelAdmin):
     readonly_fields = ('start_time', 'end_time', 'thread_id')
     fieldsets = (
         (None, {
-            'fields': ('assistant', 'status', 'thread_id', 'telegram_user_id', 'token', "wait_message")
+            'fields': ('assistant', 'status', 'thread_id', 'telegram_user_id', 'token')
         }),
         ('System', {
             'fields': ('start_time', 'end_time'),
