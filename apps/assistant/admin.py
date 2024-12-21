@@ -30,7 +30,7 @@ class ConversationAdmin(admin.ModelAdmin):
     actions_on_top = True
     actions_on_bottom = True
     date_hierarchy = 'start_time'
-    readonly_fields = ('start_time', 'end_time', 'thread_id')
+    readonly_fields = ('start_time', 'end_time')
     fieldsets = (
         (None, {
             'fields': ('assistant', 'status', 'thread_id', 'telegram_user_id', 'token')
