@@ -58,14 +58,12 @@ class ConversationListCreateView(generics.ListCreateAPIView):
     filter_backends = [filters.SearchFilter, filters.OrderingFilter]
     search_fields = ['assistant__name', 'session_id']
     ordering_fields = ['assistant__name', 'session_id']
+    ordering = ["-updated_time"]
     permission_classes = [permissions.IsAuthenticated]
 
     def get_queryset(self):
         assistant_id = self.kwargs.get("pk")
-        return super().get_queryset()\
-            .filter(assistant_id=assistant_id)\
-            .annotate(latest_message_time=Max('messages__created_time'))\
-            .order_by('-latest_message_time')  # Order by the latest message time
+        return super().get_queryset().filter(assistant_id=assistant_id)
 
     def create(self, request, *args, **kwargs):
         assistant_id = self.kwargs.get("pk")
