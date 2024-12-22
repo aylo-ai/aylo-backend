@@ -1,3 +1,5 @@
+from django.utils.timezone import localtime
+
 from apps.assistant.models import Assistant, Conversation, Message, Settings, AssistantFileUpload
 from rest_framework import serializers
 
@@ -70,14 +72,14 @@ class ConversationSerializer(serializers.ModelSerializer):
     def to_representation(self, instance):
         response = super().to_representation(instance)
         print(f"to_representation: instance: {instance}")
-        print(f"all messages: {instance.messages.all()}")
         # Fetching the messages ordered by `created_time`
         last_message = instance.messages.order_by('-created_time').first()
-        print(
-            f"to_representation: last_message: {last_message}, "
-            f"content: {last_message.message_content if last_message else 'No message'}")
-
+        last_message_time = last_message.created_time if last_message else None
+        # Convert the time to the local time zone
+        if last_message_time:
+            last_message_time = localtime(last_message_time)
         response["last_message"] = last_message.message_content if last_message else None
+        response["last_message_time"] = last_message_time if last_message_time else None
         return response
 
 

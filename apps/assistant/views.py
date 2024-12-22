@@ -58,7 +58,6 @@ class ConversationListCreateView(generics.ListCreateAPIView):
     filter_backends = [filters.SearchFilter, filters.OrderingFilter]
     search_fields = ['assistant__name', 'session_id']
     ordering_fields = ['assistant__name', 'session_id']
-    ordering = ['assistant', 'start_time']
     permission_classes = [permissions.IsAuthenticated]
 
     def get_queryset(self):

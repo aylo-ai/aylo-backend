@@ -104,6 +104,15 @@ class Message(BaseModel):
     def __str__(self):
         return f"Message from {self.sender} in conversation {self.conversation_id}"
 
+    def save(self, *args, **kwargs):
+        # Call the parent save method
+        super().save(*args, **kwargs)
+
+        # Update the updated_time of the associated conversation
+        if self.conversation:
+            self.conversation.updated_time = timezone.now()
+            self.conversation.save(update_fields=["updated_time"])
+
 
 class Settings(BaseModel):
     assistant = models.OneToOneField(Assistant, on_delete=models.CASCADE, related_name="settings")
