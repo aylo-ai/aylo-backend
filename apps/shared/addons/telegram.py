@@ -56,7 +56,6 @@ def send_telegram_message(chat_id, text, token):
     print(f"Sending message to chat_id: {chat_id}, text: {text}")
     url = f"https://api.telegram.org/bot{token}/sendMessage"
     cleaned_html = clean_html(text)
-    print(f"Cleaned HTML: {cleaned_html}")
     data = {
         "chat_id": chat_id,
         "text": cleaned_html,
@@ -65,6 +64,38 @@ def send_telegram_message(chat_id, text, token):
     print(f"send telegram message data: {data}, url: {url}")
     response = requests.post(url, json=data)
     print(f"Message sent to Telegram: {response.status_code}, {response.json()}")
+    response_data = response.json()
+    if not response_data.get("ok"):
+        # Handle migration to supergroup
+        if "migrate_to_chat_id" in response_data.get("parameters", {}):
+            new_chat_id = response_data["parameters"]["migrate_to_chat_id"]
+            print(f"Chat migrated to supergroup. New Chat ID: {new_chat_id}")
+
+            # Update TelegramGroupIntegration model
+            try:
+                group_integration = TelegramGroupIntegration.objects.filter(group_id=chat_id).first()
+                if group_integration:
+                    group_integration.group_id = new_chat_id
+                    group_integration.save()
+                    print(f"Updated TelegramGroupIntegration: {group_integration}")
+                else:
+                    print(f"No TelegramGroupIntegration entry found for chat_id: {chat_id}")
+            except Exception as e:
+                print(f"Error updating TelegramGroupIntegration: {e}")
+
+            # Retry sending the message with the new chat ID
+            data["chat_id"] = new_chat_id
+            response = requests.post(url, json=data)
+            response_data = response.json()
+
+            if response_data.get("ok"):
+                print("Message sent successfully after migration.")
+            else:
+                print(f"Failed to send message after migration: {response_data}")
+        else:
+            print(f"Failed to send message: {response_data}")
+    else:
+        print("Message sent successfully.")
     return response
 
 
