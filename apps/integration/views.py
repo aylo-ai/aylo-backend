@@ -9,11 +9,11 @@ from apps.assistant.models import Conversation, Message, Assistant
 from shared.addons.ai_requests import get_thread_id, get_assistant_response
 from shared.addons.enums import ConversationStatuses
 from shared.addons.telegram import send_telegram_message, delete_telegram_message, handle_bot_added_to_group, \
-    handle_bot_removed_from_group
+    handle_bot_removed_from_group, check_register_info
 from shared.addons.utils import create_message, get_or_create_conversation, handle_start_command
 from shared.addons.validations import success_response, error_response
 from shared.permissions import IsAdmin, IsCustomer
-from .models import Integration
+from .models import Integration, TelegramGroupIntegration
 from rest_framework import generics, permissions
 from .serializers import IntegrationCreateSerializer, IntegrationSerializer, SendUserMessageSerializer
 
@@ -239,7 +239,15 @@ class TelegramWebhookView(APIView):
         # Generate and send assistant's response
         response_message = get_assistant_response(user_message, assistant.assistant_id, conversation.thread_id)
         print(f"Response message: {response_message}")
-        create_message(conversation, 'assistant', response_message)
+        user_register_message = check_register_info(user_message)
+        if user_register_message:
+            telegram_group = TelegramGroupIntegration.objects.filter(
+                integration=assistant.integrations.first()
+            ).first()
+            if telegram_group:
+                send_telegram_message(telegram_group.group_id, user_register_message, bot_token)
+        else:
+            create_message(conversation, 'assistant', response_message)
         if wait_message_id:
             delete_telegram_message(chat_id, wait_message_id, bot_token)
 
