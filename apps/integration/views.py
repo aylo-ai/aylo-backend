@@ -15,7 +15,8 @@ from shared.addons.validations import success_response, error_response
 from shared.permissions import IsAdmin, IsCustomer
 from .models import Integration, TelegramGroupIntegration
 from rest_framework import generics, permissions
-from .serializers import IntegrationCreateSerializer, IntegrationSerializer, SendUserMessageSerializer
+from .serializers import IntegrationCreateSerializer, IntegrationSerializer, SendUserMessageSerializer, \
+    TelegramGroupSerializer
 
 
 class IntegrationListCreateView(generics.ListCreateAPIView):
@@ -256,3 +257,13 @@ class TelegramWebhookView(APIView):
         else:
             send_telegram_message(chat_id, response_message, bot_token)
             create_message(conversation, 'assistant', response_message)
+
+
+class TelegramGroupListView(generics.ListAPIView):
+    queryset = TelegramGroupIntegration.objects.all()
+    serializer_class = TelegramGroupSerializer
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get_queryset(self):
+        integration_id = self.kwargs.get('pk')
+        return self.queryset.filter(integration_id=integration_id)

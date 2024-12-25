@@ -3,7 +3,7 @@ from shared.addons.enums import IntegrationTypes, ConversationPlatforms, Convers
 from shared.addons.telegram import telegram_get_me, set_telegram_webhook, get_webhook_info, send_telegram_message
 from shared.addons.utils import create_message
 from shared.addons.validations import raise_validation_error, success_response
-from .models import Integration
+from .models import Integration, TelegramGroupIntegration
 from rest_framework import serializers
 from django.utils.translation import gettext as _
 
@@ -50,6 +50,20 @@ class IntegrationSerializer(serializers.ModelSerializer):
             "is_active",
             "integration_type",
         ]
+
+
+class TelegramGroupSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = TelegramGroupIntegration
+        fields = [
+            "id",
+            "integration",
+            "group_id",
+            "group_title",
+            "lead_count",
+            "created_time",
+        ]
+
 
 
 class SendUserMessageSerializer(serializers.Serializer):  # noqa
