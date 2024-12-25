@@ -240,17 +240,16 @@ class TelegramWebhookView(APIView):
         response_message = get_assistant_response(user_message, assistant.assistant_id, conversation.thread_id)
         print(f"Response message: {response_message}")
         user_register_message = check_register_info(response_message)
+        if wait_message_id:
+            delete_telegram_message(chat_id, wait_message_id, bot_token)
         if user_register_message:
             telegram_group = TelegramGroupIntegration.objects.filter(
                 integration=assistant.integrations.first()
             ).first()
             if telegram_group:
+                print(f"group_id: {telegram_group.group_id}")
                 send_telegram_message(telegram_group.group_id, user_register_message, bot_token)
             send_telegram_message(chat_id, user_register_message, bot_token)
             create_message(conversation, 'assistant', response_message)
         else:
             create_message(conversation, 'assistant', response_message)
-        if wait_message_id:
-            delete_telegram_message(chat_id, wait_message_id, bot_token)
-
-        send_telegram_message(chat_id, response_message, bot_token)
