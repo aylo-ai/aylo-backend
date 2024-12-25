@@ -193,7 +193,7 @@ class TelegramWebhookView(APIView):
     def post(self, request, bot_token):  # noqa
         data = request.data.get('message')
         print(f"received data: {data}")
-        chat_id = data['chat']['id']
+        chat_id = data.get("chat", {}).get("id", None)
         chat_title = data.get('title', 'Private Chat')
         user_message = data.get('text')
         print(f"Chat ID: {chat_id}, Message: {user_message}")
