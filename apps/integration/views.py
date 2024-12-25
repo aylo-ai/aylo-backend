@@ -192,6 +192,8 @@ class InstagramCallbackView(APIView):
 class TelegramWebhookView(APIView):
     def post(self, request, bot_token):  # noqa
         data = request.data.get('message')
+        if not data:
+            return error_response(message=_("No message data received"))
         print(f"received data: {data}")
         chat_id = data.get("chat", {}).get("id", None)
         chat_title = data.get('title', 'Private Chat')
