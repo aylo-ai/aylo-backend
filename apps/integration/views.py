@@ -246,6 +246,8 @@ class TelegramWebhookView(APIView):
             ).first()
             if telegram_group:
                 send_telegram_message(telegram_group.group_id, user_register_message, bot_token)
+            send_telegram_message(chat_id, user_register_message, bot_token)
+            create_message(conversation, 'assistant', response_message)
         else:
             create_message(conversation, 'assistant', response_message)
         if wait_message_id:
