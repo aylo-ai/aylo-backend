@@ -17,9 +17,9 @@ class Integration(admin.ModelAdmin):
 
 @admin.register(TelegramGroupIntegration)
 class TelegramGroupIntegrationAdmin(admin.ModelAdmin):
-    list_display = ["group_id", "group_title", "integration", "created_time"]
+    list_display = ["group_id", "group_title", "lead_count", "created_time"]
     search_fields = ["group_title"]
     fieldsets = (
-        (None, {"fields": ("group_id", "group_title")}),
+        (None, {"fields": ("group_id", "group_title", "lead_count")}),
         ("Integration", {"fields": ("integration",)}),
     )

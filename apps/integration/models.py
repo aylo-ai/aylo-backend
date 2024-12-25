@@ -25,6 +25,7 @@ class TelegramGroupIntegration(BaseModel):
     integration = models.OneToOneField(Integration, on_delete=models.CASCADE, related_name='telegram_group')
     group_id = models.CharField(max_length=255)
     group_title = models.CharField(max_length=255)
+    lead_count = models.IntegerField(default=0)
 
     def __str__(self):
         return f"Telegram Group {self.group_title} for {self.integration.name}"

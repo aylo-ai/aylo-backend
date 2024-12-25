@@ -196,7 +196,7 @@ class TelegramWebhookView(APIView):
             return error_response(message=_("No message data received"))
         print(f"received data: {data}")
         chat_id = data.get("chat", {}).get("id", None)
-        chat_title = data.get('title', 'Private Chat')
+        chat_title = data.get('chat', {}).get('title', 'Private Chat')
         user_message = data.get('text')
         print(f"Chat ID: {chat_id}, Message: {user_message}")
 
@@ -249,6 +249,8 @@ class TelegramWebhookView(APIView):
             if telegram_group:
                 print(f"group_id: {telegram_group.group_id}")
                 send_telegram_message(telegram_group.group_id, user_register_message, bot_token)
+                telegram_group.lead_count += 1
+                telegram_group.save()
             send_telegram_message(chat_id, user_register_message, bot_token)
             create_message(conversation, 'assistant', response_message)
         else:
