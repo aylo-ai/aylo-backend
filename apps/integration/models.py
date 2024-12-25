@@ -11,6 +11,7 @@ class Integration(BaseModel):
     description = models.TextField(null=True, blank=True)
     is_active = models.BooleanField(default=True)
     api_token = models.CharField(max_length=255)
+    group_id = models.CharField(max_length=255, null=True, blank=True)
     integration_type = models.CharField(max_length=50, choices=IntegrationTypes.choices())
 
     def __str__(self):
