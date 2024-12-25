@@ -16,7 +16,7 @@ class Integration(admin.ModelAdmin):
 
 
 @admin.register(TelegramGroupIntegration)
-class TelegramGroupIntegration(admin.ModelAdmin):
+class TelegramGroupIntegrationAdmin(admin.ModelAdmin):
     list_display = ["group_id", "group_title", "integration", "created_time"]
     search_fields = ["group_title"]
     fieldsets = (

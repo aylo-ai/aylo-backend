@@ -194,7 +194,9 @@ class TelegramWebhookView(APIView):
         data = request.data.get('message')
         print(f"received data: {data}")
         message = data.get('message', None)
+        print(f"message: {message}")
         if not message or 'chat' not in message:
+            print("No valid chat information received")
             return error_response(message=_("No valid chat information received"))
 
         chat_id = data['chat']['id']
