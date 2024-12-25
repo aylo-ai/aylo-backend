@@ -193,20 +193,14 @@ class TelegramWebhookView(APIView):
     def post(self, request, bot_token):  # noqa
         data = request.data.get('message')
         print(f"received data: {data}")
-        message = data.get('message', None)
-        print(f"message: {message}")
-        if not message or 'chat' not in message:
-            print("No valid chat information received")
-            return error_response(message=_("No valid chat information received"))
-
         chat_id = data['chat']['id']
-        chat_title = message['chat'].get('title', 'Private Chat')
+        chat_title = data.get('title', 'Private Chat')
         user_message = data.get('text')
         print(f"Chat ID: {chat_id}, Message: {user_message}")
 
-        if message.get('new_chat_member', {}).get('is_bot'):
+        if data.get('new_chat_member', {}).get('is_bot'):
             handle_bot_added_to_group(chat_id, chat_title, bot_token)
-        elif message.get('left_chat_member', {}).get('is_bot'):
+        elif data.get('left_chat_member', {}).get('is_bot'):
             handle_bot_removed_from_group(chat_id, chat_title)
         else:
             # Start processing in a separate thread to return HTTP 200 immediately
