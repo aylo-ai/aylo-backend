@@ -239,7 +239,7 @@ class TelegramWebhookView(APIView):
         # Generate and send assistant's response
         response_message = get_assistant_response(user_message, assistant.assistant_id, conversation.thread_id)
         print(f"Response message: {response_message}")
-        user_register_message = check_register_info(user_message)
+        user_register_message = check_register_info(response_message)
         if user_register_message:
             telegram_group = TelegramGroupIntegration.objects.filter(
                 integration=assistant.integrations.first()
