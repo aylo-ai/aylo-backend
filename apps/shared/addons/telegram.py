@@ -3,6 +3,8 @@ from bs4 import BeautifulSoup
 
 import requests
 
+from apps.integration.models import Integration, TelegramGroupIntegration
+
 
 def escape_markdown_v2(text):
     text = re.sub(r'[_*[\]()~>#\+\-=|{}.!]', lambda x: '\\' + x.group(), text)
@@ -94,3 +96,23 @@ def get_webhook_info(bot_token):
     else:
         print("Failed to get webhook info:", response.json())
         return 400
+
+
+def handle_bot_added_to_group(chat_id, chat_title, bot_token):
+    print(f"Bot added to group: {chat_title} ({chat_id})")
+    integration = Integration.objects.filter(api_token=bot_token).first()
+    if not integration:
+        print(f"No integration found for bot token: {bot_token}")
+        return
+
+    TelegramGroupIntegration.objects.update_or_create(
+        integration=integration,
+        defaults={'group_id': chat_id, 'group_title': chat_title},
+    )
+    print(f"Saved group: {chat_title} ({chat_id}) for integration {integration.name}")
+
+
+def handle_bot_removed_from_group(chat_id, chat_title):
+    print(f"Bot removed from group: {chat_title} ({chat_id})")
+    TelegramGroupIntegration.objects.filter(group_id=chat_id).delete()
+    print(f"Deleted group: {chat_title} ({chat_id})")

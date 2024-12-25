@@ -8,7 +8,8 @@ from django.utils.translation import gettext as _
 from apps.assistant.models import Conversation, Message, Assistant
 from shared.addons.ai_requests import get_thread_id, get_assistant_response
 from shared.addons.enums import ConversationStatuses
-from shared.addons.telegram import send_telegram_message, delete_telegram_message
+from shared.addons.telegram import send_telegram_message, delete_telegram_message, handle_bot_added_to_group, \
+    handle_bot_removed_from_group
 from shared.addons.utils import create_message, get_or_create_conversation, handle_start_command
 from shared.addons.validations import success_response, error_response
 from shared.permissions import IsAdmin, IsCustomer
@@ -192,17 +193,24 @@ class TelegramWebhookView(APIView):
     def post(self, request, bot_token):  # noqa
         data = request.data.get('message')
         print(f"received data: {data}")
-        if not data:
-            return error_response(message=_("No message data received"))
+        message = data.get('message', None)
+        if not message or 'chat' not in message:
+            return error_response(message=_("No valid chat information received"))
 
         chat_id = data['chat']['id']
+        chat_title = message['chat'].get('title', 'Private Chat')
         user_message = data.get('text')
         print(f"Chat ID: {chat_id}, Message: {user_message}")
 
-        # Start processing in a separate thread to return HTTP 200 immediately
-        thread = Thread(target=self.process_message, args=(chat_id, user_message, bot_token))
-        thread.start()
-        print("Thread started")
+        if message.get('new_chat_member', {}).get('is_bot'):
+            handle_bot_added_to_group(chat_id, chat_title, bot_token)
+        elif message.get('left_chat_member', {}).get('is_bot'):
+            handle_bot_removed_from_group(chat_id, chat_title)
+        else:
+            # Start processing in a separate thread to return HTTP 200 immediately
+            thread = Thread(target=self.process_message, args=(chat_id, user_message, bot_token))
+            thread.start()
+            print("Thread started")
         return success_response(message=_("Message received"), code=200)
 
     def process_message(self, chat_id, user_message, bot_token):  # noqa
