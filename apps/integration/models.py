@@ -11,7 +11,6 @@ class Integration(BaseModel):
     description = models.TextField(null=True, blank=True)
     is_active = models.BooleanField(default=True)
     api_token = models.CharField(max_length=255)
-    group_id = models.CharField(max_length=255, null=True, blank=True)
     integration_type = models.CharField(max_length=50, choices=IntegrationTypes.choices())
 
     def __str__(self):
@@ -20,3 +19,15 @@ class Integration(BaseModel):
     class Meta:
         db_table = 'integration'
         ordering = ['-created_time']
+
+
+class TelegramGroupIntegration(BaseModel):
+    integration = models.OneToOneField(Integration, on_delete=models.CASCADE, related_name='telegram_group')
+    group_id = models.CharField(max_length=255)
+    group_title = models.CharField(max_length=255)
+
+    def __str__(self):
+        return f"Telegram Group {self.group_title} for {self.integration.name}"
+
+    class Meta:
+        db_table = 'telegram_group_integration'
