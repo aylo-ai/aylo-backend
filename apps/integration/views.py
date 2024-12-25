@@ -252,4 +252,5 @@ class TelegramWebhookView(APIView):
             send_telegram_message(chat_id, user_register_message, bot_token)
             create_message(conversation, 'assistant', response_message)
         else:
+            send_telegram_message(chat_id, response_message, bot_token)
             create_message(conversation, 'assistant', response_message)
