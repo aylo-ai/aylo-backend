@@ -200,7 +200,11 @@ class TelegramWebhookView(APIView):
         chat_title = data.get('chat', {}).get('title', 'Private Chat')
         user_message = data.get('text')
         print(f"Chat ID: {chat_id}, Message: {user_message}")
-
+        chat_type = data.get("chat", {}).get("type", None)
+        if chat_type in ['group', 'supergroup']:
+            if "reply_to_message" in data and data["reply_to_message"]["from"]["is_bot"]:
+                print("Ignoring group replies to the bot.")
+                return
         if data.get('new_chat_member', {}).get('is_bot'):
             handle_bot_added_to_group(chat_id, chat_title, bot_token)
         elif data.get('left_chat_member', {}).get('is_bot'):
