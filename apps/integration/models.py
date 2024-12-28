@@ -22,7 +22,7 @@ class Integration(BaseModel):
 
 
 class TelegramGroupIntegration(BaseModel):
-    integration = models.OneToOneField(Integration, on_delete=models.CASCADE, related_name='telegram_group')
+    integration = models.ForeignKey(Integration, on_delete=models.CASCADE, related_name='telegram_group')
     group_id = models.CharField(max_length=255)
     group_title = models.CharField(max_length=255)
     lead_count = models.IntegerField(default=0)
