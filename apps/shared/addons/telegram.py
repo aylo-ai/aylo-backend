@@ -4,7 +4,7 @@ from bs4 import BeautifulSoup
 import requests
 from datetime import datetime
 from apps.integration.models import Integration, TelegramGroupIntegration
-
+from shared.addons.validations import error_response
 
 # Define the regex pattern
 USER_INFO_REGEX = r"#registered_user_info\s*Full Name: (.*?)\s*\nPhone Number: (.*?)\s*\nAdditional " \
@@ -139,13 +139,19 @@ def handle_bot_added_to_group(chat_id, chat_title, bot_token):
     integration = Integration.objects.filter(api_token=bot_token).first()
     if not integration:
         print(f"No integration found for bot token: {bot_token}")
-        return
+        return error_response("Integration not found", 404)
 
-    TelegramGroupIntegration.objects.update_or_create(
+    # Create the group integration only if it doesn't already exist
+    telegram_group, created = TelegramGroupIntegration.objects.get_or_create(
         integration=integration,
-        defaults={'group_id': chat_id, 'group_title': chat_title},
+        group_id=chat_id,
+        defaults={'group_title': chat_title}
     )
-    print(f"Saved group: {chat_title} ({chat_id}) for integration {integration.name}")
+
+    if created:
+        print(f"Saved group: {chat_title} ({chat_id}) for integration {integration.name}")
+    else:
+        print(f"Group {chat_title} ({chat_id}) already exists for integration {integration.name}")
 
 
 def handle_bot_removed_from_group(chat_id, chat_title):
