@@ -3,7 +3,7 @@ from rest_framework_simplejwt.tokens import RefreshToken, TokenError
 from django.utils.translation import gettext_lazy as _
 
 from shared.addons.validations import raise_validation_error, check_number, phone_number_validation
-from apps.user.models import User
+from apps.user.models import User, PrivacyPolicy, UserAgreement
 
 
 class SendCodeSerializer(serializers.Serializer): # noqa
@@ -246,3 +246,27 @@ class DeleteCompanyUsersSerializer(serializers.Serializer):  # noqa
         if not value:
             raise_validation_error(message=_("Foydalanuvchilar tanlanmagan"))
         return value
+
+
+class PrivacyPolicySerializer(serializers.ModelSerializer):
+    class Meta:
+        model = PrivacyPolicy
+        fields = [
+            'id',
+            'title',
+            'content',
+            'is_active',
+            'language',
+        ]
+
+
+class UserAgreementSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = UserAgreement
+        fields = [
+            'id',
+            'title',
+            'content',
+            'is_active',
+            'language',
+        ]

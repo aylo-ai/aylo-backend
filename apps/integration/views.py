@@ -156,7 +156,7 @@ class InstagramWebhookView(APIView):
         # Handle incoming webhook data
         data = request.data
         print(f"Instagram webhook data: {data}")
-        # Process the incoming data as needed
+
         return success_response(message="Webhook data processed successfully", code=200)
 
 

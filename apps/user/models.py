@@ -57,3 +57,36 @@ class User(AbstractUser, BaseModel):
         refresh = RefreshToken.for_user(self)
         return {"access": str(refresh.access_token), "refresh": str(refresh)}
 
+
+class PrivacyPolicy(BaseModel):
+    title = models.CharField(max_length=255)
+    content = models.TextField()
+    is_active = models.BooleanField(default=True)
+    language = models.CharField(max_length=10)
+
+    def __str__(self):
+        return self.title + " - " + self.language
+
+    class Meta:
+        db_table = "privacy_policy"
+        indexes = [
+            models.Index(fields=['title']),
+            models.Index(fields=['language']),
+        ]
+
+
+class UserAgreement(BaseModel):
+    title = models.CharField(max_length=255)
+    content = models.TextField()
+    is_active = models.BooleanField(default=True)
+    language = models.CharField(max_length=10)
+
+    def __str__(self):
+        return self.title + " - " + self.language
+
+    class Meta:
+        db_table = "user_agreement"
+        indexes = [
+            models.Index(fields=['title']),
+            models.Index(fields=['language']),
+        ]

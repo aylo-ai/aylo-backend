@@ -10,7 +10,8 @@ from config.settings import redis_connection
 import user.serializers as serializers
 from shared.addons.validations import error_response, success_response
 from shared.addons.verification import send_code, verify_code_cache
-from apps.user.models import User
+from apps.user.models import User, PrivacyPolicy, UserAgreement
+from shared.permissions import IsAdmin, IsSuperAdmin
 
 
 class SendCodeView(generics.GenericAPIView):
@@ -131,3 +132,93 @@ class LogoutView(APIView):
             return error_response(
                 code=status.HTTP_400_BAD_REQUEST, message=_("Exception - Noto'g'ri refresh token")
             )
+
+
+class PrivacyPolicyListCreateView(generics.ListCreateAPIView):
+    queryset = PrivacyPolicy.objects.all()
+    serializer_class = serializers.PrivacyPolicySerializer
+    permission_classes = [IsAdmin, IsSuperAdmin]
+    filter_backends = [DjangoFilterBackend]
+    filterset_fields = ["language", "is_active"]
+
+    def get_permissions(self):
+        if self.request.method == "GET":
+            self.permission_classes = [permissions.AllowAny, ]
+        return super().get_permissions()
+
+    def create(self, request, *args, **kwargs):
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+        return success_response(
+            data=serializer.data,
+            message=_("Privacy policy muvaffaqiyatli yaratildi"),
+            code=status.HTTP_201_CREATED
+        )
+
+
+class PrivacyPolicyRetrieveView(generics.RetrieveUpdateDestroyAPIView):
+    queryset = PrivacyPolicy.objects.all()
+    serializer_class = serializers.PrivacyPolicySerializer
+    permission_classes = [IsAdmin, IsSuperAdmin]
+
+    def get_permissions(self):
+        if self.request.method == "GET":
+            self.permission_classes = [permissions.AllowAny, ]
+        return super().get_permissions()
+
+    def update(self, request, *args, **kwargs):
+        instance = self.get_object()
+        serializer = self.get_serializer(instance, data=request.data, partial=True)
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+        return success_response(
+            data=serializer.data,
+            message=_("Privacy policy muvaffaqiyatli yangilandi"),
+            code=status.HTTP_200_OK
+        )
+
+
+class UserAgreementListCreateView(generics.ListCreateAPIView):
+    queryset = UserAgreement.objects.all()
+    serializer_class = serializers.UserAgreementSerializer
+    permission_classes = [IsAdmin, IsSuperAdmin]
+    filter_backends = [DjangoFilterBackend]
+    filterset_fields = ["language", "is_active"]
+
+    def get_permissions(self):
+        if self.request.method == "GET":
+            self.permission_classes = [permissions.AllowAny, ]
+        return super().get_permissions()
+
+    def create(self, request, *args, **kwargs):
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+        return success_response(
+            data=serializer.data,
+            message=_("User agreement muvaffaqiyatli yaratildi"),
+            code=status.HTTP_201_CREATED
+        )
+
+
+class UserAgreementRetrieveView(generics.RetrieveUpdateDestroyAPIView):
+    queryset = UserAgreement.objects.all()
+    serializer_class = serializers.UserAgreementSerializer
+    permission_classes = [IsAdmin, IsSuperAdmin]
+
+    def get_permissions(self):
+        if self.request.method == "GET":
+            self.permission_classes = [permissions.AllowAny, ]
+        return super().get_permissions()
+
+    def update(self, request, *args, **kwargs):
+        instance = self.get_object()
+        serializer = self.get_serializer(instance, data=request.data, partial=True)
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+        return success_response(
+            data=serializer.data,
+            message=_("User agreement muvaffaqiyatli yangilandi"),
+            code=status.HTTP_200_OK
+        )

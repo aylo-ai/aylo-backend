@@ -1,5 +1,5 @@
 from django.contrib import admin
-from apps.user.models import User
+from apps.user.models import User, PrivacyPolicy, UserAgreement
 
 
 @admin.register(User)
@@ -28,3 +28,25 @@ class UserAdmin(admin.ModelAdmin):
     def make_verified(self, request, queryset):
         queryset.update(is_verified=True)
     make_verified.short_description = "Mark selected users as verified"
+
+
+@admin.register(PrivacyPolicy)
+class PrivacyPolicyAdmin(admin.ModelAdmin):
+    list_display = ("title", "language", "is_active")
+    search_fields = ("title", "language")
+    list_filter = ("is_active",)
+    fieldsets = (
+        (None, {"fields": ("title", "content")}),
+        ("Settings", {"fields": ("is_active", "language")}),
+    )
+
+
+@admin.register(UserAgreement)
+class UserAgreementAdmin(admin.ModelAdmin):
+    list_display = ("title", "language", "is_active")
+    search_fields = ("title", "language")
+    list_filter = ("is_active",)
+    fieldsets = (
+        (None, {"fields": ("title", "content")}),
+        ("Settings", {"fields": ("is_active", "language")}),
+    )

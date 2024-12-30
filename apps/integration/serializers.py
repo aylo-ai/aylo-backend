@@ -36,6 +36,8 @@ class IntegrationCreateSerializer(serializers.ModelSerializer):
             code = get_webhook_info(api_token)
             if code == 400:
                 raise_validation_error(message=_("Failed to set Telegram webhook"))
+        elif integration_type == IntegrationTypes.INSTAGRAM.value:
+            pass
         return attrs
 
 
