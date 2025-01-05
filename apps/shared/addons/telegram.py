@@ -55,10 +55,10 @@ def telegram_get_me(token):
 def send_telegram_message(chat_id, text, token):
     print(f"Sending message to chat_id: {chat_id}, text: {text}")
     url = f"https://api.telegram.org/bot{token}/sendMessage"
-    cleaned_html = clean_html(text)
+    # cleaned_html = clean_html(text)
     data = {
         "chat_id": chat_id,
-        "text": cleaned_html,
+        "text": text,
         "parse_mode": "html"
     }
     print(f"send telegram message data: {data}, url: {url}")
