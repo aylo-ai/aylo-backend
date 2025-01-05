@@ -178,6 +178,7 @@ def check_register_info(message):
 
         # Match the message against the regex pattern
         match = re.search(USER_INFO_REGEX, message, re.DOTALL)
+        print(f"match: {match}")
         if match:
             print("Regex match successful!")  # Log if regex matches
 
