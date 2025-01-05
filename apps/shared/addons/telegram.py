@@ -7,8 +7,8 @@ from apps.integration.models import Integration, TelegramGroupIntegration
 from shared.addons.validations import error_response
 
 # Define the regex pattern
-USER_INFO_REGEX = r"#registered_user_info\s*Full Name: (.*?)\s*\nPhone Number: (.*?)\s*\nAdditional " \
-                  r"Phone Number: (.*?)\s*\nCourse: (.*?)\s*\nReferral Source: (.*?)\s*$"
+USER_INFO_REGEX = r"#registered_user_info\s*Ism-familiya: (.*?)\s*\nTelefon raqam: (.*?)\s*\Qo'shimcha " \
+                  r"telefon: (.*?)\s*\Mahsulot/Xizmat/Kurs: (.*?)\s*\Referal manbayi: (.*?)\s*$"
 
 
 def escape_markdown_v2(text):
