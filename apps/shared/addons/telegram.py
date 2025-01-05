@@ -6,9 +6,8 @@ from datetime import datetime
 from apps.integration.models import Integration, TelegramGroupIntegration
 from shared.addons.validations import error_response
 
-# Define the regex pattern
-USER_INFO_REGEX = r"#registered_user_info\s*Ism-familiya: (.*?)\s*\nTelefon raqam: (.*?)\s" \
-                  r"*Qo'shimcha telefon: (.*?)\s*Mahsulot/Xizmat/Kurs: (.*?)\s*Referal manbayi: (.*?)\s*$"
+USER_INFO_REGEX = r"#registered_user_info\s*Ism-familiya: (.*?)\s*\n" \
+                  r"Telefon raqam: (.*?)\s*\nQo’shimcha telefon: (.*?)\s*\nMahsulot/Xizmat/Kurs: (.*?)\s*\nReferal manbayi: (.*?)\s*$"
 
 
 def escape_markdown_v2(text):

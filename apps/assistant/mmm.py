@@ -48,4 +48,5 @@ def check_register_info(message):
 
 
 check_register_info("#registered_user_info Ism-familiya: John Doe\nTelefon raqam: +998901234567\n"
-                    "Qo’shimcha telefon: +998901234567\nMahsulot/Xizmat/Kurs: Python\nReferal manbayi: Google")
+                    "Qo’shimcha telefon: +998901234568\nMahsulot/Xizmat/Kurs: Python\nReferal manbayi: Google"
+                    "Rahmat! Siz General English kursiga muvaffaqiyatli yozildingiz. Tez orada siz bilan bog'lanamiz va qo'shimcha ma'lumotlarni taqdim etamiz.")
