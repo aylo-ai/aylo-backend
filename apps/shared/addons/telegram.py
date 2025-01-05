@@ -7,7 +7,8 @@ from apps.integration.models import Integration, TelegramGroupIntegration
 from shared.addons.validations import error_response
 
 USER_INFO_REGEX = r"#registered_user_info\s*Ism-familiya: (.*?)\s*\n" \
-                  r"Telefon raqam: (.*?)\s*\nQo’shimcha telefon: (.*?)\s*\nMahsulot/Xizmat/Kurs: (.*?)\s*\nReferal manbayi: (.*?)\s*$"
+                  r"Telefon raqam: (.*?)\s*\nQo’shimcha telefon: (.*?)\s*\nMahsulot/Xizmat/Kurs: (.*?)\s*\n" \
+                  r"Referal manbayi: (.*?)\s*$"
 
 
 def escape_markdown_v2(text):
@@ -186,13 +187,13 @@ def check_register_info(message):
 
             # Create a formatted notification
             register_message = (
-                f"\U00002705 New User Registered!\n\n"
-                f"\U0001F464 Full Name: {full_name}\n"
-                f"\U0001F4DE Phone Number: {phone_number}\n"
-                f"\U0001F4F2 Additional Phone: {additional_phone}\n"
-                f"\U0001F3EB Course: {course}\n"
-                f"\U0001F4F0 Referral Source: {referral_source}\n"
-                f"\U0001F4C5 Registered Date: {registered_date}"
+                f"\U00002705 Yangi foydalanuvchi ro'hatdan o'tdi!\n\n"
+                f"\U0001F464 Ism-familiya: {full_name}\n"
+                f"\U0001F4DE Telefon raqam: {phone_number}\n"
+                f"\U0001F4F2 Qo'shimcha telefon: {additional_phone}\n"
+                f"\U0001F3EB Mahsulot/Xizmat/Kurs: {course}\n"
+                f"\U0001F4F0 Referal manbayi: {referral_source}\n"
+                f"\U0001F4C5 Ro'yhatdan o'tish vaqti: {registered_date}"
             )
             return register_message
         else:
