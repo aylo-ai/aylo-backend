@@ -21,7 +21,13 @@ def create_assistant_id(data: dict):
     response = requests.post(f"{BASE_URL}/api/v1/assistant/", json=payload)
     print(f"Response: {response.json()}, Status code: {response.status_code}")
     if response.status_code == 200:
-        return response.json().get("assistant_id"), 200
+        assistant_id = response.json().get("assistant_id")
+        vector_id = response.json().get("vector_id")
+        data = {
+            "assistant_id": assistant_id,
+            "vector_id": vector_id
+        }
+        return data, 200
     else:
         input_field = response.json().get("detail")[0].get("loc")[1]
         message = response.json().get("detail")[0].get("msg")
@@ -42,19 +48,21 @@ def save_uploaded_file(assistant, file_data, filename):
 def send_assistant_data(assistant, request=None):
     data = get_assistant_data(assistant, request)
     print(f"Assistant data: {data}")
-    assistant_id, code = create_assistant_id(data)
-    print(f"Assistant ID: {assistant_id}, Code: {code}")
+    data, code = create_assistant_id(data)
+    print(f"assistant data received: {data}, Code: {code}")
     if code == 400:
-        raise_validation_error(message=assistant_id)
-    assistant.assistant_id = assistant_id
+        raise_validation_error(message=data)
+    assistant.assistant_id = data.get("assistant_id")
+    assistant.vector_id = data.get("vector_id")
     assistant.save()
-    print(f"Assistant ID: {assistant.assistant_id} created successfully")
+    print(f"Assistant ID: {assistant.assistant_id}, vector_id: {assistant.vector_id} created successfully")
 
 
-def get_thread_id(assistant_id):
+def get_thread_id(assistant_id, vector_id):
     url = f"{BASE_URL}/api/v1/thread/initialize"
     data = {
-        "assistant_id": assistant_id
+        "assistant_id": assistant_id,
+        "vector_id": vector_id
     }
     response = requests.post(url, json=data)
     if response.status_code == 200:

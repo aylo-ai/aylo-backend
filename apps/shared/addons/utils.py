@@ -22,7 +22,7 @@ def get_or_create_conversation(chat_id, assistant, reset=False, token=None, plat
         token=token).first()
     print(f"Conversation: {conversation}")
     if conversation is None:
-        thread_id = get_thread_id(str(assistant.assistant_id))
+        thread_id = get_thread_id(str(assistant.assistant_id), str(assistant.vector_id))
         print(f"conversation is None, creating new conversation with thread_id: {thread_id}")
         conversation = Conversation.objects.create(
             assistant=assistant,
@@ -35,7 +35,7 @@ def get_or_create_conversation(chat_id, assistant, reset=False, token=None, plat
         print(f"Conversation created: {conversation}")
 
     elif reset and conversation is not None:
-        conversation.thread_id = get_thread_id(str(assistant.assistant_id))
+        conversation.thread_id = get_thread_id(str(assistant.assistant_id), str(assistant.vector_id))
         conversation.status = 'open'
         print(f"Resetting conversation with new thread_id: {conversation.thread_id}")
         conversation.save()

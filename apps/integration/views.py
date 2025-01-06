@@ -6,7 +6,7 @@ from django.utils import timezone
 from rest_framework.views import APIView
 from django.utils.translation import gettext as _
 from apps.assistant.models import Conversation, Message, Assistant
-from shared.addons.ai_requests import get_thread_id, get_assistant_response
+from shared.addons.ai_requests import get_assistant_response
 from shared.addons.enums import ConversationStatuses
 from shared.addons.telegram import send_telegram_message, delete_telegram_message, handle_bot_added_to_group, \
     handle_bot_removed_from_group, check_register_info

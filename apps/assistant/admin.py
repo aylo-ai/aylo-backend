@@ -12,7 +12,7 @@ class AssistantAdmin(admin.ModelAdmin):
         (None, {
             'fields': ('name', 'description', 'user', 'pricing_package', 'company_name', 'role', 'language',
                        'personality_style', 'greeting_message', 'fallback_message', 'wait_message',
-                       'assistant_id', 'is_active')
+                       'assistant_id', 'is_active', "vector_id")
         }),
     )
 

@@ -62,7 +62,7 @@ class ConversationSerializer(serializers.ModelSerializer):
 
     def create(self, validated_data):
         assistant = validated_data.get("assistant")
-        thread_id = get_thread_id(str(assistant.assistant_id))
+        thread_id = get_thread_id(str(assistant.assistant_id), str(assistant.vector_id))
         conversation = Conversation.objects.create(
             assistant=assistant,
             thread_id=thread_id
