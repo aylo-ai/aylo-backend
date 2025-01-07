@@ -1,15 +1,12 @@
-from threading import Thread
-
 import requests
 from django.http import HttpResponse
-from django.utils import timezone
 from rest_framework.views import APIView
 from django.utils.translation import gettext as _
-from apps.assistant.models import Conversation, Message, Assistant
+from apps.assistant.models import  Assistant
 from shared.addons.ai_requests import get_assistant_response
 from shared.addons.enums import ConversationStatuses
 from shared.addons.telegram import send_telegram_message, delete_telegram_message, handle_bot_added_to_group, \
-    handle_bot_removed_from_group, check_register_info
+    handle_bot_removed_from_group
 from shared.addons.utils import create_message, get_or_create_conversation, handle_start_command
 from shared.addons.validations import success_response, error_response
 from shared.permissions import IsAdmin, IsCustomer
@@ -17,6 +14,7 @@ from .models import Integration, TelegramGroupIntegration
 from rest_framework import generics, permissions
 from .serializers import IntegrationCreateSerializer, IntegrationSerializer, SendUserMessageSerializer, \
     TelegramGroupSerializer
+from .tasks import process_message_task
 
 
 class IntegrationListCreateView(generics.ListCreateAPIView):
@@ -210,58 +208,10 @@ class TelegramWebhookView(APIView):
         elif data.get('left_chat_member', {}).get('is_bot'):
             handle_bot_removed_from_group(chat_id, chat_title)
         else:
-            # Start processing in a separate thread to return HTTP 200 immediately
-            thread = Thread(target=self.process_message, args=(chat_id, user_message, bot_token))
-            thread.start()
-            print("Thread started")
+            # Start the Celery task
+            process_message_task.delay(chat_id, user_message, bot_token)
+            print("celery task started")
         return success_response(message=_("Message received"), code=200)
-
-    def process_message(self, chat_id, user_message, bot_token):  # noqa
-        assistant = Assistant.objects.filter(integrations__api_token=bot_token).first()
-        print(f"Assistant: {assistant}")
-        if not assistant:
-            return  # No assistant found, skip processing
-
-        # Handle `/start` command
-        if user_message == '/start':
-            print("user_message: /start")
-            handle_start_command(chat_id, assistant, bot_token)
-            return
-
-        # Handle regular messages
-        conversation = get_or_create_conversation(chat_id, assistant, token=bot_token)
-        print(f"conversation: {conversation}")
-        if conversation.status == ConversationStatuses.ESCALATED.value or not assistant.is_active:
-            create_message(conversation, 'user', user_message)
-            return
-        if assistant.wait_message:
-            response = send_telegram_message(chat_id, assistant.wait_message, bot_token)
-            wait_message_id = response.json().get("result").get("message_id")
-        else:
-            wait_message_id = None
-        create_message(conversation, 'user', user_message)
-
-        # Generate and send assistant's response
-        response_message = get_assistant_response(user_message, assistant.assistant_id, conversation.thread_id)
-        print(f"Response message: {response_message}")
-        user_register_message = check_register_info(response_message)
-        if wait_message_id:
-            delete_telegram_message(chat_id, wait_message_id, bot_token)
-        if user_register_message:
-            telegram_groups = TelegramGroupIntegration.objects.filter(
-                integration=assistant.integrations.first()
-            ).all()
-            print(f"telegram groups: {telegram_groups}")
-            if telegram_groups:
-                for telegram_group in telegram_groups:
-                    send_telegram_message(telegram_group.group_id, user_register_message, bot_token)
-                    telegram_group.lead_count += 1
-                    telegram_group.save()
-            send_telegram_message(chat_id, user_register_message, bot_token)
-            create_message(conversation, 'assistant', response_message)
-        else:
-            send_telegram_message(chat_id, response_message, bot_token)
-            create_message(conversation, 'assistant', response_message)
 
 
 class TelegramGroupListView(generics.ListAPIView):
