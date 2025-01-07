@@ -20,14 +20,14 @@ services:
       dockerfile: deployment/Dockerfile
       context: .
     env_file: .env
-    command: celery -A core beat --loglevel=info
+    command: celery -A config beat --loglevel=info
 
   celery_worker:
     build:
       dockerfile: deployment/Dockerfile
       context: .
     env_file: .env
-    command: celery -A core worker --loglevel=info
+    command: celery -A config worker --loglevel=info
 
   postgres:
     ports:
