@@ -8,7 +8,7 @@ from shared.addons.validations import error_response
 
 USER_INFO_REGEX = r"#registered_user_info\s*Ism-familiya: (.*?)\s*\n" \
                   r"Telefon raqam: (.*?)\s*\nQo’shimcha telefon: (.*?)\s*\nMahsulot/Xizmat/Kurs: (.*?)\s*\n" \
-                  r"Bizni qayerdan eshitdingiz (masalan, Instagram, Facebook, do'stlar tavsiyasi va h.k.): (.*?)\s*$"
+                  r"Bizni qayerdan eshitdingiz: (.*?)\s*$"
 
 
 def escape_markdown_v2(text):
