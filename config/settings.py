@@ -260,7 +260,17 @@ AUTH_USER_MODEL = "user.User"
 
 REDIS_HOST = os.environ.get("REDIS_HOST", default="localhost")
 REDIS_PORT = os.environ.get("REDIS_PORT", 6379)
+REDIS_DB = os.environ.get("REDIS_DB", 0)
 redis_connection = redis.Redis(host=REDIS_HOST, port=REDIS_PORT, db=0)
+REDIS_URL: str = f"redis://{REDIS_HOST}:{REDIS_PORT}/{REDIS_DB}"
+
+# Celery settings
+CELERY_BROKER_URL = REDIS_URL
+CELERY_ACCEPT_CONTENT = ['json']
+CELERY_TASK_SERIALIZER = 'json'
+CELERY_RESULT_BACKEND = CELERY_BROKER_URL
+CELERY_BROKER_CONNECTION_RETRY_ON_STARTUP = True
+
 
 LOGGING = {
     "version": 1,
