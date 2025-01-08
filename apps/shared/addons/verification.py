@@ -18,7 +18,7 @@ def generate_code():
 
 
 def send_phone_notification(phone, code):
-    message = f"Cafesta.uz! Sizning tasdiqlash kodingiz - {code}\n"
+    message = f"Repli.uz! Sizning tasdiqlash kodingiz - {code}\n"
     return send_playmobile_sms(phone, message)
 
 
