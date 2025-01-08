@@ -11,7 +11,7 @@ USER_INFO_REGEX = r"#registered_user_info\s*" \
                   r"Telefon raqam:\s*(.*?)\s*\n" \
                   r"Qo'?shimcha telefon:\s*(.*?)\s*\n" \
                   r"Mahsulot/Xizmat/Kurs:\s*(.*?)\s*\n" \
-                  r"Bizni qayerdan eshitd(?:ingiz|i):\s*(.*?)\s*"
+                  r"Bizni qayerdan eshitd(?:ingiz|i):\s*(.*?)(?:\s*\n|$)"
 
 
 def escape_markdown_v2(text):
@@ -195,7 +195,7 @@ def check_register_info(message):
                 f"\U0001F4DE Telefon raqam: {phone_number}\n"
                 f"\U0001F4F2 Qo'shimcha telefon: {additional_phone}\n"
                 f"\U0001F3EB Mahsulot/Xizmat/Kurs: {course}\n"
-                f"\U0001F4F0 Referal manbayi: {referral_source}\n"
+                f"\U0001F4F0 Bizni qayerdan eshitdingiz: {referral_source}\n"
                 f"\U0001F4C5 Ro'yhatdan o'tish vaqti: {registered_date}"
             )
             return register_message
