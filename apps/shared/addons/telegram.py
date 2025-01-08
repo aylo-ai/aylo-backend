@@ -6,9 +6,12 @@ from datetime import datetime
 from apps.integration.models import Integration, TelegramGroupIntegration
 from shared.addons.validations import error_response
 
-USER_INFO_REGEX = r"#registered_user_info\s*Ism-familiya: (.*?)\s*\n" \
-                  r"Telefon raqam: (.*?)\s*\nQo’shimcha telefon: (.*?)\s*\nMahsulot/Xizmat/Kurs: (.*?)\s*\n" \
-                  r"Bizni qayerdan eshitdingiz: (.*?)\s*$"
+USER_INFO_REGEX = r"#registered_user_info\s*" \
+                  r"Ism-familiya:\s*(.*?)\s*\n" \
+                  r"Telefon raqam:\s*(.*?)\s*\n" \
+                  r"Qo'?shimcha telefon:\s*(.*?)\s*\n" \
+                  r"Mahsulot/Xizmat/Kurs:\s*(.*?)\s*\n" \
+                  r"Bizni qayerdan eshitd(?:ingiz|i):\s*(.*?)\s*"
 
 
 def escape_markdown_v2(text):
@@ -173,11 +176,11 @@ def check_register_info(message):
     registered_date = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     print(f"Checking message for registration info: {message}")
     # Check if the message contains the registration tag
-    if '#registered_user_info' in message:
+    if '#registered_user_info' in message.lower():
         print("Found '#registered_user_info' in the message.")  # Log if the tag is found
 
         # Match the message against the regex pattern
-        match = re.search(USER_INFO_REGEX, message, re.DOTALL)
+        match = re.search(USER_INFO_REGEX, message, re.DOTALL | re.IGNORECASE)
         print(f"match: {match}")
         if match:
             print("Regex match successful!")  # Log if regex matches
