@@ -190,7 +190,7 @@ def check_register_info(message):
 
             # Create a formatted notification
             register_message = (
-                f"\U00002705 Yangi foydalanuvchi ro'hatdan o'tdi!\n\n"
+                f"\U00002705 Yangi foydalanuvchi ro'yxatdan o'tdi!\n\n"
                 f"\U0001F464 Ism-familiya: {full_name}\n"
                 f"\U0001F4DE Telefon raqam: {phone_number}\n"
                 f"\U0001F4F2 Qo'shimcha telefon: {additional_phone}\n"
@@ -202,4 +202,4 @@ def check_register_info(message):
         else:
             print("Regex match failed.")  # Log if regex doesn't match
 
-    return None  # Return None if no registration info is found
+    return None
