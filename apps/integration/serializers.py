@@ -51,6 +51,7 @@ class IntegrationSerializer(serializers.ModelSerializer):
             "description",
             "is_active",
             "integration_type",
+            "api_token",
         ]
 
 
