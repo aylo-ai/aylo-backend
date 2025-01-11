@@ -19,7 +19,7 @@ def get_playmobile_payload(recipient: str, message_id: str, originator: str, mes
     }
 
 
-def get_assistant_data(assistant, request=None):
+def create_assistant_payload(assistant, request=None):
     file_urls = [
         request.build_absolute_uri(file.file.url) if request else file.file.url
         for file in assistant.files.all()
@@ -33,3 +33,11 @@ def get_assistant_data(assistant, request=None):
         "assistant_language": assistant.language,
         "file_links": file_urls
     }
+
+
+def create_file_urls(assistant, request=None):
+    file_urls = [
+        request.build_absolute_uri(file.file.url) if request else file.file.url
+        for file in assistant.files.all()
+    ]
+    return file_urls

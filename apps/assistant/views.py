@@ -3,7 +3,8 @@ from rest_framework import permissions, filters, generics
 
 from apps.assistant.models import Assistant, AssistantFileUpload, Conversation, Message
 from apps.assistant.serializers import AssistantSerializer, ConversationSerializer, MessageSerializer, \
-    SettingsSerializer, AssistantFileUploadSerializer, ConversationRetrieveSerializer
+    SettingsSerializer, AssistantFileUploadSerializer, ConversationRetrieveSerializer, UpdateFileUploadSerializer
+from shared.addons.ai_requests import delete_assitant
 from shared.addons.validations import success_response, error_response
 
 
@@ -48,6 +49,9 @@ class AssistantRetrieveView(generics.RetrieveUpdateDestroyAPIView):
 
     def destroy(self, request, *args, **kwargs):
         instance = self.get_object()
+        assistant_id = instance.assistant_id
+        if assistant_id:
+            delete_assitant(assistant_id)
         self.perform_destroy(instance)
         return success_response(message='Assistant deleted successfully', code=204)
 
@@ -239,6 +243,27 @@ class AssistantFileUploadListCreateView(generics.ListCreateAPIView):
 
         serializer.save()
         return success_response(message='File uploaded successfully', code=201)
+
+
+class AssistantFileUploadUpdateView(generics.CreateAPIView):
+    queryset = AssistantFileUpload.objects.all()
+    serializer_class = UpdateFileUploadSerializer
+    permission_classes = [permissions.IsAuthenticated]
+
+    def create(self, request, *args, **kwargs):
+        assistant_id = self.kwargs.get('pk')
+        try:
+            assistant = Assistant.objects.get(id=assistant_id)
+        except Assistant.DoesNotExist:
+            return error_response(message="Assistant not found", code=404)
+
+        files = request.FILES.getlist('file')  # Handle multiple files
+        context = {'assistant': assistant, 'files': files, 'request': request}
+
+        serializer = self.get_serializer(data=request.data, context=context)
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+        return success_response(message='File updated successfully', data=serializer.data, code=200)
 
 
 class AssistantFileUploadRetrieveView(generics.RetrieveUpdateDestroyAPIView):

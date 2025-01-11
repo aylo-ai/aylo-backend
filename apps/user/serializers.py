@@ -57,16 +57,16 @@ class RegisterUserSerializer(serializers.ModelSerializer):
     """Serializer for creating user objects."""
 
     tokens = serializers.SerializerMethodField()
-    username = serializers.CharField(required=False)
 
     class Meta:
         model = User
-        fields = ('id', 'first_name', 'last_name', 'password', 'phone_number', 'username', 'tokens')
+        fields = ('id', 'first_name', 'last_name', 'password', 'phone_number', 'tokens')
         extra_kwargs = {
             'password': {'required': False},
             'phone_number': {'required': True},
             'first_name': {'required': True},
             'last_name': {'required': True},
+            'username': {'required': False},
         }
 
     def get_tokens(self, user): # noqa
@@ -96,10 +96,8 @@ class RegisterUserSerializer(serializers.ModelSerializer):
             first_name=validated_data.get("first_name"),
             last_name=validated_data.get("last_name"),
             phone_number=validated_data.get("phone_number"),
-            username=validated_data.get('username', None),
             is_active=True,
         )
-        # user.set_password(validated_data['password'])
         user.save()
         return user
 

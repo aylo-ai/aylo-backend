@@ -4,7 +4,8 @@ from apps.assistant.models import Assistant, Conversation, Message, Settings, As
 from rest_framework import serializers
 
 from shared.addons.ai_requests import send_assistant_data, get_thread_id, \
-    get_assistant_response
+    get_assistant_response, update_vector_store_files
+from shared.addons.payloads import create_file_urls
 from shared.addons.validations import raise_validation_error
 from shared.addons.enums import ConversationStatuses
 
@@ -198,11 +199,11 @@ class AssistantFileUploadSerializer(serializers.ModelSerializer):
     def validate(self, attrs):
         files = self.context.get("files")
         if not files:
-            raise serializers.ValidationError("No files were uploaded.")
+            raise_validation_error(message="No files were uploaded.")
 
         for file in files:
             if file.size > 30 * 1024 * 1024:  # 30MB limit
-                raise serializers.ValidationError(f"File {file.name} exceeds the 30MB size limit.")
+                raise_validation_error(message=f"File {file.name} exceeds the 30MB size limit.")
         return attrs
 
     def create(self, validated_data):
@@ -217,5 +218,48 @@ class AssistantFileUploadSerializer(serializers.ModelSerializer):
                 filename=filename
             )
         send_assistant_data(assistant, request)
+
+        return assistant
+
+
+class UpdateFileUploadSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = AssistantFileUpload
+        fields = [
+            "id",
+            "assistant",
+            "filename",
+            "file",
+            "created_time",
+            "updated_time",
+        ]
+        read_only_fields = ["created_time", "updated_time"]
+        extra_kwargs = {
+            "assistant": {"required": False},
+        }
+
+    def validate(self, attrs):
+        files = self.context.get("files")
+        if not files:
+            raise_validation_error(message="No files were uploaded.")
+
+        for file in files:
+            if file.size > 30 * 1024 * 1024:  # 30MB limit
+                raise_validation_error(message=f"File {file.name} exceeds the 30MB size limit.")
+        return attrs
+
+    def create(self, validated_data):
+        request = self.context.get("request")
+        files = self.context.get('files')
+        assistant = self.context.get("assistant")
+        for file in files:
+            filename = file.name
+            AssistantFileUpload.objects.create(
+                assistant=assistant,
+                file=file,
+                filename=filename
+            )
+        file_urls = create_file_urls(assistant, request)
+        update_vector_store_files(assistant.vector_id, file_urls)
 
         return assistant

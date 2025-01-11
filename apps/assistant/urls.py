@@ -13,5 +13,6 @@ urlpatterns = [
 
     # file upload for assistant
     path("assistant/<uuid:pk>/upload-file/", views.AssistantFileUploadListCreateView.as_view()),
+    path("assistant/<uuid:pk>/update-file/", views.AssistantFileUploadUpdateView.as_view()),
     path("assistant-files/<uuid:pk>/", views.AssistantFileUploadRetrieveView.as_view()),
 ]
