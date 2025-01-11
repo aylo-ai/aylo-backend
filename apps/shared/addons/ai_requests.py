@@ -98,12 +98,8 @@ def delete_assitant(assistant_id):
     response = requests.post(f"{BASE_URL}/api/v1/assistant/delete-assistant/", json=payload)
     if response.status_code == 200:
         print("Assistant deleted successfully", response.json())
-        return response.json()
     else:
-        input_field = response.json().get("detail")[0].get("loc")[1]
-        message = response.json().get("detail")[0].get("msg")
-        error_message = f"{input_field}: {message}"
-        raise_validation_error(message=error_message)
+        print("Error deleting assistant", response.text)
 
 
 def update_vector_store_files(vector_store_id, new_file_urls):
