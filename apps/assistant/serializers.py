@@ -226,6 +226,7 @@ class AssistantFileUploadSerializer(serializers.ModelSerializer):
         response = super().to_representation(instance)
         if assistant:
             is_new = True if assistant.assistant_id is None else False
+            print("is_new: ", is_new)
             response["is_new"] = is_new
         return response
 
