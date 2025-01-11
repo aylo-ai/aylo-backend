@@ -50,6 +50,7 @@ class AssistantRetrieveView(generics.RetrieveUpdateDestroyAPIView):
     def destroy(self, request, *args, **kwargs):
         instance = self.get_object()
         assistant_id = instance.assistant_id
+        print(f"Assistant ID: {assistant_id}")
         if assistant_id:
             delete_assitant(assistant_id)
         self.perform_destroy(instance)

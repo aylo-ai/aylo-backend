@@ -97,6 +97,7 @@ def delete_assitant(assistant_id):
     }
     response = requests.post(f"{BASE_URL}/api/v1/assistant/delete-assistant/", json=payload)
     if response.status_code == 200:
+        print("response status: ", response.status_code)
         print("Assistant deleted successfully", response.json())
     else:
         print("Error deleting assistant", response.text)

@@ -222,10 +222,11 @@ class AssistantFileUploadSerializer(serializers.ModelSerializer):
         return assistant
 
     def to_representation(self, instance):
-        assistant = self.context.get("assistant")
+        assistant = getattr(instance, "assistant", None)
         response = super().to_representation(instance)
-        is_new = True if assistant.assistant_id is None else False
-        response["is_new"] = is_new
+        if assistant:
+            is_new = True if assistant.assistant_id is None else False
+            response["is_new"] = is_new
         return response
 
 
