@@ -62,7 +62,7 @@ class ConversationListCreateView(generics.ListCreateAPIView):
     serializer_class = ConversationSerializer
     filter_backends = [filters.SearchFilter, filters.OrderingFilter]
     search_fields = ['assistant__name', 'session_id']
-    ordering_fields = ['assistant__name', 'session_id']
+    ordering_fields = ['assistant__name', 'session_id', "start_time", "end_time"]
     ordering = ["-updated_time"]
     permission_classes = [permissions.IsAuthenticated]
 
