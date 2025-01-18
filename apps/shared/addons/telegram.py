@@ -144,17 +144,11 @@ def handle_bot_added_to_group(chat_id, chat_title, bot_token):
         print(f"No integration found for bot token: {bot_token}")
         return error_response("Integration not found", 404)
 
-    # Create the group integration only if it doesn't already exist
-    telegram_group, created = TelegramGroupIntegration.objects.get_or_create(
-        integration=integration,
-        group_id=chat_id,
-        defaults={'group_title': chat_title}
-    )
-
-    if created:
-        print(f"Saved group: {chat_title} ({chat_id}) for integration {integration.name}")
-    else:
-        print(f"Group {chat_title} ({chat_id}) already exists for integration {integration.name}")
+    if not TelegramGroupIntegration.objects.filter(integration=integration).exists():
+        telegram_group = TelegramGroupIntegration(integration=integration, group_id=chat_id, group_title=chat_title)
+        telegram_group.save()
+        print(f"Created group: {chat_title} ({chat_id})")
+    print(f"Group already exists for this integration")
 
 
 def handle_bot_removed_from_group(chat_id, chat_title):
