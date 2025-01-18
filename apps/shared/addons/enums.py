@@ -16,8 +16,10 @@ class UserRoles(EnumBaseModel):
 
 
 class PaymentMethods(EnumBaseModel):
-    CARD = "card"
-    CASH = 'cash'
+    PAYME = 'payme'
+    CLICK = 'click'
+    PAYNET = 'paynet'
+    UZUM = 'uzum'
 
 
 class ConversationStatuses(EnumBaseModel):
@@ -103,3 +105,24 @@ class ConversationPlatforms(EnumBaseModel):
     SMS = 'sms'
     PHONE = 'phone'
     OTHER = 'other'
+
+
+class PaymentStatuses(EnumBaseModel):
+    DRAFT = 'draft'
+    SUCCESS = 'success'
+    FAILED = 'failed'
+    CANCELLED = 'cancelled'
+    REFUNDED = 'refunded'
+
+
+class CurrencyType(EnumBaseModel):
+    UZS = 'uzs'
+    USD = 'usd'
+    RUB = 'rub'
+    EUR = 'eur'
+    KZT = 'kzt'
+
+
+class TransactionTypes(EnumBaseModel):
+    DEPOSIT = 'deposit'
+    WITHDRAW = 'withdraw'
