@@ -73,3 +73,15 @@ def verify_code_cache(phone_number, code):
         return True, "Code verified successfully"
     return False, "Code is incorrect"
 
+
+def send_sms_text(phone_number, text):
+    message_id = f"repliuz_{randint(100000, 999999)}"
+    payload = get_playmobile_payload(phone_number, message_id, originator, text)
+    response = requests.post(
+        PLAY_MOBILE_URL,
+        json=payload,
+        auth=(PLAY_MOBILE_LOGIN, PLAY_MOBILE_PASSWORD),
+        timeout=60
+    )
+    return response if response.status_code == 200 else None
+

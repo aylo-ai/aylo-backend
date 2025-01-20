@@ -9,9 +9,11 @@ class UserAdmin(admin.ModelAdmin):
     list_filter = ("user_role",)
     fieldsets = (
         (None, {"fields": ("username", "password")}),
-        ("Personal info", {"fields": ("first_name", "last_name", "email", "phone_number", "user_role")}),
+        ("Personal info", {"fields": ("first_name", "last_name", "email",
+                                      "phone_number", "user_role", "pricing_package")}),
         ("Permissions", {"fields": ("is_active", "is_staff", "is_superuser",)}),
         ("Important dates", {"fields": ("last_login", "date_joined")}),
+        ("Subscription", {"fields": ("subscription_active", "next_payment_date", "retry_count")}),
     )
     add_fieldsets = (
         (None, {
@@ -47,6 +49,6 @@ class UserAgreementAdmin(admin.ModelAdmin):
     search_fields = ("title", "language")
     list_filter = ("is_active",)
     fieldsets = (
-        (None, {"fields": ("title", "content")}),
+        (None, {"fields": ("title", "content", "pricing_packge")}),
         ("Settings", {"fields": ("is_active", "language")}),
     )

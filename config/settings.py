@@ -34,6 +34,7 @@ PACKAGES = [
     "rest_framework_simplejwt.token_blacklist",
     "drf_spectacular",
     "drf_spectacular_sidecar",
+    'django_celery_beat',
     "corsheaders",
     "django_filters",
     "telegram",
@@ -409,4 +410,7 @@ JAZZMIN_UI_TWEAKS = {
         "success": "btn-success",
     },
 }
+PAYME_KEY = os.environ.get("PAYME_KEY")
+PAYME_ID = os.environ.get("PAYME_ID")
+PAYME_API_URL = os.environ.get("PAYME_API_URL", default="https://checkout.paycom.uz/api")
 

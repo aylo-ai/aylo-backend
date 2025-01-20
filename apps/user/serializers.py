@@ -67,6 +67,7 @@ class RegisterUserSerializer(serializers.ModelSerializer):
             'first_name': {'required': True},
             'last_name': {'required': True},
             'username': {'required': False},
+            'pricing_package': {'required': False},
         }
 
     def get_tokens(self, user): # noqa
@@ -172,16 +173,16 @@ class UpdateProfileSerializer(serializers.ModelSerializer):
             "id",
             "first_name",
             "last_name",
-            "password",
             "username",
             "phone_number",
+            "pricing_package",
         ]
 
         extra_kwargs = {
             "first_name": {"required": True},
             "last_name": {"required": True},
-            "password": {"write_only": True, "required": False},
             "username": {"required": False},
+            "pricing_package": {"required": False},
         }
 
     def validate(self, attrs):
@@ -198,9 +199,6 @@ class UpdateProfileSerializer(serializers.ModelSerializer):
         instance.first_name = validated_data.get('first_name', instance.first_name)
         instance.last_name = validated_data.get('last_name', instance.last_name)
         instance.username = validated_data.get('username', instance.username)
-        instance.raw_password = validated_data.get('password', instance.raw_password)
-        if validated_data.get('password'):
-            instance.set_password(validated_data.get('password', instance.raw_password))
         instance.save()
         return instance
 

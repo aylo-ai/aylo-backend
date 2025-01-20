@@ -10,7 +10,7 @@ class AssistantAdmin(admin.ModelAdmin):
     ordering = ('name', )
     fieldsets = (
         (None, {
-            'fields': ('name', 'description', 'user', 'pricing_package', 'company_name', 'role', 'language',
+            'fields': ('name', 'description', 'user', 'company_name', 'role', 'language',
                        'personality_style', 'greeting_message', 'fallback_message', 'wait_message',
                        'assistant_id', 'is_active', "vector_id")
         }),

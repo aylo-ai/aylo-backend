@@ -20,7 +20,6 @@ class AssistantSerializer(serializers.ModelSerializer):
             "user",
             "company_name",
             "role",
-            "pricing_package",
             "language",
             "personality_style",
             "greeting_message",

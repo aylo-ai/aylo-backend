@@ -15,5 +15,7 @@ urlpatterns = [
     path("cards/<uuid:pk>/remove/", views.CardRemoveView.as_view()),
     path("cards/<uuid:pk>/set-default/", views.SetDefaultCard.as_view()),
 
+    path("manual-payment/", views.ManualSubscriptionPaymentView.as_view()),
+
 
 ]

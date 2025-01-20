@@ -4,6 +4,7 @@ from django.contrib.auth.models import AbstractUser
 from django.db import models
 from rest_framework_simplejwt.tokens import RefreshToken
 
+from apps.payment.models import PricingPackage
 from shared.addons.enums import UserRoles
 from shared.models import BaseModel
 
@@ -21,6 +22,16 @@ class User(AbstractUser, BaseModel):
         choices=UserRoles.choices(),
         default=UserRoles.CUSTOMER.value
     )
+    pricing_package = models.ForeignKey(
+        PricingPackage,
+        on_delete=models.SET_NULL,
+        null=True, blank=True,
+        related_name='users'
+    )
+    subscription_active = models.BooleanField(default=False)
+    next_payment_date = models.DateField(null=True, blank=True)
+    retry_count = models.IntegerField(default=0)
+    used_request_count = models.IntegerField(default=0)
 
     class Meta:
         db_table = "user"

@@ -10,7 +10,7 @@ class FeatureAdmin(admin.ModelAdmin):
 
 @admin.register(PricingPackage)
 class PricingPackageAdmin(admin.ModelAdmin):
-    list_display = ('name', 'price', 'description')
+    list_display = ('name', 'price', 'description', 'request_count')
     search_fields = ('name', 'price', 'description')
     filter_horizontal = ('features',)
 

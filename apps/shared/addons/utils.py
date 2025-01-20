@@ -3,6 +3,7 @@ from apps.assistant.models import Message, Conversation
 from shared.addons.ai_requests import get_thread_id
 from shared.addons.telegram import send_telegram_message
 from shared.addons.validations import success_response
+from shared.addons.verification import send_sms_text
 
 
 def create_message(conversation, sender, content):
@@ -54,3 +55,22 @@ def handle_start_command(chat_id, assistant, bot_token):
     conversation = get_or_create_conversation(chat_id, assistant, reset=True, token=bot_token)
     print(f"Conversation get_create: {conversation}")
     return success_response(message=_("Greeting sent and conversation started"), code=200)
+
+
+def notify_user_about_failed_payment(user):
+    """Notify the user about payment failure."""
+    message = _("Hurmatli {user.first_name}, sizning repli.uz dagi obuna to'lovingiz muvaffaqiyatsiz amalga oshirildi. "
+                "Iltimos, platformaga kirib, to'lovni qayta amalga oshiring.")
+    response = send_sms_text(user.phone_number, message)
+    print(f"Payment failure notification response: {response.text}")
+
+
+def restrict_user_account(user):
+    """Restrict user's account due to failed payments."""
+    user.subscription_active = False
+    user.save()
+
+    # Send restriction notification
+    message = _("Hurmatli {user.username}, sizning repli.uz dagi to'lovlaringiz bir necha marta muvaffaqiyatsiz "
+                "amalga oshirilgani uchun sizning platformadagi obunangiz cheklab qo'yildi.")
+    send_sms_text(user.phone_number, message)

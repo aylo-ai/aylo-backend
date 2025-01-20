@@ -28,6 +28,7 @@ class PricingPackageSerializer(serializers.ModelSerializer):
             "price",
             "description",
             "features",
+            "request_count"
         ]
 
     def validate(self, attrs):
@@ -73,6 +74,7 @@ class CardCreateSerializer(serializers.ModelSerializer):
             raise_validation_error(message=lang("Karta tokeni noto'g'ri. Iltimos, tekshirib qaytadan yuboring."))
 
         card_data = response.json().get("result", {}).get("card", {})
+        print(f"Card data: {card_data}")
         if not card_data.get("verify") or not card_data.get("recurrent"):
             raise_validation_error(message=lang("Karta noto'g'ri. Iltimos, tekshirib qaytadan yuboring."))
         self.card_data = card_data  # noqa - Store card data for later use in create method
@@ -115,22 +117,22 @@ class PayWithCardSerializer(serializers.Serializer):  # noqa
 
     def create(self, validated_data):
         """Handle payment process."""
-        user = self.context["request"].user
-        amount = validated_data["amount"]
-        card_token = validated_data["card_token"]
-
+        user = self.context.get("request").user
+        amount = validated_data.get("amount")
+        card_token = validated_data.get("card_token")
+        is_withdrawal = self.context.get("is_withdrawal", False)
         # Step 1: Create a Payme receipt
         success, message, receipt_id = create_payme_receipt(amount)
         if not success:
             raise_validation_error(message=lang("To'lov tizimi bilan bog'liq muammo yuz berdi: {message}"))
-
+        transaction_type = TransactionTypes.WITHDRAW if is_withdrawal else TransactionTypes.DEPOSIT
         # Step 2: Log the transaction with DRAFT status
         transaction = Transaction.objects.create(
             user=user,
             amount=amount,
             currency="UZS",
             transaction_id=receipt_id,
-            transaction_type=TransactionTypes.DEPOSIT.value,
+            transaction_type=transaction_type,
             status=PaymentStatuses.DRAFT.value,
         )
 
@@ -144,14 +146,14 @@ class PayWithCardSerializer(serializers.Serializer):  # noqa
         transaction.save()
 
         # Step 5: Update user balance
-        balance = update_user_balance(user, amount)
+        if not is_withdrawal:
+            update_user_balance(user, amount)
 
         # Return the transaction for further processing if needed
         return {
             "transaction_id": transaction.transaction_id,
             "amount": transaction.amount,
             "status": transaction.status,
-            "balance": balance.amount,
         }
 
 

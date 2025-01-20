@@ -1,10 +1,9 @@
 import os
-import uuid
 
-from django.db import models
+from django.db import models, transaction
 from django.utils import timezone
+from django.utils.timezone import now
 
-from apps.payment.models import PricingPackage
 from shared.addons.enums import AssistantLanguages, PersonalityStyles, SenderTypes, MessageStatuses, \
     ConversationStatuses, MessageTypes, ConversationPlatforms
 from shared.models import BaseModel
@@ -16,12 +15,6 @@ class Assistant(BaseModel):
     user = models.ForeignKey(
         'user.User',
         on_delete=models.CASCADE,
-        null=True, blank=True,
-        related_name='assistants'
-    )
-    pricing_package = models.ForeignKey(
-        PricingPackage,
-        on_delete=models.SET_NULL,
         null=True, blank=True,
         related_name='assistants'
     )
@@ -106,13 +99,25 @@ class Message(BaseModel):
         return f"Message from {self.sender} in conversation {self.conversation_id}"
 
     def save(self, *args, **kwargs):
-        # Call the parent save method
-        super().save(*args, **kwargs)
+        """
+        Save method to update the conversation's updated_time and
+        increment the user's used_request_count if applicable.
+        """
+        # Ensure atomicity of the operations
+        with transaction.atomic():
+            # Update the conversation's updated_time if it exists
+            if self.conversation:
+                self.conversation.updated_time = now()
+                self.conversation.save(update_fields=["updated_time"])
 
-        # Update the updated_time of the associated conversation
-        if self.conversation:
-            self.conversation.updated_time = timezone.now()
-            self.conversation.save(update_fields=["updated_time"])
+            # If the sender is the assistant, update the user's used_request_count
+            assistant_user = getattr(self.conversation.assistant, "user", None) if self.conversation else None
+            if assistant_user and self.sender == SenderTypes.ASSISTANT.value:
+                assistant_user.used_request_count += 1
+                assistant_user.save(update_fields=["used_request_count"])
+
+            # Call the parent save method
+            super().save(*args, **kwargs)
 
 
 class Settings(BaseModel):

@@ -2,7 +2,6 @@ from django.db import models
 
 from apps.shared.models import BaseModel
 from shared.addons.enums import PaymentMethods, PaymentStatuses, CurrencyType, TransactionTypes
-from apps.user.models import User
 
 
 class Feature(BaseModel):
@@ -26,7 +25,8 @@ class PricingPackage(BaseModel):
         default=CurrencyType.UZS.value,
     )
     description = models.TextField(null=True, blank=True)
-    features = models.ManyToManyField(Feature, related_name='pricing_packages')
+    request_count = models.IntegerField(default=0)
+    features = models.ManyToManyField(Feature, related_name='pricing_packages', blank=True)
 
     class Meta:
         db_table = 'pricing_package'
@@ -44,7 +44,7 @@ class Transaction(BaseModel):
                               default=PaymentStatuses.DRAFT.value)
     transaction_type = models.CharField(max_length=100, choices=TransactionTypes.choices(),
                                         null=True, blank=True)
-    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='transactions')
+    user = models.ForeignKey("user.User", on_delete=models.CASCADE, related_name='transactions')
     currency = models.CharField(
         max_length=50,
         null=True,
@@ -68,7 +68,7 @@ class Card(BaseModel):
     is_verified = models.BooleanField(default=False)
     is_default = models.BooleanField(default=True)
     color = models.IntegerField(null=True, blank=True)
-    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name="cards")
+    user = models.ForeignKey("user.User", on_delete=models.CASCADE, related_name="cards")
 
     def save(self, *args, **kwargs):
         self.card_number = self.card_number[:4] + '*' * 8 + self.card_number[-4:]
@@ -85,7 +85,7 @@ class Card(BaseModel):
 
 
 class Balance(BaseModel):
-    user = models.OneToOneField(User, on_delete=models.CASCADE, related_name="balance")
+    user = models.OneToOneField("user.User", on_delete=models.CASCADE, related_name="balance")
     amount = models.DecimalField(max_digits=20, decimal_places=2, default=0)
     currency = models.CharField(
         max_length=50,

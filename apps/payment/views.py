@@ -1,3 +1,6 @@
+from datetime import timedelta
+
+from django.template.defaulttags import now
 from rest_framework import generics, permissions
 from rest_framework.views import APIView
 
@@ -225,3 +228,27 @@ class PayWithCard(generics.CreateAPIView):
         return success_response(
             message=_("Foydalanuvchi hisobi muvaffaqiyatli to'ldirildi"), data=data
         )
+
+
+class ManualSubscriptionPaymentView(generics.CreateAPIView):
+    serializer_class = serializers.PayWithCardSerializer
+    permission_classes = (permissions.IsAuthenticated,)
+
+    def create(self, request, *args, **kwargs):
+        user = request.user
+        if not user.pricing_package:
+            return error_response(message=_("Pullik obuna paketi yo'q. Iltimos, administrator bilan bog'laning."))
+
+        serializer = self.get_serializer(
+            data={"amount": user.pricing_package.price, "card_id": request.data.get("card_id")},
+            context={"request": request, "is_withdrawal": True}
+        )
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+
+        # Update user subscription details
+        user.retry_count = 0
+        user.next_payment_date = now().date() + timedelta(days=30)
+        user.save()
+
+        return success_response(message=_("To'lov muvaffaqiyatli qabul qilindi, rahmat"), data=serializer.data)
