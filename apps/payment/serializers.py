@@ -46,7 +46,6 @@ class CardSerializer(serializers.ModelSerializer):
             "card_number",
             "expiry_date",
             "is_default",
-            "card_token",
             "color",
             "is_verified",
         )
@@ -92,7 +91,6 @@ class CardCreateSerializer(serializers.ModelSerializer):
             expiry_date=card_data.get("expire"),
             card_token=card_data.get("token"),
             is_verified=card_data.get("verify"),
-            is_recurrent=card_data.get("recurrent"),
             color=validated_data.get("color"),
             is_default=True,
         )
@@ -106,6 +104,7 @@ class PayWithCardSerializer(serializers.Serializer):  # noqa
     def validate(self, attrs):
         """Validate card existence and retrieve its token."""
         card_id = attrs.get("card_id")
+        user = self.context.get("request").user
         try:
             card = Card.objects.get(id=card_id)
             if not card.is_verified:
@@ -113,6 +112,11 @@ class PayWithCardSerializer(serializers.Serializer):  # noqa
             attrs["card_token"] = card.card_token
         except Card.DoesNotExist:
             raise_validation_error(message=lang("Karta topilmadi. Iltimos, tekshirib qaytadan yuboring."))
+
+        # Check if the user has an active subscription
+        if user.subscription_active and user.next_payment_date:
+            raise_validation_error(message=lang("Sizda allaqachon pullik obuna bor"))
+
         return attrs
 
     def create(self, validated_data):
@@ -124,22 +128,22 @@ class PayWithCardSerializer(serializers.Serializer):  # noqa
         # Step 1: Create a Payme receipt
         success, message, receipt_id = create_payme_receipt(amount)
         if not success:
-            raise_validation_error(message=lang("To'lov tizimi bilan bog'liq muammo yuz berdi: {message}"))
+            raise_validation_error(message=lang(f"To'lov chekini yaratishda tizim bilan bog'liq"
+                                                f" muammo yuz berdi: {message}"))
         transaction_type = TransactionTypes.WITHDRAW if is_withdrawal else TransactionTypes.DEPOSIT
         # Step 2: Log the transaction with DRAFT status
         transaction = Transaction.objects.create(
             user=user,
             amount=amount,
             currency="UZS",
-            transaction_id=receipt_id,
             transaction_type=transaction_type,
             status=PaymentStatuses.DRAFT.value,
         )
 
         # Step 3: Commit the Payme receipt
-        success, message, _ = commit_payme_receipt(card_token, receipt_id)
+        success, message, receipt_id = commit_payme_receipt(card_token, receipt_id)
         if not success:
-            raise_validation_error(message=lang("To'lov tizimi bilan bog'liq muammo yuz berdi: {message}"))
+            raise_validation_error(message=lang(f"To'lov tizimi bilan bog'liq muammo yuz berdi: {message}"))
 
         # Step 4: Update transaction status to COMMITTED
         transaction.status = PaymentStatuses.SUCCESS.value
@@ -151,7 +155,6 @@ class PayWithCardSerializer(serializers.Serializer):  # noqa
 
         # Return the transaction for further processing if needed
         return {
-            "transaction_id": transaction.transaction_id,
             "amount": transaction.amount,
             "status": transaction.status,
         }
@@ -159,7 +162,6 @@ class PayWithCardSerializer(serializers.Serializer):  # noqa
 
 class TransactionSerializer(serializers.ModelSerializer):
     user = UserSerializer(read_only=True)
-    transaction_id = serializers.CharField(required=False)
 
     class Meta:
         model = Transaction
@@ -170,6 +172,5 @@ class TransactionSerializer(serializers.ModelSerializer):
             "status",
             "currency",
             "created_time",
-            "transaction_id",
             "transaction_type",
         ]

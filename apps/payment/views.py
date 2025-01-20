@@ -1,6 +1,6 @@
 from datetime import timedelta
 
-from django.template.defaulttags import now
+from django.utils.timezone import now
 from rest_framework import generics, permissions
 from rest_framework.views import APIView
 
@@ -248,7 +248,8 @@ class ManualSubscriptionPaymentView(generics.CreateAPIView):
 
         # Update user subscription details
         user.retry_count = 0
+        user.subscription_active = True
         user.next_payment_date = now().date() + timedelta(days=30)
         user.save()
 
-        return success_response(message=_("To'lov muvaffaqiyatli qabul qilindi, rahmat"), data=serializer.data)
+        return success_response(message=_("To'lov muvaffaqiyatli qabul qilindi, rahmat"))

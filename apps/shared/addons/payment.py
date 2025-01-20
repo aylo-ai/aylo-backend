@@ -49,10 +49,10 @@ def create_payme_receipt(amount):
         settings.PAYME_API_URL, json=payload, headers=headers
     )
 
-    if response.status_code == 200:
-        result = response.json().get("result", {})
-        return True, "", result.get("receipt", {}).get("id")
-    return False, response.json().get("error", {}).get("message"), None
+    try:
+        return True, "successfull", response.json()["result"]["receipt"]["_id"]
+    except Exception:
+        return False, response.json()["error"]["message"], None
 
 
 def commit_payme_receipt(card_token, receipt_id):
@@ -69,9 +69,10 @@ def commit_payme_receipt(card_token, receipt_id):
     response = requests.post(
         settings.PAYME_API_URL, json=payload, headers=headers
     )
-    if response.status_code == 200:
-        return True, "", receipt_id
-    return False, response.json().get("error", {}).get("message"), None
+    try:
+        return True, "successfull", response.json()["result"]["receipt"]["_id"]
+    except Exception:
+        return False, response.json()["error"]["message"], None
 
 
 def update_user_balance(user, amount):

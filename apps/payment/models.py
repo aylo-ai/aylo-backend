@@ -75,6 +75,8 @@ class Card(BaseModel):
         # undefault user's other cards
         if self.is_default:
             Card.objects.filter(user=self.user).exclude(id=self.id).update(is_default=False)
+        if not self.name:
+            self.name = f"Card {self.card_number[-4:0]}"
         super(Card, self).save(*args, **kwargs)
 
     def __str__(self):
