@@ -100,6 +100,7 @@ class CardCreateSerializer(serializers.ModelSerializer):
 class PayWithCardSerializer(serializers.Serializer):  # noqa
     amount = serializers.IntegerField()
     card_id = serializers.UUIDField()
+    payment_method = serializers.CharField(required=False)
 
     def validate(self, attrs):
         """Validate card existence and retrieve its token."""
@@ -124,17 +125,19 @@ class PayWithCardSerializer(serializers.Serializer):  # noqa
         user = self.context.get("request").user
         amount = validated_data.get("amount")
         card_token = validated_data.get("card_token")
+        payment_method = validated_data.get("payment_method")
         is_withdrawal = self.context.get("is_withdrawal", False)
         # Step 1: Create a Payme receipt
         success, message, receipt_id = create_payme_receipt(amount)
         if not success:
             raise_validation_error(message=lang(f"To'lov chekini yaratishda tizim bilan bog'liq"
                                                 f" muammo yuz berdi: {message}"))
-        transaction_type = TransactionTypes.WITHDRAW if is_withdrawal else TransactionTypes.DEPOSIT
+        transaction_type = TransactionTypes.WITHDRAW.value if is_withdrawal else TransactionTypes.DEPOSIT
         # Step 2: Log the transaction with DRAFT status
         transaction = Transaction.objects.create(
             user=user,
             amount=amount,
+            payment_method=payment_method,
             currency="UZS",
             transaction_type=transaction_type,
             status=PaymentStatuses.DRAFT.value,
