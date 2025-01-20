@@ -259,11 +259,17 @@ MEDIA_ROOT = os.path.join(BASE_DIR, "media")  # Directory for storing media file
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 AUTH_USER_MODEL = "user.User"
 
+REDIS_PASSWORD = os.environ.get("REDIS_PASSWORD", "")
 REDIS_HOST = os.environ.get("REDIS_HOST", default="localhost")
 REDIS_PORT = os.environ.get("REDIS_PORT", 6379)
 REDIS_DB = os.environ.get("REDIS_DB", 0)
-redis_connection = redis.Redis(host=REDIS_HOST, port=REDIS_PORT, db=0)
-REDIS_URL: str = f"redis://{REDIS_HOST}:{REDIS_PORT}/{REDIS_DB}"
+redis_connection = redis.Redis(
+    host=REDIS_HOST,
+    port=REDIS_PORT,
+    db=0,
+    password=REDIS_PASSWORD
+)
+REDIS_URL: str = f"redis://:{REDIS_PASSWORD}@{REDIS_HOST}:{REDIS_PORT}/{REDIS_DB}"
 
 # Celery settings
 CELERY_BROKER_URL = os.environ.get("CELERY_BROKER_URL", default=REDIS_URL)
