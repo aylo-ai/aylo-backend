@@ -47,9 +47,10 @@ services:
     ports:
       - 6379:6379
     image: redis:latest
-    command: redis-server --requirepass HFDJ23fdsfg324F
     volumes:
       - redis-data:/data
+    restart: unless-stopped
+
 
 volumes:
   postgres_data:
