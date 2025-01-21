@@ -267,9 +267,8 @@ redis_connection = redis.Redis(
     host=REDIS_HOST,
     port=REDIS_PORT,
     db=0,
-    password=REDIS_PASSWORD
 )
-REDIS_URL: str = f"redis://:{REDIS_PASSWORD}@{REDIS_HOST}:{REDIS_PORT}/{REDIS_DB}"
+REDIS_URL: str = f"redis://{REDIS_HOST}:{REDIS_PORT}/{REDIS_DB}"
 
 # Celery settings
 CELERY_BROKER_URL = os.environ.get("CELERY_BROKER_URL", default=REDIS_URL)
