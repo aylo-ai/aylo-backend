@@ -152,6 +152,10 @@ class UserSerializer(serializers.ModelSerializer):
             'last_name',
             'phone_number',
             'user_role',
+            'pricing_package',
+            'subscription_active',
+            'next_payment_date',
+            'used_request_count'
         ]
 
 
