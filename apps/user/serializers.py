@@ -144,6 +144,8 @@ class LoginRefreshSerializer(serializers.Serializer):  # noqa
 
 
 class UserSerializer(serializers.ModelSerializer):
+    total_request_count = serializers.SerializerMethodField()
+
     class Meta:
         model = User
         fields = [
@@ -155,8 +157,12 @@ class UserSerializer(serializers.ModelSerializer):
             'pricing_package',
             'subscription_active',
             'next_payment_date',
-            'used_request_count'
+            'used_request_count',
+            "total_request_count"
         ]
+
+    def get_total_request_count(self, obj): # noqa
+        return obj.pricing_package.request_count
 
 
 class UserShortSerializer(serializers.ModelSerializer):
