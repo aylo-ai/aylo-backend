@@ -162,7 +162,10 @@ class UserSerializer(serializers.ModelSerializer):
         ]
 
     def get_total_request_count(self, obj): # noqa
-        return obj.pricing_package.request_count
+        pricing_package = getattr(obj, 'pricing_package', None)
+        if pricing_package:
+            return pricing_package.request_count
+        return 0
 
 
 class UserShortSerializer(serializers.ModelSerializer):
