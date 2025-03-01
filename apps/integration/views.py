@@ -183,6 +183,7 @@ class InstagramCallbackView(APIView):
             "redirect_uri": self.REDIRECT_URI,
             "code": code,
         }
+        print(f"Data: {data}")
 
         response = requests.post(token_url, data=data)
         if response.status_code == 200:
@@ -192,6 +193,7 @@ class InstagramCallbackView(APIView):
             print(f"Access token: {access_token}, User ID: {user_id}")
             # Fetch Instagram Business Accounts
             instagram_pages = get_instagram_business_accounts(access_token)
+            print(f"Instagram pages: {instagram_pages}")
             if not instagram_pages:
                 return error_response(message="Failed to fetch Instagram Business Accounts", code=400)
             data = {
