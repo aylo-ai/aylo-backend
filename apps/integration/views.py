@@ -1,10 +1,15 @@
 import requests
+import base64
+import hashlib
+import hmac
+import json
 from django.http import HttpResponse
 from rest_framework.views import APIView
 from django.utils.translation import gettext as _
 from apps.assistant.models import  Assistant
 from shared.addons.ai_requests import get_assistant_response
 from shared.addons.enums import ConversationStatuses
+from shared.addons.instagram import get_instagram_business_accounts
 from shared.addons.telegram import send_telegram_message, delete_telegram_message, handle_bot_added_to_group, \
     handle_bot_removed_from_group
 from shared.addons.utils import create_message, get_or_create_conversation, handle_start_command
@@ -181,11 +186,135 @@ class InstagramCallbackView(APIView):
 
         response = requests.post(token_url, data=data)
         if response.status_code == 200:
-            access_token = response.json().get("access_token")
-            print(f"Instagram access token: {access_token}")
-            return success_response(data={"access_token": access_token}, code=200)
+            token_data = response.json()
+            access_token = token_data.get("access_token")
+            user_id = token_data.get("user_id")
+            print(f"Access token: {access_token}, User ID: {user_id}")
+            # Fetch Instagram Business Accounts
+            instagram_pages = get_instagram_business_accounts(access_token)
+            if not instagram_pages:
+                return error_response(message="Failed to fetch Instagram Business Accounts", code=400)
+            data = {
+                "instagram_pages": instagram_pages,
+                "access_token": access_token,
+            }
+            return success_response(data=data, message="Authorization successful", code=200)
         else:
             return error_response(message="Failed to get access token", code=400)
+
+
+class InstagramPageIntegrationView(APIView):
+    def post(self, request, *args, **kwargs):
+        access_token = request.data.get("access_token")
+        instagram_id = request.data.get("instagram_id")
+        page_id = request.data.get("page_id")
+
+        if not access_token or not instagram_id or not page_id:
+            return error_response(message="Missing required data", code=400)
+
+        # Fetch Instagram account details
+        url = f"https://graph.facebook.com/v19.0/{instagram_id}?" \
+              f"fields=id,username,profile_picture_url&access_token={access_token}"
+        response = requests.get(url)
+        if response.status_code == 200:
+            user_data = response.json()
+
+            # Save to database
+            instagram_account, _ = InstagramAccount.objects.update_or_create(
+                instagram_user_id=instagram_id,
+                defaults={
+                    "access_token": access_token,
+                    "page_id": page_id,
+                    "username": user_data.get("username"),
+                    "profile_picture": user_data.get("profile_picture_url"),
+                }
+            )
+
+            return success_response(data=user_data, message="Instagram account integrated successfully", code=200)
+        else:
+            return error_response(message="Failed to fetch Instagram account details", code=400)
+
+
+class InstagramDeauthorizeView(APIView):
+    def post(self, request, *args, **kwargs): # noqa
+        # Facebook sends a signed request
+        signed_request = request.data.get("signed_request")
+        if not signed_request:
+            return error_response(message="Signed request not found", code=400)
+
+        def parse_signed_request(signed_request, secret):  # noqa
+            encoded_sig, payload = signed_request.split('.', 1)
+            decoded_payload = base64.urlsafe_b64decode(payload + "==").decode()
+            data = json.loads(decoded_payload)
+
+            # Verify signature
+            expected_sig = hmac.new(
+                secret.encode(),
+                msg=payload.encode(),
+                digestmod=hashlib.sha256
+            ).digest()
+
+            if not hmac.compare_digest(base64.urlsafe_b64encode(expected_sig).strip(), encoded_sig.encode()):
+                return None
+
+            return data
+
+        CLIENT_SECRET = "5012f3e33700b8b659a9c97c1fc1f7bd"
+        data = parse_signed_request(signed_request, CLIENT_SECRET)
+
+        if not data:
+            return error_response(message="Invalid signed request", code=400)
+
+        user_id = data.get("user_id")
+
+        if user_id:
+            # Here you should remove the user from your database
+            print(f"User {user_id} deauthorized the app.")
+            return success_response(message="User deauthorized the app", code=200)
+        else:
+            return error_response(message="User ID not found in signed request", code=400)
+
+
+class InstagramDataDeletionView(APIView):
+    def post(self, request, *args, **kwargs):
+        signed_request = request.data.get("signed_request")
+        if not signed_request:
+            return error_response(message="Signed request not found", code=400)
+
+        CLIENT_SECRET = "5012f3e33700b8b659a9c97c1fc1f7bd"
+
+        def parse_signed_request(signed_request, secret):
+            import base64, hashlib, hmac
+
+            encoded_sig, payload = signed_request.split('.', 1)
+            decoded_payload = base64.urlsafe_b64decode(payload + "==").decode()
+            data = json.loads(decoded_payload)
+
+            expected_sig = hmac.new(
+                secret.encode(),
+                msg=payload.encode(),
+                digestmod=hashlib.sha256
+            ).digest()
+
+            if not hmac.compare_digest(base64.urlsafe_b64encode(expected_sig).strip(), encoded_sig.encode()):
+                return None
+
+            return data
+
+        data = parse_signed_request(signed_request, CLIENT_SECRET)
+        if not data:
+            return error_response(message="Invalid signed request", code=400)
+
+        user_id = data.get("user_id")
+        if user_id:
+            # Process data deletion for the user
+            print(f"Deleting data for user: {user_id}")
+            return success_response(data={
+                "url": "https://api.repli.uz/integration/instagram/data-deletion-status/",
+                "confirmation_code": user_id
+            }, code=200)
+        else:
+            return error_response(message="User ID not found in signed request", code=400)
 
 
 class TelegramWebhookView(APIView):

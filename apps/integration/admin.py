@@ -7,8 +7,8 @@ class Integration(admin.ModelAdmin):
     list_display = ["get_asssitant_name", "name", "integration_type", "is_active", "created_time"]
     search_fields = ["name"]
     fieldsets = (
-        (None, {"fields": ("name", "description", "is_active", "api_token", "integration_type")}),
-        ("Assistant", {"fields": ("assistant",)}),
+        (None, {"fields": ("assistant", "name", "description", "is_active", "api_token", "integration_type")}),
+        ("Instagram", {"fields": ("instagram_user_id", "page_id", "username", "profile_picture")}),
     )
 
     def get_asssitant_name(self, obj): # noqa

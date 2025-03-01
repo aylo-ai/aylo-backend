@@ -13,6 +13,12 @@ class Integration(BaseModel):
     api_token = models.CharField(max_length=255)
     integration_type = models.CharField(max_length=50, choices=IntegrationTypes.choices())
 
+    # Instagram-specific fields
+    instagram_user_id = models.CharField(max_length=50, null=True, blank=True)  # IG user ID
+    page_id = models.CharField(max_length=50, null=True, blank=True)  # Facebook page ID
+    username = models.CharField(max_length=100, null=True, blank=True)  # IG username
+    profile_picture = models.URLField(null=True, blank=True)  # Profile picture URL
+
     def __str__(self):
         return self.name
 
