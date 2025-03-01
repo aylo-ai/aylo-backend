@@ -11,6 +11,7 @@ class Integration(BaseModel):
     description = models.TextField(null=True, blank=True)
     is_active = models.BooleanField(default=True)
     api_token = models.CharField(max_length=255)
+    refresh_token = models.CharField(max_length=500, null=True, blank=True)  # Optional for Instagram
     integration_type = models.CharField(max_length=50, choices=IntegrationTypes.choices())
 
     # Instagram-specific fields
