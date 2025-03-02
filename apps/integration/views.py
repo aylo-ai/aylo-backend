@@ -9,7 +9,7 @@ from django.utils.translation import gettext as _
 from apps.assistant.models import  Assistant
 from shared.addons.ai_requests import get_assistant_response
 from shared.addons.enums import ConversationStatuses
-from shared.addons.instagram import get_instagram_business_accounts
+from shared.addons.instagram import get_instagram_business_accounts, get_long_lived_access_token
 from shared.addons.telegram import send_telegram_message, delete_telegram_message, handle_bot_added_to_group, \
     handle_bot_removed_from_group
 from shared.addons.utils import create_message, get_or_create_conversation, handle_start_command
@@ -188,10 +188,12 @@ class InstagramCallbackView(APIView):
         response = requests.post(token_url, data=data)
         if response.status_code == 200:
             token_data = response.json()
-            access_token = token_data.get("access_token")
+            short_lived_access_token = token_data.get("access_token")
             user_id = token_data.get("user_id")
-            print(f"Access token: {access_token}, User ID: {user_id}")
+            print(f"Short lived Access Token: {short_lived_access_token}, User ID: {user_id}")
             # Fetch Instagram Business Accounts
+            access_token = get_long_lived_access_token(short_lived_access_token)
+            print(f"Long lived Access Token: {access_token}")
             instagram_pages = get_instagram_business_accounts(access_token)
             print(f"Instagram pages: {instagram_pages}")
             if not instagram_pages:

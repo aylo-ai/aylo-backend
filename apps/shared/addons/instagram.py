@@ -19,3 +19,17 @@ def get_instagram_business_accounts(access_token):
                 })
         return business_accounts
     return None
+
+
+def get_long_lived_access_token(short_lived_access_token):
+    """Get long-lived access token from short-lived access token"""
+    CLIENT_SECRET = "5012f3e33700b8b659a9c97c1fc1f7bd"
+    grant_type = "ig_exchange_token"
+    url = f"https://graph.instagram.com/access_token?grant_type={grant_type}&" \
+          f"client_secret={CLIENT_SECRET}&access_token={short_lived_access_token}"
+
+    response = requests.get(url)
+    if response.status_code == 200:
+        access_token = response.json().get("access_token")
+        return access_token
+    return None
