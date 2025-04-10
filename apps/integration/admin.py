@@ -9,7 +9,7 @@ class Integration(admin.ModelAdmin):
     fieldsets = (
         (None, {"fields": ("assistant", "name", "description", "is_active", "api_token",
                            "refresh_token", "integration_type")}),
-        ("Instagram", {"fields": ("instagram_user_id", "page_id", "username", "profile_picture")}),
+        ("Instagram", {"fields": ("instagram_user_id", "instagram_account_id", "instagram_username")}),
     )
 
     def get_asssitant_name(self, obj): # noqa
