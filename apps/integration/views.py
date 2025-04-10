@@ -155,7 +155,7 @@ class InstagramWebhookView(APIView):
         # Return 403 if the validation fails
         return error_response(message="Invalid token", code=403)
 
-    def post(self, request, *args, **kwargs):
+    def post(self, request, *args, **kwargs):  # noqa
         # Handle incoming webhook data
         data = request.data
         print(f"Instagram webhook data: {data}")
@@ -164,8 +164,8 @@ class InstagramWebhookView(APIView):
 
 
 class InstagramCallbackView(APIView):
-    CLIENT_ID = "601663735749252"
-    CLIENT_SECRET = "5012f3e33700b8b659a9c97c1fc1f7bd"
+    CLIENT_ID = "1217809219739350"
+    CLIENT_SECRET = "dc12159193e69625fd27281997b28f4f"
     REDIRECT_URI = "https://api.repli.uz/api/v1/integration/instagram/callback/"
 
     def get(self, request, *args, **kwargs):

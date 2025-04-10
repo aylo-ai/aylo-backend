@@ -33,3 +33,11 @@ def get_long_lived_access_token(short_lived_access_token):
         access_token = response.json().get("access_token")
         return access_token
     return None
+
+
+def instagram_refresh_token(access_token):
+    grant_type = "ig_refresh_token"
+    url = f"https://graph.instagram.com/refresh_access_token?grant_type={grant_type}&access_token={access_token}"
+
+    response = requests.get(url)
+
