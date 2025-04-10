@@ -8,7 +8,7 @@ from rest_framework.views import APIView
 from django.utils.translation import gettext as _
 from apps.assistant.models import  Assistant
 from shared.addons.ai_requests import get_assistant_response
-from shared.addons.enums import ConversationStatuses
+from shared.addons.enums import ConversationStatuses, IntegrationTypes
 from shared.addons.instagram import get_long_lived_access_token, get_user_profile
 from shared.addons.telegram import send_telegram_message, delete_telegram_message, handle_bot_added_to_group, \
     handle_bot_removed_from_group
@@ -171,6 +171,7 @@ class InstagramCallbackView(APIView):
     def get(self, request, *args, **kwargs):
         # Get the authorization code from the query parameters
         code = request.query_params.get("code")
+        assistant_id = request.query_params.get("assistant_id")
         if not code:
             return error_response(message="Authorization code not found", code=400)
 
@@ -198,7 +199,20 @@ class InstagramCallbackView(APIView):
             return error_response(message="Failed to get access token", code=400)
         # get instagram user profile
         user_profile = get_user_profile(access_token)
-        print(f"User Profile: {user_profile}")
+        if user_profile:
+            print(f"User Profile: {user_profile}")
+            integration, _ = Integration.objects.update_or_create(
+                assistant_id=assistant_id,
+                defaults={
+                    "name": "Instagram integration",
+                    "integration_type": IntegrationTypes.INSTAGRAM.value,
+                    "api_token": access_token,
+                    "instagram_user_id": user_profile.get("instagram_user_id"),
+                    "instagram_account_id": user_profile.get("instagram_account_id"),
+                    "instagram_username": user_profile.get("instagram_username"),
+                }
+            )
+            print(f"Integration is successfully created: {integration}")
         return success_response(message="Access token retrieved successfully", data=data)
 
 
