@@ -171,10 +171,9 @@ class InstagramCallbackView(APIView):
     def get(self, request, *args, **kwargs):
         # Get the authorization code from the query parameters
         code = request.query_params.get("code")
-        # assistant_id = request.query_params.get("assistant_id")
-        # if not assistant_id:
-        #     return error_response(message="Assistant ID not found", code=400)
-        assistant_id = "8c21638a-2500-46b7-9f8c-451e8b3f98d2"
+        assistant_id = request.query_params.get("assistant_id")
+        if not assistant_id:
+            return error_response(message="Assistant ID not found", code=400)
         if not code:
             return error_response(message="Authorization code not found", code=400)
 
