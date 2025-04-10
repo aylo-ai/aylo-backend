@@ -171,7 +171,10 @@ class InstagramCallbackView(APIView):
     def get(self, request, *args, **kwargs):
         # Get the authorization code from the query parameters
         code = request.query_params.get("code")
-        assistant_id = request.query_params.get("assistant_id")
+        # assistant_id = request.query_params.get("assistant_id")
+        # if not assistant_id:
+        #     return error_response(message="Assistant ID not found", code=400)
+        assistant_id = "8c21638a-2500-46b7-9f8c-451e8b3f98d2"
         if not code:
             return error_response(message="Authorization code not found", code=400)
 
@@ -214,38 +217,6 @@ class InstagramCallbackView(APIView):
             )
             print(f"Integration is successfully created: {integration}")
         return success_response(message="Access token retrieved successfully", data=data)
-
-
-class InstagramPageIntegrationView(APIView):
-    def post(self, request, *args, **kwargs):
-        access_token = request.data.get("access_token")
-        instagram_id = request.data.get("instagram_id")
-        page_id = request.data.get("page_id")
-
-        if not access_token or not instagram_id or not page_id:
-            return error_response(message="Missing required data", code=400)
-
-        # Fetch Instagram account details
-        url = f"https://graph.facebook.com/v19.0/{instagram_id}?" \
-              f"fields=id,username,profile_picture_url&access_token={access_token}"
-        response = requests.get(url)
-        if response.status_code == 200:
-            user_data = response.json()
-
-            # Save to database
-            instagram_account, _ = InstagramAccount.objects.update_or_create(
-                instagram_user_id=instagram_id,
-                defaults={
-                    "access_token": access_token,
-                    "page_id": page_id,
-                    "username": user_data.get("username"),
-                    "profile_picture": user_data.get("profile_picture_url"),
-                }
-            )
-
-            return success_response(data=user_data, message="Instagram account integrated successfully", code=200)
-        else:
-            return error_response(message="Failed to fetch Instagram account details", code=400)
 
 
 class InstagramDeauthorizeView(APIView):
