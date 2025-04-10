@@ -34,15 +34,16 @@ def get_user_profile(access_token):
           f"fields=id,username,profile_picture_url,followers_count,follows_count,account_type&" \
           f"access_token={access_token}"
     response = requests.get(url)
+    print(f"get_user_profile response: {response.text}")
     if response.status_code == 200:
         user_profile = response.json()
-        user_data = {
-            "id": user_profile.get("data")[0].get("user_id"),
-            "username": user_profile.get("data")[0].get("username"),
-            "profile_picture": user_profile.get("data")[0].get("profile_picture_url"),
-            "followers_count": user_profile.get("data")[0].get("followers_count"),
-            "follows_count": user_profile.get("data")[0].get("follows_count"),
-            "account_type": user_profile.get("data")[0].get("account_type"),
-        }
-        return user_data
+        # user_data = {
+        #     "id": user_profile.get("data")[0].get("user_id"),
+        #     "username": user_profile.get("data")[0].get("username"),
+        #     "profile_picture": user_profile.get("data")[0].get("profile_picture_url"),
+        #     "followers_count": user_profile.get("data")[0].get("followers_count"),
+        #     "follows_count": user_profile.get("data")[0].get("follows_count"),
+        #     "account_type": user_profile.get("data")[0].get("account_type"),
+        # }
+        return user_profile
     return None
