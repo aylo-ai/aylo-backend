@@ -9,7 +9,7 @@ from django.utils.translation import gettext as _
 from apps.assistant.models import  Assistant
 from shared.addons.ai_requests import get_assistant_response
 from shared.addons.enums import ConversationStatuses
-from shared.addons.instagram import get_instagram_business_accounts, get_long_lived_access_token
+from shared.addons.instagram import get_instagram_business_accounts, get_long_lived_access_token, get_user_profile
 from shared.addons.telegram import send_telegram_message, delete_telegram_message, handle_bot_added_to_group, \
     handle_bot_removed_from_group
 from shared.addons.utils import create_message, get_or_create_conversation, handle_start_command
@@ -194,17 +194,12 @@ class InstagramCallbackView(APIView):
             # Fetch Instagram Business Accounts
             access_token = get_long_lived_access_token(short_lived_access_token)
             print(f"Long lived Access Token: {access_token}")
-            instagram_pages = get_instagram_business_accounts(access_token)
-            print(f"Instagram pages: {instagram_pages}")
-            if not instagram_pages:
-                return error_response(message="Failed to fetch Instagram Business Accounts", code=400)
-            data = {
-                "instagram_pages": instagram_pages,
-                "access_token": access_token,
-            }
-            return success_response(data=data, message="Authorization successful", code=200)
         else:
             return error_response(message="Failed to get access token", code=400)
+        # get instagram user profile
+        user_profile = get_user_profile(access_token)
+        print(f"User Profile: {user_profile}")
+        return success_response(message="Access token retrieved successfully", data=data)
 
 
 class InstagramPageIntegrationView(APIView):
