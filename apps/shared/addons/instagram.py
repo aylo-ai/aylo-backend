@@ -23,7 +23,7 @@ def get_instagram_business_accounts(access_token):
 
 def get_long_lived_access_token(short_lived_access_token):
     """Get long-lived access token from short-lived access token"""
-    CLIENT_SECRET = "5012f3e33700b8b659a9c97c1fc1f7bd"
+    CLIENT_SECRET = "dc12159193e69625fd27281997b28f4f"
     grant_type = "ig_exchange_token"
     url = f"https://graph.instagram.com/access_token?grant_type={grant_type}&" \
           f"client_secret={CLIENT_SECRET}&access_token={short_lived_access_token}"
@@ -31,6 +31,8 @@ def get_long_lived_access_token(short_lived_access_token):
     response = requests.get(url)
     if response.status_code == 200:
         access_token = response.json().get("access_token")
+        refreshed_new_token = instagram_refresh_token(access_token)
+        print(f"refresh_token: {refreshed_new_token}")
         return access_token
     return None
 
@@ -40,4 +42,8 @@ def instagram_refresh_token(access_token):
     url = f"https://graph.instagram.com/refresh_access_token?grant_type={grant_type}&access_token={access_token}"
 
     response = requests.get(url)
+    if response.status_code == 200:
+        access_token = response.json().get("access_token")
+        return access_token
+    return None
 
