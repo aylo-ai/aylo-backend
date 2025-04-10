@@ -9,7 +9,7 @@ from django.utils.translation import gettext as _
 from apps.assistant.models import  Assistant
 from shared.addons.ai_requests import get_assistant_response
 from shared.addons.enums import ConversationStatuses
-from shared.addons.instagram import get_instagram_business_accounts, get_long_lived_access_token, get_user_profile
+from shared.addons.instagram import get_long_lived_access_token, get_user_profile
 from shared.addons.telegram import send_telegram_message, delete_telegram_message, handle_bot_added_to_group, \
     handle_bot_removed_from_group
 from shared.addons.utils import create_message, get_or_create_conversation, handle_start_command
