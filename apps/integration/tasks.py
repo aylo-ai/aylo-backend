@@ -65,6 +65,10 @@ def process_instagram_message(account_id, user_message):
     print(f"Assistant: {assistant}")
     if not assistant:
         return
+    integration = assistant.integrations.filter(integration_type="instagram", instagram_account_id=account_id).first()
+    print(f"Integration: {integration}")
+    if not integration:
+        return
     sender_id = user_message[0].get("sender", {}).get("id")
     print(f"Sender ID: {sender_id}")
     if not sender_id:
@@ -83,5 +87,5 @@ def process_instagram_message(account_id, user_message):
     print(f"Response message: {response_message}")
 
     # send response to user
-    send_instagram_message(account_id, assistant.api_token, sender_id, response_message)
+    send_instagram_message(account_id, integration.api_token, sender_id, response_message)
     print(f"Sent message to Instagram user: {sender_id} with message: {response_message}")
