@@ -418,4 +418,4 @@ JAZZMIN_UI_TWEAKS = {
 PAYME_KEY = os.environ.get("PAYME_KEY")
 PAYME_ID = os.environ.get("PAYME_ID")
 PAYME_API_URL = os.environ.get("PAYME_API_URL", default="https://checkout.paycom.uz/api")
-
+OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY")
