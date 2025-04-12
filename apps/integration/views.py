@@ -156,15 +156,19 @@ class InstagramWebhookView(APIView):
         return error_response(message="Invalid token", code=403)
 
     def post(self, request, *args, **kwargs):  # noqa
-        # Handle incoming webhook data
+        print("Instagram webhook data received")
         data = request.data
         print(f"Instagram webhook data: {data}")
         if not data:
             return error_response(message="No data received", code=400)
         entry = data.get("entry")[0]
+        print(f"Entry: {entry}")
         account_id = entry.get("id")
+        print(f"Account ID: {account_id}")
         messaging = entry.get("messaging")
+        print(f"Messaging: {messaging}")
         if not Integration.objects.filter(instagram_account_id=account_id).exists():
+            print(f"Integration not found for account ID: {account_id}")
             return error_response(message="Integration not found", code=404)
         # Start celery task to process the incoming message
         process_instagram_message.delay(account_id, messaging)
