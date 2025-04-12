@@ -47,22 +47,33 @@ def get_user_profile(access_token):
 
 
 def send_instagram_message(account_id, access_token, recipient_id, message):
-    """Send message to Instagram user"""
+    """Send message to Instagram user, splitting if message is over 1000 characters"""
+
     url = f"https://graph.instagram.com/v22.0/{account_id}/messages"
-    header = {
+    headers = {
         "Content-Type": "application/json",
         "Authorization": f"Bearer {access_token}",
     }
-    payload = {
-        "recipient": {
-            "id": recipient_id
-        },
-        "message": {
-            "text": message
+
+    # Split message if it's longer than 1000 characters
+    MAX_LENGTH = 1000
+    message_parts = [message[i:i + MAX_LENGTH] for i in range(0, len(message), MAX_LENGTH)]
+
+    success = True
+    for part in message_parts:
+        payload = {
+            "recipient": {
+                "id": recipient_id
+            },
+            "message": {
+                "text": part
+            }
         }
-    }
-    response = requests.post(url, json=payload, headers=header)
-    print(f"send_instagram_message response: {response.text}")
-    if response.status_code == 200:
-        return True
-    return False
+
+        response = requests.post(url, json=payload, headers=headers)
+        print(f"send_instagram_message response: {response.text}")
+
+        if response.status_code != 200:
+            success = False  # agar bitta qismi yuborilmasa, false qaytaramiz
+
+    return success
