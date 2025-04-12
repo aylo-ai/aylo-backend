@@ -16,10 +16,10 @@ def create_message(conversation, sender, content):
     print(f"Message created: {conversation}, {sender}")
 
 
-def get_or_create_conversation(chat_id, assistant, reset=False, token=None, platform='telegram'):
+def get_or_create_conversation(user_id, assistant, reset=False, token=None, platform='telegram'):
     conversation = Conversation.objects.filter(
         assistant=assistant,
-        telegram_user_id=chat_id,
+        user_id=user_id,
         token=token).first()
     print(f"Conversation: {conversation}")
     if conversation is None:
@@ -27,7 +27,7 @@ def get_or_create_conversation(chat_id, assistant, reset=False, token=None, plat
         print(f"conversation is None, creating new conversation with thread_id: {thread_id}")
         conversation = Conversation.objects.create(
             assistant=assistant,
-            telegram_user_id=chat_id,
+            user_id=user_id,
             thread_id=thread_id,
             status='open',
             token=token,

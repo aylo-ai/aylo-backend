@@ -91,11 +91,11 @@ class SendUserMessageSerializer(serializers.Serializer):  # noqa
         attrs["conversation"] = conversation
         if platform == ConversationPlatforms.TELEGRAM.value and \
                 conversation.status == ConversationStatuses.ESCALATED.value:
-            telegram_user_id = getattr(conversation, "telegram_user_id", None)
+            user_id = getattr(conversation, "telegram_user_id", None)
             bot_token = getattr(conversation, "token", None)
-            if not telegram_user_id:
+            if not user_id:
                 raise_validation_error(message=_("Telegram user ID not found"))
-            attrs["telegram_user_id"] = telegram_user_id
+            attrs["user_id"] = user_id
             if not bot_token:
                 raise_validation_error(message=_("Telegram bot token not found"))
             attrs["bot_token"] = bot_token
@@ -106,10 +106,10 @@ class SendUserMessageSerializer(serializers.Serializer):  # noqa
         platform = validated_data.get("platform")
         conversation = validated_data.get("conversation")
         if platform == ConversationPlatforms.TELEGRAM.value:
-            telegram_user_id = validated_data.get("telegram_user_id")
+            user_id = validated_data.get("user_id")
             bot_token = validated_data.get("bot_token")
             message = validated_data.get("message")
-            send_telegram_message(telegram_user_id, message, bot_token)
+            send_telegram_message(user_id, message, bot_token)
             create_message(conversation, "admin", message)
 
         if platform == ConversationPlatforms.WEBSITE.value:

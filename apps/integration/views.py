@@ -19,7 +19,7 @@ from .models import Integration, TelegramGroupIntegration
 from rest_framework import generics, permissions
 from .serializers import IntegrationCreateSerializer, IntegrationSerializer, SendUserMessageSerializer, \
     TelegramGroupSerializer
-from .tasks import process_message_task
+from .tasks import process_message_task, process_instagram_message
 
 
 class IntegrationListCreateView(generics.ListCreateAPIView):
@@ -159,8 +159,16 @@ class InstagramWebhookView(APIView):
         # Handle incoming webhook data
         data = request.data
         print(f"Instagram webhook data: {data}")
-
-        return success_response(message="Webhook data processed successfully", code=200)
+        if not data:
+            return error_response(message="No data received", code=400)
+        entry = data.get("entry")[0]
+        account_id = entry.get("id")
+        messaging = entry.get("messaging")
+        if not Integration.objects.filter(instagram_account_id=account_id).exists():
+            return error_response(message="Integration not found", code=404)
+        # Start celery task to process the incoming message
+        process_instagram_message.delay(account_id, messaging)
+        return success_response(message="Webhook data receieved successfully", code=200)
 
 
 class InstagramCallbackView(APIView):
@@ -216,7 +224,9 @@ class InstagramCallbackView(APIView):
                 }
             )
             print(f"Integration is successfully created: {integration}")
-        return success_response(message="Access token retrieved successfully", data=data)
+        else:
+            return error_response(message="Failed to get user profile", code=400)
+        return success_response(message="Integration created successfully", code=200,)
 
 
 class InstagramDeauthorizeView(APIView):

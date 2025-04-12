@@ -44,3 +44,25 @@ def get_user_profile(access_token):
         }
         return user_data
     return None
+
+
+def send_instagram_message(account_id, access_token, recipient_id, message):
+    """Send message to Instagram user"""
+    url = f"https://graph.instagram.com/v22.0/{account_id}/messages"
+    header = {
+        "Content-Type": "application/json",
+        "Authorization": f"Bearer {access_token}",
+    }
+    payload = {
+        "recipient": {
+            "id": recipient_id
+        },
+        "message": {
+            "text": message
+        }
+    }
+    response = requests.post(url, json=payload, headers=header)
+    print(f"send_instagram_message response: {response.text}")
+    if response.status_code == 200:
+        return True
+    return False

@@ -62,7 +62,7 @@ class Conversation(BaseModel):
         choices=ConversationPlatforms.choices(),
         default=ConversationPlatforms.TELEGRAM.value
     )
-    telegram_user_id = models.CharField(max_length=255, null=True, blank=True)
+    user_id = models.CharField(max_length=255, null=True, blank=True)
     token = models.CharField(max_length=255, null=True, blank=True)
     thread_id = models.CharField(max_length=255, null=True, blank=True)
     start_time = models.DateTimeField(default=timezone.now)
