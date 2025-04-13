@@ -80,17 +80,11 @@ def create_payload_and_assistant(assistant, request=None):
     vector_store_id = create_vector_store(file_urls)
     if not vector_store_id:
         return None
-    assistant = send_assistant_create_request(instruction, assistant.name, vector_store_id)
+    new_assistant = send_assistant_create_request(instruction, assistant.name, vector_store_id)
     if not assistant:
         return None
-    print(f"New assistant: {assistant}")
-    return success_response(
-        message="Assistant created successfully",
-        data={
-            "assistant_id": assistant.id,
-            "vector_id": vector_store_id
-        }
-    )
+    print(f"New assistant: {assistant}, assistant_id: {new_assistant.id}, vector_store_id: {vector_store_id}")
+    return new_assistant.id, vector_store_id
 
 
 def send_assistant_create_request(instructions, name, vector_store_id):
@@ -138,19 +132,11 @@ def delete_assistant_by_id(assistant_id: str) -> dict:
 
 
 def update_assistant_id_vector_id(assistant, request):
-    data = create_payload_and_assistant(assistant, request)
-    if not data:
+    assistant_id, vector_id = create_payload_and_assistant(assistant, request)
+    if not assistant_id or not vector_id:
         return None
-    assistant_id = data.get("assistant_id")
-    vector_id = data.get("vector_id")
     assistant.assistant_id = assistant_id
     assistant.vector_id = vector_id
     assistant.save()
     print(f"Assistant ID: {assistant.assistant_id}, vector_id: {assistant.vector_id} updated successfully")
-    return success_response(
-        message="Assistant updated successfully",
-        data={
-            "assistant_id": assistant.assistant_id,
-            "vector_id": assistant.vector_id
-        }
-    )
+    return 200

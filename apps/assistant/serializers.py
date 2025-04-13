@@ -218,8 +218,9 @@ class AssistantFileUploadSerializer(serializers.ModelSerializer):
                 filename=filename
             )
         # send_assistant_data(assistant, request)
-        update_assistant_id_vector_id(assistant, request)
-
+        response = update_assistant_id_vector_id(assistant, request)
+        if not response:
+            raise_validation_error(message="Failed to update assistant ID and vector ID.")
         return assistant
 
     def to_representation(self, instance):
