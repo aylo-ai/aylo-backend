@@ -154,8 +154,8 @@ def create_vector_store(file_urls):
 
     try:
         # Create a vector store from collected file IDs
-        vector_store = client.beta.vector_stores.create(
-            file_ids=file_ids
+        vector_store = client.vector_stores.create(
+            file_ids=file_ids,
         )
         print(f"Vector store created with ID: {vector_store.id}")
         return vector_store.id
