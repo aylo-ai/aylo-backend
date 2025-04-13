@@ -8,6 +8,7 @@ from shared.addons.ai_requests import send_assistant_data, get_thread_id, \
 from shared.addons.payloads import create_file_urls
 from shared.addons.validations import raise_validation_error
 from shared.addons.enums import ConversationStatuses
+from shared.ai_service.assistant import update_assistant_id_vector_id
 
 
 class AssistantSerializer(serializers.ModelSerializer):
@@ -216,7 +217,8 @@ class AssistantFileUploadSerializer(serializers.ModelSerializer):
                 file=file,
                 filename=filename
             )
-        send_assistant_data(assistant, request)
+        # send_assistant_data(assistant, request)
+        update_assistant_id_vector_id(assistant, request)
 
         return assistant
 

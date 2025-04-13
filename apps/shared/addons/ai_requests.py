@@ -35,16 +35,6 @@ def create_assistant_id(data: dict):
         return error_message, 400
 
 
-def save_uploaded_file(assistant, file_data, filename):
-    # Create an instance of the AssistantFileUpload model
-    # AssistantFileUpload.objects.create(
-    #     assistant=assistant,
-    #     file=file_data,
-    #     filename=filename
-    # )
-    print(f"File uploaded successfully for assistant_id: {assistant.id}")
-
-
 def send_assistant_data(assistant, request=None):
     data = create_assistant_payload(assistant, request)
     print(f"Assistant data: {data}")
