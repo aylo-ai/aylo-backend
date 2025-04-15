@@ -178,7 +178,7 @@ class InstagramWebhookView(APIView):
 class InstagramCallbackView(APIView):
     CLIENT_ID = "1217809219739350"
     CLIENT_SECRET = "dc12159193e69625fd27281997b28f4f"
-    REDIRECT_URI = "https://repli.uz/integrations/instagram/callback"
+    REDIRECT_URI = "https://repli.uz/integrations/"
 
     def get(self, request, *args, **kwargs):
         # Get the authorization code from the query parameters
