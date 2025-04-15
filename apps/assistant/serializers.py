@@ -12,6 +12,8 @@ from shared.ai_service.assistant import update_assistant_id_vector_id
 
 
 class AssistantSerializer(serializers.ModelSerializer):
+    integrations = serializers.SerializerMethodField()
+
     class Meta:
         model = Assistant
         fields = [
@@ -29,8 +31,18 @@ class AssistantSerializer(serializers.ModelSerializer):
             "created_time",
             "updated_time",
             "is_active",
+            "integrations",
         ]
         read_only_fields = ["created_time", "updated_time"]
+
+    def get_integrations(self, obj):  # noqa
+        #  count of instagram and telegram integrations
+        telegram_count = obj.integrations.filter(integration_type="telegram").exists()
+        instagram_count = obj.integrations.filter(integration_type="instagram").exists()
+        return {
+            "is_telegram_integration": telegram_count,
+            "is_instagram_integration": instagram_count,
+        }
 
 
 class ConversationSerializer(serializers.ModelSerializer):
