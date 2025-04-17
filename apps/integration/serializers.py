@@ -26,9 +26,9 @@ class IntegrationCreateSerializer(serializers.ModelSerializer):
 
     def validate(self, attrs):
         integration_type = attrs.get("integration_type")
-        api_token = attrs.get("api_token")
+        api_token = attrs.get("api_token", None)
         base_url = self.context.get("base_url")
-        if integration_type == IntegrationTypes.TELEGRAM.value:
+        if integration_type == IntegrationTypes.TELEGRAM.value and api_token:
             success, code = telegram_get_me(api_token)
             if not success or code == 401:
                 raise_validation_error(message=_("Invalid Telegram API token"))
