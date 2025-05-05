@@ -40,7 +40,7 @@ class Assistant(BaseModel):
     is_active = models.BooleanField(default=True)
 
     def __str__(self):
-        return self.name
+        return f"{self.assistant_id} - {self.name}"
 
     class Meta:
         db_table = 'assistant'
