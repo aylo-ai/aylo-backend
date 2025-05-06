@@ -1,9 +1,15 @@
+import requests
 from django.utils.translation import gettext as _
+
 from apps.assistant.models import Message, Conversation
-from shared.addons.ai_requests import get_thread_id
+from config.settings import client
 from shared.addons.telegram import send_telegram_message
-from shared.addons.validations import success_response
+from shared.addons.validations import success_response, raise_validation_error
 from shared.addons.verification import send_sms_text
+from shared.ai_service.helper import upload_knowledge_base_file
+from shared.ai_service.assistant import check_response
+from shared.ai_service.thread import wait_on_run
+from config.settings import OPENAI_API_KEY
 
 
 def create_message(conversation, sender, content):
@@ -74,3 +80,135 @@ def restrict_user_account(user):
     message = _("Hurmatli {user.username}, sizning repli.uz dagi to'lovlaringiz bir necha marta muvaffaqiyatsiz "
                 "amalga oshirilgani uchun sizning platformadagi obunangiz cheklab qo'yildi.")
     send_sms_text(user.phone_number, message)
+
+
+def create_assistant(instructions, name, vector_store_id):
+    print("Creating assistant with instructions")
+    tools = [{"type": "file_search"}]
+    tool_resources = {"file_search": {"vector_store_ids": [vector_store_id]}}
+    default_model = "gpt-4o-mini"
+
+    try:
+        my_assistant = client.beta.assistants.create(
+            instructions=instructions.content,
+            name=name,
+            tools=tools,
+            tool_resources=tool_resources,
+            model=default_model
+        )
+
+        # Check the response type before returning
+        if my_assistant is None:
+            raise Exception("Assistant creation returned None unexpectedly.")
+        print(f"Assistant created: {my_assistant}")
+        return my_assistant
+    except Exception as e:
+        print(f"Error creating assistant: {e}")
+        raise Exception(f"Error creating assistant: {e}")
+    
+def create_vector_store(file_urls):
+    file_ids = []
+
+    # Upload each file and collect valid file IDs
+    for file_url in file_urls:
+        file_id = upload_knowledge_base_file(file_url)
+        if file_id:
+            file_ids.append(file_id)
+
+    # Ensure there are valid files for vector store creation
+    if not file_ids:
+        print("No valid files available for vector store creation.")
+        return None
+
+    try:
+        # Create a vector store from collected file IDs
+        vector_store = client.beta.vector_stores.create(
+            file_ids=file_ids
+        )
+        print(f"Vector store created with ID: {vector_store.id}")
+        return vector_store.id
+
+    except Exception as e:
+        print(f"Error creating vector store: {e}")
+        return None
+    
+def get_assistant_response_ai(message, assistant_id, thread_id):
+    if thread_id is None:
+        return "Thread not initialized. Please create an assistant first."
+
+    # Check if an active run exists for the given thread_id
+    active_run = client.beta.threads.runs.list(thread_id=thread_id)
+    if active_run.data:
+        print(f"active run found")
+        # Wait for the active run to complete
+        wait_on_run(active_run.data[0], thread_id) 
+
+    # Send the user's message to the assistant
+    user_message = client.beta.threads.messages.create(
+        thread_id=thread_id,
+        role="user",
+        content=f"User: {message}",
+    )
+    print(f"User message: {user_message}")
+
+    # Start a new assistant run
+    run = client.beta.threads.runs.create(
+        thread_id=thread_id,
+        assistant_id=assistant_id,
+    )
+    thread_obj = client.beta.threads.retrieve(thread_id)
+    print(f"Thread object: {thread_obj}")
+    wait_on_run(run, thread_obj.id) #so here i changed thread_obj to thread_obj.id it only accepts id itself
+    # Retrieve the assistant's response
+    messages = client.beta.threads.messages.list(
+        thread_id=thread_id, order="asc", after=user_message.id
+    )
+    print(f"Assistant response: {messages.data}")
+
+    # Get the response text or a fallback message if empty
+    assistant_response = messages.data[0].content[0].text.value if messages.data else "No response received."
+    print(f"Assistant response: {assistant_response}")
+    clean_response = check_response(assistant_response)
+
+    return clean_response
+
+def create_and_run_thread(assistant_id, vector_store_id):
+    try:
+        run = client.beta.threads.create_and_run(
+            assistant_id=assistant_id,
+            tool_resources={"file_search": {"vector_store_ids": [vector_store_id]}},
+            tools=[{"type": "file_search"}],
+        )
+        thread_id = run.thread_id
+        return thread_id, run
+    except Exception as e:
+        print(f"Error while creating a run: {e}")
+        raise Exception("Thread creation failed")
+
+def get_thread_id(assistant_id, vector_id):
+    thread_id, _ = create_and_run_thread(assistant_id, vector_id)
+    if thread_id is not None:
+        return thread_id
+    else:
+        raise_validation_error(message=_(f"Failed to initialize thread for eorororo: {assistant_id}"))
+
+def delete_assistant_by_id(assistant_id):
+    BASE_URL = "https://api.openai.com/v1/assistants"
+    headers = {
+        "Authorization": f"Bearer {OPENAI_API_KEY}",
+        "Content-Type": "application/json",
+        "OpenAI-Beta": "assistants=v2",
+    }
+    url = f"{BASE_URL}/{assistant_id}"
+
+    # Make the DELETE request
+    response = requests.delete(url, headers=headers)
+    print(f"Delete assistant response: {response.text}")
+    if response.status_code == 200:
+        return response.json()
+    elif response.status_code == 404:
+        raise_validation_error(message="Assistant not found.")
+    else:
+        raise_validation_error(
+            message=f"Failed to delete assistant: {response.text}",
+        )

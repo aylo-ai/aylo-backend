@@ -3,8 +3,9 @@ from django.utils.timezone import localtime
 from apps.assistant.models import Assistant, Conversation, Message, Settings, AssistantFileUpload
 from rest_framework import serializers
 
-from shared.addons.ai_requests import send_assistant_data, get_thread_id, \
+from shared.addons.ai_requests import send_assistant_data, \
     get_assistant_response, update_vector_store_files
+from shared.addons.utils import get_thread_id
 from shared.addons.payloads import create_file_urls
 from shared.addons.validations import raise_validation_error
 from shared.addons.enums import ConversationStatuses
@@ -275,14 +276,20 @@ class UpdateFileUploadSerializer(serializers.ModelSerializer):
         request = self.context.get("request")
         files = self.context.get('files')
         assistant = self.context.get("assistant")
+
+        uploaded_files = []
         for file in files:
             filename = file.name
-            AssistantFileUpload.objects.create(
+            upload = AssistantFileUpload.objects.create(
                 assistant=assistant,
                 file=file,
                 filename=filename
             )
-        file_urls = create_file_urls(assistant, request)
-        update_vector_store_files(assistant.vector_id, file_urls)
+            uploaded_files.append(upload)
 
-        return assistant
+        # Ensure file URLs are created and vector store is updated
+        if assistant.vector_id:
+            file_urls = create_file_urls(assistant, request)
+            update_vector_store_files(assistant.vector_id, file_urls)
+
+        return uploaded_files[0] if len(uploaded_files) == 1 else uploaded_files # initailly return assistant but later assistant has no field of file and i changeed to list of upload files

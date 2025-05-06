@@ -5,6 +5,7 @@ from pathlib import Path
 from dotenv import load_dotenv
 from datetime import timedelta
 from django.utils.translation import gettext_lazy as _
+from openai import OpenAI
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 sys.path.append(os.path.join(BASE_DIR, "apps"))
@@ -269,9 +270,9 @@ redis_connection = redis.Redis(
     db=0,
 )
 REDIS_URL: str = f"redis://{REDIS_HOST}:{REDIS_PORT}/{REDIS_DB}"
-
+print("redis_url", REDIS_URL)
 # Celery settings
-CELERY_BROKER_URL = os.environ.get("CELERY_BROKER_URL", default=REDIS_URL)
+CELERY_BROKER_URL = os.environ.get("CELERY_BROKER_URL", REDIS_URL)
 CELERY_ACCEPT_CONTENT = ['json']
 CELERY_TASK_SERIALIZER = 'json'
 CELERY_RESULT_BACKEND = CELERY_BROKER_URL
@@ -419,3 +420,6 @@ PAYME_KEY = os.environ.get("PAYME_KEY")
 PAYME_ID = os.environ.get("PAYME_ID")
 PAYME_API_URL = os.environ.get("PAYME_API_URL", default="https://checkout.paycom.uz/api")
 OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY")
+
+
+client = OpenAI(api_key=OPENAI_API_KEY)

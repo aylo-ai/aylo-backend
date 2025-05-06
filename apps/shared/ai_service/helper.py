@@ -165,7 +165,7 @@ def create_vector_store(file_urls):
         return None
 
 
-def update_vector_store_files(vector_store_id: str, new_file_urls: List[str]) -> dict:
+def update_vector_store_files_ai(vector_store_id: str, new_file_urls: List[str]) -> dict:
 
     # Upload new files and collect their file IDs
     new_file_ids = []
