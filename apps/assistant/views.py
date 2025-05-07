@@ -6,6 +6,7 @@ from apps.assistant.serializers import AssistantSerializer, ConversationSerializ
     SettingsSerializer, AssistantFileUploadSerializer, ConversationRetrieveSerializer, UpdateFileUploadSerializer
 from shared.addons.ai_requests import delete_assitant
 from shared.addons.validations import success_response, error_response
+from rest_framework.exceptions import NotFound
 
 
 class AssistantListCreateView(generics.ListCreateAPIView):
@@ -261,7 +262,7 @@ class AssistantFileUploadUpdateView(generics.CreateAPIView):
         files = request.FILES.getlist('file')  # Handle multiple files
         context = {'assistant': assistant, 'files': files, 'request': request}
 
-        serializer = self.get_serializer(data=request.data, context=context)
+        serializer = self.get_serializer(data=request.data, context=context, many=True)
         serializer.is_valid(raise_exception=True)
         serializer.save()
         return success_response(message='File updated successfully', data=serializer.data, code=200)
@@ -273,7 +274,10 @@ class AssistantFileUploadRetrieveView(generics.RetrieveUpdateDestroyAPIView):
     permission_classes = [permissions.IsAuthenticated]
 
     def get_object(self):
-        return self.queryset.get(pk=self.kwargs.get('pk'), assistant__user=self.request.user)
+        try:
+            return self.queryset.get(pk=self.kwargs.get('pk'), assistant__user=self.request.user)
+        except AssistantFileUpload.DoesNotExist:
+            raise NotFound(detail="File not found with given pk.")
 
     def retrieve(self, request, *args, **kwargs):
         instance = self.get_object()

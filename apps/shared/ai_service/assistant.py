@@ -94,7 +94,7 @@ def send_assistant_create_request(instructions, name, vector_store_id):
 
     try:
         my_assistant = client.beta.assistants.create(
-            instructions=instructions.content,
+            instructions=instructions.content,  #change here from instructions.content to instructions
             name=name,
             tools=tools,
             tool_resources=tool_resources,
