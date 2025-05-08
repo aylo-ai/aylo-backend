@@ -15,7 +15,7 @@ fake = Faker()
 class User(AbstractUser, BaseModel):
     first_name = models.CharField(max_length=45, null=True, blank=True)
     last_name = models.CharField(max_length=45, null=True, blank=True)
-    phone_number = models.CharField(max_length=15, unique=True)
+    phone_number = models.CharField(max_length=15, unique=True, null=True, blank=True)
     email = models.EmailField(null=True, blank=True)
     user_role = models.CharField(
         max_length=50,
@@ -47,7 +47,7 @@ class User(AbstractUser, BaseModel):
         return self.username or self.phone_number
 
     def generate_username(self):
-        if self.first_name and self.last_name and self.phone_number:
+        if self.first_name and self.last_name and (self.phone_number or self.email):
             first_name_lower = self.first_name.lower()
             last_name_lower = self.last_name.lower()
             username = f"{first_name_lower}_{last_name_lower}_{self.phone_number[-4:]}"

@@ -7,32 +7,47 @@ from apps.user.models import User, PrivacyPolicy, UserAgreement
 
 
 class SendCodeSerializer(serializers.Serializer): # noqa
-    phone_number = serializers.CharField(required=True)
+    phone_number = serializers.CharField(required=False)
+    email = serializers.EmailField(required=False)
 
-    def validate_phone_number(self, value):
-        if not value:
-            raise_validation_error(message=_("Telefon raqam kiritilmagan"))
-        if not check_number(value):
-            raise_validation_error(message=_("Notog'ri telefon raqam kiritilgan"))
+    def validate(self, attrs):
+        phone_number = attrs.get('phone_number')
+        email = attrs.get('email')
+        
+        if not phone_number and not email:
+            raise_validation_error(message=_("Telefon raqam yoki email kiritilmagan"))
+        
+        if phone_number:
+            if not check_number(phone_number):
+                raise_validation_error(message=_("Notog'ri telefon raqam kiritilgan"))
+        
         action = self.context.get('action')
         if action == 'register':
-            if User.objects.filter(phone_number=value).exists():
+            if phone_number and User.objects.filter(phone_number=phone_number).exists():
                 raise_validation_error(message=_("Bu telefon raqam allaqachon ro'yxatdan o'tgan"))
+            if email and User.objects.filter(email=email).exists():
+                raise_validation_error(message=_("Bu email allaqachon ro'yxatdan o'tgan"))
         elif action in ['forgot_password', 'login']:
-            if not User.objects.filter(phone_number=value).exists():
+            if phone_number and not User.objects.filter(phone_number=phone_number).exists():
                 raise_validation_error(message=_("Telefon raqam topilmadi"))
-        return value
+            if email and not User.objects.filter(email=email).exists():
+                raise_validation_error(message=_("Email topilmadi"))
+        
+        return attrs
 
 
 class VerifyCodeSerializer(serializers.Serializer): # noqa
-    phone_number = serializers.CharField(required=True)
+    phone_number = serializers.CharField(required=False)
+    email = serializers.EmailField(required=False)
     code = serializers.CharField(required=True)
 
     def validate(self, attrs):
-        phone_number = attrs.get('phone_number', None)
-        code = attrs.get('code', None)
-        if not phone_number:
-            raise_validation_error(message=_("Telefon raqam kiritilmagan"))
+        phone_number = attrs.get('phone_number')
+        email = attrs.get('email')
+        code = attrs.get('code')
+        
+        if not phone_number and not email:
+            raise_validation_error(message=_("Telefon raqam yoki email kiritilmagan"))
         if not code:
             raise_validation_error(message=_("Kod kiritilmagan"))
         return attrs
@@ -40,11 +55,15 @@ class VerifyCodeSerializer(serializers.Serializer): # noqa
     def get_tokens(self): # noqa
         action = self.context.get('action', None)
         phone_number = self.validated_data.get('phone_number')
-        print(f"action: {action}")
+        email = self.validated_data.get('email')
+        
         if action == "login":
-            user = User.objects.filter(phone_number=phone_number).first()
-            print(f"user: {user}")
-            return user.tokens()
+            if phone_number:
+                user = User.objects.filter(phone_number=phone_number).first()
+            else:
+                user = User.objects.filter(email=email).first()
+            if user:
+                return user.tokens()
         return None
 
     def to_representation(self, instance):
@@ -60,10 +79,11 @@ class RegisterUserSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = User
-        fields = ('id', 'first_name', 'last_name', 'password', 'phone_number', 'tokens')
+        fields = ('id', 'first_name', 'last_name', 'password', 'phone_number', 'email', 'tokens')
         extra_kwargs = {
             'password': {'required': False},
-            'phone_number': {'required': True},
+            'phone_number': {'required': False},
+            'email': {'required': False},
             'first_name': {'required': True},
             'last_name': {'required': True},
             'username': {'required': False},
@@ -76,6 +96,12 @@ class RegisterUserSerializer(serializers.ModelSerializer):
     def validate(self, attrs):
         first_name = attrs.get('first_name', None)
         last_name = attrs.get('last_name', None)
+        phone_number = attrs.get('phone_number')
+        email = attrs.get('email')
+        
+        if not phone_number and not email:
+            raise_validation_error(message=_("Telefon raqam yoki email kiritilmagan"))
+            
         # validate first name and last name to get only one word
         if len(first_name.split()) > 1:
             raise_validation_error(message=_("Ism faqat bir so'z bo'lishi kerak"))
@@ -89,7 +115,8 @@ class RegisterUserSerializer(serializers.ModelSerializer):
         return value
 
     def validate_phone_number(self, value): # noqa
-        # phone_number_validation(value)
+        if value and not check_number(value):
+            raise_validation_error(message=_("Notog'ri telefon raqam kiritilgan"))
         return value
 
     def create(self, validated_data):
@@ -97,6 +124,7 @@ class RegisterUserSerializer(serializers.ModelSerializer):
             first_name=validated_data.get("first_name"),
             last_name=validated_data.get("last_name"),
             phone_number=validated_data.get("phone_number"),
+            email=validated_data.get("email"),
             is_active=True,
         )
         user.save()

@@ -9,8 +9,8 @@ from django.utils.translation import gettext_lazy as _
 from config.settings import redis_connection
 import user.serializers as serializers
 from shared.addons.validations import error_response, success_response
-from shared.addons.verification import send_code, verify_code_cache
 from apps.user.models import User, PrivacyPolicy, UserAgreement
+from shared.addons.verification import send_code, verify_code_cache, send_email_code, verify_email_code
 from shared.permissions import IsAdmin, IsSuperAdmin
 
 
@@ -22,10 +22,20 @@ class SendCodeView(generics.GenericAPIView):
         action = request.query_params.get("action")
         if not action:
             return error_response(message=_("Action kalit so'zi topilmadi"), code=status.HTTP_400_BAD_REQUEST)
+        
         serializer = self.get_serializer(data=request.data, context={"action": action})
         serializer.is_valid(raise_exception=True)
+        
         phone_number = serializer.data.get("phone_number")
-        success, message = send_code(phone_number)
+        email = serializer.data.get("email")
+        
+        if phone_number:
+            success, message = send_code(phone_number)
+        elif email:
+            success, message = send_email_code(email)
+        else:
+            return error_response(message=_("Telefon raqam yoki email kiritilmagan"), code=status.HTTP_400_BAD_REQUEST)
+            
         if success:
             return success_response(data=serializer.data, message=message, code=status.HTTP_200_OK)
         return error_response(message=message, code=status.HTTP_400_BAD_REQUEST)
@@ -38,11 +48,18 @@ class VerifyCodeView(generics.GenericAPIView):
         action = request.query_params.get("action")
         serializer = self.get_serializer(data=request.data, context={"action": action})
         serializer.is_valid(raise_exception=True)
+        
         phone_number = serializer.data.get("phone_number")
+        email = serializer.data.get("email")
         code = serializer.data.get("code")
-        print(f"phone_number: {phone_number}, code: {code}")
-        # success, message = verify_code_cache(phone_number, code)
-        success, message = True, _("Kod tasdiqlandi")
+        
+        if phone_number:
+            success, message = verify_code_cache(phone_number, code)
+        elif email:
+            success, message = verify_email_code(email, code)
+        else:
+            return error_response(message=_("Telefon raqam yoki email kiritilmagan"), code=status.HTTP_400_BAD_REQUEST)
+            
         if success:
             return success_response(data=serializer.data, message=message, code=status.HTTP_200_OK)
         return error_response(message=message, code=status.HTTP_400_BAD_REQUEST)
@@ -57,8 +74,19 @@ class UserRegisterView(generics.CreateAPIView):
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         serializer.save()
-        redis_connection.delete(serializer.data.get("phone_number") + "_verified")
-        redis_connection.delete(serializer.data.get("phone_number"))
+        
+        # Clear verification cache for both phone and email
+        phone_number = serializer.data.get("phone_number")
+        email = serializer.data.get("email")
+        
+        if phone_number:
+            redis_connection.delete(f"{phone_number}_verified")
+            redis_connection.delete(phone_number)
+        
+        if email:
+            redis_connection.delete(f"{email}_verified")
+            redis_connection.delete(email)
+            
         return success_response(
             data=serializer.data,
             message=_("Foydalanuvchi muvaffaqiyatli yaratildi"),
