@@ -1,3 +1,9 @@
+import base64
+import json
+import requests
+from urllib.parse import urlencode
+from django.shortcuts import redirect
+
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework import generics, status, permissions
 from rest_framework.throttling import AnonRateThrottle
@@ -6,10 +12,10 @@ from rest_framework_simplejwt.exceptions import TokenError
 from rest_framework_simplejwt.tokens import RefreshToken
 from django.utils.translation import gettext_lazy as _
 
-from config.settings import redis_connection
+from config.settings import redis_connection, CLIENT_ID, CLIENT_SECRET, REDIRECT_URI
 import user.serializers as serializers
 from shared.addons.validations import error_response, success_response
-from shared.addons.verification import send_code, verify_code_cache
+from shared.addons.verification import send_code
 from apps.user.models import User, PrivacyPolicy, UserAgreement
 from shared.permissions import IsAdmin, IsSuperAdmin
 
@@ -222,3 +228,68 @@ class UserAgreementRetrieveView(generics.RetrieveUpdateDestroyAPIView):
             message=_("User agreement muvaffaqiyatli yangilandi"),
             code=status.HTTP_200_OK
         )
+    
+    
+class GoogleLoginView(APIView):
+    def get(self, request):
+        google_auth_url = "https://accounts.google.com/o/oauth2/v2/auth"
+        params = {
+            "client_id": CLIENT_ID,
+            "redirect_uri": REDIRECT_URI,
+            "response_type": "code",
+            "scope": "openid email profile",
+            "access_type": "offline",
+            "prompt": "consent"
+        }
+        url = f"{google_auth_url}?{urlencode(params)}"
+        print(f"google_auth_url: {url}")
+        return redirect(url)
+    
+    
+class GoogleAuthCallbackView(APIView):
+    def get(self, request):
+        try:
+            code = request.GET.get("code")
+            print(f"code: {code}")
+            # Exchange code for tokens
+            token_url = "https://oauth2.googleapis.com/token"
+            data = {
+                "code": code,
+                "client_id": CLIENT_ID,
+                "client_secret": CLIENT_SECRET,
+                "redirect_uri": REDIRECT_URI,
+                "grant_type": "authorization_code",
+            }
+            token_res = requests.post(token_url, data=data)
+            token_json = token_res.json()
+            print(f"token_json: {token_json}")
+            if "id_token" not in token_json:
+                return error_response(messsage=token_json, code=400)
+
+            id_token = token_json["id_token"]
+            # Decode ID token (JWT)
+            payload = id_token.split('.')[1]
+            padded = payload + '=' * (-len(payload) % 4)
+            decoded = base64.urlsafe_b64decode(padded)
+            user_info = json.loads(decoded)
+            if User.objects.filter(sub=user_info["sub"]).exists():
+                user = User.objects.get(sub=user_info["sub"])
+                tokens = user.tokens()
+                return success_response(data={
+                    "message": "User authenticated successfully",
+                    "tokens": tokens
+                }, code=status.HTTP_200_OK)
+            else:
+                user = User.objects.create(
+                    sub=user_info["sub"],
+                    email=user_info["email"],
+                    first_name=user_info["given_name"],
+                    last_name=user_info["name"],
+                )
+                tokens = user.tokens()
+                return success_response(data={
+                    "message": "User created successfully",
+                    "tokens": tokens
+                }, code=status.HTTP_200_OK)
+        except Exception as e:
+            return error_response(message=str(e), code=400)

@@ -126,3 +126,10 @@ class CurrencyType(EnumBaseModel):
 class TransactionTypes(EnumBaseModel):
     DEPOSIT = 'deposit'
     WITHDRAW = 'withdraw'
+
+
+class LeadStatuses(EnumBaseModel):
+    NEW = 'new'
+    REGISTERED = 'registered'
+    DELIVERED = 'delivered'
+    LOST = 'lost'

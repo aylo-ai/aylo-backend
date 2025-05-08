@@ -15,7 +15,7 @@ fake = Faker()
 class User(AbstractUser, BaseModel):
     first_name = models.CharField(max_length=45, null=True, blank=True)
     last_name = models.CharField(max_length=45, null=True, blank=True)
-    phone_number = models.CharField(max_length=15, unique=True)
+    phone_number = models.CharField(max_length=15, unique=True, null=True, blank=True)
     email = models.EmailField(null=True, blank=True)
     user_role = models.CharField(
         max_length=50,
@@ -28,6 +28,7 @@ class User(AbstractUser, BaseModel):
         null=True, blank=True,
         related_name='users'
     )
+    sub = models.CharField(max_length=255, null=True, blank=True)
     subscription_active = models.BooleanField(default=False)
     next_payment_date = models.DateField(null=True, blank=True)
     retry_count = models.IntegerField(default=0)
@@ -41,6 +42,7 @@ class User(AbstractUser, BaseModel):
             models.Index(fields=['last_name']),
             models.Index(fields=['phone_number']),
             models.Index(fields=['user_role']),
+            models.Index(fields=['sub']),
         ]
 
     def __str__(self):
