@@ -49,7 +49,7 @@ class User(AbstractUser, BaseModel):
         return self.username or self.phone_number
 
     def generate_username(self):
-        if self.first_name and self.last_name and self.phone_number:
+        if self.first_name and self.last_name and (self.phone_number or self.email):
             first_name_lower = self.first_name.lower()
             last_name_lower = self.last_name.lower()
             username = f"{first_name_lower}_{last_name_lower}_{self.phone_number[-4:]}"
