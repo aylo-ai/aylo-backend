@@ -1,5 +1,6 @@
 import re
 from bs4 import BeautifulSoup
+import json
 
 import requests
 from datetime import datetime
@@ -46,6 +47,17 @@ def clean_html(input_html, allowed_tags=None):
 
     return str(soup)
 
+def extract_reply(text):
+    try:
+        parsed = json.loads(text)
+        if isinstance(parsed, dict) and "reply" in parsed:
+            return parsed["reply"]
+        else:
+            return text
+    except json.JSONDecodeError:
+        pass
+    return text
+
 
 def telegram_get_me(token):
     url = f"https://api.telegram.org/bot{token}/getMe"
@@ -59,11 +71,13 @@ def send_telegram_message(chat_id, text, token):
     print(f"Sending message to chat_id: {chat_id}, text: {text}")
     url = f"https://api.telegram.org/bot{token}/sendMessage"
     # cleaned_html = clean_html(text)
+    text_reply = extract_reply(text)
     data = {
         "chat_id": chat_id,
-        "text": text,
+        "text": text_reply,
         "parse_mode": "html"
     }
+    
     print(f"send telegram message data: {data}, url: {url}")
     response = requests.post(url, json=data)
     print(f"Message sent to Telegram: {response.status_code}, {response.json()}")

@@ -41,3 +41,20 @@ def create_file_urls(assistant, request=None):
         for file in assistant.files.all()
     ]
     return file_urls
+
+valid_intents = {
+    "greeting": "Foydalanuvchi salomlashmoqda yoki muloyimlik bildirayapti",
+    "get_price": "Foydalanuvchi mahsulot yoki xizmat narxini so‘raydi",
+    "create_order": "Foydalanuvchi buyurtma bermoqchi",
+    "cancel_order": "Foydalanuvchi buyurtmani bekor qilmoqchi",
+    "get_description": "Foydalanuvchi mahsulot haqida ma'lumot so'raydi",
+    "order_confirmation": "Foydalanuvchi buyurtmani tasdiqlashmoqda",
+    "get_contact_info": "Foydalanuvchi telefon raqami yoki manzil so‘raydi",
+    "get_payment_methods": "Foydalanuvchi to'lov usullarini so'raydi",
+    "recommend_product": "Foydalanuvchi mahsulot taklifini so'raydi",
+    "register_user": "Foydalanuvchi ro‘yxatdan o‘tmoqchi",
+    "track_order": "Foydalanuvchi buyurtma holatini bilmoqchi",
+    "contact_support": "Foydalanuvchi yordamchi xodim bilan bog‘lanmoqchi",
+    "faq_question": "Foydalanuvchi umumiy savol bermoqda (xizmatlar, ish vaqti)",
+    "unknown": "Niyat aniq emas yoki hech biri bilan mos kelmaydi"
+}

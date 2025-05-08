@@ -420,7 +420,9 @@ PAYME_KEY = os.environ.get("PAYME_KEY")
 PAYME_ID = os.environ.get("PAYME_ID")
 PAYME_API_URL = os.environ.get("PAYME_API_URL", default="https://checkout.paycom.uz/api")
 OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY")
-
+CLIENT_ID = os.environ.get("CLIENT_ID")
+CLIENT_SECRET = os.environ.get("CLIENT_SECRET")
+REDIRECT_URI = os.environ.get("REDIRECT_URI")
 
 client = OpenAI(api_key=OPENAI_API_KEY)
 
