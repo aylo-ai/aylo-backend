@@ -110,20 +110,20 @@ def send_email_code(email):
         redis_connection.setex(email, 300, code)
         
         # Prepare email content
-        subject = _("Verification Code")
-        message = _("Your verification code is: {}").format(code)
-        from_email = settings.DEFAULT_FROM_EMAIL
-        from django.template.loader import render_to_string
+        # subject = _("Verification Code")
+        # message = _("Your verification code is: {}").format(code)
+        # from_email = settings.DEFAULT_FROM_EMAIL
+        # from django.template.loader import render_to_string
 
-        html_message = render_to_string(
-            'shared/addons/verification_email.html',
-            {
-                'code': code,
-                'expiry_minutes': 5,
-                'year': 2024,
-                'subject': "Verification Code"
-            }
-        )
+        # html_message = render_to_string(
+        #     'apps/shared/addons/verification_email.html',
+        #     {
+        #         'code': code,
+        #         'expiry_minutes': 5,
+        #         'year': 2024,
+        #         'subject': "Verification Code"
+        #     }
+        # )
         
         # Send email
         # send_mail(
