@@ -322,6 +322,7 @@ class GoogleAuthCallbackView(APIView):
                     first_name=user_info.get("given_name", ""),
                     last_name=user_info.get("name", ""),
                 )
+                print(f"user created: {user}")
                 
             print("Before token generation:")
             print(f"User instance: {user}")

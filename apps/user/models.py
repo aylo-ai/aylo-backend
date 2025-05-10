@@ -49,6 +49,7 @@ class User(AbstractUser, BaseModel):
         return self.username or self.phone_number
 
     def generate_username(self):
+        print(f"generate_username: {self.first_name} {self.last_name} {self.phone_number} {self.email}")
         if self.first_name and self.last_name and (self.phone_number or self.email):
             first_name_lower = self.first_name.lower()
             last_name_lower = self.last_name.lower()
@@ -59,6 +60,7 @@ class User(AbstractUser, BaseModel):
             username = fake.user_name()
             while User.objects.filter(username=username).exists():
                 username = fake.user_name()
+        print(f"username: {username}")
         return username
 
     def save(self, *args, **kwargs):
