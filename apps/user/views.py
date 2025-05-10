@@ -323,19 +323,7 @@ class GoogleAuthCallbackView(APIView):
                     last_name=user_info.get("name", ""),
                 )
                 print(f"user created: {user}")
-                
-            print("Before token generation:")
-            print(f"User instance: {user}")
-            print(f"User ID: {user.id}")
-            print(f"User is_active: {user.is_active}")
-            print(f"User username: {user.username}")
-            
-            try:
-                tokens = user.tokens()
-            except Exception as token_error:
-                import traceback
-                print("Token generation error:", traceback.format_exc())
-                return error_response(message=f"Token generation failed: {str(token_error)}", code=400)
+            tokens = user.tokens()
             return success_response(message="User authenticated successfully", data=tokens, code=status.HTTP_200_OK)
         except Exception as e:
             return error_response(message=str(e), code=400)
