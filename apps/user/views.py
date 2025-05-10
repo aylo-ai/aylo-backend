@@ -317,7 +317,13 @@ class GoogleAuthCallbackView(APIView):
                 "last_name": user_info.get("name", ""),
             }
                 )
-            tokens = user.tokens()
+            
+            try:
+                tokens = user.tokens()
+            except Exception as token_error:
+                import traceback
+                print("Token generation error:", traceback.format_exc())
+                return error_response(message=f"Token generation failed: {str(token_error)}", code=400)
             return success_response(message="User authenticated successfully", data=tokens, code=status.HTTP_200_OK)
         except Exception as e:
             return error_response(message=str(e), code=400)
