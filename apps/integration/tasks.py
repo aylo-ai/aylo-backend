@@ -1,9 +1,10 @@
+import requests
 from celery import shared_task
 
 from shared.addons.ai_requests import get_assistant_response
 from shared.addons.instagram import send_instagram_message
 from shared.addons.telegram import send_telegram_message, check_register_info, delete_telegram_message
-from shared.addons.utils import handle_start_command, get_or_create_conversation, create_message
+from shared.addons.utils import handle_start_command, get_or_create_conversation, create_message, speech_to_text, convert_ogg_to_mp3
 from shared.ai_service.assistant import get_assistant_response_final
 from .models import Assistant, TelegramGroupIntegration
 
@@ -89,3 +90,35 @@ def process_instagram_message(account_id, user_message):
     # send response to user
     send_instagram_message(account_id, integration.api_token, sender_id, response_message)
     print(f"Sent message to Instagram user: {sender_id} with message: {response_message}")
+
+
+@shared_task
+def process_voice_task(chat_id, voice_file_id, bot_token):
+    print(f"Voice task started: {chat_id}, file_id: {voice_file_id}")
+
+    assistant = Assistant.objects.filter(integrations__api_token=bot_token).first()
+    if not assistant:
+        return
+
+    # Step 1: Get Telegram file URL
+    file_info_url = f"https://api.telegram.org/bot{bot_token}/getFile?file_id={voice_file_id}"
+    file_info_resp = requests.get(file_info_url)
+    file_path = file_info_resp.json()["result"]["file_path"]
+
+    file_url = f"https://api.telegram.org/file/bot{bot_token}/{file_path}"
+    print(f"File URL: {file_url}, file_path: {file_path}")
+    # Step 2: Download the audio file in ogg format
+    audio_bytes_ogg = requests.get(file_url).content
+    print(f"Audio bytes ogg: {audio_bytes_ogg}")
+    audio_bytes_mp3 = convert_ogg_to_mp3(audio_bytes_ogg)
+    print(f"Audio bytes mp3: {audio_bytes_mp3}")
+
+    # Step 3: Use Gemini API (or any speech_to_text service)
+    language_code = assistant.language or "uz"  # fallback
+    print(f"Language code: {language_code}")
+    transcribed_text = speech_to_text(audio_bytes_mp3, language=language_code)
+    print(f"transcribed_text: {transcribed_text}")
+    print(f"Transcribed text: {transcribed_text}")
+
+    # Step 4: Trigger the regular message processor
+    process_message_task.delay(chat_id, transcribed_text, bot_token)

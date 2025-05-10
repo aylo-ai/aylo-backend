@@ -1,5 +1,10 @@
+import io
 import requests
+from pydub import AudioSegment
+from google.generativeai import types
+from google.generativeai import genai
 from django.utils.translation import gettext as _
+from django.conf import settings
 
 from apps.assistant.models import Message, Conversation
 from config.settings import client
@@ -10,7 +15,6 @@ from shared.ai_service.helper import upload_knowledge_base_file
 from shared.ai_service.assistant import check_response
 from shared.ai_service.thread import wait_on_run
 from config.settings import OPENAI_API_KEY
-
 
 def create_message(conversation, sender, content):
     Message.objects.create(
@@ -212,3 +216,35 @@ def delete_assistant_by_id(assistant_id):
         raise_validation_error(
             message=f"Failed to delete assistant: {response.text}",
         )
+
+
+def convert_ogg_to_mp3(audio_bytes: bytes) -> bytes:
+    audio = AudioSegment.from_file(io.BytesIO(audio_bytes), format="ogg")
+    print(f"Audio: {audio}")
+    mp3_io = io.BytesIO()
+    print(f"Mp3 io: {mp3_io}")
+    audio.export(mp3_io, format="mp3")
+    print(f"Mp3 io: {mp3_io}")
+    return mp3_io.getvalue()
+
+
+def speech_to_text(audio_bytes: bytes, language: str = "uz") -> str:
+    """Transcribe MP3 audio using Gemini API."""
+    try:
+        genai.configure(api_key=settings.GOOGLE_GEMINI_API_KEY)
+        client = genai.Client()
+        print(f"Client: {client}")
+        prompt = f"Generate a transcript of the speech in {language}."
+        print(f"Prompt: {prompt}")
+        response = client.models.generate_content(
+            model="gemini-2.0-flash",
+            contents=[
+                prompt,
+                types.Part.from_bytes(data=audio_bytes, mime_type="audio/mp3")
+            ]
+        )
+        print(f"Response: {response}")
+        return response.text.strip()
+    except Exception as e:
+        print(f"[speech_to_text] Error: {e}")
+        return "Sorry, I couldn't understand the audio."

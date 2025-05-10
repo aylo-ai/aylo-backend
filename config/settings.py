@@ -426,6 +426,8 @@ REDIRECT_URI = os.environ.get("REDIRECT_URI")
 
 client = OpenAI(api_key=OPENAI_API_KEY)
 
+GOOGLE_GEMINI_API_KEY = os.environ.get("GOOGLE_GEMINI_API_KEY")
+
 # Email settings
 EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
 EMAIL_HOST = 'your-smtp-server.com'

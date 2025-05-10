@@ -19,7 +19,7 @@ from .models import Integration, TelegramGroupIntegration
 from rest_framework import generics, permissions
 from .serializers import IntegrationCreateSerializer, IntegrationSerializer, SendUserMessageSerializer, \
     TelegramGroupSerializer
-from .tasks import process_message_task, process_instagram_message
+from .tasks import process_message_task, process_instagram_message, process_voice_task
 
 
 class IntegrationListCreateView(generics.ListCreateAPIView):
@@ -323,9 +323,16 @@ class TelegramWebhookView(APIView):
         print(f"received data: {data}")
         chat_id = data.get("chat", {}).get("id", None)
         chat_title = data.get('chat', {}).get('title', 'Private Chat')
+        chat_type = data.get("chat", {}).get("type", None)
+
+            # Voice message handling
+        if "voice" in data:
+            voice_file_id = data["voice"]["file_id"]
+            process_voice_task.delay(chat_id, voice_file_id, bot_token)
+            return success_response(message=_("Voice message received"), code=200)
+
         user_message = data.get('text')
         print(f"Chat ID: {chat_id}, Message: {user_message}")
-        chat_type = data.get("chat", {}).get("type", None)
         if chat_type in ['group', 'supergroup']:
             if "reply_to_message" in data and data["reply_to_message"]["from"]["is_bot"]:
                 print("Ignoring group replies to the bot.")

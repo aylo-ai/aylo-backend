@@ -125,14 +125,14 @@ def send_email_code(email):
         )
         
         # Send email
-        send_mail(
-            subject=subject,
-            message=message,
-            from_email=from_email,
-            recipient_list=[email],
-            html_message=html_message,
-            fail_silently=False,
-        )
+        # send_mail(
+        #     subject=subject,
+        #     message=message,
+        #     from_email=from_email,
+        #     recipient_list=[email],
+        #     html_message=html_message,
+        #     fail_silently=False,
+        # )
         
         return True, _("Verification code sent to your email")
         

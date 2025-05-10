@@ -17,7 +17,7 @@ import user.serializers as serializers
 from shared.addons.validations import error_response, success_response
 from shared.addons.verification import send_code
 from apps.user.models import User, PrivacyPolicy, UserAgreement
-from shared.addons.verification import send_code, verify_code_cache, send_email_code, verify_email_code
+from shared.addons.verification import send_email_code, verify_email_code, verify_code_cache
 from shared.permissions import IsAdmin, IsSuperAdmin
 
 
