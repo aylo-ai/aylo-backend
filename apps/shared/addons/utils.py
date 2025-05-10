@@ -2,8 +2,9 @@ import io
 import requests
 from pydub.utils import which
 from pydub import AudioSegment
-from google.generativeai import types
-import google.generativeai as genai
+from google import genai
+from google.genai import types
+
 from django.utils.translation import gettext as _
 from django.conf import settings
 
@@ -232,10 +233,8 @@ def convert_ogg_to_mp3(audio_bytes: bytes) -> bytes:
 
 
 def speech_to_text(audio_bytes: bytes, language: str = "uz") -> str:
-    """Transcribe MP3 audio using Gemini API."""
     try:
-        genai.configure(api_key=settings.GOOGLE_GEMINI_API_KEY)
-        client = genai.Client()
+        client = genai.Client(api_key=settings.GOOGLE_GEMINI_API_KEY)
         print(f"Client: {client}")
         prompt = f"Generate a transcript of the speech in {language}."
         print(f"Prompt: {prompt}")
