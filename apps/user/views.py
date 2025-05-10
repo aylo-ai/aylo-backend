@@ -307,8 +307,12 @@ class GoogleAuthCallbackView(APIView):
                 return error_response(message=f"Invalid ID token: {str(decode_error)}", code=400)
             print(f"user_info: {user_info}")
             sub = user_info.get("sub")
+            print(f"sub: {sub}")
             if not sub:
                 return error_response(message="Sub missing in user info", code=400)
+            print("sub topildi")
+
+
             user, _ = User.objects.get_or_create(
             sub=sub,
             defaults={
@@ -317,6 +321,11 @@ class GoogleAuthCallbackView(APIView):
                 "last_name": user_info.get("name", ""),
             }
                 )
+            print("Before token generation:")
+            print(f"User instance: {user}")
+            print(f"User ID: {user.id}")
+            print(f"User is_active: {user.is_active}")
+            print(f"User username: {user.username}")
             
             try:
                 tokens = user.tokens()
