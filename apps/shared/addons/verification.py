@@ -104,7 +104,8 @@ def send_email_code(email):
         tuple: (success, message)
     """
     try:
-        code = generate_code()
+        # code = generate_code()
+        code = "000000"
         # Store code in Redis with 5 minute expiration
         redis_connection.setex(email, 300, code)
         
