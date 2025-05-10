@@ -280,6 +280,9 @@ class GoogleAuthCallbackView(APIView):
         try:
             code = request.GET.get("code")
             print(f"code: {code}")
+            if not code:
+                return error_response(message="Authorization code is missing", code=400)
+
             # Exchange code for tokens
             token_url = "https://oauth2.googleapis.com/token"
             data = {
@@ -289,36 +292,32 @@ class GoogleAuthCallbackView(APIView):
                 "redirect_uri": REDIRECT_URI,
                 "grant_type": "authorization_code",
             }
-            token_res = requests.post(token_url, data=data)
-            token_json = token_res.json()
+            token_response = requests.post(token_url, data=data)
+            token_json = token_response.json()
             print(f"token_json: {token_json}")
-            if "id_token" not in token_json:
-                return error_response(messsage=token_json, code=400)
-
-            id_token = token_json["id_token"]
-            # Decode ID token (JWT)
-            payload = id_token.split('.')[1]
-            padded = payload + '=' * (-len(payload) % 4)
-            decoded = base64.urlsafe_b64decode(padded)
-            user_info = json.loads(decoded)
-            if User.objects.filter(sub=user_info["sub"]).exists():
-                user = User.objects.get(sub=user_info["sub"])
-                tokens = user.tokens()
-                return success_response(data={
-                    "message": "User authenticated successfully",
-                    "tokens": tokens
-                }, code=status.HTTP_200_OK)
-            else:
-                user = User.objects.create(
-                    sub=user_info["sub"],
-                    email=user_info["email"],
-                    first_name=user_info["given_name"],
-                    last_name=user_info["name"],
+            id_token = token_json.get("id_token")
+            if not id_token:
+                return error_response(message="ID token missing in response", code=400)
+            try:
+                payload = id_token.split('.')[1]
+                padded = payload + '=' * (-len(payload) % 4)
+                decoded = base64.urlsafe_b64decode(padded)
+                user_info = json.loads(decoded)
+            except Exception as decode_error:
+                return error_response(message=f"Invalid ID token: {str(decode_error)}", code=400)
+            print(f"user_info: {user_info}")
+            sub = user_info.get("sub")
+            if not sub:
+                return error_response(message="Sub missing in user info", code=400)
+            user, _ = User.objects.get_or_create(
+            sub=sub,
+            defaults={
+                "email": user_info.get("email", ""),
+                "first_name": user_info.get("given_name", ""),
+                "last_name": user_info.get("name", ""),
+            }
                 )
-                tokens = user.tokens()
-                return success_response(data={
-                    "message": "User created successfully",
-                    "tokens": tokens
-                }, code=status.HTTP_200_OK)
+            tokens = user.tokens()
+            return success_response(message="User authenticated successfully", data=tokens, code=status.HTTP_200_OK)
         except Exception as e:
             return error_response(message=str(e), code=400)
