@@ -6,10 +6,11 @@ ENV PYTHONUNBUFFERED=1
 ENV PYTHONDONTWRITEBYTECODE=1
 ENV PIP_DISABLE_PIP_VERSION_CHECK=1
 
-RUN apt-get update && \
-    apt-get install -y --no-install-recommends gcc \
-    ffmpeg && \
-    rm -rf /var/lib/apt/lists/*
+RUN apt-get update && apt-get install -y \
+    ffmpeg \
+    libavcodec-extra \
+    gcc \
+    && rm -rf /var/lib/apt/lists/*
 
 RUN pip install --upgrade pip
 COPY . /usr/src/app/
