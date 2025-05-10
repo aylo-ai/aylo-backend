@@ -18,15 +18,23 @@ from shared.ai_service.assistant import check_response
 from shared.ai_service.thread import wait_on_run
 from config.settings import OPENAI_API_KEY
 
-def create_message(conversation, sender, content):
-    Message.objects.create(
+def create_message(conversation, sender, content, audio_file=None):
+    message_type = 'audio' if audio_file else 'text'
+
+    message = Message.objects.create(
         conversation=conversation,
         sender=sender,
         message_content=content,
-        message_type='text'
+        message_type=message_type,
     )
     print(f"Message created: {conversation}, {sender}")
+    if audio_file:
+        from django.core.files.base import ContentFile
+        from django.utils.text import slugify
 
+        file_name = f"audio_{slugify(conversation.id)}_{message.id}.mp3"
+        message.audio_file.save(file_name, ContentFile(audio_file))
+        message.save()
 
 def get_or_create_conversation(user_id, assistant, reset=False, token=None, platform='telegram'):
     conversation = Conversation.objects.filter(

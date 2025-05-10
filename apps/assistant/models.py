@@ -82,8 +82,9 @@ class Message(BaseModel):
     conversation = models.ForeignKey(Conversation, on_delete=models.CASCADE, related_name="messages")
     sender = models.CharField(max_length=10, choices=SenderTypes.choices)
     message_content = models.TextField()
-    audio_file = models.FileField(upload_to="assistant/audio/", null=True, blank=True)
-    message_type = models.CharField(max_length=10, choices=MessageTypes.choices(), default=MessageTypes.TEXT.value)
+    audio_file = models.FileField(upload_to="assistant/conversation/audio/", null=True, blank=True)
+    message_type = models.CharField(max_length=10, choices=MessageTypes.choices(), 
+                                    default=MessageTypes.TEXT.value)
     status = models.CharField(
         max_length=15,
         choices=MessageStatuses.choices,

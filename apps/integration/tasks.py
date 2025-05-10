@@ -10,7 +10,7 @@ from .models import Assistant, TelegramGroupIntegration
 
 
 @shared_task
-def process_message_task(chat_id, user_message, bot_token):
+def process_message_task(chat_id, user_message, bot_token, audio_file=None):
     print(f"celery task is started with chat_id: {chat_id}, user_message: {user_message}, bot_token: {bot_token}")
     assistant = Assistant.objects.filter(integrations__api_token=bot_token).first()
     if not assistant:
@@ -25,7 +25,7 @@ def process_message_task(chat_id, user_message, bot_token):
     conversation = get_or_create_conversation(chat_id, assistant, token=bot_token)
     print(f"Conversation: {conversation}")
     if conversation.status == "ESCALATED" or not assistant.is_active:
-        create_message(conversation, 'user', user_message)
+        create_message(conversation, 'user', user_message, audio_file)
         return
 
     # Wait message handling
@@ -34,7 +34,7 @@ def process_message_task(chat_id, user_message, bot_token):
         response = send_telegram_message(chat_id, assistant.wait_message, bot_token)
         wait_message_id = response.json().get("result").get("message_id")
 
-    create_message(conversation, 'user', user_message)
+    create_message(conversation, 'user', user_message, audio_file)
     response_message = get_assistant_response(user_message, assistant.assistant_id, conversation.thread_id)
     print(f"Response message: {response_message}")
     user_register_message = check_register_info(response_message)
@@ -121,4 +121,4 @@ def process_voice_task(chat_id, voice_file_id, bot_token):
     print(f"Transcribed text: {transcribed_text}")
 
     # Step 4: Trigger the regular message processor
-    process_message_task.delay(chat_id, transcribed_text, bot_token)
+    process_message_task.delay(chat_id, transcribed_text, bot_token, audio_bytes_mp3)
