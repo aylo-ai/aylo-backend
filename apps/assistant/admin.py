@@ -57,7 +57,7 @@ class MessageAdmin(admin.ModelAdmin):
     readonly_fields = ('created_time', 'updated_time')
     fieldsets = (
         (None, {
-            'fields': ('conversation', 'sender', 'message_content', 'message_type', 'status')
+            'fields': ('conversation', 'sender', 'message_content', 'message_type', 'status', 'audio_file')
         }),
         ('System', {
             'fields': ('created_time', 'updated_time'),
