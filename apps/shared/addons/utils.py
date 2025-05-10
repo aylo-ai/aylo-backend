@@ -1,5 +1,6 @@
 import io
 import requests
+from pydub.utils import which
 from pydub import AudioSegment
 from google.generativeai import types
 import google.generativeai as genai
@@ -219,6 +220,8 @@ def delete_assistant_by_id(assistant_id):
 
 
 def convert_ogg_to_mp3(audio_bytes: bytes) -> bytes:
+    AudioSegment.converter = which("ffmpeg")    # mp3 konvertatsiyasi uchun
+    AudioSegment.ffprobe = which("ffprobe")     # fayl formatini o‘qish uchun
     audio = AudioSegment.from_file(io.BytesIO(audio_bytes), format="ogg")
     print(f"Audio: {audio}")
     mp3_io = io.BytesIO()
