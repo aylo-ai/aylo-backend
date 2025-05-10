@@ -2,7 +2,7 @@ import io
 import requests
 from pydub import AudioSegment
 from google.generativeai import types
-from google.generativeai import genai
+import google.generativeai as genai
 from django.utils.translation import gettext as _
 from django.conf import settings
 
