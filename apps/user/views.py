@@ -312,15 +312,17 @@ class GoogleAuthCallbackView(APIView):
                 return error_response(message="Sub missing in user info", code=400)
             print("sub topildi")
 
-
-            user, _ = User.objects.get_or_create(
-            sub=sub,
-            defaults={
-                "email": user_info.get("email", ""),
-                "first_name": user_info.get("given_name", ""),
-                "last_name": user_info.get("name", ""),
-            }
+            user = User.objects.filter(sub=sub).first()
+            print(f"user: {user}")
+            if not user:
+                # create user
+                user = User.objects.create(
+                    sub=sub,
+                    email=user_info.get("email", ""),
+                    first_name=user_info.get("given_name", ""),
+                    last_name=user_info.get("name", ""),
                 )
+                
             print("Before token generation:")
             print(f"User instance: {user}")
             print(f"User ID: {user.id}")

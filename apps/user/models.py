@@ -28,7 +28,7 @@ class User(AbstractUser, BaseModel):
         null=True, blank=True,
         related_name='users'
     )
-    sub = models.CharField(max_length=255, null=True, blank=True)
+    sub = models.CharField(max_length=255, null=True, blank=True, unique=True)
     subscription_active = models.BooleanField(default=False)
     next_payment_date = models.DateField(null=True, blank=True)
     retry_count = models.IntegerField(default=0)
