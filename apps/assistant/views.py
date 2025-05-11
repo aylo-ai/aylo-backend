@@ -126,7 +126,7 @@ class MessageListCreateView(generics.ListCreateAPIView):
 
     def create(self, request, *args, **kwargs):
         conversation_id = self.kwargs.get('pk')
-        serializer = self.get_serializer(data=request.data, context={'conversation_id': conversation_id})
+        serializer = self.get_serializer(data=request.data, context={'conversation_id': conversation_id, 'request': request})
         serializer.is_valid(raise_exception=True)
         serializer.save()
         return success_response(message='Message created successfully', data=serializer.data, code=201)

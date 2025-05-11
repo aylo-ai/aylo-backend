@@ -1,4 +1,5 @@
 from django.utils.timezone import localtime
+import time
 
 from apps.assistant.models import Assistant, Conversation, Message, Settings, AssistantFileUpload
 from rest_framework import serializers
@@ -163,12 +164,13 @@ class MessageSerializer(serializers.ModelSerializer):
         conversation = validated_data.get("conversation")
         assistant = conversation.assistant
         sender = validated_data.get("sender")
-
+        print(f"time before transcribe: {time.time()}")
         # 1. Transcribe if audio exists
         if audio_file:
             print("[MessageSerializer] Audio file received.")
             audio_bytes = audio_file.read()
             transcribed_text = speech_to_text(audio_bytes, language=assistant.language or "uz")
+            print(f"time after transcribe: {time.time()}")
             validated_data["message_content"] = transcribed_text
             validated_data["message_type"] = MessageTypes.AUDIO.value
         else:
@@ -177,12 +179,14 @@ class MessageSerializer(serializers.ModelSerializer):
         message = Message.objects.create(**validated_data)
         if conversation.status == ConversationStatuses.ESCALATED.value or not assistant.is_active:
             return message
-
+        print(f"time before get_assistant_response: {time.time()}")
         response = get_assistant_response(
             message=transcribed_text,
             assistant_id=assistant.assistant_id,
             thread_id=conversation.thread_id
         )
+        print(f"response: {response}")
+        print(f"time after get_assistant_response: {time.time()}")
         Message.objects.create(
             conversation=conversation,
             sender=sender,
