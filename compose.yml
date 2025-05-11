@@ -30,6 +30,9 @@ services:
     env_file: .env
     command: celery -A config worker --loglevel=info
     restart: unless-stopped
+    volumes:
+      - /var/www/static:/app/staticfiles
+      - /var/www/media:/app/media
 
   postgres:
     ports:
