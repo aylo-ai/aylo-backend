@@ -262,8 +262,8 @@ AUTH_USER_MODEL = "user.User"
 
 REDIS_PASSWORD = os.environ.get("REDIS_PASSWORD", "")
 REDIS_HOST = os.environ.get("REDIS_HOST", default="localhost")
-REDIS_PORT = os.environ.get("REDIS_PORT", 6379)
-REDIS_DB = os.environ.get("REDIS_DB", 0)
+REDIS_PORT = int(os.environ.get("REDIS_PORT", 6379))
+REDIS_DB = int(os.environ.get("REDIS_DB", 0))
 redis_connection = redis.Redis(
     host=REDIS_HOST,
     port=REDIS_PORT,
@@ -303,17 +303,17 @@ LOGGING = {
     },
 }
 
-REDIS_DB: int = os.environ.get("REDIS_DB", default=0)
+REDIS_DB: int = int(os.environ.get("REDIS_DB", default=0))
 REDIS_HOST: str = os.environ.get("REDIS_HOST", default="localhost")
-REDIS_PASSWORD: str = os.environ.get("REDIS_PASSWORD", default=None)
-REDIS_PORT: int = os.environ.get("REDIS_PORT", default=6379)
+REDIS_PASSWORD: str = os.environ.get("REDIS_PASSWORD", default="")
+REDIS_PORT: int = int(os.environ.get("REDIS_PORT", default=6379))
 
 # settings.py
 CELERY_BROKER_URL = f"redis://{REDIS_HOST}:{REDIS_PORT}/{REDIS_DB}"
 CELERY_RESULT_BACKEND = f"redis://{REDIS_HOST}:{REDIS_PORT}/{REDIS_DB}"
 
 
-REDIS_CREDENTIALS: dict[str, str] = {
+REDIS_CREDENTIALS: dict[str, str | int | bool] = {
     "db": REDIS_DB,
     "host": REDIS_HOST,
     "port": REDIS_PORT,

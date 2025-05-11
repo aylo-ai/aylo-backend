@@ -9,7 +9,7 @@ from shared.addons.ai_requests import send_assistant_data, \
 from shared.addons.utils import get_thread_id, speech_to_text
 from shared.addons.payloads import create_file_urls
 from shared.addons.validations import raise_validation_error
-from shared.addons.enums import ConversationStatuses
+from shared.addons.enums import ConversationPlatforms, ConversationStatuses
 from shared.ai_service.assistant import update_assistant_id_vector_id
 from shared.addons.enums import MessageTypes
 
@@ -80,10 +80,11 @@ class ConversationSerializer(serializers.ModelSerializer):
         assistant = validated_data.get("assistant")
         thread_id = get_thread_id(str(assistant.assistant_id), str(assistant.vector_id))
         conversation = Conversation.objects.create(
+            platform=ConversationPlatforms.WEBSITE.value,
             assistant=assistant,
             thread_id=thread_id
         )
-        return thread_id, conversation
+        return conversation
 
     def to_representation(self, instance):
         response = super().to_representation(instance)
@@ -233,7 +234,14 @@ class AssistantFileUploadSerializer(serializers.ModelSerializer):
         if not files:
             raise_validation_error(message="No files were uploaded.")
 
+        if not isinstance(files, (list, tuple)):
+            files = [files]
+
         for file in files:
+            if not file:
+                continue
+            if not hasattr(file, 'size') or not hasattr(file, 'name'):
+                raise_validation_error(message=f"Invalid file object: {file}")
             if file.size > 30 * 1024 * 1024:  # 30MB limit
                 raise_validation_error(message=f"File {file.name} exceeds the 30MB size limit.")
         return attrs
@@ -242,18 +250,31 @@ class AssistantFileUploadSerializer(serializers.ModelSerializer):
         request = self.context.get("request")
         files = self.context.get('files')
         assistant = self.context.get("assistant")
+        
+        if not files or not assistant:
+            raise_validation_error(message="Files and assistant are required.")
+
+        if not isinstance(files, (list, tuple)):
+            files = [files]
+
+        uploaded_files = []
         for file in files:
+            if not file:
+                continue
             filename = file.name
-            AssistantFileUpload.objects.create(
+            upload = AssistantFileUpload.objects.create(
                 assistant=assistant,
                 file=file,
                 filename=filename
             )
-        # send_assistant_data(assistant, request)
-        response = update_assistant_id_vector_id(assistant, request)
-        if not response:
-            raise_validation_error(message="Failed to update assistant ID and vector ID.")
-        return assistant
+            uploaded_files.append(upload)
+
+        # Ensure file URLs are created and vector store is updated
+        if assistant and assistant.vector_id:
+            file_urls = create_file_urls(assistant, request)
+            update_vector_store_files(assistant.vector_id, file_urls)
+
+        return uploaded_files[0] if len(uploaded_files) == 1 else uploaded_files
 
     def to_representation(self, instance):
         assistant = getattr(instance, "assistant", None)
@@ -286,7 +307,14 @@ class UpdateFileUploadSerializer(serializers.ModelSerializer):
         if not files:
             raise_validation_error(message="No files were uploaded.")
 
+        if not isinstance(files, (list, tuple)):
+            files = [files]
+
         for file in files:
+            if not file:
+                continue
+            if not hasattr(file, 'size') or not hasattr(file, 'name'):
+                raise_validation_error(message=f"Invalid file object: {file}")
             if file.size > 30 * 1024 * 1024:  # 30MB limit
                 raise_validation_error(message=f"File {file.name} exceeds the 30MB size limit.")
         return attrs
@@ -295,9 +323,17 @@ class UpdateFileUploadSerializer(serializers.ModelSerializer):
         request = self.context.get("request")
         files = self.context.get('files')
         assistant = self.context.get("assistant")
+        
+        if not files or not assistant:
+            raise_validation_error(message="Files and assistant are required.")
+
+        if not isinstance(files, (list, tuple)):
+            files = [files]
 
         uploaded_files = []
         for file in files:
+            if not file:
+                continue
             filename = file.name
             upload = AssistantFileUpload.objects.create(
                 assistant=assistant,
@@ -307,8 +343,8 @@ class UpdateFileUploadSerializer(serializers.ModelSerializer):
             uploaded_files.append(upload)
 
         # Ensure file URLs are created and vector store is updated
-        if assistant.vector_id:
+        if assistant and getattr(assistant, 'vector_id', None):
             file_urls = create_file_urls(assistant, request)
             update_vector_store_files(assistant.vector_id, file_urls)
 
-        return uploaded_files[0] if len(uploaded_files) == 1 else uploaded_files # initailly return assistant but later assistant has no field of file and i changeed to list of upload files
+        return uploaded_files[0] if len(uploaded_files) == 1 else uploaded_files
