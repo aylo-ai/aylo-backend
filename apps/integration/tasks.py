@@ -4,7 +4,8 @@ from celery import shared_task
 from shared.addons.ai_requests import get_assistant_response
 from shared.addons.instagram import send_instagram_message
 from shared.addons.telegram import send_telegram_message, check_register_info, delete_telegram_message
-from shared.addons.utils import handle_start_command, get_or_create_conversation, create_message, speech_to_text, convert_ogg_to_mp3
+from shared.addons.utils import handle_start_command, get_or_create_conversation, create_message, \
+    speech_to_text, convert_ogg_to_mp3
 from shared.ai_service.assistant import get_assistant_response_final
 from .models import Assistant, TelegramGroupIntegration
 

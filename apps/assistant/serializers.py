@@ -5,11 +5,12 @@ from rest_framework import serializers
 
 from shared.addons.ai_requests import send_assistant_data, \
     get_assistant_response, update_vector_store_files
-from shared.addons.utils import get_thread_id
+from shared.addons.utils import get_thread_id, speech_to_text
 from shared.addons.payloads import create_file_urls
 from shared.addons.validations import raise_validation_error
 from shared.addons.enums import ConversationStatuses
 from shared.ai_service.assistant import update_assistant_id_vector_id
+from shared.addons.enums import MessageTypes
 
 
 class AssistantSerializer(serializers.ModelSerializer):
@@ -132,6 +133,7 @@ class MessageSerializer(serializers.ModelSerializer):
             "sender",
             "message_content",
             "message_type",
+            "audio_file",
             "created_time",
             "updated_time",
         ]
@@ -152,29 +154,38 @@ class MessageSerializer(serializers.ModelSerializer):
         return attrs
 
     def create(self, validated_data):
-        message_content = validated_data.get("message_content")
-        print(f"create: message_content: {message_content}")
-        message = Message.objects.create(**validated_data)
-        print(f"message is created: {message}")
+        audio_file = validated_data.get("audio_file")
+        conversation = validated_data.get("conversation")
+        assistant = conversation.assistant
+        sender = validated_data.get("sender")
 
-        # check assistant status
-        if message.conversation.status == ConversationStatuses.ESCALATED.value:
+        # 1. Transcribe if audio exists
+        if audio_file:
+            print("[MessageSerializer] Audio file received.")
+            audio_bytes = audio_file.read()
+            transcribed_text = speech_to_text(audio_bytes, language=assistant.language or "uz")
+            validated_data["message_content"] = transcribed_text
+            validated_data["message_type"] = MessageTypes.Audio.value
+        else:
+            transcribed_text = validated_data.get("message_content")
+        
+        message = Message.objects.create(**validated_data)
+        if conversation.status == ConversationStatuses.ESCALATED.value or not assistant.is_active:
             return message
 
-        # send message to chat assistant
         response = get_assistant_response(
-            message=message_content,
-            assistant_id=message.conversation.assistant.assistant_id,
-            thread_id=message.conversation.thread_id
+            message=transcribed_text,
+            assistant_id=assistant.assistant_id,
+            thread_id=conversation.thread_id
         )
-        print(f"response from ai: {response}")
-        assistant_response = Message.objects.create(
-            conversation=message.conversation,
-            sender="assistant",
+        Message.objects.create(
+            conversation=conversation,
+            sender=sender,
             message_content=response,
-            message_type="text",
+            message_type=MessageTypes.Text.value
         )
-        return assistant_response
+        return message
+        
 
 
 class SettingsSerializer(serializers.ModelSerializer):
