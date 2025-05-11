@@ -170,7 +170,7 @@ class MessageSerializer(serializers.ModelSerializer):
             audio_bytes = audio_file.read()
             transcribed_text = speech_to_text(audio_bytes, language=assistant.language or "uz")
             validated_data["message_content"] = transcribed_text
-            validated_data["message_type"] = MessageTypes.Audio.value
+            validated_data["message_type"] = MessageTypes.AUDIO.value
         else:
             transcribed_text = validated_data.get("message_content")
         
@@ -187,7 +187,7 @@ class MessageSerializer(serializers.ModelSerializer):
             conversation=conversation,
             sender=sender,
             message_content=response,
-            message_type=MessageTypes.Text.value
+            message_type=MessageTypes.TEXT.value
         )
         return message
         
