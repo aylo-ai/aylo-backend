@@ -2,7 +2,7 @@ from django.utils.timezone import localtime
 
 from apps.assistant.models import Assistant, Conversation, Message, Settings, AssistantFileUpload
 from rest_framework import serializers
-
+from django.utils.translation import gettext as _
 from shared.addons.ai_requests import send_assistant_data, \
     get_assistant_response, update_vector_store_files
 from shared.addons.utils import get_thread_id, speech_to_text
@@ -140,9 +140,14 @@ class MessageSerializer(serializers.ModelSerializer):
         read_only_fields = ["created_time", "updated_time"]
         extra_kwargs = {
             "conversation": {"required": False},
+            "message_content": {"required": False},
         }
 
     def validate(self, attrs):
+        message_content = attrs.get("message_content")
+        audio_file = attrs.get("audio_file")
+        if not message_content and not audio_file:
+            raise_validation_error(message=_("Message content or audio file is required."))
         conversation = self.context.get("conversation_id")
         print(f"validate: conversation_id: {conversation}")
         try:
