@@ -31,6 +31,7 @@ drf-spectacular==0.27.2
 drf-spectacular-sidecar==2024.7.1
 Faker==30.8.1
 ffmpeg-python==0.2.0
+flake8==7.2.0
 future==1.0.0
 google-ai-generativelanguage==0.6.15
 google-api-core==2.25.0rc1
@@ -69,8 +70,8 @@ pycodestyle==2.13.0
 pydantic==2.11.3
 pydantic_core==2.33.1
 pydub==0.25.1
+pyflakes==3.3.2
 PyJWT==2.9.0
-pylint==3.3.7
 pyparsing==3.2.3
 python-crontab==3.2.0
 python-dateutil==2.9.0.post0

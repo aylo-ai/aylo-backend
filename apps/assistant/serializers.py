@@ -185,7 +185,6 @@ class MessageSerializer(serializers.ModelSerializer):
             assistant_id=assistant.assistant_id,
             thread_id=conversation.thread_id
         )
-        print(f"response: {response}")
         print(f"time after get_assistant_response: {time.time()}")
         Message.objects.create(
             conversation=conversation,
