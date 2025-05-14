@@ -12,7 +12,7 @@ from rest_framework_simplejwt.exceptions import TokenError
 from rest_framework_simplejwt.tokens import RefreshToken
 from django.utils.translation import gettext_lazy as _
 
-from config.settings import redis_connection, CLIENT_ID, CLIENT_SECRET, REDIRECT_URI
+from config.settings import redis_connection, GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, GOOGLE_REDIRECT_URI
 import user.serializers as serializers
 from shared.addons.validations import error_response, success_response
 from shared.addons.verification import send_code
@@ -287,9 +287,9 @@ class GoogleAuthCallbackView(APIView):
             token_url = "https://oauth2.googleapis.com/token"
             data = {
                 "code": code,
-                "client_id": CLIENT_ID,
-                "client_secret": CLIENT_SECRET,
-                "redirect_uri": REDIRECT_URI,
+                "client_id": GOOGLE_CLIENT_ID,
+                "client_secret": GOOGLE_CLIENT_SECRET,
+                "redirect_uri": GOOGLE_REDIRECT_URI,
                 "grant_type": "authorization_code",
             }
             token_response = requests.post(token_url, data=data)

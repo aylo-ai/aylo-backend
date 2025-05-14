@@ -1,23 +1,30 @@
 import json
 import uuid
+from typing import Optional
 
 from redis import Redis
 
-from config.settings import REDIS_CREDENTIALS
+from config.settings import REDIS_CREDENTIALS, REDIS_HOST, REDIS_PORT, REDIS_DB, REDIS_PASSWORD
 
-redis_connection: Redis = None
+redis_connection: Optional[Redis] = None
 
 
 def get_redis_connection() -> Redis:
     global redis_connection
 
     if redis_connection is None:
-        redis_connection = Redis(**REDIS_CREDENTIALS)
+        redis_connection = Redis(
+            host=REDIS_HOST,
+            port=REDIS_PORT,
+            db=REDIS_DB,
+            password=REDIS_PASSWORD,
+            decode_responses=True
+        )
 
     return redis_connection
 
 
-def publish_order(order_id: uuid, owner_type: str, company_id: uuid, language: str) -> None:
+def publish_order(order_id: uuid.UUID, owner_type: str, company_id: uuid.UUID, language: str) -> None:
     """Publish order ID to redis pub/sub channel."""
     channel_name = "orders:channel"
     print(f"Publishing order ID {order_id} to channel {channel_name}")
@@ -33,7 +40,7 @@ def publish_order(order_id: uuid, owner_type: str, company_id: uuid, language: s
     get_redis_connection().publish(channel_name, json.dumps(publish_message))
 
 
-def add_to_redis_cache(key: str, value: str, exp_time: int = None) -> None:
+def add_to_redis_cache(key: str, value: str, exp_time: Optional[int] = None) -> None:
     """Add key-value pair to Redis cache."""
     print(f"Adding {key} to Redis cache")
     redis = get_redis_connection()
@@ -43,12 +50,14 @@ def add_to_redis_cache(key: str, value: str, exp_time: int = None) -> None:
     print(f"Added {key} to Redis cache.")
 
 
-def get_from_redis_cache(key: str) -> str:
+def get_from_redis_cache(key: str) -> Optional[str]:
     """Get value from Redis cache."""
     print(f"Getting {key} from Redis cache")
     redis = get_redis_connection()
     value = None
     if key is not None:
         value = redis.get(key)
+        if value is not None:
+            value = str(value)
     print(f"Got {key} from Redis cache.")
     return value

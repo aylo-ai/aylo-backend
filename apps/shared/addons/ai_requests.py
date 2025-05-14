@@ -48,14 +48,16 @@ def create_assistant_id(data: dict):
 
 
 def send_assistant_data(assistant, request=None):
-    data = create_assistant_payload(assistant, request)
-    print(f"Assistant data: {data}")
-    data, code = create_assistant_id(data)
-    print(f"assistant data received: {data}, Code: {code}")
-    if code == 400:
+    payload = create_assistant_payload(assistant, request)
+    print(f"Assistant data: {payload}")
+    data = create_assistant_id(payload)
+    print(f"assistant data received: {data}")
+    if isinstance(data, str):
         raise_validation_error(message=data)
-    assistant.assistant_id = data.get("assistant_id")
-    assistant.vector_id = data.get("vector_id")
+    if data is None:
+        raise_validation_error(message="Failed to create assistant: No data returned")
+    assistant.assistant_id = data.get("assistant_id") # type: ignore
+    assistant.vector_id = data.get("vector_id") # type: ignore
     assistant.save()
     print(f"Assistant ID: {assistant.assistant_id}, vector_id: {assistant.vector_id} created successfully")
 
