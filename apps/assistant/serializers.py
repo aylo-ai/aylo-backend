@@ -73,6 +73,10 @@ class ConversationSerializer(serializers.ModelSerializer):
             assistant = Assistant.objects.get(id=assistant)
         except Assistant.DoesNotExist:
             raise_validation_error("Assistant does not exist.")
+        if assistant is None:
+            raise_validation_error("Assistant is not found.")
+        if not assistant.assistant_id or not assistant.vector_id:
+            raise_validation_error("Assistant is not active.")
         attrs["assistant"] = assistant
         return attrs
 
