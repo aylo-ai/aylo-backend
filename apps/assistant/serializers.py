@@ -191,13 +191,13 @@ class MessageSerializer(serializers.ModelSerializer):
             thread_id=conversation.thread_id
         )
         print(f"time after get_assistant_response: {time.time()}")
-        Message.objects.create(
+        response_message = Message.objects.create(
             conversation=conversation,
             sender=sender,
             message_content=response,
             message_type=MessageTypes.TEXT.value
         )
-        return message
+        return response_message
         
 
 
