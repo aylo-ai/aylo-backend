@@ -4,7 +4,7 @@ from rest_framework import permissions, filters, generics
 from apps.assistant.models import Assistant, AssistantFileUpload, Conversation, Message
 from apps.assistant.serializers import AssistantSerializer, ConversationSerializer, MessageSerializer, \
     SettingsSerializer, AssistantFileUploadSerializer, ConversationRetrieveSerializer, UpdateFileUploadSerializer
-from shared.addons.ai_requests import delete_assitant
+from shared.addons.ai_requests import delete_assitant, send_assistant_data
 from shared.addons.validations import success_response, error_response
 from rest_framework.exceptions import NotFound
 
@@ -244,6 +244,9 @@ class AssistantFileUploadListCreateView(generics.ListCreateAPIView):
         serializer.is_valid(raise_exception=True)
 
         serializer.save()
+        if assistant and not assistant.vector_id:
+            send_assistant_data(assistant, request)
+            print("saved assistant data")
         return success_response(message='File uploaded successfully', code=201)
 
 

@@ -272,7 +272,6 @@ class AssistantFileUploadSerializer(serializers.ModelSerializer):
                 filename=filename
             )
             uploaded_files.append(upload)
-
         # Ensure file URLs are created and vector store is updated
         if assistant and assistant.vector_id:
             file_urls = create_file_urls(assistant, request)
