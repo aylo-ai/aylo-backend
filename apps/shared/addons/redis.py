@@ -24,21 +24,6 @@ def get_redis_connection() -> Redis:
     return redis_connection
 
 
-def publish_order(order_id: uuid.UUID, owner_type: str, company_id: uuid.UUID, language: str) -> None:
-    """Publish order ID to redis pub/sub channel."""
-    channel_name = "orders:channel"
-    print(f"Publishing order ID {order_id} to channel {channel_name}")
-    # Publish the order ID only
-    publish_message = {
-        "order_id": order_id,
-        "owner_type": owner_type,
-        "company_id": company_id,
-        "language": language,
-    }
-    print(f"Publish message: {publish_message}")
-    # Get Redis connection and publish the order ID
-    get_redis_connection().publish(channel_name, json.dumps(publish_message))
-
 
 def add_to_redis_cache(key: str, value: str, exp_time: Optional[int] = None) -> None:
     """Add key-value pair to Redis cache."""
