@@ -18,7 +18,7 @@ from shared.addons.validations import error_response, success_response
 from shared.addons.verification import send_code
 from apps.user.models import User, PrivacyPolicy, UserAgreement
 from shared.addons.verification import send_email_code, verify_email_code, verify_code_cache
-from shared.permissions import IsAdmin, IsSuperAdmin
+from shared.permissions import IsAdmin, IsSuperAdmin, IsCustomer
 
 
 class SendCodeView(generics.GenericAPIView):
@@ -327,3 +327,21 @@ class GoogleAuthCallbackView(APIView):
             return success_response(message="User authenticated successfully", data=tokens, code=status.HTTP_200_OK)
         except Exception as e:
             return error_response(message=str(e), code=400)
+
+class AddStaffView(generics.CreateAPIView):
+    queryset = User.objects.all()   
+    serializer_class = serializers.AddStaffSerializer
+    permission_classes = [IsCustomer]   
+
+    def create(self, request, *args, **kwargs):
+        if request.user.created_by is not None:
+            return error_response(message="Uzur jigar sizda hodim yaratish huquqi yo'q", code=403)
+        
+        serializer = self.get_serializer(data=request.data, context={"request": request})
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+        return success_response(
+            message=_("Staff added successfully with access to your assistants"),
+            data=serializer.data,
+            code=status.HTTP_201_CREATED
+        )

@@ -33,6 +33,14 @@ class User(AbstractUser, BaseModel):
     next_payment_date = models.DateField(null=True, blank=True)
     retry_count = models.IntegerField(default=0)
     used_request_count = models.IntegerField(default=0)
+    # created_by user
+    created_by = models.ForeignKey(
+        'self',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='created_users'
+    )
 
     class Meta:
         db_table = "user"
@@ -69,7 +77,6 @@ class User(AbstractUser, BaseModel):
     def tokens(self):
         refresh = RefreshToken.for_user(self)
         return {"access": str(refresh.access_token), "refresh": str(refresh)}
-
 
 class PrivacyPolicy(BaseModel):
     title = models.CharField(max_length=255)

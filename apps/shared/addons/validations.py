@@ -1,4 +1,5 @@
 import string
+import re
 from django.utils.translation import gettext_lazy as _
 
 import phonenumbers
@@ -64,6 +65,20 @@ def check_number(phone_number):
         return phonenumbers.is_valid_number(phone_number)
     except phonenumbers.NumberParseException:
         return False
+    
+def check_email_phone_number(email_phone_number):
+    """
+    Check if the provided email or phone number is valid.
+    """
+    if re.match(r"^\+?[1-9]\d{1,14}$", email_phone_number):
+        return "phone"
+    elif re.match(r"^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$", email_phone_number):
+        return "email"
+    else:
+        return {
+            "message": "Invalid email or phone number format."
+        }
+    
 
 
 def phone_number_validation(value):  # noqa

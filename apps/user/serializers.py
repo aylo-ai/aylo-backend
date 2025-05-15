@@ -2,9 +2,9 @@ from rest_framework import serializers
 from rest_framework_simplejwt.tokens import RefreshToken, TokenError
 from django.utils.translation import gettext_lazy as _
 
-from shared.addons.validations import raise_validation_error, check_number, phone_number_validation
+from shared.addons.validations import raise_validation_error, check_number, check_email_phone_number
 from apps.user.models import User, PrivacyPolicy, UserAgreement
-
+from shared.addons.enums import UserRoles
 
 class SendCodeSerializer(serializers.Serializer): # noqa
     phone_number = serializers.CharField(required=False)
@@ -307,3 +307,58 @@ class UserAgreementSerializer(serializers.ModelSerializer):
             'is_active',
             'language',
         ]
+
+class AddStaffSerializer(serializers.ModelSerializer):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields['email_or_phone_number'] = serializers.CharField(required=False)
+        
+    class Meta:
+        model = User
+        fields = [
+            'id',
+            'first_name', 
+            'last_name',
+        ]
+        extra_kwargs = {
+            'first_name': {'required': True},
+            'last_name': {'required': True},
+        }
+        
+    def validate(self, attrs):
+        first_name = attrs.get('first_name')
+        last_name = attrs.get('last_name')
+        email_or_phone_number = attrs.get('email_or_phone_number')
+
+        if len(first_name.split()) > 1:
+            raise_validation_error(message=_("Ism bir so'zdan iborat bo'lishi kerak"))
+        if len(last_name.split()) > 1:
+            raise_validation_error(message=_("Familya bir so'zdan iborat bo'lishi kerak"))
+
+
+        auth_data = check_email_phone_number(email_or_phone_number)
+        if auth_data == "phone":
+            if User.objects.filter(phone_number=email_or_phone_number).exists():
+                raise_validation_error(message=_("Bu telefon raqam allaqachon ro'yxatdan o'tgan"))
+            else:
+                data = {
+                    "phone_number": email_or_phone_number,
+                }
+                    
+        elif auth_data == "email":
+            if User.objects.filter(email=email_or_phone_number).exists():
+                raise_validation_error(message=_("Bu email allaqachon ro'yxatdan o'tgan"))
+            else:
+                data = {
+                    "email": email_or_phone_number,
+                }
+        data["first_name"] = first_name
+        data["last_name"] = last_name
+        data["created_by"] = self.context['request'].user
+        data["user_role"] = UserRoles.STAFF.value
+        return data
+    
+    def create(self, validated_data):
+        user = User.objects.create(**validated_data)
+        user.save()
+        return user

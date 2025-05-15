@@ -20,4 +20,6 @@ urlpatterns = [
     #oauth2 google
     path("accounts/google/login/", views.GoogleLoginView.as_view()),
     path("accounts/google/login/callback/", views.GoogleAuthCallbackView.as_view()),
+
+    path("add-staff/", views.AddStaffView.as_view()),
 ]

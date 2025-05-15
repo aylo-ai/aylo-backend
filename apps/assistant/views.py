@@ -1,4 +1,4 @@
-from django.db.models import Max
+from django.db.models import Max, Q
 from rest_framework import permissions, filters, generics
 
 from apps.assistant.models import Assistant, AssistantFileUpload, Conversation, Message
@@ -7,6 +7,7 @@ from apps.assistant.serializers import AssistantSerializer, ConversationSerializ
 from shared.addons.ai_requests import delete_assitant
 from shared.addons.validations import success_response, error_response
 from rest_framework.exceptions import NotFound
+from django.utils.translation import gettext_lazy as _
 
 
 class AssistantListCreateView(generics.ListCreateAPIView):
@@ -19,7 +20,12 @@ class AssistantListCreateView(generics.ListCreateAPIView):
     permission_classes = [permissions.IsAuthenticated]
 
     def get_queryset(self):
-        return Assistant.objects.filter(user=self.request.user)
+        user = self.request.user
+        # Get assistants for the user and all staff members they created
+        return Assistant.objects.filter(
+            Q(user=user) |  # User's own assistants
+            Q(user=user.created_by)  # Assistants of staff members created by this user
+        ).distinct()
 
     def create(self, request, *args, **kwargs):
         serializer = self.get_serializer(data=request.data, context={'request': request})
@@ -34,7 +40,11 @@ class AssistantRetrieveView(generics.RetrieveUpdateDestroyAPIView):
     permission_classes = [permissions.IsAuthenticated]
 
     def get_queryset(self):
-        return super().get_queryset()
+        user = self.request.user
+        return Assistant.objects.filter(
+            Q(user=user) |  # User's own assistants
+            Q(user=user.created_by)  # Assistants of staff members created by this user
+        ).distinct()
 
     def retrieve(self, request, *args, **kwargs):
         instance = self.get_object()
@@ -50,6 +60,12 @@ class AssistantRetrieveView(generics.RetrieveUpdateDestroyAPIView):
 
     def destroy(self, request, *args, **kwargs):
         instance = self.get_object()
+        # Only allow deletion if the user is the original creator of the assistant
+        if instance.user != request.user:
+            return error_response(
+                message=_("Only customer can delete their assistants"),
+                code=403
+            )
         assistant_id = instance.assistant_id
         print(f"Assistant ID: {assistant_id}")
         if assistant_id:

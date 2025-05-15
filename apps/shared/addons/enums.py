@@ -13,6 +13,7 @@ class UserRoles(EnumBaseModel):
     MANAGER = 'manager'
     SUPPORT_AGENT = 'support_agent'
     CUSTOMER = 'customer'
+    STAFF = 'staff'
 
 
 class PaymentMethods(EnumBaseModel):

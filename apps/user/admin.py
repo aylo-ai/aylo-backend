@@ -8,7 +8,7 @@ class UserAdmin(admin.ModelAdmin):
     search_fields = ("username", "first_name", "last_name", "email", "phone_number")
     list_filter = ("user_role",)
     fieldsets = (
-        (None, {"fields": ("username", "password")}),
+        (None, {"fields": ("username", "password", "created_by")}),
         ("Personal info", {"fields": ("first_name", "last_name", "email",
                                       "phone_number", "user_role", "pricing_package")}),
         ("Permissions", {"fields": ("is_active", "is_staff", "is_superuser",)}),
