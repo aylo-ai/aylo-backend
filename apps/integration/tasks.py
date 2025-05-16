@@ -7,18 +7,21 @@ from shared.addons.telegram import send_telegram_message, check_register_info, d
 from shared.addons.utils import handle_start_command, get_or_create_conversation, create_message, \
     speech_to_text, convert_ogg_to_mp3
 from shared.ai_service.assistant import get_assistant_response_final
-from .models import Assistant, TelegramGroupIntegration
+from apps.assistant.models import Assistant
+from .models import TelegramGroupIntegration
 
 
 @shared_task
 def process_message_task(chat_id, user_message, bot_token, audio_file=None):
     print(f"celery task is started with chat_id: {chat_id}, user_message: {user_message}, bot_token: {bot_token}")
     assistant = Assistant.objects.filter(integrations__api_token=bot_token).first()
+    print(f"Assistant: {assistant}")
     if not assistant:
         return  # No assistant found, skip processing
 
     # Handle `/start` command
     if user_message == '/start':
+        print(f"Handling start command for assistant: {assistant}")
         handle_start_command(chat_id, assistant, bot_token)
         return
 
@@ -27,6 +30,7 @@ def process_message_task(chat_id, user_message, bot_token, audio_file=None):
     print(f"Conversation: {conversation}")
     if conversation.status == "ESCALATED" or not assistant.is_active:
         create_message(conversation, 'user', user_message, audio_file)
+        print(f"Message created for user: {user_message}")
         return
 
     # Wait message handling
