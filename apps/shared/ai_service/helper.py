@@ -1,6 +1,5 @@
 import mimetypes
 from io import BytesIO
-from tkinter import N
 from typing import List
 
 import requests
