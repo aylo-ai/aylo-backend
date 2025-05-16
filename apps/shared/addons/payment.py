@@ -1,5 +1,5 @@
 import random
-from datetime import timedelta
+from datetime import timedelta, datetime
 
 import requests
 from django.template.defaulttags import now
@@ -114,7 +114,7 @@ def process_subscription_payment(user):
 
     # Step 4: Reset retry count and set next payment date
     user.retry_count = 0
-    user.next_payment_date = now().date() + timedelta(days=30)
+    user.next_payment_date = datetime.now().date() + timedelta(days=30)
     user.save()
 
     return True, "Payment successful."

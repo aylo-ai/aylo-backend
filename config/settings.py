@@ -11,7 +11,8 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 sys.path.append(os.path.join(BASE_DIR, "apps"))
 load_dotenv()
 
-SECRET_KEY = os.environ.get("SECRET_KEY")
+SECRET_KEY = os.environ.get("SECRET_KEY", "django-insecure-j_27^f$x$3_q^)-3vn6!ps*9apa$nshm)202rq98y^fhf+ydz=")
+print("SECRET_KEY", SECRET_KEY)
 DEBUG: bool = os.environ.get("DEBUG") in ["True", "true"]
 
 ALLOWED_HOSTS = ["*"]
@@ -262,8 +263,8 @@ AUTH_USER_MODEL = "user.User"
 
 REDIS_PASSWORD = os.environ.get("REDIS_PASSWORD", "")
 REDIS_HOST = os.environ.get("REDIS_HOST", default="localhost")
-REDIS_PORT = os.environ.get("REDIS_PORT", 6379)
-REDIS_DB = os.environ.get("REDIS_DB", 0)
+REDIS_PORT = int(os.environ.get("REDIS_PORT", 6379))
+REDIS_DB = int(os.environ.get("REDIS_DB", 0))
 redis_connection = redis.Redis(
     host=REDIS_HOST,
     port=REDIS_PORT,
@@ -303,17 +304,17 @@ LOGGING = {
     },
 }
 
-REDIS_DB: int = os.environ.get("REDIS_DB", default=0)
+REDIS_DB: int = int(os.environ.get("REDIS_DB", default=0))
 REDIS_HOST: str = os.environ.get("REDIS_HOST", default="localhost")
-REDIS_PASSWORD: str = os.environ.get("REDIS_PASSWORD", default=None)
-REDIS_PORT: int = os.environ.get("REDIS_PORT", default=6379)
+REDIS_PASSWORD: str = os.environ.get("REDIS_PASSWORD", default="")
+REDIS_PORT: int = int(os.environ.get("REDIS_PORT", default=6379))
 
 # settings.py
 CELERY_BROKER_URL = f"redis://{REDIS_HOST}:{REDIS_PORT}/{REDIS_DB}"
 CELERY_RESULT_BACKEND = f"redis://{REDIS_HOST}:{REDIS_PORT}/{REDIS_DB}"
 
 
-REDIS_CREDENTIALS: dict[str, str] = {
+REDIS_CREDENTIALS: dict[str, str | int | bool] = {
     "db": REDIS_DB,
     "host": REDIS_HOST,
     "port": REDIS_PORT,
@@ -420,9 +421,9 @@ PAYME_KEY = os.environ.get("PAYME_KEY")
 PAYME_ID = os.environ.get("PAYME_ID")
 PAYME_API_URL = os.environ.get("PAYME_API_URL", default="https://checkout.paycom.uz/api")
 OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY")
-CLIENT_ID = os.environ.get("CLIENT_ID")
-CLIENT_SECRET = os.environ.get("CLIENT_SECRET")
-REDIRECT_URI = os.environ.get("REDIRECT_URI")
+GOOGLE_CLIENT_ID = os.environ.get("GOOGLE_CLIENT_ID")
+GOOGLE_CLIENT_SECRET = os.environ.get("GOOGLE_CLIENT_SECRET")
+GOOGLE_REDIRECT_URI = os.environ.get("GOOGLE_REDIRECT_URI")
 
 client = OpenAI(api_key=OPENAI_API_KEY)
 
@@ -436,3 +437,8 @@ EMAIL_USE_TLS = True
 EMAIL_HOST_USER = 'your-email@example.com'
 EMAIL_HOST_PASSWORD = 'your-email-password'
 DEFAULT_FROM_EMAIL = 'your-email@example.com'
+
+# Instagram settings
+INSTAGRAM_CLIENT_ID = os.environ.get("INSTAGRAM_CLIENT_ID")
+INSTAGRAM_CLIENT_SECRET = os.environ.get("INSTAGRAM_CLIENT_SECRET")
+INSTAGRAM_REDIRECT_URI = os.environ.get("INSTAGRAM_REDIRECT_URI")

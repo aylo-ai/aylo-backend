@@ -7,6 +7,7 @@ from django.http import HttpResponse
 from rest_framework.views import APIView
 from django.utils.translation import gettext as _
 from apps.assistant.models import  Assistant
+from config.settings import INSTAGRAM_CLIENT_ID, INSTAGRAM_CLIENT_SECRET, INSTAGRAM_REDIRECT_URI
 from shared.addons.ai_requests import get_assistant_response
 from shared.addons.enums import ConversationStatuses, IntegrationTypes
 from shared.addons.instagram import get_long_lived_access_token, get_user_profile
@@ -176,9 +177,9 @@ class InstagramWebhookView(APIView):
 
 
 class InstagramCallbackView(APIView):
-    CLIENT_ID = "1217809219739350"
-    CLIENT_SECRET = "dc12159193e69625fd27281997b28f4f"
-    REDIRECT_URI = "https://repli.uz/integrations/"
+    CLIENT_ID = INSTAGRAM_CLIENT_ID
+    CLIENT_SECRET = INSTAGRAM_CLIENT_SECRET
+    REDIRECT_URI = INSTAGRAM_REDIRECT_URI
 
     def get(self, request, *args, **kwargs):
         # Get the authorization code from the query parameters

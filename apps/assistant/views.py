@@ -4,7 +4,7 @@ from rest_framework import permissions, filters, generics
 from apps.assistant.models import Assistant, AssistantFileUpload, Conversation, Message
 from apps.assistant.serializers import AssistantSerializer, ConversationSerializer, MessageSerializer, \
     SettingsSerializer, AssistantFileUploadSerializer, ConversationRetrieveSerializer, UpdateFileUploadSerializer
-from shared.addons.ai_requests import delete_assitant
+from shared.addons.ai_requests import delete_assitant, send_assistant_data
 from shared.addons.validations import success_response, error_response
 from rest_framework.exceptions import NotFound
 from django.utils.translation import gettext_lazy as _
@@ -91,11 +91,11 @@ class ConversationListCreateView(generics.ListCreateAPIView):
         assistant_id = self.kwargs.get("pk")
         serializer = self.get_serializer(data=request.data, context={'assistant_id': assistant_id})
         serializer.is_valid(raise_exception=True)
-        thread_id, conversation = serializer.save(assistant_id=assistant_id)
+        conversation = serializer.save(assistant_id=assistant_id)
         data = {
             "assistant_id": assistant_id,
             "conversation_id": conversation.id,
-            "thread_id": thread_id
+            "thread_id": conversation.thread_id
         }
         return success_response(message='Conversation created successfully', data=data, code=201)
 
@@ -142,9 +142,9 @@ class MessageListCreateView(generics.ListCreateAPIView):
 
     def create(self, request, *args, **kwargs):
         conversation_id = self.kwargs.get('pk')
-        serializer = self.get_serializer(data=request.data, context={'conversation_id': conversation_id})
+        serializer = self.get_serializer(data=request.data, context={'conversation_id': conversation_id, 'request': request})
         serializer.is_valid(raise_exception=True)
-        serializer.save(conversation_id=conversation_id)
+        serializer.save()
         return success_response(message='Message created successfully', data=serializer.data, code=201)
 
 
@@ -260,6 +260,9 @@ class AssistantFileUploadListCreateView(generics.ListCreateAPIView):
         serializer.is_valid(raise_exception=True)
 
         serializer.save()
+        if assistant and not assistant.vector_id:
+            send_assistant_data(assistant, request)
+            print("saved assistant data")
         return success_response(message='File uploaded successfully', code=201)
 
 
