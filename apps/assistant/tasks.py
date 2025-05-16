@@ -1,6 +1,6 @@
 from celery import shared_task
 
-from shared.addons.ai_requests import create_assistant_id
+from shared.addons.ai_requests import create_assistant_and_vector_id
 from shared.addons.validations import raise_validation_error
 from .models import AssistantFileUpload, Assistant
 
@@ -29,7 +29,7 @@ def finalize_assistant_files(assistant_id):
         "assistant_language": assistant.language,
         "file_links": [file.file.url for file in assistant.files.all()]
     }
-    assistant_id, code = create_assistant_id(data)
+    assistant_id, code = create_assistant_and_vector_id(data)
     if code == 400:
         raise_validation_error(message=assistant_id)
     assistant.assistant_id = assistant_id

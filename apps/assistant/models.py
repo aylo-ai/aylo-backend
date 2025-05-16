@@ -7,6 +7,7 @@ from django.utils.timezone import now
 from shared.addons.enums import AssistantLanguages, PersonalityStyles, SenderTypes, MessageStatuses, \
     ConversationStatuses, MessageTypes, ConversationPlatforms
 from shared.models import BaseModel
+from apps.integration.models import Integration
 
 
 class Assistant(BaseModel):
@@ -44,6 +45,9 @@ class Assistant(BaseModel):
     assistant_id = models.CharField(max_length=255, null=True, blank=True)
     vector_id = models.CharField(max_length=255, null=True, blank=True)
     is_active = models.BooleanField(default=True)
+
+    # Type hint for the reverse relationship
+    integrations: 'models.QuerySet[Integration]'
 
     def __str__(self):
         return f"{self.assistant_id} - {self.name}"
@@ -86,14 +90,13 @@ class Conversation(BaseModel):
 
 class Message(BaseModel):
     conversation = models.ForeignKey(Conversation, on_delete=models.CASCADE, related_name="messages")
-    sender = models.CharField(max_length=10, choices=SenderTypes.choices)
+    sender = models.CharField(max_length=10, choices=SenderTypes.choices())
     message_content = models.TextField()
     audio_file = models.FileField(upload_to="assistant/conversation/audio/", null=True, blank=True)
-    message_type = models.CharField(max_length=10, choices=MessageTypes.choices(), 
-                                    default=MessageTypes.TEXT.value)
+    message_type = models.CharField(max_length=10, choices=MessageTypes.choices(), default=MessageTypes.TEXT.value)
     status = models.CharField(
         max_length=15,
-        choices=MessageStatuses.choices,
+        choices=MessageStatuses.choices(),
         default=MessageStatuses.DELIVERED.value
     )
 
@@ -104,7 +107,7 @@ class Message(BaseModel):
         ]
 
     def __str__(self):
-        return f"Message from {self.sender} in conversation {self.conversation_id}"
+        return f"Message from {self.sender} in conversation {self.conversation.id}"
 
     def save(self, *args, **kwargs):
         """

@@ -1,15 +1,17 @@
 from django.utils.timezone import localtime
+import time
 
 from apps.assistant.models import Assistant, Conversation, Message, Settings, AssistantFileUpload
 from rest_framework import serializers
-
+from django.utils.translation import gettext as _
 from shared.addons.ai_requests import send_assistant_data, \
     get_assistant_response, update_vector_store_files
-from shared.addons.utils import get_thread_id
+from shared.addons.utils import get_thread_id, speech_to_text
 from shared.addons.payloads import create_file_urls
 from shared.addons.validations import raise_validation_error
-from shared.addons.enums import ConversationStatuses
+from shared.addons.enums import ConversationPlatforms, ConversationStatuses
 from shared.ai_service.assistant import update_assistant_id_vector_id
+from shared.addons.enums import MessageTypes
 
 
 class AssistantSerializer(serializers.ModelSerializer):
@@ -71,6 +73,10 @@ class ConversationSerializer(serializers.ModelSerializer):
             assistant = Assistant.objects.get(id=assistant)
         except Assistant.DoesNotExist:
             raise_validation_error("Assistant does not exist.")
+        if assistant is None:
+            raise_validation_error("Assistant is not found.")
+        if not assistant.assistant_id or not assistant.vector_id:
+            raise_validation_error("Assistant is not active.")
         attrs["assistant"] = assistant
         return attrs
 
@@ -78,10 +84,11 @@ class ConversationSerializer(serializers.ModelSerializer):
         assistant = validated_data.get("assistant")
         thread_id = get_thread_id(str(assistant.assistant_id), str(assistant.vector_id))
         conversation = Conversation.objects.create(
+            platform=ConversationPlatforms.WEBSITE.value,
             assistant=assistant,
             thread_id=thread_id
         )
-        return thread_id, conversation
+        return conversation
 
     def to_representation(self, instance):
         response = super().to_representation(instance)
@@ -132,15 +139,21 @@ class MessageSerializer(serializers.ModelSerializer):
             "sender",
             "message_content",
             "message_type",
+            "audio_file",
             "created_time",
             "updated_time",
         ]
         read_only_fields = ["created_time", "updated_time"]
         extra_kwargs = {
             "conversation": {"required": False},
+            "message_content": {"required": False},
         }
 
     def validate(self, attrs):
+        message_content = attrs.get("message_content")
+        audio_file = attrs.get("audio_file")
+        if not message_content and not audio_file:
+            raise_validation_error(message=_("Message content or audio file is required."))
         conversation = self.context.get("conversation_id")
         print(f"validate: conversation_id: {conversation}")
         try:
@@ -152,29 +165,40 @@ class MessageSerializer(serializers.ModelSerializer):
         return attrs
 
     def create(self, validated_data):
-        message_content = validated_data.get("message_content")
-        print(f"create: message_content: {message_content}")
+        audio_file = validated_data.get("audio_file")
+        conversation = validated_data.get("conversation")
+        assistant = conversation.assistant
+        sender = validated_data.get("sender")
+        print(f"time before transcribe: {time.time()}")
+        # 1. Transcribe if audio exists
+        if audio_file:
+            print("[MessageSerializer] Audio file received.")
+            audio_bytes = audio_file.read()
+            transcribed_text = speech_to_text(audio_bytes, language=assistant.language or "uz")
+            print(f"time after transcribe: {time.time()}")
+            validated_data["message_content"] = transcribed_text
+            validated_data["message_type"] = MessageTypes.AUDIO.value
+        else:
+            transcribed_text = validated_data.get("message_content")
+        
         message = Message.objects.create(**validated_data)
-        print(f"message is created: {message}")
-
-        # check assistant status
-        if message.conversation.status == ConversationStatuses.ESCALATED.value:
+        if conversation.status == ConversationStatuses.ESCALATED.value or not assistant.is_active:
             return message
-
-        # send message to chat assistant
+        print(f"time before get_assistant_response: {time.time()}")
         response = get_assistant_response(
-            message=message_content,
-            assistant_id=message.conversation.assistant.assistant_id,
-            thread_id=message.conversation.thread_id
+            message=transcribed_text,
+            assistant_id=assistant.assistant_id,
+            thread_id=conversation.thread_id
         )
-        print(f"response from ai: {response}")
-        assistant_response = Message.objects.create(
-            conversation=message.conversation,
-            sender="assistant",
+        print(f"time after get_assistant_response: {time.time()}")
+        response_message = Message.objects.create(
+            conversation=conversation,
+            sender=sender,
             message_content=response,
-            message_type="text",
+            message_type=MessageTypes.TEXT.value
         )
-        return assistant_response
+        return response_message
+        
 
 
 class SettingsSerializer(serializers.ModelSerializer):
@@ -214,7 +238,14 @@ class AssistantFileUploadSerializer(serializers.ModelSerializer):
         if not files:
             raise_validation_error(message="No files were uploaded.")
 
+        if not isinstance(files, (list, tuple)):
+            files = [files]
+
         for file in files:
+            if not file:
+                continue
+            if not hasattr(file, 'size') or not hasattr(file, 'name'):
+                raise_validation_error(message=f"Invalid file object: {file}")
             if file.size > 30 * 1024 * 1024:  # 30MB limit
                 raise_validation_error(message=f"File {file.name} exceeds the 30MB size limit.")
         return attrs
@@ -223,18 +254,30 @@ class AssistantFileUploadSerializer(serializers.ModelSerializer):
         request = self.context.get("request")
         files = self.context.get('files')
         assistant = self.context.get("assistant")
+        
+        if not files or not assistant:
+            raise_validation_error(message="Files and assistant are required.")
+
+        if not isinstance(files, (list, tuple)):
+            files = [files]
+
+        uploaded_files = []
         for file in files:
+            if not file:
+                continue
             filename = file.name
-            AssistantFileUpload.objects.create(
+            upload = AssistantFileUpload.objects.create(
                 assistant=assistant,
                 file=file,
                 filename=filename
             )
-        # send_assistant_data(assistant, request)
-        response = update_assistant_id_vector_id(assistant, request)
-        if not response:
-            raise_validation_error(message="Failed to update assistant ID and vector ID.")
-        return assistant
+            uploaded_files.append(upload)
+        # Ensure file URLs are created and vector store is updated
+        if assistant and assistant.vector_id:
+            file_urls = create_file_urls(assistant, request)
+            update_vector_store_files(assistant.vector_id, file_urls)
+
+        return uploaded_files[0] if len(uploaded_files) == 1 else uploaded_files
 
     def to_representation(self, instance):
         assistant = getattr(instance, "assistant", None)
@@ -267,7 +310,14 @@ class UpdateFileUploadSerializer(serializers.ModelSerializer):
         if not files:
             raise_validation_error(message="No files were uploaded.")
 
+        if not isinstance(files, (list, tuple)):
+            files = [files]
+
         for file in files:
+            if not file:
+                continue
+            if not hasattr(file, 'size') or not hasattr(file, 'name'):
+                raise_validation_error(message=f"Invalid file object: {file}")
             if file.size > 30 * 1024 * 1024:  # 30MB limit
                 raise_validation_error(message=f"File {file.name} exceeds the 30MB size limit.")
         return attrs
@@ -276,9 +326,17 @@ class UpdateFileUploadSerializer(serializers.ModelSerializer):
         request = self.context.get("request")
         files = self.context.get('files')
         assistant = self.context.get("assistant")
+        
+        if not files or not assistant:
+            raise_validation_error(message="Files and assistant are required.")
+
+        if not isinstance(files, (list, tuple)):
+            files = [files]
 
         uploaded_files = []
         for file in files:
+            if not file:
+                continue
             filename = file.name
             upload = AssistantFileUpload.objects.create(
                 assistant=assistant,
@@ -288,8 +346,8 @@ class UpdateFileUploadSerializer(serializers.ModelSerializer):
             uploaded_files.append(upload)
 
         # Ensure file URLs are created and vector store is updated
-        if assistant.vector_id:
+        if assistant and getattr(assistant, 'vector_id', None):
             file_urls = create_file_urls(assistant, request)
             update_vector_store_files(assistant.vector_id, file_urls)
 
-        return uploaded_files[0] if len(uploaded_files) == 1 else uploaded_files # initailly return assistant but later assistant has no field of file and i changeed to list of upload files
+        return uploaded_files[0] if len(uploaded_files) == 1 else uploaded_files

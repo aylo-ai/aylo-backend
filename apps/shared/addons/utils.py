@@ -200,6 +200,8 @@ def create_and_run_thread(assistant_id, vector_store_id):
         raise Exception("Thread creation failed")
 
 def get_thread_id(assistant_id, vector_id):
+    if assistant_id is None or vector_id is None:
+        raise_validation_error(message=_(f"Assistant or vector id is not found: {assistant_id}"))
     thread_id, _ = create_and_run_thread(assistant_id, vector_id)
     if thread_id is not None:
         return thread_id
