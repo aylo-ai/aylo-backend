@@ -22,15 +22,23 @@ class AssistantListCreateView(generics.ListCreateAPIView):
     def get_queryset(self):
         user = self.request.user
         # Get assistants for the user and all staff members they created
-        return Assistant.objects.filter(
-            Q(user=user) |  # User's own assistants
-            Q(user=user.created_by)  # Assistants of staff members created by this user
-        ).distinct()
+        if user.created_by:
+            return Assistant.objects.filter(
+                Q(user=user.created_by) |  # User's own assistants
+                Q(created_by=user)  # Assistants of staff members created by this user
+            ).distinct()
+        else:
+            return Assistant.objects.filter(
+                Q(user=user)  # User's own assistants
+            ).distinct()
 
     def create(self, request, *args, **kwargs):
         serializer = self.get_serializer(data=request.data, context={'request': request})
         serializer.is_valid(raise_exception=True)
-        serializer.save(user=request.user)
+        if request.user.created_by:
+            serializer.save(user=request.user.created_by, created_by=request.user)
+        else:
+            serializer.save(user=request.user)
         return success_response(message='Assistant created successfully', data=serializer.data, code=201)
 
 
@@ -41,10 +49,15 @@ class AssistantRetrieveView(generics.RetrieveUpdateDestroyAPIView):
 
     def get_queryset(self):
         user = self.request.user
-        return Assistant.objects.filter(
-            Q(user=user) |  # User's own assistants
-            Q(user=user.created_by)  # Assistants of staff members created by this user
-        ).distinct()
+        if user.created_by:
+            return Assistant.objects.filter(
+                Q(user=user.created_by) |  # User's own assistants
+                Q(created_by=user)  # Assistants of staff members created by this user
+            ).distinct()
+        else:
+            return Assistant.objects.filter(
+                Q(user=user)  # User's own assistants
+            ).distinct()
 
     def retrieve(self, request, *args, **kwargs):
         instance = self.get_object()

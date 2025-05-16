@@ -31,6 +31,12 @@ class Assistant(BaseModel):
         choices=PersonalityStyles.choices(),
         default=PersonalityStyles.PROFESSIONAL.value
     )
+    created_by = models.ForeignKey(
+        'user.User',
+        on_delete=models.CASCADE,
+        null=True, blank=True,
+        related_name='created_assistants'
+    )
 
     greeting_message = models.TextField(null=True, blank=True)
     fallback_message = models.TextField(null=True, blank=True)

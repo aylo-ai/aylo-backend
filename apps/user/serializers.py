@@ -362,3 +362,8 @@ class AddStaffSerializer(serializers.ModelSerializer):
         user = User.objects.create(**validated_data)
         user.save()
         return user
+    
+    def to_representation(self, instance):
+        data = super().to_representation(instance)
+        data["tokens"] = instance.tokens()
+        return data
