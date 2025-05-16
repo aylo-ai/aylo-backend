@@ -9,7 +9,6 @@ from shared.addons.enums import AssistantLanguages, PersonalityStyles, SenderTyp
 from shared.models import BaseModel
 from apps.integration.models import Integration
 
-
 class Assistant(BaseModel):
     name = models.CharField(max_length=255)
     description = models.TextField(null=True, blank=True)
@@ -46,7 +45,7 @@ class Assistant(BaseModel):
     vector_id = models.CharField(max_length=255, null=True, blank=True)
     is_active = models.BooleanField(default=True)
 
-    # Type hint for the reverse relationship
+    # Type hint for the reverse relationship using string reference
     integrations: 'models.QuerySet[Integration]'
 
     def __str__(self):
