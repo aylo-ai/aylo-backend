@@ -15,7 +15,7 @@ BASE_URL = "http://localhost:8080"
 # BASE_URL = "https://ai.repli.uz"
 
 
-def create_assistant_id(data: dict):
+def create_assistant_and_vector_id(data: dict):
     payload = {
         "name": data.get("name"),
         "company_name": data.get("company_name"),
@@ -50,7 +50,7 @@ def create_assistant_id(data: dict):
 def send_assistant_data(assistant, request=None):
     payload = create_assistant_payload(assistant, request)
     print(f"Assistant data: {payload}")
-    data = create_assistant_id(payload)
+    data = create_assistant_and_vector_id(payload)
     print(f"assistant data received: {data}")
     if isinstance(data, str):
         raise_validation_error(message=data)
