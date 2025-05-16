@@ -8,10 +8,10 @@ from google.genai import types
 from django.utils.translation import gettext as _
 from django.conf import settings
 
-from apps.assistant.models import Message, Conversation
+from apps.assistant.models import Message, Conversation, Lead
 from config.settings import client
 from shared.addons.telegram import send_telegram_message
-from shared.addons.validations import success_response, raise_validation_error
+from shared.addons.validations import success_response, raise_validation_error, error_response
 from shared.addons.verification import send_sms_text
 from shared.ai_service.helper import upload_knowledge_base_file
 from shared.ai_service.assistant import check_response
@@ -100,7 +100,7 @@ def create_assistant(instructions, name, vector_store_id):
     print("Creating assistant with instructions")
     tools = [{"type": "file_search"}]
     tool_resources = {"file_search": {"vector_store_ids": [vector_store_id]}}
-    default_model = "gpt-4o-mini"
+    default_model = "gpt-4o"
 
     try:
         my_assistant = client.beta.assistants.create(
@@ -269,3 +269,17 @@ def speech_to_text(audio_bytes: bytes, language: str = "uz") -> str:
     except Exception as e:
         print(f"[speech_to_text] Error: {e}")
         return "Sorry, I couldn't understand the audio."
+    
+def create_lead(full_name, phone_number, product, source, metadata=None):  
+    try:
+        lead = Lead.objects.create(
+            full_name=full_name,
+            phone_number=phone_number,
+            product=product,
+            source=source,
+            metadata=metadata
+        )
+        return success_response(message=_("Lead created successfully"), data=lead, code=200)
+    except Exception as e:
+        print(f"[create_lead] Error: {e}")
+        return error_response(message=_("Failed to create lead"), code=500)

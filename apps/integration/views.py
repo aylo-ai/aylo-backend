@@ -13,7 +13,7 @@ from shared.addons.enums import ConversationStatuses, IntegrationTypes
 from shared.addons.instagram import get_long_lived_access_token, get_user_profile
 from shared.addons.telegram import send_telegram_message, delete_telegram_message, handle_bot_added_to_group, \
     handle_bot_removed_from_group
-from shared.addons.utils import create_message, get_or_create_conversation, handle_start_command
+from shared.addons.utils import create_message, get_or_create_conversation, handle_start_command, create_lead
 from shared.addons.validations import success_response, error_response
 from shared.permissions import IsAdmin, IsCustomer
 from .models import Integration, TelegramGroupIntegration
@@ -123,7 +123,17 @@ class TelegramWebhookViewDraft(APIView):
         print(f"Response message: {response_message}")
         create_message(conversation, 'assistant', response_message)
         delete_telegram_message(chat_id, wait_message_id, bot_token)
-
+        # create lead
+        if response_message and response_message.get("intent") == "create_order":
+            response_data = create_lead(
+                full_name=response_message['entities']['full_name'],
+                phone_number=response_message['entities']['phone_number'],
+                email=response_message['entities']['email'],
+                product=response_message['entities']['product'],
+                source=conversation.platform,
+                metadata=response_message['entities']
+            )
+            print("✅ Lead created from Telegram message" + response_data)  
         send_telegram_message(chat_id, response_message, bot_token)
         print(f"Assistant message sent: {response_message}")
         return success_response(message=_("Message processed successfully"), code=200)

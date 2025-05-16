@@ -166,3 +166,21 @@ class AssistantFileUpload(BaseModel):
             if os.path.isfile(self.file.path):
                 os.remove(self.file.path)
         super(AssistantFileUpload, self).delete(*args, **kwargs)
+
+class Lead(BaseModel):
+    full_name = models.CharField(max_length=255, null=True, blank=True)
+    phone_number = models.CharField(max_length=255, null=True, blank=True)
+    email = models.EmailField(max_length=255, null=True, blank=True)
+    product = models.CharField(max_length=255, null=True, blank=True)
+    source = models.CharField(max_length=255, 
+                              choices=ConversationPlatforms.choices(),
+                              default=ConversationPlatforms.TELEGRAM.value)
+    metadata = models.JSONField(blank=True, null=True) 
+    contacted = models.BooleanField(default=False)
+    
+    class Meta:
+        db_table = 'lead'
+
+    def __str__(self):
+        return f"{self.full_name} - {self.product}"
+        

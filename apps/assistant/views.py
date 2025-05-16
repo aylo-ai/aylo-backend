@@ -22,14 +22,9 @@ class AssistantListCreateView(generics.ListCreateAPIView):
     def get_queryset(self):
         user = self.request.user
         # Get assistants for the user and all staff members they created
-        if user.created_by:
-            return Assistant.objects.filter(
+        return Assistant.objects.filter(
                 Q(user=user.created_by) |  # User's own assistants
-                Q(created_by=user)  # Assistants of staff members created by this user
-            ).distinct()
-        else:
-            return Assistant.objects.filter(
-                Q(user=user)  # User's own assistants
+                Q(user=user)  # Assistants of staff members created by this user
             ).distinct()
 
     def create(self, request, *args, **kwargs):
@@ -49,14 +44,9 @@ class AssistantRetrieveView(generics.RetrieveUpdateDestroyAPIView):
 
     def get_queryset(self):
         user = self.request.user
-        if user.created_by:
-            return Assistant.objects.filter(
+        return Assistant.objects.filter(
                 Q(user=user.created_by) |  # User's own assistants
-                Q(created_by=user)  # Assistants of staff members created by this user
-            ).distinct()
-        else:
-            return Assistant.objects.filter(
-                Q(user=user)  # User's own assistants
+                Q(user=user)  # Assistants of staff members created by this user
             ).distinct()
 
     def retrieve(self, request, *args, **kwargs):
