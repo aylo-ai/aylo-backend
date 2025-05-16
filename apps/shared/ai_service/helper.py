@@ -1,5 +1,6 @@
 import mimetypes
 from io import BytesIO
+from tkinter import N
 from typing import List
 
 import requests
@@ -7,7 +8,6 @@ from openai import OpenAIError
 
 from shared.addons.validations import error_response
 from shared.ai_service.openai_client import client
-from shared.addons.payloads import valid_intents
 
 
 SUPPORTED_MIME_TYPES = {

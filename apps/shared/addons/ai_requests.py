@@ -8,7 +8,7 @@ from config.settings import OPENAI_API_KEY
 from shared.addons.utils import delete_assistant_by_id
 from shared.ai_service.helper import create_prompt, create_vector_store, update_vector_store_files_ai
 from shared.addons.utils import create_assistant, get_assistant_response_ai
-
+from shared.addons.payloads import valid_intents
 
 
 BASE_URL = "http://localhost:8080"
@@ -32,7 +32,8 @@ def create_assistant_and_vector_id(data: dict):
             payload.get("company_description"),
             payload.get("assistant_role"),
             payload.get("conversation_style"),
-            payload.get("assistant_language")
+            payload.get("assistant_language"),
+            valid_intents,
         )
 
         file_links = data.get("file_links")
