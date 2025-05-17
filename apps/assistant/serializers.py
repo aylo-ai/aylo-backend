@@ -12,6 +12,9 @@ from shared.addons.validations import raise_validation_error
 from shared.addons.enums import ConversationPlatforms, ConversationStatuses
 from shared.ai_service.assistant import update_assistant_id_vector_id
 from shared.addons.enums import MessageTypes
+from shared.addons.parsing import WebsiteScreenshot
+from django.core.files import File
+import os
 
 
 class AssistantSerializer(serializers.ModelSerializer):
@@ -224,6 +227,7 @@ class AssistantFileUploadSerializer(serializers.ModelSerializer):
             "id",
             "assistant",
             "filename",
+            "website_url",
             "file",
             "created_time",
             "updated_time",
@@ -235,8 +239,17 @@ class AssistantFileUploadSerializer(serializers.ModelSerializer):
 
     def validate(self, attrs):
         files = self.context.get("files")
+        website_url = attrs.get("website_url")
+
+        # Validate website URL if provided
+        if website_url:
+            if not website_url.startswith(('http://', 'https://')):
+                raise_validation_error(message="Invalid website URL. Must start with http:// or https://")
+            return attrs
+
+        # Validate files if no website URL
         if not files:
-            raise_validation_error(message="No files were uploaded.")
+            raise_validation_error(message="Either files or website_url must be provided.")
 
         if not isinstance(files, (list, tuple)):
             files = [files]
@@ -254,24 +267,59 @@ class AssistantFileUploadSerializer(serializers.ModelSerializer):
         request = self.context.get("request")
         files = self.context.get('files')
         assistant = self.context.get("assistant")
+        website_url = validated_data.get("website_url")
         
-        if not files or not assistant:
-            raise_validation_error(message="Files and assistant are required.")
-
-        if not isinstance(files, (list, tuple)):
-            files = [files]
+        if not assistant:
+            raise_validation_error(message="Assistant is required.")
 
         uploaded_files = []
-        for file in files:
-            if not file:
-                continue
-            filename = file.name
-            upload = AssistantFileUpload.objects.create(
-                assistant=assistant,
-                file=file,
-                filename=filename
-            )
-            uploaded_files.append(upload)
+
+        # Handle website URL parsing
+        if website_url:
+            try:
+                # Create WebsiteScreenshot instance
+                screenshot = WebsiteScreenshot()
+                
+                # Process the URL to get screenshot and PDF
+                screenshot_path, pdf_path = screenshot.process_url(website_url)
+                
+                # Create filename from URL
+                filename = f"website_screenshot_{os.path.basename(website_url)}.pdf"
+                
+                # Open the PDF file and create AssistantFileUpload
+                with open(pdf_path, 'rb') as pdf_file:
+                    django_file = File(pdf_file)
+                    upload = AssistantFileUpload.objects.create(
+                        assistant=assistant,
+                        file=django_file,
+                        filename=filename,
+                        website_url=website_url
+                    )
+                    uploaded_files.append(upload)
+                
+                # Clean up temporary files
+                os.remove(screenshot_path)
+                os.remove(pdf_path)
+                
+            except Exception as e:
+                raise_validation_error(message=f"Error processing website URL: {str(e)}")
+
+        # Handle file uploads
+        elif files:
+            if not isinstance(files, (list, tuple)):
+                files = [files]
+
+            for file in files:
+                if not file:
+                    continue
+                filename = file.name
+                upload = AssistantFileUpload.objects.create(
+                    assistant=assistant,
+                    file=file,
+                    filename=filename
+                )
+                uploaded_files.append(upload)
+
         # Ensure file URLs are created and vector store is updated
         if assistant and assistant.vector_id:
             file_urls = create_file_urls(assistant, request)

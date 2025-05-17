@@ -146,6 +146,7 @@ class Settings(BaseModel):
 
 class AssistantFileUpload(BaseModel):
     assistant = models.ForeignKey("Assistant", on_delete=models.CASCADE, related_name="files")
+    website_url = models.URLField(max_length=255, null=True, blank=True)
     file = models.FileField(upload_to="assistant/files/")
     filename = models.CharField(max_length=255, null=True, blank=True)
 
