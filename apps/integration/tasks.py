@@ -17,6 +17,7 @@ def process_message_task(chat_id, user_message, bot_token, audio_file=None):
     assistant = Assistant.objects.filter(integrations__api_token=bot_token).first()
     print(f"Assistant: {assistant}")
     if not assistant:
+        print("No assistant found, skipping processing")
         return  # No assistant found, skip processing
 
     # Handle `/start` command

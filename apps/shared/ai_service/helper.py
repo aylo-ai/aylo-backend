@@ -7,7 +7,6 @@ from openai import OpenAIError
 
 from shared.addons.validations import error_response
 from shared.ai_service.openai_client import client
-from shared.addons.payloads import valid_intents
 
 
 SUPPORTED_MIME_TYPES = {
@@ -29,17 +28,15 @@ def extract_text_from_txt_files(txt_file_path):
     return text[:2000]  # Limit text to the first 2000 characters
 
 
-def create_prompt(company_name, company_description, assistant_role, conversation_style, assistant_language):
-    print(f"create_prompt: {company_name}, "
-          f"{company_description}, {assistant_role}, "
-          f"{conversation_style}, {assistant_language}"
-          )
-    # Define a template for the assistant prompt
+def create_prompt(company_name, company_description, assistant_role, conversation_style, assistant_language, valid_intents):
+    print(f"create_prompt: {company_name}, {company_description}, {assistant_role}, {conversation_style}, {assistant_language}")
+
+    # 1. Format valid intents
     intent_section = "\n".join([
         f'- "{intent}": {desc}' for intent, desc in valid_intents.items()
     ])
 
-    # Prompt template
+    # 2. Prompt template with double braces for JSON safety inside f-string
     prompt_template = f"""
     You are an AI assistant for "{company_name}", described as: "{company_description}".
     You act as a smart **salesperson, operator, and support agent**.
@@ -74,10 +71,37 @@ def create_prompt(company_name, company_description, assistant_role, conversatio
 
     ## 🎯 Intent Classification & Response Format
     Always respond in this JSON format:
+    You are an expert in {assistant_role} and act as a good operator who handles everything.
+
+    ## Role & Responsibilities
+    Your role is: **{assistant_role}**.
+    You are a helpful agent guiding customers through buying, asking questions, and 
+    getting support. You're charming, smart, and always reply in {assistant_language} 
+    using a {conversation_style} tone.
+
+    ## Goals
+    - Understand customer needs and classify their request into intents.
+    - Ask questions to clarify, gather info, and help them.
+    - Collect relevant data (products, quantities, user info).
+    - Always reply in {assistant_language}, using a {conversation_style} tone.
+    - Respond naturally, persuasively, and clearly — like a helpful human with charm.
+    - Encourage conversation with friendly chat-like responses.
+    - Include emojis 😊 📞 ✅ ❌ 📦 📍 💬 where appropriate.
+    - If user wants to buy something, you need to register them first.
+    - Format all replies in strict JSON (see below).
+
+    ---
+
+    ## 🎯 Intent Classification
+    Set the `intent` based on user requests and use json format for response.
+
+    ## 🧾 Reply Format (Strict!)
+    Always reply ONLY in this JSON format:
+
     {{
     "intent": "<one of the valid intents below>",
     "entities": {{
-        "<entity_name>": "<value>"
+        "<product_name>": "<value>"
     }},
     "reply": "Friendly, clear and helpful message to the user",
     "next_step": "Suggested next action or question"
@@ -89,6 +113,7 @@ def create_prompt(company_name, company_description, assistant_role, conversatio
     {intent_section}
 
     ## 🤖 Advanced Conversation Flow
+
 
     1. Initial Engagement:
        - Warm greeting with company name
@@ -191,7 +216,6 @@ def create_prompt(company_name, company_description, assistant_role, conversatio
        - Provide accurate information
        - Follow up on concerns
        - Maintain positive tone
-
     ## ⚠️ Edge Cases & Special Handling
 
     1. Unclear Intent:
@@ -228,10 +252,9 @@ def create_prompt(company_name, company_description, assistant_role, conversatio
     - Are all required entities captured?
     - Is the next step clearly indicated?
     - Does it follow conversation flow?
-    - Is it personalized to customer needs?
+    - Is it personalized to customer needs?"
     """
 
-    # Use OpenAI's ChatCompletion API to refine the prompt
     try:
         response = client.chat.completions.create(
             model="gpt-4o",
@@ -251,6 +274,7 @@ def create_prompt(company_name, company_description, assistant_role, conversatio
         refined_prompt = f"Error in generating prompt: {e}"
 
     return refined_prompt
+
 
 
 def upload_knowledge_base_file(file_url):

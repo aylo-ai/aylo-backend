@@ -19,7 +19,7 @@ class Assistant(BaseModel):
         related_name='assistants'
     )
     company_name = models.CharField(max_length=50)
-    role = models.CharField(max_length=50)
+    role = models.CharField(max_length=50, default="sales, support, and operations")
 
     language = models.CharField(
         max_length=10,
