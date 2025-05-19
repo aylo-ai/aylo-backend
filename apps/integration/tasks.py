@@ -85,7 +85,7 @@ def process_instagram_message(account_id, user_message):
     if not message_text:
         return
     conversation = get_or_create_conversation(sender_id, assistant, platform="instagram")
-    print(f"Conversation: {conversation}")
+    print(f"Conversation: {conversation}, thread_id: {conversation.thread_id}")
     if conversation.status == "ESCALATED" or not assistant.is_active:
         create_message(conversation, 'user', message_text)
         return
