@@ -231,7 +231,15 @@ class InstagramCallbackView(APIView):
             print(f"Integration is successfully created: {integration}")
         else:
             return error_response(message="Failed to get user profile", code=400)
-        return success_response(message="Integration created successfully", code=200,)
+        
+        # enable webhook for the integration
+        url = f"https://graph.instagram.com/v22.0/me/subscribed_apps?access_token={access_token}&subscribed_fields=messages"
+        response = requests.post(url)
+        print(f"Response: {response.text}")
+        if response.status_code == 200:
+            return success_response(message="Integration created successfully", code=200,)
+        else:
+            return error_response(message="Failed to enable webhook", code=400)
 
 
 class InstagramDeauthorizeView(APIView):

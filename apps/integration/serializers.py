@@ -1,4 +1,4 @@
-from apps.assistant.models import Conversation
+from apps.assistant.models import Assistant, Conversation
 from shared.addons.enums import IntegrationTypes, ConversationPlatforms, ConversationStatuses
 from shared.addons.telegram import telegram_get_me, set_telegram_webhook, get_webhook_info, send_telegram_message
 from shared.addons.utils import create_message
@@ -53,6 +53,16 @@ class IntegrationSerializer(serializers.ModelSerializer):
             "integration_type",
             "api_token",
         ]
+    
+    def validate(self, attrs):
+        assistant = self.context.get("assistant")
+        try:
+            assistant = Assistant.objects.get(id=assistant)
+            if not assistant.vector_id or not assistant.assistant_id:
+                raise_validation_error(message=_("Assistant is not active, please upload a necessary file"))
+        except Assistant.DoesNotExist:
+            raise_validation_error(message=_("Assistant not found"))
+        return attrs
 
 
 class TelegramGroupSerializer(serializers.ModelSerializer):
