@@ -43,14 +43,13 @@ def get_assistant_response_final(message, assistant_id, thread_id):
     )
     print(f"User message: {user_message}")
 
-    thread_obj = client.beta.threads.retrieve(thread_id)
     # Start a new assistant run
     run = client.beta.threads.runs.create(
         thread_id=thread_id,
         assistant_id=assistant_id,
     )
 
-    wait_on_run(run, thread_obj)
+    wait_on_run(run, thread_id)
     # Retrieve the assistant's response
     messages = client.beta.threads.messages.list(
         thread_id=thread_id, order="asc", after=user_message.id
