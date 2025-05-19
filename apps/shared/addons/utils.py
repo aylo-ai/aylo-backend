@@ -225,7 +225,7 @@ def get_thread_id(assistant_id, vector_id):
     if thread_id is not None:
         return thread_id
     else:
-        raise_validation_error(message=_(f"Failed to initialize thread for eorororo: {assistant_id}"))
+        raise_validation_error(message=_(f"Failed to initialize thread for error: {assistant_id}"))
 
 def delete_assistant_by_id(assistant_id):
     BASE_URL = "https://api.openai.com/v1/assistants"

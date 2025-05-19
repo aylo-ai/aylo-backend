@@ -34,6 +34,8 @@ def get_assistant_response_final(message, assistant_id, thread_id):
         print(f"active run found")
         # Wait for the active run to complete
         wait_on_run(active_run.data[0], thread_id)
+    # for run in active_run.data:
+    #     wait_on_run(run, thread_id)
 
     # Send the user's message to the assistant
     user_message = client.beta.threads.messages.create(
@@ -43,12 +45,15 @@ def get_assistant_response_final(message, assistant_id, thread_id):
     )
     print(f"User message: {user_message}")
 
+    thread_obj = client.beta.threads.retrieve(thread_id)
+    print(f"Thread object: {thread_obj}")
+    print(f"thread id: {thread_obj.id}")
     # Start a new assistant run
     run = client.beta.threads.runs.create(
         thread_id=thread_id,
         assistant_id=assistant_id,
     )
-    thread_obj = client.beta.threads.retrieve(thread_id)
+
     wait_on_run(run, thread_obj)
     # Retrieve the assistant's response
     messages = client.beta.threads.messages.list(
