@@ -8,6 +8,7 @@ from shared.addons.ai_requests import delete_assitant, send_assistant_data
 from shared.addons.validations import success_response, error_response
 from rest_framework.exceptions import NotFound
 from django.utils.translation import gettext_lazy as _
+from apps.user.models import User
 
 
 class AssistantListCreateView(generics.ListCreateAPIView):

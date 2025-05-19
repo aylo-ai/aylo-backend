@@ -219,7 +219,7 @@ class InstagramCallbackView(APIView):
             print(f"User Profile: {user_profile}")
             integration, _ = Integration.objects.update_or_create(
                 assistant_id=assistant_id,
-                platform=IntegrationTypes.INSTAGRAM.value,
+                integration_type=IntegrationTypes.INSTAGRAM.value,
                 defaults={
                     "name": "Instagram integration",
                     "api_token": access_token,
