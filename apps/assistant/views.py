@@ -84,6 +84,11 @@ class ConversationListCreateView(generics.ListCreateAPIView):
     ordering = ["-updated_time"]
     permission_classes = [permissions.IsAuthenticated]
 
+    def get_permissions(self):
+        if self.request.method == 'POST':
+            return [permissions.AllowAny()]
+        return super().get_permissions()
+
     def get_queryset(self):
         assistant_id = self.kwargs.get("pk")
         return super().get_queryset().filter(assistant_id=assistant_id)
