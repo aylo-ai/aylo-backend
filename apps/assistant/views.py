@@ -191,7 +191,8 @@ class ConversationMessagesListView(generics.ListAPIView):
 
     def get_queryset(self):
         conversation_id = self.kwargs.get('pk')
-        return self.queryset.filter(id=conversation_id)
+        print(f"Conversation ID: {conversation_id}")
+        return self.queryset.filter(conversation_id=conversation_id)
 
 
 class SettingsListCreateView(generics.ListCreateAPIView):
