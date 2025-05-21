@@ -167,7 +167,7 @@ class InstagramWebhookView(APIView):
         account_id = entry.get("id")
         print(f"Account ID: {account_id}")
         messaging = entry.get("messaging")
-        is_echo = messaging.get("message", {}).get("is_echo")
+        is_echo = messaging[0].get("message", {}).get("is_echo")
         print(f"Is echo: {is_echo}")
         if is_echo:
             print(f"Echo message received")
