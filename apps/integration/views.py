@@ -167,6 +167,11 @@ class InstagramWebhookView(APIView):
         account_id = entry.get("id")
         print(f"Account ID: {account_id}")
         messaging = entry.get("messaging")
+        is_echo = messaging.get("message", {}).get("is_echo")
+        print(f"Is echo: {is_echo}")
+        if is_echo:
+            print(f"Echo message received")
+            return success_response(message="Echo message received", code=200)
         print(f"Messaging: {messaging}")
         if not Integration.objects.filter(instagram_account_id=account_id).exists():
             print(f"Integration not found for account ID: {account_id}")
