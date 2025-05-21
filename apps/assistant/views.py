@@ -181,7 +181,7 @@ class MessageRetrieveView(generics.RetrieveUpdateDestroyAPIView):
 
 
 class ConversationMessagesListView(generics.ListAPIView):
-    queryset = Assistant.objects.all()
+    queryset = Message.objects.all()
     serializer_class = MessageSerializer
     filter_backends = [filters.SearchFilter, filters.OrderingFilter]
     search_fields = ['conversation__assistant__name', 'message']
