@@ -11,18 +11,18 @@ from shared.addons.utils import notify_user_about_failed_payment, restrict_user_
 @shared_task
 def process_monthly_subscriptions():
     """Process subscription payments for all active users."""
-    users = User.objects.filter(subscription_active=True, next_payment_date__lte=now().date())
+    users = User.objects.filter(subscription__is_subscription_active=True, subscription__next_payment_date__lte=now().date())
 
     for user in users:
         success, message = process_subscription_payment(user)
         if not success:
             # Increment retry count and set next payment date to the next day
-            user.retry_count += 1
-            user.next_payment_date = now().date() + timedelta(days=1)
-            user.save()
+            user.subscription.retry_count += 1
+            user.subscription.next_payment_date = now().date() + timedelta(days=1)
+            user.subscription.save()
 
             notify_user_about_failed_payment(user)
 
             # Restrict account after 3 failed attempts
-            if user.retry_count >= 3:
+            if user.subscription.retry_count >= 3:
                 restrict_user_account(user)

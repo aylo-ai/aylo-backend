@@ -40,6 +40,7 @@ PACKAGES = [
     "corsheaders",
     "django_filters",
     "telegram",
+    "storages",
 ]
 INTERNAL_APPS = [
     "assistant",
@@ -251,10 +252,11 @@ USE_TZ = True
 
 # Static files (CSS, JavaScript, Images)
 STATIC_URL = "/static/"  # URL for serving static files
-# Directory for static files after collectstatic
+# # Directory for static files after collectstatic
 STATIC_ROOT = os.path.join(BASE_DIR, "staticfiles")
 
-# Media files (user-uploaded content)
+
+# # Media files (user-uploaded content)
 MEDIA_URL = "/media/"  # URL for serving media files
 MEDIA_ROOT = os.path.join(BASE_DIR, "media")  # Directory for storing media files
 
@@ -442,3 +444,28 @@ DEFAULT_FROM_EMAIL = 'your-email@example.com'
 INSTAGRAM_CLIENT_ID = os.environ.get("INSTAGRAM_CLIENT_ID")
 INSTAGRAM_CLIENT_SECRET = os.environ.get("INSTAGRAM_CLIENT_SECRET")
 INSTAGRAM_REDIRECT_URI = os.environ.get("INSTAGRAM_REDIRECT_URI")
+
+
+#AWS Bucket S3 Settings
+AWS_ACCESS_KEY_ID = os.environ.get("AWS_ACCESS_KEY_ID")
+AWS_SECRET_ACCESS_KEY = os.environ.get("AWS_SECRET_ACCESS_KEY")
+AWS_S3_CUSTOM_DOMAIN = os.environ.get("AWS_S3_CUSTOM_DOMAIN")
+
+# File storage
+AWS_STORAGE_BUCKET_NAME = os.environ.get("AWS_STORAGE_BUCKET_NAME")
+AWS_S3_REGION_NAME = os.environ.get("AWS_S3_REGION_NAME")
+
+
+
+MEDIA_URL = '/media/'
+DEFAULT_FILE_STORAGE = 'storages.backends.s3boto3.S3Boto3Storage'
+
+STORAGES = {
+    "default": {
+        "BACKEND": "storages.backends.s3boto3.S3Boto3Storage",
+    },
+    "staticfiles": {"BACKEND": "django.contrib.staticfiles.storage.StaticFilesStorage"},
+}
+
+# For static files
+STATICFILES_STORAGE = "storages.backends.s3boto3.S3Boto3Storage"

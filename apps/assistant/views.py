@@ -51,12 +51,12 @@ class AssistantRetrieveView(generics.RetrieveUpdateDestroyAPIView):
 
     def retrieve(self, request, *args, **kwargs):
         instance = self.get_object()
-        serializer = self.get_serializer(instance)
+        serializer = self.get_serializer(instance,context={'request': request})
         return success_response(data=serializer.data, message='Assistant retrieved successfully', code=200)
 
     def update(self, request, *args, **kwargs):
         instance = self.get_object()
-        serializer = self.get_serializer(instance, data=request.data, partial=True)
+        serializer = self.get_serializer(instance, data=request.data, partial=True, context={'request': request})
         serializer.is_valid(raise_exception=True)
         self.perform_update(serializer)
         return success_response(message='Assistant updated successfully', data=serializer.data, code=200)
@@ -92,7 +92,7 @@ class ConversationListCreateView(generics.ListCreateAPIView):
 
     def create(self, request, *args, **kwargs):
         assistant_id = self.kwargs.get("pk")
-        serializer = self.get_serializer(data=request.data, context={'assistant_id': assistant_id})
+        serializer = self.get_serializer(data=request.data, context={'assistant_id': assistant_id, 'request': request})
         serializer.is_valid(raise_exception=True)
         conversation = serializer.save(assistant_id=assistant_id)
         data = {

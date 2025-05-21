@@ -87,8 +87,8 @@ def notify_user_about_failed_payment(user):
 
 def restrict_user_account(user):
     """Restrict user's account due to failed payments."""
-    user.subscription_active = False
-    user.save()
+    user.subscription.is_subscription_active = False
+    user.subscription.save()
 
     # Send restriction notification
     message = _("Hurmatli {user.username}, sizning repli.uz dagi to'lovlaringiz bir necha marta muvaffaqiyatsiz "
@@ -189,9 +189,8 @@ def get_assistant_response_ai(message, assistant_id, thread_id):
         thread_id=thread_id,
         assistant_id=assistant_id,
     )
-    thread_obj = client.beta.threads.retrieve(thread_id)
-    print(f"Thread object: {thread_obj}")
-    wait_on_run(run, thread_obj.id) #so here i changed thread_obj to thread_obj.id it only accepts id itself
+
+    wait_on_run(run, thread_id) #so here i changed thread_obj to thread_obj.id it only accepts id itself
     # Retrieve the assistant's response
     messages = client.beta.threads.messages.list(
         thread_id=thread_id, order="asc", after=user_message.id

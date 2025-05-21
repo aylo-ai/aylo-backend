@@ -1,6 +1,9 @@
+from datetime import timedelta
+
+from django.utils import timezone
 from rest_framework import serializers
 
-from apps.payment.models import Feature, PricingPackage, Card, Transaction
+from apps.payment.models import Feature, PricingPackage, Card, Transaction, Subscription
 from shared.addons.enums import TransactionTypes, PaymentStatuses
 from shared.addons.payment import check_payme_card_token, create_payme_receipt, commit_payme_receipt, \
     update_user_balance
@@ -16,6 +19,7 @@ class FeatureSerializer(serializers.ModelSerializer):
             "id",
             "name",
             "description",
+            "icon",
         ]
 
 
@@ -26,14 +30,20 @@ class PricingPackageSerializer(serializers.ModelSerializer):
             "id",
             "name",
             "price",
+            "discount_price",
+            "currency",
             "description",
             "features",
-            "request_count"
+            "request_count",
+            "duration_days",
+            "is_popular",
         ]
 
     def validate(self, attrs):
         if attrs["price"] < 0:
             raise_validation_error(message="Narx manfiy bo'lishi mumkin emas.")
+        if attrs["discount_price"] < attrs["price"]:
+            raise_validation_error(message="Chegirma narxi narxdan kichik bo'lishi mumkin emas.")
         return attrs
 
 
@@ -49,6 +59,13 @@ class CardSerializer(serializers.ModelSerializer):
             "color",
             "is_verified",
         )
+    def validate(self, attrs):
+        if attrs["expiry_date"] < timezone.now().date():
+            raise_validation_error(message="Karta muddati o'tgan.")
+        if attrs["card_number"] < 16:
+            raise_validation_error(message="Karta raqami 16 ta raqamdan kam bo'lishi mumkin emas.")
+        return attrs
+    
 
 
 class CardCreateSerializer(serializers.ModelSerializer):
@@ -97,8 +114,8 @@ class CardCreateSerializer(serializers.ModelSerializer):
         return card
 
 
-class PayWithCardSerializer(serializers.Serializer):  # noqa
-    amount = serializers.IntegerField()
+class PayWithCardSerializer(serializers.Serializer):
+    amount = serializers.IntegerField(min_value=1000)  # Minimum amount validation
     card_id = serializers.UUIDField()
     payment_method = serializers.CharField(required=False)
 
@@ -106,6 +123,7 @@ class PayWithCardSerializer(serializers.Serializer):  # noqa
         """Validate card existence and retrieve its token."""
         card_id = attrs.get("card_id")
         user = self.context.get("request").user
+
         try:
             card = Card.objects.get(id=card_id)
             if not card.is_verified:
@@ -113,10 +131,15 @@ class PayWithCardSerializer(serializers.Serializer):  # noqa
             attrs["card_token"] = card.card_token
         except Card.DoesNotExist:
             raise_validation_error(message=lang("Karta topilmadi. Iltimos, tekshirib qaytadan yuboring."))
-
+        
         # Check if the user has an active subscription
-        if user.subscription_active and user.next_payment_date:
-            raise_validation_error(message=lang("Sizda allaqachon pullik obuna bor"))
+        try:
+            subscription = user.subscription
+            if subscription and subscription.is_subscription_active and subscription.next_payment_date:
+                raise_validation_error(message=lang("Sizda allaqachon pullik obuna bor"))
+        except (AttributeError, Subscription.DoesNotExist):
+            # User has no subscription, which is fine for new subscriptions
+            pass
 
         return attrs
 
@@ -127,12 +150,14 @@ class PayWithCardSerializer(serializers.Serializer):  # noqa
         card_token = validated_data.get("card_token")
         payment_method = validated_data.get("payment_method")
         is_withdrawal = self.context.get("is_withdrawal", False)
+
         # Step 1: Create a Payme receipt
         success, message, receipt_id = create_payme_receipt(amount)
         if not success:
             raise_validation_error(message=lang(f"To'lov chekini yaratishda tizim bilan bog'liq"
                                                 f" muammo yuz berdi: {message}"))
         transaction_type = TransactionTypes.WITHDRAW.value if is_withdrawal else TransactionTypes.DEPOSIT
+
         # Step 2: Log the transaction with DRAFT status
         transaction = Transaction.objects.create(
             user=user,
@@ -143,24 +168,58 @@ class PayWithCardSerializer(serializers.Serializer):  # noqa
             status=PaymentStatuses.DRAFT.value,
         )
 
-        # Step 3: Commit the Payme receipt
-        success, message, receipt_id = commit_payme_receipt(card_token, receipt_id)
-        if not success:
-            raise_validation_error(message=lang(f"To'lov tizimi bilan bog'liq muammo yuz berdi: {message}"))
+        try:
+            # Step 3: Commit the Payme receipt
+            success, message, receipt_id = commit_payme_receipt(card_token, receipt_id)
+            if not success:
+                transaction.error_message = message
+                transaction.save()
+                raise_validation_error(message=lang(f"To'lov tizimi bilan bog'liq muammo yuz berdi: {message}"))
 
-        # Step 4: Update transaction status to COMMITTED
-        transaction.status = PaymentStatuses.SUCCESS.value
-        transaction.save()
+            # Step 4: Update transaction status to COMMITTED
+            transaction.status = PaymentStatuses.SUCCESS.value
+            transaction.transaction_id = receipt_id
+            transaction.save()
 
-        # Step 5: Update user balance
-        if not is_withdrawal:
-            update_user_balance(user, amount)
+            # Step 5: Update user balance
+            if not is_withdrawal:
+                update_user_balance(user, amount)
 
-        # Return the transaction for further processing if needed
-        return {
-            "amount": transaction.amount,
-            "status": transaction.status,
-        }
+            # Step 6: Create or update subscription
+            subscription_data = {
+                'user': user,
+                'start_date': timezone.now().date(),
+                'end_date': timezone.now().date() + timedelta(days=user.subscription.pricing_package.duration_days),
+                'is_subscription_active': True,
+                'retry_count': 0,
+                'used_request_count': 0,
+                'auto_renew': True
+            }
+
+            # Try to get existing subscription or create new one
+            subscription, created = Subscription.objects.update_or_create(
+                user=user,
+                defaults=subscription_data
+            )
+
+            # Return the transaction for further processing if needed
+            return {
+                "amount": transaction.amount,
+                "status": transaction.status,
+                "subscription": {
+                    "id": subscription.id,
+                    "start_date": subscription.start_date,
+                    "end_date": subscription.end_date,
+                    "is_active": subscription.is_subscription_active
+                }
+            }
+
+        except Exception as e:
+            # If anything fails, update transaction status and raise error
+            transaction.status = PaymentStatuses.FAILED.value
+            transaction.error_message = str(e)
+            transaction.save()
+            raise_validation_error(message=lang(f"To'lov jarayonida xatolik yuz berdi: {str(e)}"))
 
 
 class TransactionSerializer(serializers.ModelSerializer):
@@ -176,4 +235,107 @@ class TransactionSerializer(serializers.ModelSerializer):
             "currency",
             "created_time",
             "transaction_type",
+            "payment_method",
+            "payment_details",
+            "error_message",
+            "refund_amount",
+            "refund_date",
         ]
+
+class SubscriptionSerializer(serializers.ModelSerializer):
+    user = UserSerializer(read_only=True)
+    pricing_package = serializers.UUIDField(write_only=True)
+
+    class Meta:
+        model = Subscription
+        fields = [
+            "id",
+            "user",
+            "pricing_package",
+            "start_date",
+            "end_date",
+            "is_subscription_active",
+            "next_payment_date",
+            "retry_count",
+            "used_request_count",
+            "auto_renew",
+            "cancellation_reason",
+            "last_payment_date",
+            "grace_period_days",
+        ]
+        read_only_fields = [
+            "user",
+            "pricing_package",
+            "start_date",
+            "end_date",
+            "is_subscription_active",
+            "next_payment_date",
+            "retry_count",
+            "used_request_count",
+            "auto_renew",
+            "cancellation_reason",
+            "last_payment_date",
+            "grace_period_days",
+        ]
+
+    def validate(self, attrs):
+        user = self.context.get("request").user
+        pricing_package_id = attrs.get("pricing_package")
+
+        # Check if user already has an active subscription
+        try:
+            existing_subscription = user.subscription
+            if existing_subscription and existing_subscription.is_subscription_active:
+                raise_validation_error(message=lang("Sizda allaqachon faol obuna mavjud."))
+        except (AttributeError, Subscription.DoesNotExist):
+            pass
+
+        # Validate pricing package
+        try:
+            pricing_package = PricingPackage.objects.get(id=pricing_package_id)
+            if not pricing_package.is_active:
+                raise_validation_error(message=lang("Bu narx paketi hozirda faol emas."))
+        except PricingPackage.DoesNotExist:
+            raise_validation_error(message=lang("Narx paketi topilmadi."))
+
+        attrs["pricing_package"] = pricing_package
+        return attrs
+
+    def create(self, validated_data):
+        user = self.context.get("request").user
+        pricing_package = validated_data.get("pricing_package")
+
+
+        subscription = Subscription.objects.create(
+            user=user,
+            pricing_package=pricing_package,
+            start_date=timezone.now().date(),
+            end_date=timezone.now().date() + timedelta(days=pricing_package.duration_days),
+            retry_count=0,
+            used_request_count=0
+            )
+        if pricing_package.price == 0:
+            subscription.next_payment_date = None
+            subscription.auto_renew = False
+            subscription.is_subscription_active = True
+
+        elif pricing_package.price > 0:
+            subscription.next_payment_date = timezone.now().date() + timedelta(days=pricing_package.duration_days)
+            subscription.auto_renew = True
+            subscription.is_subscription_active = False
+
+        subscription.save()
+
+        user.subscription = subscription
+        user.save()
+
+        return {
+            "id": subscription.id,
+            "start_date": subscription.start_date,
+            "end_date": subscription.end_date,
+            "is_subscription_active": subscription.is_subscription_active,
+            "retry_count": subscription.retry_count,
+            "used_request_count": subscription.used_request_count
+        }
+
+    

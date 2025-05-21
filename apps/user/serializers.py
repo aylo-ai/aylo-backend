@@ -182,17 +182,14 @@ class UserSerializer(serializers.ModelSerializer):
             'last_name',
             'phone_number',
             'user_role',
-            'pricing_package',
-            'subscription_active',
-            'next_payment_date',
-            'used_request_count',
-            "total_request_count"
+            'subscription',
+            'total_request_count',
         ]
 
     def get_total_request_count(self, obj): # noqa
-        pricing_package = getattr(obj, 'pricing_package', None)
-        if pricing_package:
-            return pricing_package.request_count
+        subscription = getattr(obj, 'subscription', None)
+        if subscription:
+            return subscription.used_request_count
         return 0
 
 
@@ -216,14 +213,14 @@ class UpdateProfileSerializer(serializers.ModelSerializer):
             "last_name",
             "username",
             "phone_number",
-            "pricing_package",
+            "subscription",
         ]
 
         extra_kwargs = {
             "first_name": {"required": True},
             "last_name": {"required": True},
             "username": {"required": False},
-            "pricing_package": {"required": False},
+            "subscription": {"required": False},
         }
 
     def validate(self, attrs):

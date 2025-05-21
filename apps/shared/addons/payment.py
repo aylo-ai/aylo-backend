@@ -85,7 +85,7 @@ def update_user_balance(user, amount):
 
 def process_subscription_payment(user):
     """Process subscription payment for the user."""
-    pricing_package = user.pricing_package
+    pricing_package = user.subscription.pricing_package
     if not pricing_package:
         return False, "No pricing package assigned."
 
@@ -110,11 +110,12 @@ def process_subscription_payment(user):
         currency=pricing_package.currency,
         transaction_type=TransactionTypes.WITHDRAW.value,
         status=PaymentStatuses.SUCCESS.value,
+        pricing_package=pricing_package,
     )
 
     # Step 4: Reset retry count and set next payment date
-    user.retry_count = 0
-    user.next_payment_date = datetime.now().date() + timedelta(days=30)
-    user.save()
+    user.subscription.retry_count = 0
+    user.subscription.next_payment_date = datetime.now().date() + timedelta(days=30)
+    user.subscription.save()
 
     return True, "Payment successful."

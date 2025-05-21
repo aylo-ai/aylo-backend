@@ -4,16 +4,16 @@ from django.utils.timezone import now
 from rest_framework import generics, permissions
 from rest_framework.views import APIView
 
-from apps.payment.models import Feature, PricingPackage, Card
+from apps.payment.models import Feature, PricingPackage, Card, Subscription
 import apps.payment.serializers as serializers
 from shared.addons.payment import remove_payme_card
 from shared.addons.validations import success_response, error_response
 from shared.permissions import IsAdmin
 from django.utils.translation import gettext as _
-
+from shared.mixins import SubscriptionValidationMixin
 
 class FeatureListCreateView(generics.ListCreateAPIView):
-    queryset = Feature.objects.all()
+    queryset = Feature.objects.filter(is_active=True)
     serializer_class = serializers.FeatureSerializer
     permission_classes = [permissions.IsAuthenticated]
 
@@ -25,7 +25,7 @@ class FeatureListCreateView(generics.ListCreateAPIView):
 
 
 class FeatureRetrieveView(generics.RetrieveUpdateDestroyAPIView):
-    queryset = Feature.objects.all()
+    queryset = Feature.objects.filter(is_active=True)
     serializer_class = serializers.FeatureSerializer
     permission_classes = [permissions.IsAuthenticated]
 
@@ -48,7 +48,7 @@ class FeatureRetrieveView(generics.RetrieveUpdateDestroyAPIView):
 
 
 class PricingPackageListCreateView(generics.ListCreateAPIView):
-    queryset = PricingPackage.objects.all()
+    queryset = PricingPackage.objects.filter(is_active=True)
     serializer_class = serializers.PricingPackageSerializer
     permission_classes = [IsAdmin]
 
@@ -65,7 +65,7 @@ class PricingPackageListCreateView(generics.ListCreateAPIView):
 
 
 class PricingPackageRetrieveView(generics.RetrieveUpdateDestroyAPIView):
-    queryset = PricingPackage.objects.all()
+    queryset = PricingPackage.objects.filter(is_active=True)
     serializer_class = serializers.PricingPackageSerializer
     permission_classes = [IsAdmin]
 
@@ -236,20 +236,80 @@ class ManualSubscriptionPaymentView(generics.CreateAPIView):
 
     def create(self, request, *args, **kwargs):
         user = request.user
-        if not user.pricing_package:
+        if not user.subscription.pricing_package:
             return error_response(message=_("Pullik obuna paketi yo'q. Iltimos, administrator bilan bog'laning."))
 
         serializer = self.get_serializer(
-            data={"amount": user.pricing_package.price, "card_id": request.data.get("card_id")},
+            data={"amount": user.subscription.pricing_package.price, "card_id": request.data.get("card_id")},
             context={"request": request, "is_withdrawal": True}
         )
         serializer.is_valid(raise_exception=True)
         serializer.save()
 
         # Update user subscription details
-        user.retry_count = 0
-        user.subscription_active = True
-        user.next_payment_date = now().date() + timedelta(days=30)
-        user.save()
+        user.subscription.retry_count = 0
+        user.subscription.is_subscription_active = True
+        user.subscription.next_payment_date = now().date() + timedelta(days=30)
+        user.subscription.save()
 
         return success_response(message=_("To'lov muvaffaqiyatli qabul qilindi, rahmat"))
+    
+class SubscriptionRetrieveView(generics.RetrieveAPIView):
+    serializer_class = serializers.SubscriptionSerializer
+    permission_classes = (permissions.IsAuthenticated,)
+
+    def get_object(self):
+        return Subscription.objects.get(user=self.request.user)
+
+    def retrieve(self, request, *args, **kwargs):
+        instance = self.get_object()
+        serializer = self.get_serializer(instance)
+        return success_response(message=_("Obuna muvaffaqiyatli ko'rsatildi"), data=serializer.data)
+
+class SubscriptionCreateView(generics.CreateAPIView):
+    serializer_class = serializers.SubscriptionSerializer
+    permission_classes = (permissions.IsAuthenticated,)
+
+    def create(self, request, *args, **kwargs):
+        serializer = self.get_serializer(data=request.data, context={"request": request})
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+        return success_response(message=_("Obuna muvaffaqiyatli yaratildi"), data=serializer.data)
+
+class SubscriptionUpdateView(generics.UpdateAPIView):
+    serializer_class = serializers.SubscriptionSerializer
+    permission_classes = (permissions.IsAuthenticated,)
+
+    def get_object(self):
+        return Subscription.objects.get(user=self.request.user) 
+
+    def update(self, request, *args, **kwargs):
+        instance = self.get_object()
+        serializer = self.get_serializer(instance, data=request.data, partial=True)
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+        return success_response(message=_("Obuna muvaffaqiyatli tahrirlandi"), data=serializer.data)
+
+class SubscriptionCancellationView(APIView, SubscriptionValidationMixin):
+    permission_classes = [permissions.IsAuthenticated]
+    
+    def post(self, request, *args, **kwargs):
+        user = request.user
+        self.validate_subscription(user)
+
+        # Get cancellation reason from request data
+        cancellation_reason = request.data.get('cancellation_reason')
+        if not cancellation_reason:
+            return error_response(message=_("Cancellation reason is required"), code=400)
+
+        # Update subscription status
+        subscription = user.subscription
+        subscription.is_subscription_active = False
+        subscription.cancellation_reason = cancellation_reason
+        subscription.save()
+        
+        return success_response(
+            message=_("Subscription cancelled successfully"),
+            data={"reason": subscription.cancellation_reason},
+            code=200
+        )

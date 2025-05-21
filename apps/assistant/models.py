@@ -9,6 +9,12 @@ from shared.addons.enums import AssistantLanguages, PersonalityStyles, SenderTyp
 from shared.models import BaseModel
 from apps.integration.models import Integration
 
+def assistant_file_path(instance, filename):
+    return f"assistant/{instance.assistant.id}/files/{filename}"
+
+def assistant_audio_path(instance, filename):
+    return f"assistant/{instance.conversation.assistant.id}/conversation/{instance.conversation.id}/audio/{filename}"
+
 class Assistant(BaseModel):
     name = models.CharField(max_length=255)
     description = models.TextField(null=True, blank=True)
@@ -91,7 +97,7 @@ class Message(BaseModel):
     conversation = models.ForeignKey(Conversation, on_delete=models.CASCADE, related_name="messages")
     sender = models.CharField(max_length=10, choices=SenderTypes.choices())
     message_content = models.TextField()
-    audio_file = models.FileField(upload_to="assistant/conversation/audio/", null=True, blank=True)
+    audio_file = models.FileField(upload_to=assistant_audio_path, null=True, blank=True, max_length=255)
     message_type = models.CharField(max_length=10, choices=MessageTypes.choices(), default=MessageTypes.TEXT.value)
     status = models.CharField(
         max_length=15,
@@ -123,8 +129,8 @@ class Message(BaseModel):
             # If the sender is the assistant, update the user's used_request_count
             assistant_user = getattr(self.conversation.assistant, "user", None) if self.conversation else None
             if assistant_user and self.sender == SenderTypes.ASSISTANT.value:
-                assistant_user.used_request_count += 1
-                assistant_user.save(update_fields=["used_request_count"])
+                assistant_user.subscription.used_request_count += 1
+                assistant_user.subscription.save(update_fields=["used_request_count"])
 
             # Call the parent save method
             super().save(*args, **kwargs)
@@ -147,7 +153,7 @@ class Settings(BaseModel):
 class AssistantFileUpload(BaseModel):
     assistant = models.ForeignKey("Assistant", on_delete=models.CASCADE, related_name="files")
     website_url = models.URLField(max_length=255, null=True, blank=True)
-    file = models.FileField(upload_to="assistant/files/")   
+    file = models.FileField(upload_to=assistant_file_path)
     filename = models.CharField(max_length=255, null=True, blank=True)
 
     def __str__(self):
