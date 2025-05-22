@@ -87,8 +87,9 @@ def notify_user_about_failed_payment(user):
 
 def restrict_user_account(user):
     """Restrict user's account due to failed payments."""
-    user.subscription.is_subscription_active = False
-    user.subscription.save()
+    subscription = user.subscriptions.first()
+    subscription.is_subscription_active = False
+    subscription.save()
 
     # Send restriction notification
     message = _("Hurmatli {user.username}, sizning repli.uz dagi to'lovlaringiz bir necha marta muvaffaqiyatsiz "

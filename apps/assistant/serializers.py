@@ -174,8 +174,9 @@ class MessageSerializer(serializers.ModelSerializer, SubscriptionValidationMixin
         user = self.context.get("request").user
         # Use the mixin's validation method
         self.validate_subscription(user)
+        subscription = user.subscriptions.first()
 
-        if user.subscription.used_request_count >= user.subscription.pricing_package.request_count:
+        if subscription.used_request_count >= subscription.pricing_package.request_count:
             raise_validation_error(message=_("Sizning so'rovlar soningiz tugagan. Iltimos, obunangizni yangilang."))
 
         message_content = attrs.get("message_content")
@@ -227,8 +228,9 @@ class MessageSerializer(serializers.ModelSerializer, SubscriptionValidationMixin
             message_type=MessageTypes.TEXT.value
         )
         # Increment used request count
-        user.subscription.used_request_count += 1
-        user.subscription.save()
+        subscription = user.subscriptions.first()
+        subscription.used_request_count += 1
+        subscription.save()
         return response_message
         
 

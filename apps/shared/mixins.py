@@ -13,26 +13,23 @@ class SubscriptionValidationMixin:
         Validates user's subscription status
         Returns the subscription object if valid
         """
-        try:
-            subscription = user.subscription
-            if not subscription:
-                raise_validation_error(message=_("Sizda obuna paketi yo'q. Iltimos, avval obuna paketini tanlang."))
-            
-            # Check if subscription is active
-            if not subscription.is_subscription_active:
-                raise_validation_error(message=_("Sizning obunangiz faol emas. Iltimos, obunangizni faollashtiring."))
+        subscription = user.subscriptions.first()
+        if not subscription:
+            raise_validation_error(message=_("Sizda obuna paketi yo'q. Iltimos, avval obuna paketini tanlang."))
+        
+        # Check if subscription is active
+        if not subscription.is_subscription_active:
+            raise_validation_error(message=_("Sizning obunangiz faol emas. Iltimos, obunangizni faollashtiring."))
 
-            if subscription.next_payment_date < timezone.now().date():
-                raise_validation_error(message=_("Sizning obunangiz muddati tugagan. Iltimos, obunangizni yangilang."))
+        if subscription.next_payment_date < timezone.now().date() if subscription.next_payment_date else False:
+            raise_validation_error(message=_("Sizning obunangiz muddati tugagan. Iltimos, obunangizni yangilang."))
+        
+        # Check if subscription has not expired
+        # if subscription.end_date < timezone.now().date():
+        #     raise_validation_error(message=_("Sizning obunangiz muddati tugagan. Iltimos, obunangizni yangilang."))
+        
+        return subscription
             
-            # Check if subscription has not expired
-            if subscription.end_date < timezone.now().date():
-                raise_validation_error(message=_("Sizning obunangiz muddati tugagan. Iltimos, obunangizni yangilang."))
-            
-            return subscription
-            
-        except (AttributeError, Exception) as e:
-            raise_validation_error(message=_("Sizda obuna paketi yo'q. Iltimos, avval obuna paketini tanlang.")) 
 
     def validate_assistant_count(self, user):
         assistants = user.assistants.count()
