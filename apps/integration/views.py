@@ -173,7 +173,7 @@ class InstagramWebhookView(APIView, SubscriptionValidationMixin):
         return error_response(message="Invalid token", code=403)
 
     def post(self, request, *args, **kwargs):  # noqa
-        user = request.user
+        # user = request.user
         # self.validate_subscription(user)
         print("Instagram webhook data received")
         data = request.data
