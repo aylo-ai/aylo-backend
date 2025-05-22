@@ -1,5 +1,5 @@
 from django.contrib import admin
-from .models import Feature, PricingPackage, Transaction, Card, Balance
+from .models import Feature, PricingPackage, Transaction, Card, Balance, Subscription
 
 
 @admin.register(Feature)
@@ -34,3 +34,9 @@ class BalanceAdmin(admin.ModelAdmin):
     list_display = ('user', 'amount', 'currency')
     search_fields = ('user__first_name', 'user__last_name', 'user__phone_number', 'user__username')
     list_filter = ('currency', 'user')
+
+@admin.register(Subscription)
+class SubscriptionAdmin(admin.ModelAdmin):
+    list_display = ('user', 'pricing_package', 'start_date', 'end_date', 'is_subscription_active', )
+    search_fields = ('user__first_name', 'user__last_name', 'user__phone_number', 'user__username')
+    list_filter = ('is_subscription_active', 'user', 'pricing_package')

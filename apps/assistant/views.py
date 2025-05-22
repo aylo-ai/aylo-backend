@@ -1,4 +1,4 @@
-from django.db.models import Max, Q
+from django.db.models import Q
 from rest_framework import permissions, filters, generics
 
 from apps.assistant.models import Assistant, AssistantFileUpload, Conversation, Message
@@ -8,7 +8,6 @@ from shared.addons.ai_requests import delete_assitant, send_assistant_data
 from shared.addons.validations import success_response, error_response
 from rest_framework.exceptions import NotFound
 from django.utils.translation import gettext_lazy as _
-from apps.user.models import User
 
 
 class AssistantListCreateView(generics.ListCreateAPIView):
@@ -24,14 +23,17 @@ class AssistantListCreateView(generics.ListCreateAPIView):
         user = self.request.user
         # Get assistants for the user and all staff members they created
         return Assistant.objects.filter(
-            Q(user=user) |  # User's own assistants
-            Q(user=user.created_by)  # Assistants of staff members created by this user
-        ).distinct()
+                Q(user=user.created_by) |  # User's own assistants
+                Q(user=user)  # Assistants of staff members created by this user
+            ).distinct()
 
     def create(self, request, *args, **kwargs):
         serializer = self.get_serializer(data=request.data, context={'request': request})
         serializer.is_valid(raise_exception=True)
-        serializer.save(user=request.user)
+        if request.user.created_by:
+            serializer.save(user=request.user.created_by, created_by=request.user)
+        else:
+            serializer.save(user=request.user)
         return success_response(message='Assistant created successfully', data=serializer.data, code=201)
 
 
@@ -43,18 +45,18 @@ class AssistantRetrieveView(generics.RetrieveUpdateDestroyAPIView):
     def get_queryset(self):
         user = self.request.user
         return Assistant.objects.filter(
-            Q(user=user) |  # User's own assistants
-            Q(user=user.created_by)  # Assistants of staff members created by this user
-        ).distinct()
+                Q(user=user.created_by) |  # User's own assistants
+                Q(user=user)  # Assistants of staff members created by this user
+            ).distinct()
 
     def retrieve(self, request, *args, **kwargs):
         instance = self.get_object()
-        serializer = self.get_serializer(instance)
+        serializer = self.get_serializer(instance,context={'request': request})
         return success_response(data=serializer.data, message='Assistant retrieved successfully', code=200)
 
     def update(self, request, *args, **kwargs):
         instance = self.get_object()
-        serializer = self.get_serializer(instance, data=request.data, partial=True)
+        serializer = self.get_serializer(instance, data=request.data, partial=True, context={'request': request})
         serializer.is_valid(raise_exception=True)
         self.perform_update(serializer)
         return success_response(message='Assistant updated successfully', data=serializer.data, code=200)
@@ -95,7 +97,7 @@ class ConversationListCreateView(generics.ListCreateAPIView):
 
     def create(self, request, *args, **kwargs):
         assistant_id = self.kwargs.get("pk")
-        serializer = self.get_serializer(data=request.data, context={'assistant_id': assistant_id})
+        serializer = self.get_serializer(data=request.data, context={'assistant_id': assistant_id, 'request': request})
         serializer.is_valid(raise_exception=True)
         conversation = serializer.save(assistant_id=assistant_id)
         data = {

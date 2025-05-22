@@ -1,5 +1,5 @@
 from django.db import models
-
+from django.core.validators import MinValueValidator
 from apps.shared.models import BaseModel
 from shared.addons.enums import PaymentMethods, PaymentStatuses, CurrencyType, TransactionTypes
 
@@ -7,9 +7,12 @@ from shared.addons.enums import PaymentMethods, PaymentStatuses, CurrencyType, T
 class Feature(BaseModel):
     name = models.CharField(max_length=100)
     description = models.TextField(null=True, blank=True)
+    icon = models.CharField(max_length=50, null=True, blank=True)
+    is_active = models.BooleanField(default=True)
 
     class Meta:
         db_table = 'feature'
+        ordering = ['name']
 
     def __str__(self):
         return self.name
@@ -18,6 +21,9 @@ class Feature(BaseModel):
 class PricingPackage(BaseModel):
     name = models.CharField(max_length=100)
     price = models.DecimalField(max_digits=20, decimal_places=2, default=0)
+    discount_price = models.DecimalField(
+        max_digits=20, decimal_places=2, null=True, blank=True
+    )
     currency = models.CharField(
         max_length=50,
         null=True,
@@ -25,9 +31,12 @@ class PricingPackage(BaseModel):
         default=CurrencyType.UZS.value,
     )
     description = models.TextField(null=True, blank=True)
-    request_count = models.IntegerField(default=0)
+    request_count = models.IntegerField(default=0, validators=[MinValueValidator(0)])
+    duration_days = models.IntegerField(default=30, validators=[MinValueValidator(1)])
     features = models.ManyToManyField(Feature, related_name='pricing_packages', blank=True)
-
+    is_active = models.BooleanField(default=True)
+    is_popular = models.BooleanField(default=False)
+    
     class Meta:
         db_table = 'pricing_package'
         ordering = ["-created_time"]
@@ -51,13 +60,20 @@ class Transaction(BaseModel):
         choices=CurrencyType.choices(),
         default=CurrencyType.UZS.value,
     )
+    transaction_id = models.CharField(max_length=255, unique=True, null=True, blank=True)
+    payment_details = models.JSONField(null=True, blank=True)
+    error_message = models.TextField(null=True, blank=True)
+    refund_amount = models.DecimalField(
+        max_digits=20, decimal_places=2, null=True, blank=True
+    )
+    refund_date = models.DateTimeField(null=True, blank=True)
 
     class Meta:
         db_table = 'transaction'
         ordering = ["-created_time"]
 
     def __str__(self):
-        return self.user.email
+        return f"{self.user.email} - {self.amount} - {self.status}"
 
 
 class Card(BaseModel):
@@ -101,3 +117,31 @@ class Balance(BaseModel):
 
     def __str__(self):
         return f"{self.user.first_name} {self.user.last_name} - {self.amount}"
+
+class Subscription(BaseModel):
+    user = models.ForeignKey(
+        "user.User", on_delete=models.CASCADE, related_name="subscriptions"
+    )
+    pricing_package = models.ForeignKey(
+        PricingPackage, on_delete=models.CASCADE, related_name="subscriptions"
+    )
+    start_date = models.DateField(null=True, blank=True)
+    end_date = models.DateField(null=True, blank=True)
+    is_subscription_active = models.BooleanField(default=True)
+    next_payment_date = models.DateField(null=True, blank=True)
+    retry_count = models.IntegerField(default=0)
+    used_request_count = models.IntegerField(default=0)
+    auto_renew = models.BooleanField(default=True)
+    cancellation_reason = models.TextField(null=True, blank=True)
+    last_payment_date = models.DateField(null=True, blank=True)
+    grace_period_days = models.IntegerField(default=0)  # for late payments
+    subscription_id = models.CharField(
+        max_length=255, unique=True, null=True, blank=True
+    )  # for external payment systems
+
+    class Meta:
+        db_table = "subscription"
+        ordering = ["-created_time"]
+
+    def __str__(self):
+        return f"{self.user.email} - {self.pricing_package.name} - {self.start_date} - {self.end_date}"

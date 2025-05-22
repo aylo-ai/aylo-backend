@@ -1,14 +1,18 @@
+from rest_framework import serializers
+from django.utils.translation import gettext as _
+
+from .models import Integration, TelegramGroupIntegration
+from apps.assistant.models import Conversation
 from apps.assistant.models import Assistant, Conversation
+
 from shared.addons.enums import IntegrationTypes, ConversationPlatforms, ConversationStatuses
 from shared.addons.telegram import telegram_get_me, set_telegram_webhook, get_webhook_info, send_telegram_message
 from shared.addons.utils import create_message
 from shared.addons.validations import raise_validation_error, success_response
-from .models import Integration, TelegramGroupIntegration
-from rest_framework import serializers
-from django.utils.translation import gettext as _
+from shared.mixins import SubscriptionValidationMixin
 
 
-class IntegrationCreateSerializer(serializers.ModelSerializer):
+class IntegrationCreateSerializer(serializers.ModelSerializer, SubscriptionValidationMixin):
     class Meta:
         model = Integration
         fields = [
@@ -27,7 +31,11 @@ class IntegrationCreateSerializer(serializers.ModelSerializer):
     def validate(self, attrs):
         integration_type = attrs.get("integration_type")
         api_token = attrs.get("api_token", None)
+        user = self.context.get("request").user
         base_url = self.context.get("base_url")
+        # Use the mixin's validation method
+        self.validate_subscription(user)
+
         if integration_type == IntegrationTypes.TELEGRAM.value and api_token:
             success, code = telegram_get_me(api_token)
             if not success or code == 401:
@@ -41,7 +49,7 @@ class IntegrationCreateSerializer(serializers.ModelSerializer):
         return attrs
 
 
-class IntegrationSerializer(serializers.ModelSerializer):
+class IntegrationSerializer(serializers.ModelSerializer, SubscriptionValidationMixin):
     class Meta:
         model = Integration
         fields = [
@@ -64,6 +72,11 @@ class IntegrationSerializer(serializers.ModelSerializer):
             raise_validation_error(message=_("Assistant not found"))
         return attrs
 
+    def validate(self, attrs):
+        user = self.context.get("request").user
+        # Use the mixin's validation method
+        self.validate_subscription(user)
+        return attrs
 
 class TelegramGroupSerializer(serializers.ModelSerializer):
     class Meta:
@@ -78,14 +91,15 @@ class TelegramGroupSerializer(serializers.ModelSerializer):
         ]
 
 
-
-class SendUserMessageSerializer(serializers.Serializer):  # noqa
+class SendUserMessageSerializer(serializers.Serializer, SubscriptionValidationMixin):  # noqa
     conversation_id = serializers.UUIDField()
     message = serializers.CharField()
 
     def validate(self, attrs):
         user = self.context.get("request").user
-        print(f"User: {user}")
+        # Use the mixin's validation method
+        self.validate_subscription(user)
+        
         conversation_id = attrs.get("conversation_id")
         message = attrs.get("message")
         if not conversation_id or not message:

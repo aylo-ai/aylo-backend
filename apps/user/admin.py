@@ -10,10 +10,9 @@ class UserAdmin(admin.ModelAdmin):
     fieldsets = (
         (None, {"fields": ("username", "password", "created_by")}),
         ("Personal info", {"fields": ("first_name", "last_name", "email",
-                                      "phone_number", "user_role", "pricing_package")}),
+                                      "phone_number", "user_role", "subscription")}),
         ("Permissions", {"fields": ("is_active", "is_staff", "is_superuser",)}),
         ("Important dates", {"fields": ("last_login", "date_joined")}),
-        ("Subscription", {"fields": ("subscription_active", "next_payment_date", "retry_count")}),
     )
     add_fieldsets = (
         (None, {

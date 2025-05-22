@@ -8,10 +8,10 @@ from google.genai import types
 from django.utils.translation import gettext as _
 from django.conf import settings
 
-from apps.assistant.models import Message, Conversation
+from apps.assistant.models import Message, Conversation, Lead
 from config.settings import client
 from shared.addons.telegram import send_telegram_message
-from shared.addons.validations import success_response, raise_validation_error
+from shared.addons.validations import success_response, raise_validation_error, error_response
 from shared.addons.verification import send_sms_text
 from shared.ai_service.helper import upload_knowledge_base_file
 from shared.ai_service.assistant import check_response
@@ -87,8 +87,8 @@ def notify_user_about_failed_payment(user):
 
 def restrict_user_account(user):
     """Restrict user's account due to failed payments."""
-    user.subscription_active = False
-    user.save()
+    user.subscription.is_subscription_active = False
+    user.subscription.save()
 
     # Send restriction notification
     message = _("Hurmatli {user.username}, sizning repli.uz dagi to'lovlaringiz bir necha marta muvaffaqiyatsiz "
@@ -190,8 +190,7 @@ def get_assistant_response_ai(message, assistant_id, thread_id):
         assistant_id=assistant_id,
     )
     # thread_obj = client.beta.threads.retrieve(thread_id)
-    wait_on_run(run, thread_id) 
-    # Retrieve the assistant's response
+    wait_on_run(run, thread_id)     # Retrieve the assistant's response
     messages = client.beta.threads.messages.list(
         thread_id=thread_id, order="asc", after=user_message.id
     )
@@ -287,3 +286,17 @@ def speech_to_text(audio_bytes: bytes, language: str = "uz") -> str:
     except Exception as e:
         print(f"[speech_to_text] Error: {e}")
         return "Sorry, I couldn't understand the audio."
+    
+def create_lead(full_name, phone_number, product, source, metadata=None):  
+    try:
+        lead = Lead.objects.create(
+            full_name=full_name,
+            phone_number=phone_number,
+            product=product,
+            source=source,
+            metadata=metadata
+        )
+        return success_response(message=_("Lead created successfully"), data=lead, code=200)
+    except Exception as e:
+        print(f"[create_lead] Error: {e}")
+        return error_response(message=_("Failed to create lead"), code=500)
