@@ -174,7 +174,7 @@ class InstagramWebhookView(APIView, SubscriptionValidationMixin):
 
     def post(self, request, *args, **kwargs):  # noqa
         user = request.user
-        self.validate_subscription(user)
+        # self.validate_subscription(user)
         print("Instagram webhook data received")
         data = request.data
         print(f"Instagram webhook data: {data}")
