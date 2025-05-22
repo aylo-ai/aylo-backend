@@ -185,6 +185,11 @@ class InstagramWebhookView(APIView, SubscriptionValidationMixin):
         account_id = entry.get("id")
         print(f"Account ID: {account_id}")
         messaging = entry.get("messaging")
+        is_echo = messaging[0].get("message", {}).get("is_echo")
+        print(f"Is echo: {is_echo}")
+        if is_echo:
+            print(f"Echo message received")
+            return success_response(message="Echo message received", code=200)
         print(f"Messaging: {messaging}")
         if not Integration.objects.filter(instagram_account_id=account_id).exists():
             print(f"Integration not found for account ID: {account_id}")
@@ -239,9 +244,9 @@ class InstagramCallbackView(APIView, SubscriptionValidationMixin):
             print(f"User Profile: {user_profile}")
             integration, _ = Integration.objects.update_or_create(
                 assistant_id=assistant_id,
+                integration_type=IntegrationTypes.INSTAGRAM.value,
                 defaults={
                     "name": "Instagram integration",
-                    "integration_type": IntegrationTypes.INSTAGRAM.value,
                     "api_token": access_token,
                     "instagram_user_id": user_profile.get("instagram_user_id"),
                     "instagram_account_id": user_profile.get("instagram_account_id"),
@@ -251,7 +256,15 @@ class InstagramCallbackView(APIView, SubscriptionValidationMixin):
             print(f"Integration is successfully created: {integration}")
         else:
             return error_response(message="Failed to get user profile", code=400)
-        return success_response(message="Integration created successfully", code=200,)
+        
+        # enable webhook for the integration
+        url = f"https://graph.instagram.com/v22.0/me/subscribed_apps?access_token={access_token}&subscribed_fields=messages"
+        response = requests.post(url)
+        print(f"Response: {response.text}")
+        if response.status_code == 200:
+            return success_response(message="Integration created successfully", code=200,)
+        else:
+            return error_response(message="Failed to enable webhook", code=400)
 
 
 class InstagramDeauthorizeView(APIView, SubscriptionValidationMixin):

@@ -1,4 +1,4 @@
-from django.db.models import Max, Q
+from django.db.models import Q
 from rest_framework import permissions, filters, generics
 
 from apps.assistant.models import Assistant, AssistantFileUpload, Conversation, Message
@@ -85,6 +85,11 @@ class ConversationListCreateView(generics.ListCreateAPIView):
     ordering_fields = ['assistant__name', 'session_id', "start_time", "end_time"]
     ordering = ["-updated_time"]
     permission_classes = [permissions.IsAuthenticated]
+
+    def get_permissions(self):
+        if self.request.method == 'POST':
+            return [permissions.AllowAny()]
+        return super().get_permissions()
 
     def get_queryset(self):
         assistant_id = self.kwargs.get("pk")
@@ -178,7 +183,7 @@ class MessageRetrieveView(generics.RetrieveUpdateDestroyAPIView):
 
 
 class ConversationMessagesListView(generics.ListAPIView):
-    queryset = Assistant.objects.all()
+    queryset = Message.objects.all()
     serializer_class = MessageSerializer
     filter_backends = [filters.SearchFilter, filters.OrderingFilter]
     search_fields = ['conversation__assistant__name', 'message']
@@ -188,6 +193,7 @@ class ConversationMessagesListView(generics.ListAPIView):
 
     def get_queryset(self):
         conversation_id = self.kwargs.get('pk')
+        print(f"Conversation ID: {conversation_id}")
         return self.queryset.filter(conversation_id=conversation_id)
 
 

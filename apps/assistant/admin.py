@@ -17,6 +17,15 @@ class AssistantAdmin(admin.ModelAdmin):
     )
 
 
+
+class MessageInline(admin.TabularInline):
+    model = Message
+    extra = 0
+    readonly_fields = ('sender', 'message_content', 'message_type', 'status', 'audio_file', 'created_time')
+    can_delete = False
+    show_change_link = True
+
+
 @admin.register(Conversation)
 class ConversationAdmin(admin.ModelAdmin):
     list_display = ('id', 'assistant', 'status', 'thread_id', 'platform', 'start_time', 'end_time')
@@ -31,6 +40,8 @@ class ConversationAdmin(admin.ModelAdmin):
     actions_on_bottom = True
     date_hierarchy = 'start_time'
     readonly_fields = ('start_time', 'end_time')
+    inlines = [MessageInline]  # 👉 Shu yerga qo‘shiladi
+
     fieldsets = (
         (None, {
             'fields': ('assistant', 'status', 'thread_id', 'user_id', 'token')
@@ -40,6 +51,7 @@ class ConversationAdmin(admin.ModelAdmin):
             'classes': ('collapse',)
         }),
     )
+
 
 
 @admin.register(Message)

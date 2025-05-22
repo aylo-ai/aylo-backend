@@ -66,7 +66,6 @@ class VerifyCodeView(generics.GenericAPIView):
             success, message = verify_email_code(email, code)
         else:
             return error_response(message=_("Telefon raqam yoki email kiritilmagan"), code=status.HTTP_400_BAD_REQUEST)
-            
         if success:
             return success_response(data=serializer.data, message=message, code=status.HTTP_200_OK)
         return error_response(message=message, code=status.HTTP_400_BAD_REQUEST)

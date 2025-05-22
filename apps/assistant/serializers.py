@@ -175,6 +175,9 @@ class MessageSerializer(serializers.ModelSerializer, SubscriptionValidationMixin
         # Use the mixin's validation method
         self.validate_subscription(user)
 
+        if user.subscription.used_request_count >= user.subscription.pricing_package.request_count:
+            raise_validation_error(message=_("Sizning so'rovlar soningiz tugagan. Iltimos, obunangizni yangilang."))
+
         message_content = attrs.get("message_content")
         audio_file = attrs.get("audio_file")
         if not message_content and not audio_file:
@@ -306,9 +309,7 @@ class AssistantFileUploadSerializer(serializers.ModelSerializer, SubscriptionVal
         if website_url:
             try:
                 screenshot = WebsiteScreenshot()
-                
                 screenshot_path, pdf_path = screenshot.process_url(website_url)
-                
                 filename = f"website_screenshot_{os.path.basename(website_url)}.pdf"
                 
                 with open(pdf_path, 'rb') as pdf_file:

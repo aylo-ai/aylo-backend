@@ -98,26 +98,26 @@ def restrict_user_account(user):
 
 def create_assistant(instructions, name, vector_store_id):
     print("Creating assistant with instructions")
-    # tools = [{"type": "file_search"}]
-    tools = [
-        {"type": "file_search"},
-        {
-            "type": "function",
-            "function": {
-                "name": "classify_user_message",
-                "description": "Classify user intent and extract entities for a sales/support assistant",
-                "parameters": {
-                    "type": "object",
-                    "properties": {
-                        "intent": {"type": "string"},
-                        "entities": {"type": "object"},
-                        "reply": {"type": "string"}
-                    },
-                    "required": ["intent", "entities", "reply"]
-                }
-            }
-        }
-    ]
+    tools = [{"type": "file_search"}]
+    # tools = [
+    #     {"type": "file_search"},
+    #     {
+    #         "type": "function",
+    #         "function": {
+    #             "name": "classify_user_message",
+    #             "description": "Classify user intent and extract entities for a sales/support assistant",
+    #             "parameters": {
+    #                 "type": "object",
+    #                 "properties": {
+    #                     "intent": {"type": "string"},
+    #                     "entities": {"type": "object"},
+    #                     "reply": {"type": "string"}
+    #                 },
+    #                 "required": ["intent", "entities", "reply"]
+    #             }
+    #         }
+    #     }
+    # ]
     tool_resources = {"file_search": {"vector_store_ids": [vector_store_id]}}
     default_model = "gpt-4o"
 
@@ -189,9 +189,8 @@ def get_assistant_response_ai(message, assistant_id, thread_id):
         thread_id=thread_id,
         assistant_id=assistant_id,
     )
-
-    wait_on_run(run, thread_id) #so here i changed thread_obj to thread_obj.id it only accepts id itself
-    # Retrieve the assistant's response
+    # thread_obj = client.beta.threads.retrieve(thread_id)
+    wait_on_run(run, thread_id)     # Retrieve the assistant's response
     messages = client.beta.threads.messages.list(
         thread_id=thread_id, order="asc", after=user_message.id
     )
@@ -224,7 +223,7 @@ def get_thread_id(assistant_id, vector_id):
     if thread_id is not None:
         return thread_id
     else:
-        raise_validation_error(message=_(f"Failed to initialize thread for eorororo: {assistant_id}"))
+        raise_validation_error(message=_(f"Failed to initialize thread for error: {assistant_id}"))
 
 def delete_assistant_by_id(assistant_id):
     BASE_URL = "https://api.openai.com/v1/assistants"
