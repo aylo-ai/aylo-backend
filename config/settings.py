@@ -275,10 +275,10 @@ redis_connection = redis.Redis(
 REDIS_URL: str = f"redis://{REDIS_HOST}:{REDIS_PORT}/{REDIS_DB}"
 print("redis_url", REDIS_URL)
 # Celery settings
-CELERY_BROKER_URL = os.environ.get("CELERY_BROKER_URL", REDIS_URL)
+# CELERY_BROKER_URL = os.environ.get("CELERY_BROKER_URL", REDIS_URL)
 CELERY_ACCEPT_CONTENT = ['json']
 CELERY_TASK_SERIALIZER = 'json'
-CELERY_RESULT_BACKEND = CELERY_BROKER_URL
+# CELERY_RESULT_BACKEND = CELERY_BROKER_URL
 CELERY_BROKER_CONNECTION_RETRY_ON_STARTUP = True
 
 
@@ -311,11 +311,14 @@ REDIS_HOST: str = os.environ.get("REDIS_HOST", default="localhost")
 REDIS_PASSWORD: str = os.environ.get("REDIS_PASSWORD", default="")
 REDIS_PORT: int = int(os.environ.get("REDIS_PORT", default=6379))
 
-# settings.py
-CELERY_BROKER_URL = f"redis://{REDIS_HOST}:{REDIS_PORT}/{REDIS_DB}"
-CELERY_RESULT_BACKEND = f"redis://{REDIS_HOST}:{REDIS_PORT}/{REDIS_DB}"
 
-
+if REDIS_PASSWORD:
+    CELERY_BROKER_URL = f"redis://:{REDIS_PASSWORD}@{REDIS_HOST}:{REDIS_PORT}/{REDIS_DB}"
+    CELERY_RESULT_BACKEND = f"redis://:{REDIS_PASSWORD}@{REDIS_HOST}:{REDIS_PORT}/{REDIS_DB}"
+else:
+    CELERY_BROKER_URL = f"redis://{REDIS_HOST}:{REDIS_PORT}/{REDIS_DB}"
+    CELERY_RESULT_BACKEND = f"redis://{REDIS_HOST}:{REDIS_PORT}/{REDIS_DB}"
+    
 REDIS_CREDENTIALS: dict[str, str | int | bool] = {
     "db": REDIS_DB,
     "host": REDIS_HOST,
