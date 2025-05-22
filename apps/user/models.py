@@ -22,12 +22,6 @@ class User(AbstractUser, BaseModel):
         choices=UserRoles.choices(),
         default=UserRoles.CUSTOMER.value
     )
-    subscription = models.ForeignKey(
-        Subscription,
-        on_delete=models.SET_NULL,
-        null=True, blank=True,
-        related_name='users'
-    )
     sub = models.CharField(max_length=255, null=True, blank=True, unique=True)
     # created_by user
     created_by = models.ForeignKey(

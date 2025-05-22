@@ -129,8 +129,8 @@ class Message(BaseModel):
             # If the sender is the assistant, update the user's used_request_count
             assistant_user = getattr(self.conversation.assistant, "user", None) if self.conversation else None
             if assistant_user and self.sender == SenderTypes.ASSISTANT.value:
-                assistant_user.subscription.used_request_count += 1
-                assistant_user.subscription.save(update_fields=["used_request_count"])
+                assistant_user.subscription.first().used_request_count += 1
+                assistant_user.subscription.first().save(update_fields=["used_request_count"])
 
             # Call the parent save method
             super().save(*args, **kwargs)

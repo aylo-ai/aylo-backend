@@ -17,12 +17,13 @@ def process_monthly_subscriptions():
         success, message = process_subscription_payment(user)
         if not success:
             # Increment retry count and set next payment date to the next day
-            user.subscription.retry_count += 1
-            user.subscription.next_payment_date = now().date() + timedelta(days=1)
-            user.subscription.save()
+            subscription = user.subscriptions.first()
+            subscription.retry_count += 1
+            subscription.next_payment_date = now().date() + timedelta(days=1)
+            subscription.save()
 
             notify_user_about_failed_payment(user)
 
             # Restrict account after 3 failed attempts
-            if user.subscription.retry_count >= 3:
+            if subscription.retry_count >= 3:
                 restrict_user_account(user)

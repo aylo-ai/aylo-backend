@@ -134,7 +134,7 @@ class PayWithCardSerializer(serializers.Serializer):
         
         # Check if the user has an active subscription
         try:
-            subscription = user.subscription
+            subscription = user.subscriptions.first()
             if subscription and subscription.is_subscription_active and subscription.next_payment_date:
                 raise_validation_error(message=lang("Sizda allaqachon pullik obuna bor"))
         except (AttributeError, Subscription.DoesNotExist):
@@ -189,7 +189,7 @@ class PayWithCardSerializer(serializers.Serializer):
             subscription_data = {
                 'user': user,
                 'start_date': timezone.now().date(),
-                'end_date': timezone.now().date() + timedelta(days=user.subscription.pricing_package.duration_days),
+                'end_date': timezone.now().date() + timedelta(days=user.subscriptions.first().pricing_package.duration_days),
                 'is_subscription_active': True,
                 'retry_count': 0,
                 'used_request_count': 0,
@@ -284,7 +284,7 @@ class SubscriptionSerializer(serializers.ModelSerializer):
 
         # Check if user already has an active subscription
         try:
-            existing_subscription = user.subscription
+            existing_subscription = user.subscriptions.first()
             if existing_subscription and existing_subscription.is_subscription_active:
                 raise_validation_error(message=lang("Sizda allaqachon faol obuna mavjud."))
         except (AttributeError, Subscription.DoesNotExist):
@@ -326,16 +326,8 @@ class SubscriptionSerializer(serializers.ModelSerializer):
 
         subscription.save()
 
-        user.subscription = subscription
-        user.save()
+        return subscription
 
-        return {
-            "id": subscription.id,
-            "start_date": subscription.start_date,
-            "end_date": subscription.end_date,
-            "is_subscription_active": subscription.is_subscription_active,
-            "retry_count": subscription.retry_count,
-            "used_request_count": subscription.used_request_count
-        }
+        
 
     

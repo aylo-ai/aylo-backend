@@ -7,7 +7,7 @@ from rest_framework.views import APIView
 from apps.payment.models import Feature, PricingPackage, Card, Subscription
 import apps.payment.serializers as serializers
 from shared.addons.payment import remove_payme_card
-from shared.addons.validations import success_response, error_response
+from shared.addons.validations import success_response, error_response,raise_validation_error
 from shared.permissions import IsAdmin
 from django.utils.translation import gettext as _
 from shared.mixins import SubscriptionValidationMixin
@@ -236,35 +236,40 @@ class ManualSubscriptionPaymentView(generics.CreateAPIView):
 
     def create(self, request, *args, **kwargs):
         user = request.user
-        if not user.subscription.pricing_package:
+        subscription = user.subscriptions.first()
+        if not subscription.pricing_package:
             return error_response(message=_("Pullik obuna paketi yo'q. Iltimos, administrator bilan bog'laning."))
 
         serializer = self.get_serializer(
-            data={"amount": user.subscription.pricing_package.price, "card_id": request.data.get("card_id")},
+            data={"amount": subscription.pricing_package.price, "card_id": request.data.get("card_id")},
             context={"request": request, "is_withdrawal": True}
         )
         serializer.is_valid(raise_exception=True)
         serializer.save()
 
         # Update user subscription details
-        user.subscription.retry_count = 0
-        user.subscription.is_subscription_active = True
-        user.subscription.next_payment_date = now().date() + timedelta(days=30)
-        user.subscription.save()
+        subscription.retry_count = 0
+        subscription.is_subscription_active = True
+        subscription.next_payment_date = now().date() + timedelta(days=30)
+        subscription.save()
 
         return success_response(message=_("To'lov muvaffaqiyatli qabul qilindi, rahmat"))
     
-class SubscriptionRetrieveView(generics.RetrieveAPIView):
-    serializer_class = serializers.SubscriptionSerializer
-    permission_classes = (permissions.IsAuthenticated,)
+# class SubscriptionRetrieveView(generics.RetrieveAPIView):
+#     queryset = Subscription.objects.all()
+#     serializer_class = serializers.SubscriptionSerializer
+#     permission_classes = (permissions.IsAuthenticated,)
 
-    def get_object(self):
-        return Subscription.objects.get(user=self.request.user)
+#     def get_object(self):
+#         try:
+#             return self.queryset.get(user=self.request.user)
+#         except Subscription.DoesNotExist:
+#             return error_response(message=_("Obuna topilmadi"))
 
-    def retrieve(self, request, *args, **kwargs):
-        instance = self.get_object()
-        serializer = self.get_serializer(instance)
-        return success_response(message=_("Obuna muvaffaqiyatli ko'rsatildi"), data=serializer.data)
+#     def retrieve(self, request, *args, **kwargs):
+#         instance = self.get_object()
+#         serializer = self.get_serializer(instance)
+#         return success_response(message=_("Obuna muvaffaqiyatli ko'rsatildi"), data=serializer.data)
 
 class SubscriptionCreateView(generics.CreateAPIView):
     serializer_class = serializers.SubscriptionSerializer
@@ -281,7 +286,10 @@ class SubscriptionUpdateView(generics.UpdateAPIView):
     permission_classes = (permissions.IsAuthenticated,)
 
     def get_object(self):
-        return Subscription.objects.get(user=self.request.user) 
+        subscription = Subscription.objects.get(user=self.request.user) 
+        if not subscription:
+            return error_response(message=_("Obuna topilmadi"))
+        return subscription
 
     def update(self, request, *args, **kwargs):
         instance = self.get_object()
@@ -303,7 +311,7 @@ class SubscriptionCancellationView(APIView, SubscriptionValidationMixin):
             return error_response(message=_("Cancellation reason is required"), code=400)
 
         # Update subscription status
-        subscription = user.subscription
+        subscription = user.subscriptions.first()
         subscription.is_subscription_active = False
         subscription.cancellation_reason = cancellation_reason
         subscription.save()
