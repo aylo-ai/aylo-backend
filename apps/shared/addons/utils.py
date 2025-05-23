@@ -20,7 +20,7 @@ from config.settings import OPENAI_API_KEY
 
 def create_message(conversation, sender, content, audio_file=None):
     message_type = 'audio' if audio_file else 'text'
-
+    print(f"Creating message: {conversation}, {sender}, {content}, {audio_file}")
     message = Message.objects.create(
         conversation=conversation,
         sender=sender,

@@ -1,6 +1,7 @@
 import requests
 from celery import shared_task
 
+from apps.shared.addons.enums import SenderTypes
 from shared.addons.ai_requests import get_assistant_response
 from shared.addons.instagram import send_instagram_message
 from shared.addons.telegram import send_telegram_message, check_register_info, delete_telegram_message
@@ -95,6 +96,8 @@ def process_instagram_message(account_id, user_message):
 
     # send response to user
     send_instagram_message(account_id, integration.api_token, sender_id, response_message)
+    print(f"starting to create message: {response_message}, conversation: {conversation}")
+    create_message(conversation=conversation, sender=SenderTypes.ASSISTANT.value, content=response_message)
     print(f"Sent message to Instagram user: {sender_id} with message: {response_message}")
 
 
