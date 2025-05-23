@@ -171,13 +171,13 @@ class MessageSerializer(serializers.ModelSerializer, SubscriptionValidationMixin
         }
 
     def validate(self, attrs):
-        user = self.context.get("request").user
+        # user = self.context.get("request").user
         # Use the mixin's validation method
-        self.validate_subscription(user)
-        subscription = user.subscriptions.first()
+        # self.validate_subscription(user)
+        # subscription = user.subscriptions.first()
 
-        if subscription.used_request_count >= subscription.pricing_package.request_count:
-            raise_validation_error(message=_("Sizning so'rovlar soningiz tugagan. Iltimos, obunangizni yangilang."))
+        # if subscription.used_request_count >= subscription.pricing_package.request_count:
+        #     raise_validation_error(message=_("Sizning so'rovlar soningiz tugagan. Iltimos, obunangizni yangilang."))
 
         message_content = attrs.get("message_content")
         audio_file = attrs.get("audio_file")
