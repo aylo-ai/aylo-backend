@@ -5,7 +5,7 @@ from django.db import models
 from rest_framework_simplejwt.tokens import RefreshToken
 
 from apps.payment.models import Subscription
-from shared.addons.enums import UserRoles
+from shared.addons.enums import AuthTypes, UserRoles
 from shared.models import BaseModel
 
 from faker import Faker
@@ -31,6 +31,7 @@ class User(AbstractUser, BaseModel):
         blank=True,
         related_name='created_users'
     )
+    auth_type = models.CharField(max_length=50, choices=AuthTypes.choices())
 
     class Meta:
         db_table = "user"

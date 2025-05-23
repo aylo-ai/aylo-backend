@@ -164,7 +164,7 @@ def verify_email_code(email, code):
             # Mark email as verified
             redis_connection.setex(
                 f"{email}_verified",
-                3600,  # 1 hour in seconds
+                300,  # 1 hour in seconds
                 "true"
             )
             # Delete the code

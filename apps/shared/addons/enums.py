@@ -134,3 +134,10 @@ class LeadStatuses(EnumBaseModel):
     REGISTERED = 'registered'
     DELIVERED = 'delivered'
     LOST = 'lost'
+
+
+class AuthTypes(EnumBaseModel):
+    PHONE = 'phone'
+    EMAIL = 'email'
+    GOOGLE = 'google'
+    APPLE = 'apple'
