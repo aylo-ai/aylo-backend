@@ -41,6 +41,7 @@ def send_playmobile_sms(phone_number, message):
         auth=(PLAY_MOBILE_LOGIN, PLAY_MOBILE_PASSWORD),
         timeout=60
     )
+    print(f"playmobile_response: {response.status_code}, respone text: {response.text}")
     if response.status_code == 200:
         return True, "SMS successfully sent"
     else:
@@ -51,8 +52,7 @@ def send_code(phone_number):
     if redis_connection.get(phone_number):
         return False, "Code already sent"
     code = generate_code()
-    if send_sms:
-        send_phone_notification(phone_number, code)
+    send_phone_notification(phone_number, code)
     print(f"Your code for number {phone_number} is {code}")
 
     redis_connection.set(phone_number, code)
