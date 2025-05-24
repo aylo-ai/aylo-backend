@@ -12,7 +12,6 @@ sys.path.append(os.path.join(BASE_DIR, "apps"))
 load_dotenv()
 
 SECRET_KEY = os.environ.get("SECRET_KEY", "django-insecure-j_27^f$x$3_q^)-3vn6!ps*9apa$nshm)202rq98y^fhf+ydz=")
-print("SECRET_KEY", SECRET_KEY)
 DEBUG: bool = os.environ.get("DEBUG") in ["True", "true"]
 
 ALLOWED_HOSTS = ["*"]
@@ -274,7 +273,6 @@ redis_connection = redis.Redis(
     db=0,
 )
 REDIS_URL: str = f"redis://{REDIS_HOST}:{REDIS_PORT}/{REDIS_DB}"
-print("redis_url", REDIS_URL)
 # Celery settings
 # CELERY_BROKER_URL = os.environ.get("CELERY_BROKER_URL", REDIS_URL)
 CELERY_ACCEPT_CONTENT = ['json']

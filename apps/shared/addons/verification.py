@@ -24,15 +24,12 @@ def generate_code():
 
 def send_playmobile_sms(phone_number, message):
     message_id = f"repliuz_{randint(100000, 999999)}"
-    # redis_connection.set(f"{phone_number}_message_id", message_id)
-    # redis_connection.expire(f"{phone_number}_message_id", time=3600)
     payload = get_playmobile_payload(phone_number, message_id, originator, message)
     print(f"playmobile_url: {PLAY_MOBILE_URL}, login: {PLAY_MOBILE_LOGIN}, password: {PLAY_MOBILE_PASSWORD}")
     response = requests.post(
         PLAY_MOBILE_URL,
         json=payload,
         auth=(PLAY_MOBILE_LOGIN, PLAY_MOBILE_PASSWORD),
-        timeout=60
     )
     print(f"playmobile_response: {response.status_code}, respone text: {response.text}")
     if response.status_code == 200:
