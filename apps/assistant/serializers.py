@@ -8,8 +8,8 @@ from django.core.files import File
 
 
 from apps.assistant.models import Assistant, Conversation, Message, Settings, AssistantFileUpload
-from shared.addons.ai_requests import get_assistant_response, update_vector_store_files
-from shared.addons.utils import get_thread_id, speech_to_text
+from shared.addons.ai_requests import update_vector_store_files
+from shared.addons.utils import get_assistant_response_ai, get_thread_id, speech_to_text
 from shared.addons.payloads import create_file_urls
 from shared.addons.validations import raise_validation_error
 from shared.addons.enums import ConversationPlatforms, ConversationStatuses
@@ -215,7 +215,7 @@ class MessageSerializer(serializers.ModelSerializer, SubscriptionValidationMixin
         if conversation.status == ConversationStatuses.ESCALATED.value or not assistant.is_active:
             return message
         print(f"time before get_assistant_response: {time.time()}")
-        response = get_assistant_response(
+        response = get_assistant_response_ai(
             message=transcribed_text,
             assistant_id=assistant.assistant_id,
             thread_id=conversation.thread_id

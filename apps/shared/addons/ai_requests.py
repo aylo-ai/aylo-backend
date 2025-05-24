@@ -7,7 +7,7 @@ from shared.addons.validations import raise_validation_error
 from config.settings import OPENAI_API_KEY
 from shared.addons.utils import delete_assistant_by_id
 from shared.ai_service.helper import create_prompt, create_vector_store, update_vector_store_files_ai
-from shared.addons.utils import create_assistant, get_assistant_response_ai
+from shared.addons.utils import create_assistant
 from shared.addons.payloads import valid_intents
 
 
@@ -15,67 +15,33 @@ BASE_URL = "http://localhost:8080"
 # BASE_URL = "https://ai.repli.uz"
 
 
-def create_assistant_and_vector_id(data: dict):
-    payload = {
-        "name": data.get("name"),
-        "company_name": data.get("company_name"),
-        "company_description": data.get("company_description"),
-        "assistant_role": data.get("assistant_role"),
-        "conversation_style": data.get("conversation_style"),
-        "assistant_language": data.get("assistant_language"),
-        "file_links": data.get("file_links"),
-    }
-    print(f"Payload: {payload}")
+def create_assistant_and_vector_id(assistant, request=None):
+    file_urls = [
+    request.build_absolute_uri(file.file.url) if request else file.file.url
+    for file in assistant.files.all()
+        ]
+
     try:
         instruction = create_prompt(
-            payload.get("company_name"),
-            payload.get("company_description"),
-            payload.get("assistant_role"),
-            payload.get("conversation_style"),
-            payload.get("assistant_language"),
+            assistant.company_name,
+            assistant.description,
+            assistant.role,
+            assistant.personality_style,
+            assistant.language,
             valid_intents,
         )
 
-        file_links = data.get("file_links")
-        vector_store_id = create_vector_store(file_links)
-        new_assistant = create_assistant(instruction, data.get("name"), vector_store_id)
+        vector_store_id = create_vector_store(file_urls=file_urls)
+        new_assistant = create_assistant(instruction, assistant.name, vector_store_id)
         print(f"New assistant: {new_assistant}")
-        return {
-            "assistant_id": new_assistant.id,
-            "vector_id": vector_store_id,
-        }
+        # save assistant_id and vector_id to assistant
+        assistant.assistant_id = new_assistant.id
+        assistant.vector_id = vector_store_id
+        assistant.save()
+        return True, "Successfully created assistant and vector id"
     except Exception as e:
-        raise_validation_error(message=str(e))
+        return False, str(e)
 
-
-def send_assistant_data(assistant, request=None):
-    payload = create_assistant_payload(assistant, request)
-    print(f"Assistant data: {payload}")
-    data = create_assistant_and_vector_id(payload)
-    print(f"assistant data received: {data}")
-    if isinstance(data, str):
-        raise_validation_error(message=data)
-    if data is None:
-        raise_validation_error(message="Failed to create assistant: No data returned")
-    assistant.assistant_id = data.get("assistant_id") # type: ignore
-    assistant.vector_id = data.get("vector_id") # type: ignore
-    assistant.save()
-    print(f"Assistant ID: {assistant.assistant_id}, vector_id: {assistant.vector_id} created successfully")
-
-
-def get_assistant_response(message, assistant_id, thread_id):
-    print(f"message: {message}, assistant_id: {assistant_id}, thread_id: {thread_id}")
-    try:
-        # Get the assistant's response
-        response = get_assistant_response_ai(
-            message=message,
-            assistant_id=assistant_id,
-            thread_id=thread_id
-        )
-        return response
-    except Exception as e:
-        print(f"Error getting assistant response: {e}")
-        raise_validation_error(message=str(e))
 
 
 def delete_assitant(assistant_id):

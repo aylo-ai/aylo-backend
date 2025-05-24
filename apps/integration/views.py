@@ -11,8 +11,8 @@ from django.utils.translation import gettext as _
 
 from apps.assistant.models import  Assistant
 from config.settings import INSTAGRAM_CLIENT_ID, INSTAGRAM_CLIENT_SECRET, INSTAGRAM_REDIRECT_URI
-from shared.addons.ai_requests import get_assistant_response
 from shared.addons.enums import ConversationStatuses, IntegrationTypes
+from shared.addons.ai_requests import get_assistant_response_ai
 from shared.addons.instagram import get_long_lived_access_token, get_user_profile
 from shared.addons.telegram import send_telegram_message, delete_telegram_message, handle_bot_added_to_group, \
     handle_bot_removed_from_group
@@ -123,7 +123,7 @@ class TelegramWebhookViewDraft(APIView):
         create_message(conversation, 'user', user_message)
         print(f"Message created: {user_message}")
         # Generate and send assistant's response
-        response_message = get_assistant_response(user_message, assistant.assistant_id, conversation.thread_id)
+        response_message = get_assistant_response_ai(user_message, assistant.assistant_id, conversation.thread_id)
         print(f"Response message: {response_message}")
         create_message(conversation, 'assistant', response_message)
         delete_telegram_message(chat_id, wait_message_id, bot_token)
