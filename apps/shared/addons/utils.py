@@ -110,7 +110,7 @@ def create_assistant(instructions, name, vector_store_id):
             tools=tools,
             tool_resources=tool_resources,
             model=default_model,
-            response_format={
+            response_format = {
                 "type": "json_schema",
                 "json_schema": {
                     "name": "chatbot_response",
@@ -121,11 +121,14 @@ def create_assistant(instructions, name, vector_store_id):
                             "intent": {"type": "string"},
                             "entities": {
                                 "type": "object",
-                                "additionalProperties": {"type": "string"}
+                                "properties": {
+                                    "product": {"type": "string"},
+                                },
+                                "additionalProperties": True
                             },
                             "reply": {"type": "string"}
                         },
-                        "required": ["intent", "entities", "reply"],
+                        "required": ["intent", "reply"],
                         "additionalProperties": False
                     }
                 }
