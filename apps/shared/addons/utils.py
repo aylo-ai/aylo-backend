@@ -124,7 +124,7 @@ def create_assistant(instructions, name, vector_store_id):
                                 "properties": {
                                     "product": {"type": "string"},
                                 },
-                                "additionalProperties": True
+                                "additionalProperties": False
                             },
                             "reply": {"type": "string"}
                         },
