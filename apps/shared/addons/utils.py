@@ -195,7 +195,7 @@ def get_assistant_response_ai(message, assistant_id, thread_id):
     messages = client.beta.threads.messages.list(
         thread_id=thread_id, order="asc", after=user_message.id
     )
-    print(f"Assistant response: {messages.data}")
+    print(f"Assistant response: {messages.data}, messages: {messages}")
 
     # Get the response text or a fallback message if empty
     assistant_response = messages.data[0].content[0].text.value if messages.data else "No response received."
