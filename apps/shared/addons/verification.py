@@ -25,18 +25,23 @@ def generate_code():
 def send_playmobile_sms(phone_number, message):
     message_id = f"repliuz_{randint(100000, 999999)}"
     payload = get_playmobile_payload(phone_number, message_id, originator, message)
-    print(f"playmobile_url: {PLAY_MOBILE_URL}, login: {PLAY_MOBILE_LOGIN}, password: {PLAY_MOBILE_PASSWORD}")
-    response = requests.post(
-        PLAY_MOBILE_URL,
-        json=payload,
-        auth=(PLAY_MOBILE_LOGIN, PLAY_MOBILE_PASSWORD),
-    )
-    print(f"playmobile_response: {response.status_code}, respone text: {response.text}")
-    if response.status_code == 200:
-        return True, "SMS successfully sent"
-    else:
-        return False, f"Failed to send sms. Status code: {response.status_code}"
-
+    try:
+        response = requests.post(
+            PLAY_MOBILE_URL,
+            json=payload,
+            auth=(PLAY_MOBILE_LOGIN, PLAY_MOBILE_PASSWORD),
+            timeout=(30, 60)  # 10s connect timeout, 30s read timeout
+        )
+        print(f"Response: {response.status_code} — {response.text}")
+        if response.status_code == 200:
+            return True, "SMS successfully sent"
+        return False, f"Failed with status: {response.status_code}"
+    except requests.exceptions.ConnectTimeout:
+        print(f"Connect timeout to {PLAY_MOBILE_URL}")
+        return False, "Connection timed out"
+    except Exception as e:
+        print(f"Unexpected error during SMS sending: {str(e)}")
+        return False, f"Unexpected error: {str(e)}"
 
 def send_code(phone_number):
     if redis_connection.get(phone_number):
