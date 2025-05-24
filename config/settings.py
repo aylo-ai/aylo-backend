@@ -270,6 +270,7 @@ REDIS_DB = int(os.environ.get("REDIS_DB", 0))
 redis_connection = redis.Redis(
     host=REDIS_HOST,
     port=REDIS_PORT,
+    password=REDIS_PASSWORD,
     db=0,
 )
 REDIS_URL: str = f"redis://{REDIS_HOST}:{REDIS_PORT}/{REDIS_DB}"
