@@ -126,7 +126,25 @@ def create_prompt(company_name, company_description, assistant_role, conversatio
         "reply": "😕 Kechirasiz, sizni to‘g‘ri tushuna olmadim. Iltimos, yana bir bor yozib ko‘ring yoki operator bilan bog‘laning 📞."
         }}
         """
-    return prompt_template
+    try:
+        response = client.chat.completions.create(
+            model="gpt-4o",
+            messages=[
+                {"role": "system", "content": "You are a prompt refinement assistant."},
+                {"role": "user", "content": f"Refine the following prompt for a chatbot "
+                                            f"assistant:\n\n{prompt_template}"}
+            ],
+            max_tokens=200,
+            temperature=0.7
+        )
+        # Extract the refined prompt from the response
+        refined_prompt = response.choices[0].message
+        # for some reason, we cannot get the content of the refined prompt. therefore, I will just print it out
+        # in fact, refined_prompt is an object with content element in it
+    except Exception as e:
+        refined_prompt = f"Error in generating prompt: {e}"
+
+    return refined_prompt
 
 def upload_knowledge_base_file(file_url):
     # Determine MIME type and check if it's supported
