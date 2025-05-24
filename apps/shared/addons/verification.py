@@ -104,36 +104,35 @@ def send_email_code(email):
         tuple: (success, message)
     """
     try:
-        # code = generate_code()
-        code = "000000"
+        code = generate_code()
+        # code = "000000"
         # Store code in Redis with 5 minute expiration
         redis_connection.setex(email, 300, code)
         
-        # Prepare email content
-        # subject = _("Verification Code")
-        # message = _("Your verification code is: {}").format(code)
-        # from_email = settings.DEFAULT_FROM_EMAIL
-        # from django.template.loader import render_to_string
+        subject = _("Verification Code")
+        message = _("Your verification code is: {}").format(code)
+        from_email = settings.DEFAULT_FROM_EMAIL
+        from django.template.loader import render_to_string
 
-        # html_message = render_to_string(
-        #     'apps/shared/addons/verification_email.html',
-        #     {
-        #         'code': code,
-        #         'expiry_minutes': 5,
-        #         'year': 2024,
-        #         'subject': "Verification Code"
-        #     }
-        # )
+        html_message = render_to_string(
+            'verification_email.html',
+            {
+                'code': code,
+                'expiry_minutes': 5,
+                'year': 2024,
+                'subject': "Verification Code"
+            }
+        )
+        print(f"html_message: {html_message}")
         
-        # Send email
-        # send_mail(
-        #     subject=subject,
-        #     message=message,
-        #     from_email=from_email,
-        #     recipient_list=[email],
-        #     html_message=html_message,
-        #     fail_silently=False,
-        # )
+        send_mail(
+            subject=subject,
+            message=message,
+            from_email=from_email,
+            recipient_list=[email],
+            html_message=html_message,
+            fail_silently=False,
+        )
         
         return True, _("Verification code sent to your email")
         

@@ -183,10 +183,11 @@ class UserSerializer(serializers.ModelSerializer):
             'phone_number',
             'user_role',
             'total_request_count',
+            'subscription',
         ]
 
     def get_total_request_count(self, obj): # noqa
-        subscription = obj.subscriptions.first()
+        subscription = obj.subscription
         if subscription:
             return subscription.used_request_count
         return 0

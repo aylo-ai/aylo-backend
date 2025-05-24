@@ -17,7 +17,7 @@ def check_payme_card_token(token):
     response = requests.post(
         settings.PAYME_API_URL, json=param_data, headers=headers
     )
-    print(response.text)
+    print(f"check_payme_card_token: {response.json()}")
     return response if response.status_code == 200 else None
 
 
@@ -31,6 +31,7 @@ def remove_payme_card(card_token):
     response = requests.post(
         settings.PAYME_API_URL, json=param_data, headers=headers
     )
+    print(f"remove_payme_card: {response.json()}")
     return response if response.status_code == 200 else None
 
 
@@ -44,16 +45,64 @@ def create_payme_receipt(amount):
         },
     }
 
-    headers = {"X-Auth": f"{settings.PAYME_ID}:{settings.PAYME_KEY}"}
+    headers = {"X-Auth": f"{settings.PAYME_ID}"}
     response = requests.post(
         settings.PAYME_API_URL, json=payload, headers=headers
     )
-
+    print(f"create_payme_receipt: {response.json()}")
     try:
         return True, "successfull", response.json()["result"]["receipt"]["_id"]
     except Exception:
         return False, response.json()["error"]["message"], None
+    
+def send_create_card_request(card_number, card_expiry):
+    """Create a card token in Payme."""
+    payload = {
+        "method": "cards.create",
+        "params": {
+            "card":{
+                "number": card_number, 
+                "expire": card_expiry},
+            "save": True,
+        }
+    }
+    headers = {"X-Auth": f"{settings.PAYME_ID}"}
+    print(payload, headers)
+    response = requests.post(
+        settings.PAYME_API_URL, json=payload, headers=headers
+    )
+    print(f"send_create_card_request: {response.json()}")
 
+    return response.json()
+
+    
+def send_verify_code_request(card_token):
+    """Verify a card code in Payme."""
+    payload = {
+        "method": "cards.get_verify_code",
+        "params": {"token": card_token}
+    }
+    headers = {"X-Auth": f"{settings.PAYME_ID}"}
+    response = requests.post(
+        settings.PAYME_API_URL, json=payload, headers=headers
+    )
+    print(f"send_verify_code_request: {response.json()}")
+
+    return response.json()
+    
+def verify_payme_card_token(card_token, verify_code):
+    """Verify a card in Payme."""
+    payload = {
+        "method": "cards.verify",
+        "params": {"token": card_token, "code": verify_code}
+    }
+    headers = {"X-Auth": f"{settings.PAYME_ID}"}
+    response = requests.post(
+        settings.PAYME_API_URL, json=payload, headers=headers
+    )
+    print(f"verify_payme_card_token: {response.json()}")
+    return response.json()
+    
 
 def commit_payme_receipt(card_token, receipt_id):
     """Commit a receipt in Payme."""
@@ -69,6 +118,7 @@ def commit_payme_receipt(card_token, receipt_id):
     response = requests.post(
         settings.PAYME_API_URL, json=payload, headers=headers
     )
+    print(f"commit_payme_receipt: {response.json()}")
     try:
         return True, "successfull", response.json()["result"]["receipt"]["_id"]
     except Exception:
@@ -85,7 +135,7 @@ def update_user_balance(user, amount):
 
 def process_subscription_payment(user):
     """Process subscription payment for the user."""
-    pricing_package = user.subscriptions.first().pricing_package
+    pricing_package = user.subscription.pricing_package
     if not pricing_package:
         return False, "No pricing package assigned."
 
@@ -104,7 +154,7 @@ def process_subscription_payment(user):
         return False, message
 
     # Step 3: Log transaction
-    Transaction.objects.create(
+    transaction = Transaction.objects.create(
         user=user,
         amount=pricing_package.price,
         currency=pricing_package.currency,
@@ -112,11 +162,12 @@ def process_subscription_payment(user):
         status=PaymentStatuses.SUCCESS.value,
         pricing_package=pricing_package,
     )
+    transaction.save()
 
     # Step 4: Reset retry count and set next payment date
-    subscription = user.subscriptions.first()
+    subscription = transaction.user.subscription
     subscription.retry_count = 0
-    subscription.next_payment_date = datetime.now().date() + timedelta(days=30)
+    subscription.next_payment_date = datetime.now().date() + timedelta(days=pricing_package.duration_days)
     subscription.save()
 
     return True, "Payment successful."

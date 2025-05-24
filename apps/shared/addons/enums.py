@@ -134,3 +134,9 @@ class LeadStatuses(EnumBaseModel):
     REGISTERED = 'registered'
     DELIVERED = 'delivered'
     LOST = 'lost'
+
+
+class PricingPackageType(EnumBaseModel):
+    FREE = 'free'
+    CUSTOM = 'custom'
+    PRO = 'pro'

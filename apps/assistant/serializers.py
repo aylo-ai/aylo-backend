@@ -8,6 +8,7 @@ from django.core.files import File
 
 
 from apps.assistant.models import Assistant, Conversation, Message, Settings, AssistantFileUpload
+from apps.user.models import User
 from shared.addons.ai_requests import get_assistant_response, update_vector_store_files
 from shared.addons.utils import get_thread_id, speech_to_text
 from shared.addons.payloads import create_file_urls
@@ -54,8 +55,8 @@ class AssistantSerializer(serializers.ModelSerializer,
     
     def validate(self, attrs):
         user = self.context.get("request").user
-        # Use the mixin's validation method
-        self.validate_subscription(user)
+        self.validate_subscription(user.subscription)
+
         return attrs
 
 
@@ -80,12 +81,11 @@ class ConversationSerializer(serializers.ModelSerializer,
         }
 
     def validate(self, attrs):
-        user = self.context.get("request").user
-        # Use the mixin's validation method
-        self.validate_subscription(user)
         assistant = self.context.get("assistant_id")
+        print(f"validate: assistant: {assistant}")
         try:
             assistant = Assistant.objects.get(id=assistant)
+            self.validate_subscription(assistant.user.subscription)
         except Assistant.DoesNotExist:
             raise_validation_error("Assistant does not exist.")
         if assistant is None:
@@ -138,12 +138,6 @@ class ConversationRetrieveSerializer(serializers.ModelSerializer, SubscriptionVa
             "assistant": {"required": False},
         }
 
-    def validate(self, attrs):
-        user = self.context.get("request").user
-        # Use the mixin's validation method
-        self.validate_subscription(user)
-        return attrs
-
     def to_representation(self, instance):
         response = super().to_representation(instance)
         last_message = instance.messages.last()
@@ -171,24 +165,19 @@ class MessageSerializer(serializers.ModelSerializer, SubscriptionValidationMixin
         }
 
     def validate(self, attrs):
-        user = self.context.get("request").user
-        # Use the mixin's validation method
-        self.validate_subscription(user)
-        subscription = user.subscriptions.first()
-
-        if subscription.used_request_count >= subscription.pricing_package.request_count:
-            raise_validation_error(message=_("Sizning so'rovlar soningiz tugagan. Iltimos, obunangizni yangilang."))
-
-        message_content = attrs.get("message_content")
-        audio_file = attrs.get("audio_file")
-        if not message_content and not audio_file:
-            raise_validation_error(message=_("Message content or audio file is required."))
         conversation = self.context.get("conversation_id")
         print(f"validate: conversation_id: {conversation}")
         try:
             conversation = Conversation.objects.get(id=conversation)
         except Conversation.DoesNotExist:
             raise_validation_error("Conversation does not exist.")
+        # Use the mixin's validation method
+        self.validate_subscription(conversation.assistant.user.subscription)
+
+        message_content = attrs.get("message_content")
+        audio_file = attrs.get("audio_file")
+        if not message_content and not audio_file:
+            raise_validation_error(message=_("Message content or audio file is required."))
         attrs["conversation"] = conversation
         print(f"validate: conversation: {conversation}")
         return attrs
@@ -228,7 +217,7 @@ class MessageSerializer(serializers.ModelSerializer, SubscriptionValidationMixin
             message_type=MessageTypes.TEXT.value
         )
         # Increment used request count
-        subscription = user.subscriptions.first()
+        subscription = conversation.assistant.user.subscription
         subscription.used_request_count += 1
         subscription.save()
         return response_message
@@ -271,9 +260,9 @@ class AssistantFileUploadSerializer(serializers.ModelSerializer, SubscriptionVal
     def validate(self, attrs):
         files = self.context.get("files")
         website_url = attrs.get("website_url")
-        user = self.context.get("request").user
+        assistant = self.context.get("assistant")
         # Use the mixin's validation method
-        self.validate_subscription(user)
+        self.validate_subscription(assistant.user.subscription)
         # Validate website URL if provided
         if website_url:
             if not website_url.startswith(('http://', 'https://')):
@@ -385,7 +374,7 @@ class UpdateFileUploadSerializer(serializers.ModelSerializer, SubscriptionValida
         files = self.context.get("files")
         user = self.context.get("request").user
         # Use the mixin's validation method
-        self.validate_subscription(user)
+        self.validate_subscription(user.subscription)
         if not files:
             raise_validation_error(message="No files were uploaded.")
 

@@ -1,7 +1,8 @@
 from django.db import models
 from django.core.validators import MinValueValidator
 from apps.shared.models import BaseModel
-from shared.addons.enums import PaymentMethods, PaymentStatuses, CurrencyType, TransactionTypes
+from shared.addons.enums import PaymentMethods, PaymentStatuses, CurrencyType, TransactionTypes, PricingPackageType
+
 
 
 class Feature(BaseModel):
@@ -23,6 +24,12 @@ class PricingPackage(BaseModel):
     price = models.DecimalField(max_digits=20, decimal_places=2, default=0)
     discount_price = models.DecimalField(
         max_digits=20, decimal_places=2, null=True, blank=True
+    )
+    type = models.CharField(
+        max_length=50,
+        null=True,
+        choices=PricingPackageType.choices(),
+        default=PricingPackageType.FREE.value,
     )
     currency = models.CharField(
         max_length=50,
@@ -119,9 +126,6 @@ class Balance(BaseModel):
         return f"{self.user.first_name} {self.user.last_name} - {self.amount}"
 
 class Subscription(BaseModel):
-    user = models.ForeignKey(
-        "user.User", on_delete=models.CASCADE, related_name="subscriptions"
-    )
     pricing_package = models.ForeignKey(
         PricingPackage, on_delete=models.CASCADE, related_name="subscriptions"
     )
@@ -144,4 +148,4 @@ class Subscription(BaseModel):
         ordering = ["-created_time"]
 
     def __str__(self):
-        return f"{self.user.email} - {self.pricing_package.name} - {self.start_date} - {self.end_date}"
+        return f"{self.pricing_package.name} - {self.start_date} - {self.end_date}"

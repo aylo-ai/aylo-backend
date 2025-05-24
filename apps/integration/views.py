@@ -16,7 +16,6 @@ from shared.addons.enums import ConversationStatuses, IntegrationTypes
 from shared.addons.instagram import get_long_lived_access_token, get_user_profile
 from shared.addons.telegram import send_telegram_message, delete_telegram_message, handle_bot_added_to_group, \
     handle_bot_removed_from_group
-from shared.mixins import SubscriptionValidationMixin
 from shared.addons.utils import create_message, get_or_create_conversation, handle_start_command, create_lead
 from shared.addons.validations import success_response, error_response
 from shared.permissions import IsAdmin, IsCustomer
@@ -154,12 +153,10 @@ class SendUserMessageView(generics.CreateAPIView):
         return success_response(message=response.get("message"), code=200)
 
 
-class InstagramWebhookView(APIView, SubscriptionValidationMixin):
+class InstagramWebhookView(APIView):
     VERIFY_TOKEN = "wqbm2DoK5zfsF28Qb82Z"  # Replace with your actual verify token
 
     def get(self, request, *args, **kwargs):
-        user = request.user
-        self.validate_subscription(user)
         # Extract query parameters
         mode = request.query_params.get("hub.mode")
         token = request.query_params.get("hub.verify_token")
@@ -173,8 +170,6 @@ class InstagramWebhookView(APIView, SubscriptionValidationMixin):
         return error_response(message="Invalid token", code=403)
 
     def post(self, request, *args, **kwargs):  # noqa
-        user = request.user
-        self.validate_subscription(user)
         print("Instagram webhook data received")
         data = request.data
         print(f"Instagram webhook data: {data}")
@@ -199,14 +194,12 @@ class InstagramWebhookView(APIView, SubscriptionValidationMixin):
         return success_response(message="Webhook data receieved successfully", code=200)
 
 
-class InstagramCallbackView(APIView, SubscriptionValidationMixin):
+class InstagramCallbackView(APIView):
     CLIENT_ID = INSTAGRAM_CLIENT_ID
     CLIENT_SECRET = INSTAGRAM_CLIENT_SECRET
     REDIRECT_URI = INSTAGRAM_REDIRECT_URI
 
     def get(self, request, *args, **kwargs):
-        user = request.user
-        self.validate_subscription(user)
         # Get the authorization code from the query parameters
         code = request.query_params.get("code")
         assistant_id = request.query_params.get("assistant_id")
@@ -267,10 +260,8 @@ class InstagramCallbackView(APIView, SubscriptionValidationMixin):
             return error_response(message="Failed to enable webhook", code=400)
 
 
-class InstagramDeauthorizeView(APIView, SubscriptionValidationMixin):
+class InstagramDeauthorizeView(APIView):
     def post(self, request, *args, **kwargs): # noqa
-        user = request.user
-        self.validate_subscription(user)
         # Facebook sends a signed request
         signed_request = request.data.get("signed_request")
         if not signed_request:
@@ -309,10 +300,8 @@ class InstagramDeauthorizeView(APIView, SubscriptionValidationMixin):
             return error_response(message="User ID not found in signed request", code=400)
 
 
-class InstagramDataDeletionView(APIView, SubscriptionValidationMixin):
+class InstagramDataDeletionView(APIView):
     def post(self, request, *args, **kwargs):
-        user = request.user
-        self.validate_subscription(user)
         signed_request = request.data.get("signed_request")
         if not signed_request:
             return error_response(message="Signed request not found", code=400)

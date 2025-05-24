@@ -34,7 +34,8 @@ class IntegrationCreateSerializer(serializers.ModelSerializer, SubscriptionValid
         user = self.context.get("request").user
         base_url = self.context.get("base_url")
         # Use the mixin's validation method
-        self.validate_subscription(user)
+        self.validate_subscription(user.subscription)
+        # self.validate_intergation_count(user)
 
         if integration_type == IntegrationTypes.TELEGRAM.value and api_token:
             success, code = telegram_get_me(api_token)
@@ -63,19 +64,15 @@ class IntegrationSerializer(serializers.ModelSerializer, SubscriptionValidationM
         ]
     
     def validate(self, attrs):
-        assistant = self.context.get("assistant")
+        assistant_id = self.context.get("assistant_id")
+        print(f"Assistant ID {assistant_id}")
         try:
-            assistant = Assistant.objects.get(id=assistant)
+            assistant = Assistant.objects.get(id=assistant_id)
             if not assistant.vector_id or not assistant.assistant_id:
                 raise_validation_error(message=_("Assistant is not active, please upload a necessary file"))
         except Assistant.DoesNotExist:
             raise_validation_error(message=_("Assistant not found"))
-        return attrs
-
-    def validate(self, attrs):
-        user = self.context.get("request").user
-        # Use the mixin's validation method
-        self.validate_subscription(user)
+        self.validate_subscription(assistant.user.subscription)
         return attrs
 
 class TelegramGroupSerializer(serializers.ModelSerializer):
@@ -98,13 +95,13 @@ class SendUserMessageSerializer(serializers.Serializer, SubscriptionValidationMi
     def validate(self, attrs):
         user = self.context.get("request").user
         # Use the mixin's validation method
-        self.validate_subscription(user)
-        
         conversation_id = attrs.get("conversation_id")
         message = attrs.get("message")
         if not conversation_id or not message:
             raise_validation_error(message=_("Conversation ID and message are required"))
         conversation = Conversation.objects.filter(id=conversation_id, assistant__user=user).first()
+        self.validate_subscription(conversation.assistant.user.subscription)
+        
         print(f"Conversation: {conversation}")
         if not conversation:
             raise_validation_error(message=_("Conversation not found"))

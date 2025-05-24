@@ -99,7 +99,7 @@ ROOT_URLCONF = "config.urls"
 TEMPLATES = [
     {
         "BACKEND": "django.template.backends.django.DjangoTemplates",
-        "DIRS": [BASE_DIR / 'templates']
+        "DIRS": [BASE_DIR / 'apps' / 'shared' / 'addons' / 'templates',]
         ,
         "APP_DIRS": True,
         "OPTIONS": {
@@ -433,12 +433,13 @@ GOOGLE_GEMINI_API_KEY = os.environ.get("GOOGLE_GEMINI_API_KEY")
 
 # Email settings
 EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
-EMAIL_HOST = 'your-smtp-server.com'
+EMAIL_HOST = 'smtppro.zoho.com'
 EMAIL_PORT = 587
-EMAIL_USE_TLS = True
-EMAIL_HOST_USER = 'your-email@example.com'
-EMAIL_HOST_PASSWORD = 'your-email-password'
-DEFAULT_FROM_EMAIL = 'your-email@example.com'
+EMAIL_USE_TLS = True 
+
+EMAIL_HOST_USER = 'shahzod.abdashev@repli.uz'
+EMAIL_HOST_PASSWORD = 'sARDLgD9nmCX'
+DEFAULT_FROM_EMAIL = 'shahzod.abdashev@repli.uz'
 
 # Instagram settings
 INSTAGRAM_CLIENT_ID = os.environ.get("INSTAGRAM_CLIENT_ID")
