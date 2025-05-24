@@ -12,27 +12,20 @@ from django.conf import settings
 from django.utils.translation import gettext_lazy as _
 
 
-PLAY_MOBILE_URL = os.environ.get('PLAY_MOBILE_URL')
-PLAY_MOBILE_LOGIN = os.environ.get('PLAY_MOBILE_LOGIN')
-PLAY_MOBILE_PASSWORD = os.environ.get('PLAY_MOBILE_PASSWORD')
-originator = os.environ.get('PLAY_MOBILE_ORIGINATOR')
-
-send_sms = os.environ.get('SEND_SMS')
+PLAY_MOBILE_URL: str = os.environ['PLAY_MOBILE_URL']
+PLAY_MOBILE_LOGIN: str = os.environ['PLAY_MOBILE_LOGIN']
+PLAY_MOBILE_PASSWORD: str = os.environ['PLAY_MOBILE_PASSWORD']
+originator: str = os.environ['PLAY_MOBILE_ORIGINATOR']
 
 
 def generate_code():
     return randint(100000, 999999)
 
 
-def send_phone_notification(phone, code):
-    message = f"Repli.uz! Sizning tasdiqlash kodingiz - {code}\n"
-    return send_playmobile_sms(phone, message)
-
-
 def send_playmobile_sms(phone_number, message):
     message_id = f"repliuz_{randint(100000, 999999)}"
-    redis_connection.set(f"{phone_number}_message_id", message_id)
-    redis_connection.expire(f"{phone_number}_message_id", time=3600)
+    # redis_connection.set(f"{phone_number}_message_id", message_id)
+    # redis_connection.expire(f"{phone_number}_message_id", time=3600)
     payload = get_playmobile_payload(phone_number, message_id, originator, message)
     print(f"playmobile_url: {PLAY_MOBILE_URL}, login: {PLAY_MOBILE_LOGIN}, password: {PLAY_MOBILE_PASSWORD}")
     response = requests.post(
@@ -52,9 +45,11 @@ def send_code(phone_number):
     if redis_connection.get(phone_number):
         return False, "Code already sent"
     code = generate_code()
-    send_phone_notification(phone_number, code)
+    message = f"Repli.uz! Sizning tasdiqlash kodingiz - {code}\n"
+    success, message = send_playmobile_sms(phone_number, message)
+    if not success:
+        return False, message
     print(f"Your code for number {phone_number} is {code}")
-
     redis_connection.set(phone_number, code)
     redis_connection.expire(phone_number, time=60)
     return True, "Code sent successfully"
