@@ -100,35 +100,36 @@ def restrict_user_account(user):
 def create_assistant(instructions, name, vector_store_id):
     print("Creating assistant with instructions")
     tools = [{"type": "file_search"}]
-    # tools = [
-    #     {"type": "file_search"},
-    #     {
-    #         "type": "function",
-    #         "function": {
-    #             "name": "classify_user_message",
-    #             "description": "Classify user intent and extract entities for a sales/support assistant",
-    #             "parameters": {
-    #                 "type": "object",
-    #                 "properties": {
-    #                     "intent": {"type": "string"},
-    #                     "entities": {"type": "object"},
-    #                     "reply": {"type": "string"}
-    #                 },
-    #                 "required": ["intent", "entities", "reply"]
-    #             }
-    #         }
-    #     }
-    # ]
     tool_resources = {"file_search": {"vector_store_ids": [vector_store_id]}}
     default_model = "gpt-4o"
 
     try:
         my_assistant = client.beta.assistants.create(
-            instructions=instructions.content,
+            instructions=instructions,
             name=name,
             tools=tools,
             tool_resources=tool_resources,
-            model=default_model
+            model=default_model,
+            response_format={
+                "type": "json_schema",
+                "json_schema": {
+                    "name": "chatbot_response",
+                    "strict": True,
+                    "schema": {
+                        "type": "object",
+                        "properties": {
+                            "intent": {"type": "string"},
+                            "entities": {
+                                "type": "object",
+                                "additionalProperties": {"type": "string"}
+                            },
+                            "reply": {"type": "string"}
+                        },
+                        "required": ["intent", "entities", "reply"],
+                        "additionalProperties": False
+                    }
+                }
+            }
         )
 
         # Check the response type before returning

@@ -54,7 +54,7 @@ def create_prompt(company_name, company_description, assistant_role, conversatio
         - Ask clarifying questions and gather relevant info (products, quantities, user info).
         - Encourage conversation with chat-like, natural responses.
         - If the user wants to buy, register them first.
-        - Always reply in strict JSON format (see below).
+        - You must always reply in strict JSON format (see below).
 
         ---
 
@@ -126,25 +126,7 @@ def create_prompt(company_name, company_description, assistant_role, conversatio
         "reply": "😕 Kechirasiz, sizni to‘g‘ri tushuna olmadim. Iltimos, yana bir bor yozib ko‘ring yoki operator bilan bog‘laning 📞."
         }}
         """
-    try:
-        response = client.chat.completions.create(
-            model="gpt-4o",
-            messages=[
-                {"role": "system", "content": "You are a prompt refinement assistant."},
-                {"role": "user", "content": f"Refine the following prompt for a chatbot "
-                                            f"assistant:\n\n{prompt_template}"}
-            ],
-            max_tokens=200,
-            temperature=0.7
-        )
-        # Extract the refined prompt from the response
-        refined_prompt = response.choices[0].message
-        # for some reason, we cannot get the content of the refined prompt. therefore, I will just print it out
-        # in fact, refined_prompt is an object with content element in it
-    except Exception as e:
-        refined_prompt = f"Error in generating prompt: {e}"
-
-    return refined_prompt
+    return prompt_template
 
 def upload_knowledge_base_file(file_url):
     # Determine MIME type and check if it's supported
