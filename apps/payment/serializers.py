@@ -45,6 +45,11 @@ class PricingPackageSerializer(serializers.ModelSerializer):
         if attrs["discount_price"] < attrs["price"]:
             raise_validation_error(message="Chegirma narxi narxdan kichik bo'lishi mumkin emas.")
         return attrs
+    
+    def to_representation(self, instance):
+        data = super().to_representation(instance)
+        data["features"] = FeatureSerializer(instance.features, many=True).data
+        return data
 
 
 class CardSerializer(serializers.ModelSerializer):
