@@ -114,7 +114,7 @@ def create_assistant(instructions, name, vector_store_id):
                 "type": "json_schema",
                 "json_schema": {
                     "name": "chatbot_response",
-                    "strict": True,
+                    "strict": False,
                     "schema": {
                         "type": "object",
                         "properties": {
@@ -123,8 +123,15 @@ def create_assistant(instructions, name, vector_store_id):
                                 "type": "object",
                                 "properties": {
                                     "product": {"type": "string"},
+                                    "quantity": {"type": "string"},
+                                    "price": {"type": "string"},
+                                    "total": {"type": "string"},
+                                    "payment_method": {"type": "string"},
+                                    "payment_status": {"type": "string"},
+                                    "payment_date": {"type": "string"},
+                                    "payment_amount": {"type": "string"},
+                                    
                                 },
-                                "required": [],  # <-- mana bu qator yetishmayotgandi
                                 "additionalProperties": False
                             },
                             "reply": {"type": "string"}
