@@ -26,11 +26,8 @@ class SendCodeView(generics.GenericAPIView):
     throttle_classes = (AnonRateThrottle,)
 
     def post(self, request, *args, **kwargs):
-        action = request.query_params.get("action")
-        if not action:
-            return error_response(message=_("Action kalit so'zi topilmadi"), code=status.HTTP_400_BAD_REQUEST)
         
-        serializer = self.get_serializer(data=request.data, context={"action": action})
+        serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         
         phone_number = serializer.data.get("phone_number")
@@ -40,6 +37,7 @@ class SendCodeView(generics.GenericAPIView):
             success, message = send_code(phone_number)
         elif email:
             success, message = send_email_code(email)
+            # success, message = True, "Code sent successfully"
         else:
             return error_response(message=_("Telefon raqam yoki email kiritilmagan"), code=status.HTTP_400_BAD_REQUEST)
             

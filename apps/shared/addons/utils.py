@@ -20,7 +20,7 @@ from config.settings import OPENAI_API_KEY
 
 def create_message(conversation, sender, content, audio_file=None):
     message_type = 'audio' if audio_file else 'text'
-
+    print(f"Creating message: {conversation}, {sender}, {content}, {audio_file}")
     message = Message.objects.create(
         conversation=conversation,
         sender=sender,
@@ -100,35 +100,47 @@ def restrict_user_account(user):
 def create_assistant(instructions, name, vector_store_id):
     print("Creating assistant with instructions")
     tools = [{"type": "file_search"}]
-    # tools = [
-    #     {"type": "file_search"},
-    #     {
-    #         "type": "function",
-    #         "function": {
-    #             "name": "classify_user_message",
-    #             "description": "Classify user intent and extract entities for a sales/support assistant",
-    #             "parameters": {
-    #                 "type": "object",
-    #                 "properties": {
-    #                     "intent": {"type": "string"},
-    #                     "entities": {"type": "object"},
-    #                     "reply": {"type": "string"}
-    #                 },
-    #                 "required": ["intent", "entities", "reply"]
-    #             }
-    #         }
-    #     }
-    # ]
     tool_resources = {"file_search": {"vector_store_ids": [vector_store_id]}}
     default_model = "gpt-4o"
 
     try:
         my_assistant = client.beta.assistants.create(
-            instructions=instructions.content,
+            instructions=instructions,
             name=name,
             tools=tools,
             tool_resources=tool_resources,
-            model=default_model
+            model=default_model,
+            response_format = {
+                "type": "json_schema",
+                "json_schema": {
+                    "name": "chatbot_response",
+                    "strict": False,
+                    "schema": {
+                        "type": "object",
+                        "properties": {
+                            "intent": {"type": "string"},
+                            "entities": {
+                                "type": "object",
+                                "properties": {
+                                    "product": {"type": "string"},
+                                    "quantity": {"type": "string"},
+                                    "price": {"type": "string"},
+                                    "total": {"type": "string"},
+                                    "payment_method": {"type": "string"},
+                                    "payment_status": {"type": "string"},
+                                    "payment_date": {"type": "string"},
+                                    "payment_amount": {"type": "string"},
+                                    
+                                },
+                                "additionalProperties": False
+                            },
+                            "reply": {"type": "string"}
+                        },
+                        "required": ["intent", "reply"],
+                        "additionalProperties": False
+                    }
+                }
+            }
         )
 
         # Check the response type before returning
@@ -195,7 +207,7 @@ def get_assistant_response_ai(message, assistant_id, thread_id):
     messages = client.beta.threads.messages.list(
         thread_id=thread_id, order="asc", after=user_message.id
     )
-    print(f"Assistant response: {messages.data}")
+    print(f"Assistant response: {messages.data}, messages: {messages}")
 
     # Get the response text or a fallback message if empty
     assistant_response = messages.data[0].content[0].text.value if messages.data else "No response received."

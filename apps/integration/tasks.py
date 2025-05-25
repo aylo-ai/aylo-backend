@@ -1,12 +1,11 @@
 import requests
 from celery import shared_task
 
-from shared.addons.ai_requests import get_assistant_response
+from apps.shared.addons.enums import SenderTypes
 from shared.addons.instagram import send_instagram_message
 from shared.addons.telegram import send_telegram_message, check_register_info, delete_telegram_message
-from shared.addons.utils import handle_start_command, get_or_create_conversation, create_message, \
+from shared.addons.utils import get_assistant_response_ai, handle_start_command, get_or_create_conversation, create_message, \
     speech_to_text, convert_ogg_to_mp3
-from shared.ai_service.assistant import get_assistant_response_final
 from apps.assistant.models import Assistant
 from .models import TelegramGroupIntegration
 
@@ -41,7 +40,7 @@ def process_message_task(chat_id, user_message, bot_token, audio_file=None):
         wait_message_id = response.json().get("result").get("message_id")
 
     create_message(conversation, 'user', user_message, audio_file)
-    response_message = get_assistant_response(user_message, assistant.assistant_id, conversation.thread_id)
+    response_message = get_assistant_response_ai(user_message, assistant.assistant_id, conversation.thread_id)
     print(f"Response message: {response_message}")
     user_register_message = check_register_info(response_message)
 
@@ -90,11 +89,13 @@ def process_instagram_message(account_id, user_message):
         create_message(conversation, 'user', message_text)
         return
     create_message(conversation, 'user', message_text)
-    response_message = get_assistant_response_final(message_text, assistant.assistant_id, conversation.thread_id)
+    response_message = get_assistant_response_ai(message_text, assistant.assistant_id, conversation.thread_id)
     print(f"Response message: {response_message}")
 
     # send response to user
     send_instagram_message(account_id, integration.api_token, sender_id, response_message)
+    print(f"starting to create message: {response_message}, conversation: {conversation}")
+    create_message(conversation=conversation, sender=SenderTypes.ASSISTANT.value, content=response_message)
     print(f"Sent message to Instagram user: {sender_id} with message: {response_message}")
 
 

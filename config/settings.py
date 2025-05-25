@@ -13,7 +13,6 @@ sys.path.append(os.path.join(BASE_DIR, "apps"))
 load_dotenv()
 
 SECRET_KEY = os.environ.get("SECRET_KEY", "django-insecure-j_27^f$x$3_q^)-3vn6!ps*9apa$nshm)202rq98y^fhf+ydz=")
-print("SECRET_KEY", SECRET_KEY)
 DEBUG: bool = os.environ.get("DEBUG") in ["True", "true"]
 
 ALLOWED_HOSTS = ["*"]
@@ -271,15 +270,15 @@ REDIS_DB = int(os.environ.get("REDIS_DB", 0))
 redis_connection = redis.Redis(
     host=REDIS_HOST,
     port=REDIS_PORT,
+    password=REDIS_PASSWORD,
     db=0,
 )
 REDIS_URL: str = f"redis://{REDIS_HOST}:{REDIS_PORT}/{REDIS_DB}"
-print("redis_url", REDIS_URL)
 # Celery settings
-CELERY_BROKER_URL = os.environ.get("CELERY_BROKER_URL", REDIS_URL)
+# CELERY_BROKER_URL = os.environ.get("CELERY_BROKER_URL", REDIS_URL)
 CELERY_ACCEPT_CONTENT = ['json']
 CELERY_TASK_SERIALIZER = 'json'
-CELERY_RESULT_BACKEND = CELERY_BROKER_URL
+# CELERY_RESULT_BACKEND = CELERY_BROKER_URL
 CELERY_BROKER_CONNECTION_RETRY_ON_STARTUP = True
 
 
@@ -312,11 +311,14 @@ REDIS_HOST: str = os.environ.get("REDIS_HOST", default="localhost")
 REDIS_PASSWORD: str = os.environ.get("REDIS_PASSWORD", default="")
 REDIS_PORT: int = int(os.environ.get("REDIS_PORT", default=6379))
 
-# settings.py
-CELERY_BROKER_URL = f"redis://{REDIS_HOST}:{REDIS_PORT}/{REDIS_DB}"
-CELERY_RESULT_BACKEND = f"redis://{REDIS_HOST}:{REDIS_PORT}/{REDIS_DB}"
 
-
+if REDIS_PASSWORD:
+    CELERY_BROKER_URL = f"redis://:{REDIS_PASSWORD}@{REDIS_HOST}:{REDIS_PORT}/{REDIS_DB}"
+    CELERY_RESULT_BACKEND = f"redis://:{REDIS_PASSWORD}@{REDIS_HOST}:{REDIS_PORT}/{REDIS_DB}"
+else:
+    CELERY_BROKER_URL = f"redis://{REDIS_HOST}:{REDIS_PORT}/{REDIS_DB}"
+    CELERY_RESULT_BACKEND = f"redis://{REDIS_HOST}:{REDIS_PORT}/{REDIS_DB}"
+    
 REDIS_CREDENTIALS: dict[str, str | int | bool] = {
     "db": REDIS_DB,
     "host": REDIS_HOST,
@@ -438,9 +440,9 @@ EMAIL_HOST = 'smtppro.zoho.com'
 EMAIL_PORT = 587
 EMAIL_USE_TLS = True 
 
-EMAIL_HOST_USER = 'shahzod.abdashev@repli.uz'
-EMAIL_HOST_PASSWORD = 'sARDLgD9nmCX'
-DEFAULT_FROM_EMAIL = 'shahzod.abdashev@repli.uz'
+EMAIL_HOST_USER = os.environ.get("EMAIL_HOST_USER")
+EMAIL_HOST_PASSWORD = os.environ.get("EMAIL_HOST_PASSWORD")
+DEFAULT_FROM_EMAIL = os.environ.get("EMAIL_HOST_USER")
 
 # Instagram settings
 INSTAGRAM_CLIENT_ID = os.environ.get("INSTAGRAM_CLIENT_ID")

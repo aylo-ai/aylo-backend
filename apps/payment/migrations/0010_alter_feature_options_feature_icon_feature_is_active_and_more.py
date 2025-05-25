@@ -59,12 +59,12 @@ class Migration(migrations.Migration):
             name='payment_details',
             field=models.JSONField(blank=True, null=True),
         ),
-        migrations.AddField(
-            model_name='transaction',
-            name='pricing_package',
-            field=models.ForeignKey(default=20250908, on_delete=django.db.models.deletion.CASCADE, related_name='transactions', to='payment.pricingpackage'),
-            preserve_default=False,
-        ),
+        # migrations.AddField(
+        #     model_name='transaction',
+        #     name='pricing_package',
+        #     field=models.ForeignKey(default=20250908, on_delete=django.db.models.deletion.CASCADE, related_name='transactions', to='payment.pricingpackage'),
+        #     preserve_default=False,
+        # ),
         migrations.AddField(
             model_name='transaction',
             name='refund_amount',

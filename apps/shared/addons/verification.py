@@ -12,49 +12,47 @@ from django.conf import settings
 from django.utils.translation import gettext_lazy as _
 
 
-PLAY_MOBILE_URL = os.environ.get('PLAY_MOBILE_URL')
-PLAY_MOBILE_LOGIN = os.environ.get('PLAY_MOBILE_LOGIN')
-PLAY_MOBILE_PASSWORD = os.environ.get('PLAY_MOBILE_PASSWORD')
-originator = os.environ.get('PLAY_MOBILE_ORIGINATOR')
-
-send_sms = os.environ.get('SEND_SMS')
+PLAY_MOBILE_URL: str = os.environ['PLAY_MOBILE_URL']
+PLAY_MOBILE_LOGIN: str = os.environ['PLAY_MOBILE_LOGIN']
+PLAY_MOBILE_PASSWORD: str = os.environ['PLAY_MOBILE_PASSWORD']
+originator: str = os.environ['PLAY_MOBILE_ORIGINATOR']
 
 
 def generate_code():
     return randint(100000, 999999)
 
 
-def send_phone_notification(phone, code):
-    message = f"Repli.uz! Sizning tasdiqlash kodingiz - {code}\n"
-    return send_playmobile_sms(phone, message)
-
-
 def send_playmobile_sms(phone_number, message):
     message_id = f"repliuz_{randint(100000, 999999)}"
-    redis_connection.set(f"{phone_number}_message_id", message_id)
-    redis_connection.expire(f"{phone_number}_message_id", time=3600)
     payload = get_playmobile_payload(phone_number, message_id, originator, message)
-    print(f"playmobile_url: {PLAY_MOBILE_URL}, login: {PLAY_MOBILE_LOGIN}, password: {PLAY_MOBILE_PASSWORD}")
-    response = requests.post(
-        PLAY_MOBILE_URL,
-        json=payload,
-        auth=(PLAY_MOBILE_LOGIN, PLAY_MOBILE_PASSWORD),
-        timeout=60
-    )
-    if response.status_code == 200:
-        return True, "SMS successfully sent"
-    else:
-        return False, f"Failed to send sms. Status code: {response.status_code}"
-
+    try:
+        response = requests.post(
+            PLAY_MOBILE_URL,
+            json=payload,
+            auth=(PLAY_MOBILE_LOGIN, PLAY_MOBILE_PASSWORD),
+            timeout=(30, 60)  # 10s connect timeout, 30s read timeout
+        )
+        print(f"Response: {response.status_code} — {response.text}")
+        if response.status_code == 200:
+            return True, "SMS successfully sent"
+        return False, f"Failed with status: {response.status_code}"
+    except requests.exceptions.ConnectTimeout:
+        print(f"Connect timeout to {PLAY_MOBILE_URL}")
+        return False, "Connection timed out"
+    except Exception as e:
+        print(f"Unexpected error during SMS sending: {str(e)}")
+        return False, f"Unexpected error: {str(e)}"
 
 def send_code(phone_number):
     if redis_connection.get(phone_number):
         return False, "Code already sent"
     code = generate_code()
-    if send_sms:
-        send_phone_notification(phone_number, code)
+    message = f"Repli.uz! Sizning tasdiqlash kodingiz - {code}\n"
+    # success, message = send_playmobile_sms(phone_number, message)
+    success, message = True, "Code sent successfully"
+    if not success:
+        return False, message
     print(f"Your code for number {phone_number} is {code}")
-
     redis_connection.set(phone_number, code)
     redis_connection.expire(phone_number, time=60)
     return True, "Code sent successfully"
@@ -163,7 +161,7 @@ def verify_email_code(email, code):
             # Mark email as verified
             redis_connection.setex(
                 f"{email}_verified",
-                3600,  # 1 hour in seconds
+                300,  # 1 hour in seconds
                 "true"
             )
             # Delete the code

@@ -4,7 +4,7 @@ from django.utils.translation import gettext_lazy as _
 
 from shared.addons.validations import raise_validation_error, check_number, check_email_phone_number
 from apps.user.models import User, PrivacyPolicy, UserAgreement
-from shared.addons.enums import UserRoles
+from shared.addons.enums import AuthTypes, UserRoles
 
 class SendCodeSerializer(serializers.Serializer): # noqa
     phone_number = serializers.CharField(required=False)
@@ -20,19 +20,6 @@ class SendCodeSerializer(serializers.Serializer): # noqa
         if phone_number:
             if not check_number(phone_number):
                 raise_validation_error(message=_("Notog'ri telefon raqam kiritilgan"))
-        
-        action = self.context.get('action')
-        if action == 'register':
-            if phone_number and User.objects.filter(phone_number=phone_number).exists():
-                raise_validation_error(message=_("Bu telefon raqam allaqachon ro'yxatdan o'tgan"))
-            if email and User.objects.filter(email=email).exists():
-                raise_validation_error(message=_("Bu email allaqachon ro'yxatdan o'tgan"))
-        elif action in ['forgot_password', 'login']:
-            if phone_number and not User.objects.filter(phone_number=phone_number).exists():
-                raise_validation_error(message=_("Telefon raqam topilmadi"))
-            if email and not User.objects.filter(email=email).exists():
-                raise_validation_error(message=_("Email topilmadi"))
-        
         return attrs
 
 
@@ -50,20 +37,26 @@ class VerifyCodeSerializer(serializers.Serializer): # noqa
             raise_validation_error(message=_("Telefon raqam yoki email kiritilmagan"))
         if not code:
             raise_validation_error(message=_("Kod kiritilmagan"))
+        
+        if email:
+            user = User.objects.filter(email=email).first()
+            if not user:
+                user = User.objects.create(email=email, auth_type=AuthTypes.EMAIL.value)
+        if phone_number:
+            user = User.objects.filter(phone_number=phone_number).first()
+            if not user:
+                user = User.objects.create(phone_number=phone_number, auth_type=AuthTypes.PHONE.value)
         return attrs
 
     def get_tokens(self): # noqa
-        action = self.context.get('action', None)
-        phone_number = self.validated_data.get('phone_number')
-        email = self.validated_data.get('email')
-        
-        if action == "login":
-            if phone_number:
-                user = User.objects.filter(phone_number=phone_number).first()
-            else:
-                user = User.objects.filter(email=email).first()
-            if user:
-                return user.tokens()
+        phone_number = self.validated_data.get('phone_number', None)
+        email = self.validated_data.get('email', None)
+        if phone_number:
+            user = User.objects.filter(phone_number=phone_number).first()
+        elif email:
+            user = User.objects.filter(email=email).first()
+        if user:
+            return user.tokens()
         return None
 
     def to_representation(self, instance):

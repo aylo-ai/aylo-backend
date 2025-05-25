@@ -4,7 +4,7 @@ from rest_framework import permissions, filters, generics
 from apps.assistant.models import Assistant, AssistantFileUpload, Conversation, Message
 from apps.assistant.serializers import AssistantSerializer, ConversationSerializer, MessageSerializer, \
     SettingsSerializer, AssistantFileUploadSerializer, ConversationRetrieveSerializer, UpdateFileUploadSerializer
-from shared.addons.ai_requests import delete_assitant, send_assistant_data
+from shared.addons.ai_requests import create_assistant_and_vector_id, delete_assitant
 from shared.addons.validations import success_response, error_response
 from rest_framework.exceptions import NotFound
 from django.utils.translation import gettext_lazy as _
@@ -270,7 +270,9 @@ class AssistantFileUploadListCreateView(generics.ListCreateAPIView):
 
         serializer.save()
         if assistant and not assistant.vector_id:
-            send_assistant_data(assistant, request)
+            success, message = create_assistant_and_vector_id(assistant, request)
+            if not success:
+                return error_response(message=message, code=400)
             print("saved assistant data")
         return success_response(message='File uploaded successfully', code=201)
 

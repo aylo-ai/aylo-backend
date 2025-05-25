@@ -8,9 +8,8 @@ from django.core.files import File
 
 
 from apps.assistant.models import Assistant, Conversation, Message, Settings, AssistantFileUpload
-from apps.user.models import User
-from shared.addons.ai_requests import get_assistant_response, update_vector_store_files
-from shared.addons.utils import get_thread_id, speech_to_text
+from shared.addons.ai_requests import update_vector_store_files
+from shared.addons.utils import get_assistant_response_ai, get_thread_id, speech_to_text
 from shared.addons.payloads import create_file_urls
 from shared.addons.validations import raise_validation_error
 from shared.addons.enums import ConversationPlatforms, ConversationStatuses
@@ -56,7 +55,6 @@ class AssistantSerializer(serializers.ModelSerializer,
     def validate(self, attrs):
         user = self.context.get("request").user
         self.validate_subscription(user.subscription)
-
         return attrs
 
 
@@ -138,6 +136,7 @@ class ConversationRetrieveSerializer(serializers.ModelSerializer, SubscriptionVa
             "assistant": {"required": False},
         }
 
+
     def to_representation(self, instance):
         response = super().to_representation(instance)
         last_message = instance.messages.last()
@@ -165,6 +164,10 @@ class MessageSerializer(serializers.ModelSerializer, SubscriptionValidationMixin
         }
 
     def validate(self, attrs):
+        message_content = attrs.get("message_content")
+        audio_file = attrs.get("audio_file")
+        if not message_content and not audio_file:
+            raise_validation_error(message=_("Message content or audio file is required."))
         conversation = self.context.get("conversation_id")
         print(f"validate: conversation_id: {conversation}")
         try:
@@ -183,7 +186,10 @@ class MessageSerializer(serializers.ModelSerializer, SubscriptionValidationMixin
         return attrs
 
     def create(self, validated_data):
-        user = self.context.get("request").user
+        request = self.context.get("request")
+        if not request:
+            raise_validation_error("Request object is required")
+        user = request.user
         audio_file = validated_data.get("audio_file")
         conversation = validated_data.get("conversation")
         assistant = conversation.assistant
@@ -204,7 +210,7 @@ class MessageSerializer(serializers.ModelSerializer, SubscriptionValidationMixin
         if conversation.status == ConversationStatuses.ESCALATED.value or not assistant.is_active:
             return message
         print(f"time before get_assistant_response: {time.time()}")
-        response = get_assistant_response(
+        response = get_assistant_response_ai(
             message=transcribed_text,
             assistant_id=assistant.assistant_id,
             thread_id=conversation.thread_id
@@ -375,8 +381,10 @@ class UpdateFileUploadSerializer(serializers.ModelSerializer, SubscriptionValida
         }
 
     def validate(self, attrs):
-        files = self.context.get("files")
-        user = self.context.get("request").user
+        request = self.context.get("request")
+        if not request:
+            raise_validation_error("Request object is required")
+        user = request.user
         # Use the mixin's validation method
         self.validate_subscription(user.subscription)
         if not files:
@@ -396,6 +404,9 @@ class UpdateFileUploadSerializer(serializers.ModelSerializer, SubscriptionValida
 
     def create(self, validated_data):
         request = self.context.get("request")
+        if not request:
+            raise_validation_error("Request object is required")
+        user = request.user
         files = self.context.get('files')
         assistant = self.context.get("assistant")
         
