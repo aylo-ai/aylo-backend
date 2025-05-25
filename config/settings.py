@@ -482,4 +482,8 @@ CELERY_BEAT_SCHEDULE = {
         'task': 'apps.payment.tasks.process_monthly_subscriptions',
         'schedule': crontab(hour=0, minute=0),  # Run every day at 00:00
     },
+    'process-daily-used-request-token': {
+        'task': 'apps.payment.tasks.process_daily_used_request_token',
+        'schedule': crontab(hour=0, minute=0),  # Run every day at 00:00
+    },
 }
