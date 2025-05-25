@@ -40,7 +40,7 @@ def create_payme_receipt(amount):
     payload = {
         "method": "receipts.create",
         "params": {
-            "amount": amount * 100,
+            "amount": int(amount) * 100,
             "account": {"order_id": random.randint(10000, 100000)},
         },
     }
@@ -159,15 +159,18 @@ def process_subscription_payment(user):
         amount=pricing_package.price,
         currency=pricing_package.currency,
         transaction_type=TransactionTypes.WITHDRAW.value,
-        status=PaymentStatuses.SUCCESS.value,
-        pricing_package=pricing_package,
+        status=PaymentStatuses.SUCCESS.value
     )
     transaction.save()
 
     # Step 4: Reset retry count and set next payment date
     subscription = transaction.user.subscription
+    subscription.is_subscription_active = True
+    subscription.used_request_count = 0
     subscription.retry_count = 0
+    subscription.last_payment_date = datetime.now().date()
     subscription.next_payment_date = datetime.now().date() + timedelta(days=pricing_package.duration_days)
+    subscription.end_date = datetime.now().date() + timedelta(days=pricing_package.duration_days)
     subscription.save()
 
     return True, "Payment successful."

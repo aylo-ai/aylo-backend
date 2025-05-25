@@ -169,9 +169,9 @@ class AssistantFileUpload(BaseModel):
         super().save(*args, **kwargs)
 
     def delete(self, *args, **kwargs):
+        # Delete the file from storage (S3)
         if self.file:
-            if os.path.isfile(self.file.path):
-                os.remove(self.file.path)
+            self.file.delete(save=False)  # This will delete from S3
         super(AssistantFileUpload, self).delete(*args, **kwargs)
 
 class Lead(BaseModel):

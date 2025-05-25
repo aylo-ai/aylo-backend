@@ -1,7 +1,7 @@
 from datetime import timedelta
 
 from celery import shared_task
-from django.template.defaulttags import now
+from django.utils import timezone
 
 from apps.user.models import User
 from shared.addons.payment import process_subscription_payment
@@ -12,7 +12,7 @@ from shared.addons.enums import PricingPackageType
 @shared_task
 def process_monthly_subscriptions():
     """Process subscription payments for all active users."""
-    users = User.objects.filter(subscription__is_subscription_active=True, subscription__next_payment_date__lte=now().date())
+    users = User.objects.filter(subscription__next_payment_date__lte=timezone.now().date())
 
     for user in users:
         success, message = process_subscription_payment(user)
@@ -20,7 +20,7 @@ def process_monthly_subscriptions():
             # Increment retry count and set next payment date to the next day
             subscription = user.subscription
             subscription.retry_count += 1
-            subscription.next_payment_date = now().date() + timedelta(days=1)
+            subscription.next_payment_date = timezone.now().date() + timedelta(days=1)
             subscription.save()
 
             notify_user_about_failed_payment(user)

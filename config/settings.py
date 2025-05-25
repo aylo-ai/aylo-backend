@@ -6,6 +6,7 @@ from dotenv import load_dotenv
 from datetime import timedelta
 from django.utils.translation import gettext_lazy as _
 from openai import OpenAI
+from celery.schedules import crontab
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 sys.path.append(os.path.join(BASE_DIR, "apps"))
@@ -473,3 +474,10 @@ STORAGES = {
 
 # For static files
 STATICFILES_STORAGE = "storages.backends.s3boto3.S3Boto3Storage"
+
+CELERY_BEAT_SCHEDULE = {
+    'process-monthly-subscriptions': {
+        'task': 'apps.payment.tasks.process_monthly_subscriptions',
+        'schedule': crontab(hour=0, minute=0),  # Run every day at 00:00
+    },
+}
