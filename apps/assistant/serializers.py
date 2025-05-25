@@ -222,10 +222,6 @@ class MessageSerializer(serializers.ModelSerializer, SubscriptionValidationMixin
             message_content=response,
             message_type=MessageTypes.TEXT.value
         )
-        # Increment used request count
-        subscription = conversation.assistant.user.subscription
-        subscription.used_request_count += 1
-        subscription.save()
         return response_message
         
 
