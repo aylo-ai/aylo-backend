@@ -129,3 +129,4 @@ def process_voice_task(chat_id, voice_file_id, bot_token):
 
     # Step 4: Trigger the regular message processor
     process_message_task.delay(chat_id, transcribed_text, bot_token, audio_bytes_mp3)
+        

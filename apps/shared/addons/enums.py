@@ -136,6 +136,11 @@ class LeadStatuses(EnumBaseModel):
     LOST = 'lost'
 
 
+class PricingPackageType(EnumBaseModel):
+    FREE = 'free'
+    CUSTOM = 'custom'
+    PRO = 'pro'
+    
 class AuthTypes(EnumBaseModel):
     PHONE = 'phone'
     EMAIL = 'email'

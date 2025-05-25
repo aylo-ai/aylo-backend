@@ -6,6 +6,7 @@ from dotenv import load_dotenv
 from datetime import timedelta
 from django.utils.translation import gettext_lazy as _
 from openai import OpenAI
+from celery.schedules import crontab
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 sys.path.append(os.path.join(BASE_DIR, "apps"))
@@ -98,7 +99,7 @@ ROOT_URLCONF = "config.urls"
 TEMPLATES = [
     {
         "BACKEND": "django.template.backends.django.DjangoTemplates",
-        "DIRS": [BASE_DIR / 'templates']
+        "DIRS": [BASE_DIR / 'apps' / 'shared' / 'addons' / 'templates',]
         ,
         "APP_DIRS": True,
         "OPTIONS": {
@@ -435,12 +436,13 @@ GOOGLE_GEMINI_API_KEY = os.environ.get("GOOGLE_GEMINI_API_KEY")
 
 # Email settings
 EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
-EMAIL_HOST = 'your-smtp-server.com'
+EMAIL_HOST = 'smtppro.zoho.com'
 EMAIL_PORT = 587
-EMAIL_USE_TLS = True
-EMAIL_HOST_USER = 'your-email@example.com'
-EMAIL_HOST_PASSWORD = 'your-email-password'
-DEFAULT_FROM_EMAIL = 'your-email@example.com'
+EMAIL_USE_TLS = True 
+
+EMAIL_HOST_USER = os.environ.get("EMAIL_HOST_USER")
+EMAIL_HOST_PASSWORD = os.environ.get("EMAIL_HOST_PASSWORD")
+DEFAULT_FROM_EMAIL = os.environ.get("EMAIL_HOST_USER")
 
 # Instagram settings
 INSTAGRAM_CLIENT_ID = os.environ.get("INSTAGRAM_CLIENT_ID")
@@ -474,3 +476,10 @@ STORAGES = {
 
 # For static files
 STATICFILES_STORAGE = "storages.backends.s3boto3.S3Boto3Storage"
+
+CELERY_BEAT_SCHEDULE = {
+    'process-monthly-subscriptions': {
+        'task': 'apps.payment.tasks.process_monthly_subscriptions',
+        'schedule': crontab(hour=0, minute=0),  # Run every day at 00:00
+    },
+}

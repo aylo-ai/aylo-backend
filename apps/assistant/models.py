@@ -129,7 +129,7 @@ class Message(BaseModel):
             # If the sender is the assistant, update the user's used_request_count
             assistant_user = getattr(self.conversation.assistant, "user", None) if self.conversation else None
             if assistant_user and self.sender == SenderTypes.ASSISTANT.value:
-                subscription = assistant_user.subscriptions.first()
+                subscription = assistant_user.subscription
                 subscription.used_request_count += 1
                 subscription.save(update_fields=["used_request_count"])
             # Call the parent save method
@@ -169,9 +169,9 @@ class AssistantFileUpload(BaseModel):
         super().save(*args, **kwargs)
 
     def delete(self, *args, **kwargs):
+        # Delete the file from storage (S3)
         if self.file:
-            if os.path.isfile(self.file.path):
-                os.remove(self.file.path)
+            self.file.delete(save=False)  # This will delete from S3
         super(AssistantFileUpload, self).delete(*args, **kwargs)
 
 class Lead(BaseModel):

@@ -6,7 +6,7 @@ from rest_framework import serializers
 from apps.payment.models import Feature, PricingPackage, Card, Transaction, Subscription
 from shared.addons.enums import TransactionTypes, PaymentStatuses
 from shared.addons.payment import check_payme_card_token, create_payme_receipt, commit_payme_receipt, \
-    update_user_balance
+    update_user_balance, send_create_card_request, send_verify_code_request, verify_payme_card_token
 from shared.addons.validations import raise_validation_error
 from user.serializers import UserSerializer
 from django.utils.translation import gettext as lang
@@ -52,6 +52,7 @@ class PricingPackageSerializer(serializers.ModelSerializer):
         return data
 
 
+
 class CardSerializer(serializers.ModelSerializer):
     class Meta:
         model = Card
@@ -71,8 +72,6 @@ class CardSerializer(serializers.ModelSerializer):
             raise_validation_error(message="Karta raqami 16 ta raqamdan kam bo'lishi mumkin emas.")
         return attrs
     
-
-
 class CardCreateSerializer(serializers.ModelSerializer):
 
     class Meta:
@@ -117,7 +116,90 @@ class CardCreateSerializer(serializers.ModelSerializer):
             is_default=True,
         )
         return card
+    
+class PaymeGetVerifyCodeSerializer(serializers.Serializer):  # noqa
+    number = serializers.CharField()
+    expire = serializers.CharField()
 
+    def validate(self, attrs):
+        number = attrs.get("number")
+        expire = attrs.get("expire")
+        if not number or not expire:
+            raise_validation_error(
+                message=lang("Karta raqami va muddati talab qilinadi")
+            )
+        if len(number) != 16:
+            raise_validation_error(message=lang("Karta raqami 16 ta raqamdan kam bo'lishi mumkin emas."))
+        if len(expire) != 4:
+            raise_validation_error(message=lang("Kartaning muddati 4 ta raqamdan kam bo'lishi mumkin emas."))
+        return attrs
+
+    def create(self, validated_data):
+        print(f"validated_data: {validated_data}")
+        create_response = send_create_card_request(
+            validated_data.get("number"),
+            validated_data.get("expire"),
+        )
+        print(f"create_response token: {create_response}")
+
+        if "error" in create_response:
+            raise_validation_error(
+                message=lang(create_response.get("error").get("message"))
+            )
+
+        token = create_response.get("result", {}).get("card", {}).get("token")
+
+        verify_response = send_verify_code_request(token)
+        if "error" in verify_response:
+            raise_validation_error(
+                message=lang(verify_response.get("error").get("message"))
+            )
+        return token
+
+
+class PaymeVerifyCodeSerializer(serializers.Serializer):  # noqa
+    token = serializers.CharField()
+    code = serializers.CharField()
+
+    def validate(self, attrs):
+        token = attrs.get("token")
+        code = attrs.get("code")
+        if not token or not code:
+            raise_validation_error(message=lang("Token va kod talab qilinadi"))
+        return attrs
+
+    def create(self, validated_data):
+        user = self.context["request"].user
+
+        verify_response = verify_payme_card_token(
+            validated_data.get("token"), validated_data.get("code")
+        )
+        if "error" in verify_response:
+            raise_validation_error(
+                message=lang(verify_response.get("error").get("message"))
+            )
+        recurrent, verify = (
+            verify_response.get("result").get("card").get("recurrent"),
+            verify_response.get("result").get("card").get("verify"),
+        )
+        if not verify:
+            raise_validation_error(message=lang("Karta noto'g'ri. Iltimos, tekshirib qaytadan yuboring."))
+        number, expire, token = (
+            verify_response.get("result").get("card").get("number"),
+            verify_response.get("result").get("card").get("expire"),
+            verify_response.get("result").get("card").get("token"),
+        )
+        if recurrent:
+            card = Card.objects.create(
+                user=user,
+                card_number=number,
+                expiry_date=expire,
+                card_token=token,
+                is_verified=True
+            )
+            return True, card
+        else:
+            return True, None
 
 class PayWithCardSerializer(serializers.Serializer):
     amount = serializers.IntegerField(min_value=1000)  # Minimum amount validation
@@ -127,7 +209,6 @@ class PayWithCardSerializer(serializers.Serializer):
     def validate(self, attrs):
         """Validate card existence and retrieve its token."""
         card_id = attrs.get("card_id")
-        user = self.context.get("request").user
 
         try:
             card = Card.objects.get(id=card_id)
@@ -136,15 +217,6 @@ class PayWithCardSerializer(serializers.Serializer):
             attrs["card_token"] = card.card_token
         except Card.DoesNotExist:
             raise_validation_error(message=lang("Karta topilmadi. Iltimos, tekshirib qaytadan yuboring."))
-        
-        # Check if the user has an active subscription
-        try:
-            subscription = user.subscriptions.first()
-            if subscription and subscription.is_subscription_active and subscription.next_payment_date:
-                raise_validation_error(message=lang("Sizda allaqachon pullik obuna bor"))
-        except (AttributeError, Subscription.DoesNotExist):
-            # User has no subscription, which is fine for new subscriptions
-            pass
 
         return attrs
 
@@ -158,6 +230,7 @@ class PayWithCardSerializer(serializers.Serializer):
 
         # Step 1: Create a Payme receipt
         success, message, receipt_id = create_payme_receipt(amount)
+        success = True
         if not success:
             raise_validation_error(message=lang(f"To'lov chekini yaratishda tizim bilan bog'liq"
                                                 f" muammo yuz berdi: {message}"))
@@ -190,22 +263,19 @@ class PayWithCardSerializer(serializers.Serializer):
             if not is_withdrawal:
                 update_user_balance(user, amount)
 
-            # Step 6: Create or update subscription
-            subscription_data = {
-                'user': user,
-                'start_date': timezone.now().date(),
-                'end_date': timezone.now().date() + timedelta(days=user.subscriptions.first().pricing_package.duration_days),
-                'is_subscription_active': True,
-                'retry_count': 0,
-                'used_request_count': 0,
-                'auto_renew': True
-            }
 
             # Try to get existing subscription or create new one
-            subscription, created = Subscription.objects.update_or_create(
-                user=user,
-                defaults=subscription_data
-            )
+            print(f"user.subscription: {user.subscription}")
+            subscription = Subscription.objects.get(id=user.subscription.id)
+            subscription.start_date = timezone.now().date()
+            subscription.end_date = timezone.now().date() + timedelta(days=subscription.pricing_package.duration_days)
+            subscription.is_subscription_active = True
+            subscription.retry_count = 0
+            subscription.used_request_count = 0
+            subscription.auto_renew = True
+            subscription.pricing_package = subscription.pricing_package
+            subscription.last_payment_date = timezone.now().date()
+            subscription.save()
 
             # Return the transaction for further processing if needed
             return {
@@ -289,7 +359,7 @@ class SubscriptionSerializer(serializers.ModelSerializer):
 
         # Check if user already has an active subscription
         try:
-            existing_subscription = user.subscriptions.first()
+            existing_subscription = user.subscription
             if existing_subscription and existing_subscription.is_subscription_active:
                 raise_validation_error(message=lang("Sizda allaqachon faol obuna mavjud."))
         except (AttributeError, Subscription.DoesNotExist):
@@ -312,7 +382,6 @@ class SubscriptionSerializer(serializers.ModelSerializer):
 
 
         subscription = Subscription.objects.create(
-            user=user,
             pricing_package=pricing_package,
             start_date=timezone.now().date(),
             end_date=timezone.now().date() + timedelta(days=pricing_package.duration_days),
@@ -328,6 +397,8 @@ class SubscriptionSerializer(serializers.ModelSerializer):
             subscription.next_payment_date = timezone.now().date() + timedelta(days=pricing_package.duration_days)
             subscription.auto_renew = True
             subscription.is_subscription_active = False
+        user.subscription = subscription
+        user.save()
 
         subscription.save()
 

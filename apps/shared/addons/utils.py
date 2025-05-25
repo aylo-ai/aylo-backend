@@ -87,7 +87,7 @@ def notify_user_about_failed_payment(user):
 
 def restrict_user_account(user):
     """Restrict user's account due to failed payments."""
-    subscription = user.subscriptions.first()
+    subscription = user.subscription
     subscription.is_subscription_active = False
     subscription.save()
 

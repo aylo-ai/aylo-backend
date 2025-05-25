@@ -16,6 +16,10 @@ urlpatterns = [
     path("cards/<uuid:pk>/", views.CardDetailView.as_view()),
     path("cards/<uuid:pk>/remove/", views.CardRemoveView.as_view()),
     path("cards/<uuid:pk>/set-default/", views.SetDefaultCard.as_view()),
+    #payme verification
+    path("payme/get-verify-token/", views.PaymeGetVerifyCodeView.as_view()),
+    path("payme/verify-code/", views.PaymeVerifyCodeView.as_view()),
+
 
     path("manual-payment/", views.ManualSubscriptionPaymentView.as_view()),
 

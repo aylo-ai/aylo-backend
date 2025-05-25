@@ -7,7 +7,7 @@ from rest_framework.views import APIView
 from apps.payment.models import Feature, PricingPackage, Card, Subscription
 import apps.payment.serializers as serializers
 from shared.addons.payment import remove_payme_card
-from shared.addons.validations import success_response, error_response,raise_validation_error
+from shared.addons.validations import success_response, error_response
 from shared.permissions import IsAdmin
 from django.utils.translation import gettext as _
 from shared.mixins import SubscriptionValidationMixin
@@ -188,6 +188,34 @@ class CardDetailView(generics.RetrieveUpdateAPIView):
             message=_("Karta muvaffaqiyatli tahrirlandi"),
         )
 
+class PaymeGetVerifyCodeView(generics.CreateAPIView):
+    serializer_class = serializers.PaymeGetVerifyCodeSerializer
+    permission_classes = (permissions.IsAuthenticated,)
+
+    def create(self, request, *args, **kwargs):
+        serializer = self.get_serializer(
+            data=request.data, context={"request": request}
+        )
+        serializer.is_valid(raise_exception=True)
+        data = serializer.save()
+        return success_response(
+            message=_("Verification code sent successfully"), data=data
+        )
+    
+class PaymeVerifyCodeView(generics.CreateAPIView):
+    serializer_class = serializers.PaymeVerifyCodeSerializer
+    permission_classes = (permissions.IsAuthenticated,)
+
+    def create(self, request, *args, **kwargs):
+        serializer = self.get_serializer(
+            data=request.data, context={"request": request}
+        )
+        serializer.is_valid(raise_exception=True)
+        is_card, card_data = serializer.save()
+        return success_response(
+            message=_("Verification code sent successfully"),
+            data=serializers.CardSerializer(card_data).data if is_card else None,
+        )
 
 class CardRemoveView(generics.DestroyAPIView):
     queryset = Card.objects.all()
@@ -236,7 +264,7 @@ class ManualSubscriptionPaymentView(generics.CreateAPIView):
 
     def create(self, request, *args, **kwargs):
         user = request.user
-        subscription = user.subscriptions.first()
+        subscription = user.subscription
         if not subscription.pricing_package:
             return error_response(message=_("Pullik obuna paketi yo'q. Iltimos, administrator bilan bog'laning."))
 
@@ -303,7 +331,7 @@ class SubscriptionCancellationView(APIView, SubscriptionValidationMixin):
     
     def post(self, request, *args, **kwargs):
         user = request.user
-        self.validate_subscription(user)
+        self.validate_subscription(user.subscription)
 
         # Get cancellation reason from request data
         cancellation_reason = request.data.get('cancellation_reason')
@@ -311,7 +339,7 @@ class SubscriptionCancellationView(APIView, SubscriptionValidationMixin):
             return error_response(message=_("Cancellation reason is required"), code=400)
 
         # Update subscription status
-        subscription = user.subscriptions.first()
+        subscription = user.subscription
         subscription.is_subscription_active = False
         subscription.cancellation_reason = cancellation_reason
         subscription.save()
