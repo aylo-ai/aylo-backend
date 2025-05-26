@@ -110,7 +110,8 @@ def send_email_code(email):
         
         subject = _("Verification Code")
         message = _("Your verification code is: {}").format(code)
-        from_email = settings.DEFAULT_FROM_EMAIL
+        from_email = settings.EMAIL_HOST_USER
+        print(f"from_email: {from_email}")
         from django.template.loader import render_to_string
 
         html_message = render_to_string(
