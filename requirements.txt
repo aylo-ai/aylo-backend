@@ -101,4 +101,3 @@ img2pdf==0.5.1
 playwright==1.41.2
 boto3==1.38.18
 django-storages==1.14.6
-django-smtp-ssl==1.0
