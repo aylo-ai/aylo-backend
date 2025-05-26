@@ -103,6 +103,7 @@ def send_email_code(email):
     """
     try:
         code = generate_code()
+        print(f"code generated: {code}")
         # code = "000000"
         # Store code in Redis with 5 minute expiration
         redis_connection.setex(email, 300, code)
