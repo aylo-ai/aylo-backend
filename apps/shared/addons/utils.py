@@ -1,4 +1,5 @@
 import io
+import json
 import requests
 from pydub.utils import which
 from pydub import AudioSegment
@@ -210,9 +211,14 @@ def get_assistant_response_ai(message, assistant_id, thread_id):
     print(f"Assistant response: {messages.data}, messages: {messages}")
 
     # Get the response text or a fallback message if empty
-    assistant_response = messages.data[0].content[0].text.value if messages.data else "No response received."
-    print(f"Assistant response: {assistant_response}")
-    clean_response = check_response(assistant_response)
+    assistant_response_str = messages.data[0].content[0].text.value if messages.data else "No response received."
+    print(f"Assistant response: {assistant_response_str}")
+    assistant_response = json.loads(assistant_response_str)
+    intent = assistant_response.get("intent", None)
+    message = assistant_response.get("reply", None)
+    entities = assistant_response.get("entities", None)
+    clean_response = check_response(message)
+
 
     return clean_response
 
