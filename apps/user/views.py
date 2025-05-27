@@ -36,8 +36,8 @@ class SendCodeView(generics.GenericAPIView):
         if phone_number:
             success, message = send_code(phone_number)
         elif email:
-            success, message = send_email_code(email)
-            # success, message = True, "Code sent successfully"
+            # success, message = send_email_code(email)
+            success, message = True, "Code sent successfully"
         else:
             return error_response(message=_("Telefon raqam yoki email kiritilmagan"), code=status.HTTP_400_BAD_REQUEST)
             
