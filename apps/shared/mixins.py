@@ -2,7 +2,7 @@ from django.utils.translation import gettext as _
 from django.utils import timezone
 
 from shared.addons.validations import raise_validation_error
-from shared.addons.enums import IntegrationTypes
+from shared.addons.enums import IntegrationTypes, SubscriptionStatuses
 
 class SubscriptionValidationMixin:
     """
@@ -17,7 +17,7 @@ class SubscriptionValidationMixin:
             raise_validation_error(message=_("Sizda obuna paketi yo'q. Iltimos, avval obuna paketini tanlang."))
         
         # Check if subscription is active
-        if not subscription.is_subscription_active:
+        if  subscription.status == SubscriptionStatuses.INACTIVE.value:
             raise_validation_error(message=_("Sizning obunangiz faol emas. Iltimos, obunangizni faollashtiring."))
 
         if subscription.next_payment_date < timezone.now().date() if subscription.next_payment_date else False:

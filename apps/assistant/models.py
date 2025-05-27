@@ -99,6 +99,8 @@ class Message(BaseModel):
     message_content = models.TextField()
     audio_file = models.FileField(upload_to=assistant_audio_path, null=True, blank=True, max_length=255)
     message_type = models.CharField(max_length=10, choices=MessageTypes.choices(), default=MessageTypes.TEXT.value)
+    input_tokens = models.IntegerField(default=0)
+    output_tokens = models.IntegerField(default=0)
     status = models.CharField(
         max_length=15,
         choices=MessageStatuses.choices(),
@@ -179,9 +181,6 @@ class Lead(BaseModel):
     phone_number = models.CharField(max_length=255, null=True, blank=True)
     email = models.EmailField(max_length=255, null=True, blank=True)
     product = models.CharField(max_length=255, null=True, blank=True)
-    source = models.CharField(max_length=255, 
-                              choices=ConversationPlatforms.choices(),
-                              default=ConversationPlatforms.TELEGRAM.value)
     metadata = models.JSONField(blank=True, null=True) 
     contacted = models.BooleanField(default=False)
     
@@ -190,4 +189,5 @@ class Lead(BaseModel):
 
     def __str__(self):
         return f"{self.full_name} - {self.product}"
-        
+    
+            

@@ -11,6 +11,7 @@ from django.conf import settings
 
 from apps.assistant.models import Message, Conversation, Lead
 from config.settings import client
+from shared.addons.enums import SubscriptionStatuses
 from shared.addons.telegram import send_telegram_message
 from shared.addons.validations import success_response, raise_validation_error, error_response
 from shared.addons.verification import send_sms_text
@@ -19,21 +20,31 @@ from shared.ai_service.assistant import check_response
 from shared.ai_service.thread import wait_on_run
 from config.settings import OPENAI_API_KEY
 
-def create_message(conversation, sender, content, audio_file=None):
+def create_message(conversation, sender, content, audio_file=None, run_status=None):
     message_type = 'audio' if audio_file else 'text'
     print(f"Creating message: {conversation}, {sender}, {content}, {audio_file}")
+    
+    # Extract token usage from run_status if available
+    input_tokens = run_status.usage.prompt_tokens if run_status and hasattr(run_status, 'usage') else 0
+    output_tokens = run_status.usage.completion_tokens if run_status and hasattr(run_status, 'usage') else 0
+    
     message = Message.objects.create(
         conversation=conversation,
         sender=sender,
         message_content=content,
         message_type=message_type,
+        input_tokens=input_tokens,
+        output_tokens=output_tokens
     )
     print(f"Message created: {conversation}, {sender}")
+
+    print(f"Audio file: {audio_file}")
     if audio_file:
         from django.core.files.base import ContentFile
         from django.utils.text import slugify
 
         file_name = f"audio_{slugify(conversation.id)}_{message.id}.mp3"
+        print(f"File name: {file_name}")
         message.audio_file.save(file_name, ContentFile(audio_file))
         message.save()
 
@@ -89,7 +100,7 @@ def notify_user_about_failed_payment(user):
 def restrict_user_account(user):
     """Restrict user's account due to failed payments."""
     subscription = user.subscription
-    subscription.is_subscription_active = False
+    subscription.status = SubscriptionStatuses.INACTIVE.value
     subscription.save()
 
     # Send restriction notification
@@ -204,11 +215,11 @@ def get_assistant_response_ai(message, assistant_id, thread_id):
         assistant_id=assistant_id,
     )
     # thread_obj = client.beta.threads.retrieve(thread_id)
-    wait_on_run(run, thread_id)     # Retrieve the assistant's response
+    run_status = wait_on_run(run, thread_id)     # Retrieve the assistant's response
     messages = client.beta.threads.messages.list(
         thread_id=thread_id, order="asc", after=user_message.id
     )
-    print(f"Assistant response: {messages.data}, messages: {messages}")
+    print(f"Assistant response: {messages.data}, messages: {messages}, input_tokens: {run_status.usage.prompt_tokens}, output_tokens: {run_status.usage.completion_tokens}")
 
     # Get the response text or a fallback message if empty
     assistant_response_str = messages.data[0].content[0].text.value if messages.data else "No response received."
@@ -219,8 +230,17 @@ def get_assistant_response_ai(message, assistant_id, thread_id):
     entities = assistant_response.get("entities", None)
     clean_response = check_response(message)
 
-
-    return clean_response
+    response_data = None
+    if intent == "create_order" or intent == "collect_order_info":
+        response_data = create_lead(
+            full_name=entities.get('name', None),
+            phone_number=entities.get('phone_number', None),
+            email=entities.get('email', None),
+            product=entities.get('product', None),
+            metadata=entities
+        )
+        print("✅ Lead created from Telegram message")
+    return clean_response, run_status, response_data
 
 def create_and_run_thread(assistant_id, vector_store_id):
     try:
@@ -306,16 +326,16 @@ def speech_to_text(audio_bytes: bytes, language: str = "uz") -> str:
         print(f"[speech_to_text] Error: {e}")
         return "Sorry, I couldn't understand the audio."
     
-def create_lead(full_name, phone_number, product, source, metadata=None):  
+def create_lead(full_name, phone_number, email, product, metadata=None):  
     try:
         lead = Lead.objects.create(
             full_name=full_name,
             phone_number=phone_number,
+            email=email,
             product=product,
-            source=source,
             metadata=metadata
         )
-        return success_response(message=_("Lead created successfully"), data=lead, code=200)
+        return lead
     except Exception as e:
         print(f"[create_lead] Error: {e}")
         return error_response(message=_("Failed to create lead"), code=500)

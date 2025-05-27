@@ -166,6 +166,7 @@ class LoginRefreshSerializer(serializers.Serializer):  # noqa
 
 class UserSerializer(serializers.ModelSerializer):
     total_request_count = serializers.SerializerMethodField()
+    subscription = serializers.SerializerMethodField(method_name="get_subscription")
 
     class Meta:
         model = User
@@ -182,8 +183,26 @@ class UserSerializer(serializers.ModelSerializer):
     def get_total_request_count(self, obj): # noqa
         subscription = obj.subscription
         if subscription:
-            return subscription.used_request_count
+            return subscription.pricing_package.request_count - subscription.used_request_count
         return 0
+    
+    def get_subscription(self, obj): # noqa
+        subscription = obj.subscription
+        if subscription:
+            return {
+                "id": subscription.id,
+                "pricing_package": subscription.pricing_package.name,
+                "start_date": subscription.start_date,
+                "end_date": subscription.end_date,
+                "status": subscription.status,
+                "used_request_count": subscription.used_request_count,
+                "next_payment_date": subscription.next_payment_date,
+                "auto_renew": subscription.auto_renew,
+                "cancellation_reason": subscription.cancellation_reason,
+                "last_payment_date": subscription.last_payment_date,
+                "grace_period_days": subscription.grace_period_days,
+            }
+        return None
 
 
 class UserShortSerializer(serializers.ModelSerializer):

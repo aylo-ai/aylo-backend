@@ -37,6 +37,6 @@ class BalanceAdmin(admin.ModelAdmin):
 
 @admin.register(Subscription)
 class SubscriptionAdmin(admin.ModelAdmin):
-    list_display = ('pricing_package', 'start_date', 'end_date', 'is_subscription_active', )
-    search_fields = ('pricing_package__name', 'start_date', 'end_date', 'is_subscription_active', )
-    list_filter = ('is_subscription_active', 'pricing_package')
+    list_display = ('pricing_package', 'start_date', 'end_date', 'status', )
+    search_fields = ('pricing_package__name', 'start_date', 'end_date', 'status', )
+    list_filter = ('status', 'pricing_package')

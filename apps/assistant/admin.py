@@ -1,5 +1,5 @@
 from django.contrib import admin
-from apps.assistant.models import Assistant, Message, Conversation, AssistantFileUpload
+from apps.assistant.models import Assistant, Message, Conversation, AssistantFileUpload, Lead
 
 
 @admin.register(Assistant)
@@ -16,12 +16,24 @@ class AssistantAdmin(admin.ModelAdmin):
         }),
     )
 
-
+@admin.register(Lead)
+class LeadAdmin(admin.ModelAdmin):
+    list_display = ('id', 'full_name', 'phone_number', 'email', 'product', 'created_time')
+    list_filter = ('product', 'created_time')
+    search_fields = ('full_name', 'phone_number', 'email')
+    ordering = ('created_time', )
+    readonly_fields = ('created_time', 'updated_time')
+    fieldsets = (
+        (None, {
+            'fields': ('full_name', 'phone_number', 'email', 'product', 'metadata')
+        }),
+    )
+    
 
 class MessageInline(admin.TabularInline):
     model = Message
     extra = 0
-    readonly_fields = ('sender', 'message_content', 'message_type', 'status', 'audio_file', 'created_time')
+    readonly_fields = ('sender', 'message_content', 'message_type', 'status', 'audio_file', 'created_time', 'input_tokens', 'output_tokens')
     can_delete = False
     show_change_link = True
 
@@ -56,7 +68,7 @@ class ConversationAdmin(admin.ModelAdmin):
 
 @admin.register(Message)
 class MessageAdmin(admin.ModelAdmin):
-    list_display = ('id', 'conversation', 'sender', 'message_type', 'status', 'created_time')
+    list_display = ('id', 'conversation', 'sender', 'message_type', 'status', 'created_time', 'input_tokens', 'output_tokens')
     list_filter = ('conversation', 'sender')
     ordering = ('conversation', 'created_time')
     list_per_page = 20
@@ -69,7 +81,7 @@ class MessageAdmin(admin.ModelAdmin):
     readonly_fields = ('created_time', 'updated_time')
     fieldsets = (
         (None, {
-            'fields': ('conversation', 'sender', 'message_content', 'message_type', 'status', 'audio_file')
+            'fields': ('conversation', 'sender', 'message_content', 'message_type', 'status', 'audio_file', 'input_tokens', 'output_tokens')
         }),
         ('System', {
             'fields': ('created_time', 'updated_time'),
