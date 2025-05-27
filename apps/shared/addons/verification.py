@@ -12,10 +12,10 @@ from django.conf import settings
 from django.utils.translation import gettext_lazy as _
 
 
-PLAY_MOBILE_URL: str = os.environ['PLAY_MOBILE_URL']
-PLAY_MOBILE_LOGIN: str = os.environ['PLAY_MOBILE_LOGIN']
-PLAY_MOBILE_PASSWORD: str = os.environ['PLAY_MOBILE_PASSWORD']
-originator: str = os.environ['PLAY_MOBILE_ORIGINATOR']
+# PLAY_MOBILE_URL: str = os.environ['PLAY_MOBILE_URL']
+# PLAY_MOBILE_LOGIN: str = os.environ['PLAY_MOBILE_LOGIN']
+# PLAY_MOBILE_PASSWORD: str = os.environ['PLAY_MOBILE_PASSWORD']
+# originator: str = os.environ['PLAY_MOBILE_ORIGINATOR']
 
 
 def generate_code():

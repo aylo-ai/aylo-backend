@@ -11,7 +11,7 @@ urlpatterns = [
     path("subscriptions/create/", views.SubscriptionCreateView.as_view()),
     path("subscriptions/cancel/", views.SubscriptionCancellationView.as_view()),
     path("payme/card/add/", views.CardCreateWithPaymeView.as_view()),
-    path("payme/card/fill-balance/", views.PayWithCard.as_view()),
+    path("payme/card/pay-subscription/", views.PayWithCard.as_view()),
     path("cards/", views.CardListView.as_view()),
     path("cards/<uuid:pk>/", views.CardDetailView.as_view()),
     path("cards/<uuid:pk>/remove/", views.CardRemoveView.as_view()),

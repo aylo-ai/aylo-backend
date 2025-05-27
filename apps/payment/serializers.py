@@ -4,7 +4,7 @@ from django.utils import timezone
 from rest_framework import serializers
 
 from apps.payment.models import Feature, PricingPackage, Card, Transaction, Subscription
-from shared.addons.enums import TransactionTypes, PaymentStatuses
+from shared.addons.enums import TransactionTypes, PaymentStatuses, SubscriptionStatuses
 from shared.addons.payment import check_payme_card_token, create_payme_receipt, commit_payme_receipt, \
     update_user_balance, send_create_card_request, send_verify_code_request, verify_payme_card_token
 from shared.addons.validations import raise_validation_error
@@ -202,13 +202,25 @@ class PaymeVerifyCodeSerializer(serializers.Serializer):  # noqa
             return True, None
 
 class PayWithCardSerializer(serializers.Serializer):
-    amount = serializers.IntegerField(min_value=1000)  # Minimum amount validation
+    subscription_id = serializers.UUIDField()
     card_id = serializers.UUIDField()
     payment_method = serializers.CharField(required=False)
 
     def validate(self, attrs):
         """Validate card existence and retrieve its token."""
         card_id = attrs.get("card_id")
+        subscription_id = attrs.get("subscription_id")
+
+        try:
+            subscription = Subscription.objects.get(id=subscription_id)
+            if not subscription.pricing_package.is_active:
+                raise_validation_error(message=lang("Obuna paketi faol emas. Iltimos, tekshirib qaytadan yuboring."))
+            # user = self.context.get("request").user
+            # if user.subscription.id != subscription_id:
+            #     raise_validation_error(message=lang("Sizda bunday obuna mavjud emas. Iltimos, tekshirib qaytadan yuboring."))
+            attrs["amount"] = int(subscription.pricing_package.price)
+        except Subscription.DoesNotExist:
+            raise_validation_error(message=lang("Obuna topilmadi. Iltimos, tekshirib qaytadan yuboring."))
 
         try:
             card = Card.objects.get(id=card_id)
@@ -269,7 +281,7 @@ class PayWithCardSerializer(serializers.Serializer):
             subscription = Subscription.objects.get(id=user.subscription.id)
             subscription.start_date = timezone.now().date()
             subscription.end_date = timezone.now().date() + timedelta(days=subscription.pricing_package.duration_days)
-            subscription.is_subscription_active = True
+            subscription.status = SubscriptionStatuses.ACTIVE.value
             subscription.retry_count = 0
             subscription.used_request_count = 0
             subscription.auto_renew = True
@@ -285,7 +297,7 @@ class PayWithCardSerializer(serializers.Serializer):
                     "id": subscription.id,
                     "start_date": subscription.start_date,
                     "end_date": subscription.end_date,
-                    "is_active": subscription.is_subscription_active
+                    "is_active": subscription.status
                 }
             }
 
@@ -294,6 +306,9 @@ class PayWithCardSerializer(serializers.Serializer):
             transaction.status = PaymentStatuses.FAILED.value
             transaction.error_message = str(e)
             transaction.save()
+            # Update subscription status to INACTIVE
+            subscription.status = SubscriptionStatuses.INACTIVE.value
+            subscription.save()
             raise_validation_error(message=lang(f"To'lov jarayonida xatolik yuz berdi: {str(e)}"))
 
 
@@ -329,7 +344,7 @@ class SubscriptionSerializer(serializers.ModelSerializer):
             "pricing_package",
             "start_date",
             "end_date",
-            "is_subscription_active",
+            "status",
             "next_payment_date",
             "retry_count",
             "used_request_count",
@@ -343,7 +358,7 @@ class SubscriptionSerializer(serializers.ModelSerializer):
             "pricing_package",
             "start_date",
             "end_date",
-            "is_subscription_active",
+            "status",
             "next_payment_date",
             "retry_count",
             "used_request_count",
@@ -360,7 +375,7 @@ class SubscriptionSerializer(serializers.ModelSerializer):
         # Check if user already has an active subscription
         try:
             existing_subscription = user.subscription
-            if existing_subscription and existing_subscription.is_subscription_active:
+            if existing_subscription and existing_subscription.status == SubscriptionStatuses.ACTIVE.value:
                 raise_validation_error(message=lang("Sizda allaqachon faol obuna mavjud."))
         except (AttributeError, Subscription.DoesNotExist):
             pass
@@ -391,12 +406,12 @@ class SubscriptionSerializer(serializers.ModelSerializer):
         if pricing_package.price == 0:
             subscription.next_payment_date = None
             subscription.auto_renew = False
-            subscription.is_subscription_active = True
+            subscription.status = SubscriptionStatuses.ACTIVE.value
 
         elif pricing_package.price > 0:
             subscription.next_payment_date = timezone.now().date() + timedelta(days=pricing_package.duration_days)
             subscription.auto_renew = True
-            subscription.is_subscription_active = False
+            subscription.status = SubscriptionStatuses.INACTIVE.value
         user.subscription = subscription
         user.save()
 

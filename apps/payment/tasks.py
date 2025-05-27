@@ -28,15 +28,3 @@ def process_monthly_subscriptions():
             # Restrict account after 3 failed attempts
             if subscription.retry_count >= 3:
                 restrict_user_account(user)
-@shared_task
-def process_daily_used_request_token():
-    print("Process daily used request token")
-    users = User.objects.filter(subscription__is_subscription_active=True)
-    for user in users:
-        if user.subscription.pricing_package.type == PricingPackageType.FREE.value:
-            user.subscription.used_request_count = 0
-        elif user.subscription.pricing_package.type == PricingPackageType.CUSTOM.value:
-            user.subscription.used_request_count = 0
-        elif user.subscription.pricing_package.type == PricingPackageType.PRO.value:
-            user.subscription.used_request_count = 0
-        user.subscription.save()

@@ -8,8 +8,9 @@ from django.core.files import File
 
 
 from apps.assistant.models import Assistant, Conversation, Message, Settings, AssistantFileUpload
+from apps.integration.models import TelegramGroupIntegration
 from shared.addons.ai_requests import update_vector_store_files
-from shared.addons.utils import get_assistant_response_ai, get_thread_id, speech_to_text
+from shared.addons.utils import get_assistant_response_ai, get_thread_id, speech_to_text, send_telegram_message
 from shared.addons.payloads import create_file_urls
 from shared.addons.validations import raise_validation_error
 from shared.addons.enums import ConversationPlatforms, ConversationStatuses
@@ -210,17 +211,34 @@ class MessageSerializer(serializers.ModelSerializer, SubscriptionValidationMixin
         if conversation.status == ConversationStatuses.ESCALATED.value or not assistant.is_active:
             return message
         print(f"time before get_assistant_response: {time.time()}")
-        response = get_assistant_response_ai(
+        response, run_status, response_data = get_assistant_response_ai(
             message=transcribed_text,
             assistant_id=assistant.assistant_id,
             thread_id=conversation.thread_id
         )
+        if response_data:
+            response_text= f"""
+                New lead created:
+                Full name: {response_data.full_name}
+                Phone number: {response_data.phone_number}
+                Email: {response_data.email}
+                Product: {response_data.product}
+            """
+            telegram_groups = TelegramGroupIntegration.objects.filter(
+                integration=assistant.integrations.first()
+            ).all()
+            for telegram_group in telegram_groups:
+                send_telegram_message(telegram_group.group_id, response_text, assistant.integrations.first().api_token)
+                telegram_group.lead_count += 1
+                telegram_group.save()
         print(f"time after get_assistant_response: {time.time()}")
         response_message = Message.objects.create(
             conversation=conversation,
             sender=sender,
             message_content=response,
-            message_type=MessageTypes.TEXT.value
+            message_type=MessageTypes.TEXT.value,
+            input_tokens = run_status.usage.prompt_tokens or 0,
+            output_tokens = run_status.usage.completion_tokens or 0
         )
         return response_message
         

@@ -6,7 +6,7 @@ from django.template.defaulttags import now
 
 from apps.payment.models import Balance, Transaction
 from config import settings
-from shared.addons.enums import TransactionTypes, PaymentStatuses
+from shared.addons.enums import TransactionTypes, PaymentStatuses, SubscriptionStatuses
 
 
 def check_payme_card_token(token):
@@ -165,7 +165,7 @@ def process_subscription_payment(user):
 
     # Step 4: Reset retry count and set next payment date
     subscription = transaction.user.subscription
-    subscription.is_subscription_active = True
+    subscription.status = SubscriptionStatuses.ACTIVE.value
     subscription.used_request_count = 0
     subscription.retry_count = 0
     subscription.last_payment_date = datetime.now().date()

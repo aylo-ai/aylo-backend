@@ -5,6 +5,7 @@ from rest_framework import generics, permissions
 from rest_framework.views import APIView
 
 from apps.payment.models import Feature, PricingPackage, Card, Subscription
+from shared.addons.enums import SubscriptionStatuses
 import apps.payment.serializers as serializers
 from shared.addons.payment import remove_payme_card
 from shared.addons.validations import success_response, error_response
@@ -277,7 +278,7 @@ class ManualSubscriptionPaymentView(generics.CreateAPIView):
 
         # Update user subscription details
         subscription.retry_count = 0
-        subscription.is_subscription_active = True
+        subscription.status = SubscriptionStatuses.ACTIVE.value
         subscription.next_payment_date = now().date() + timedelta(days=30)
         subscription.save()
 
@@ -340,7 +341,7 @@ class SubscriptionCancellationView(APIView, SubscriptionValidationMixin):
 
         # Update subscription status
         subscription = user.subscription
-        subscription.is_subscription_active = False
+        subscription.status = SubscriptionStatuses.INACTIVE.value
         subscription.cancellation_reason = cancellation_reason
         subscription.save()
         

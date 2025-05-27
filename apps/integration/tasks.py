@@ -40,28 +40,36 @@ def process_message_task(chat_id, user_message, bot_token, audio_file=None):
         wait_message_id = response.json().get("result").get("message_id")
 
     create_message(conversation, 'user', user_message, audio_file)
-    response_message = get_assistant_response_ai(user_message, assistant.assistant_id, conversation.thread_id)
+    response_message, run_status, response_data = get_assistant_response_ai(user_message, assistant.assistant_id, conversation.thread_id)
     print(f"Response message: {response_message}")
-    user_register_message = check_register_info(response_message)
-
+    # user_register_message = check_register_info(response_message)
+    
     # Remove wait message
     if wait_message_id:
         delete_telegram_message(chat_id, wait_message_id, bot_token)
 
     # Send response to user
-    if user_register_message:
+    print(f"Response data: {response_data}")
+    if response_data:
+        response_text= f"""
+            New lead created:
+            Full name: {response_data.full_name}
+            Phone number: {response_data.phone_number}
+            Email: {response_data.email}
+            Product: {response_data.product}
+        """
         telegram_groups = TelegramGroupIntegration.objects.filter(
             integration=assistant.integrations.first()
         ).all()
         for telegram_group in telegram_groups:
-            send_telegram_message(telegram_group.group_id, user_register_message, bot_token)
+            send_telegram_message(telegram_group.group_id, response_text, bot_token)
             telegram_group.lead_count += 1
             telegram_group.save()
-        send_telegram_message(chat_id, user_register_message, bot_token)
-        create_message(conversation, 'assistant', response_message)
-    else:
         send_telegram_message(chat_id, response_message, bot_token)
-        create_message(conversation, 'assistant', response_message)
+        create_message(conversation=conversation, sender=SenderTypes.ASSISTANT.value, content=response_message, run_status=run_status)
+    elif response_message:
+        send_telegram_message(chat_id, response_message, bot_token)
+        create_message(conversation=conversation, sender=SenderTypes.ASSISTANT.value, content=response_message, run_status=run_status)
 
 
 @shared_task
@@ -89,13 +97,13 @@ def process_instagram_message(account_id, user_message):
         create_message(conversation, 'user', message_text)
         return
     create_message(conversation, 'user', message_text)
-    response_message = get_assistant_response_ai(message_text, assistant.assistant_id, conversation.thread_id)
+    response_message, run_status = (message_text, assistant.assistant_id, conversation.thread_id)
     print(f"Response message: {response_message}")
 
     # send response to user
     send_instagram_message(account_id, integration.api_token, sender_id, response_message)
     print(f"starting to create message: {response_message}, conversation: {conversation}")
-    create_message(conversation=conversation, sender=SenderTypes.ASSISTANT.value, content=response_message)
+    create_message(conversation=conversation, sender=SenderTypes.ASSISTANT.value, content=response_message, run_status=run_status)
     print(f"Sent message to Instagram user: {sender_id} with message: {response_message}")
 
 

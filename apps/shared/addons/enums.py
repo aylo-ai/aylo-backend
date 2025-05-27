@@ -146,3 +146,8 @@ class AuthTypes(EnumBaseModel):
     EMAIL = 'email'
     GOOGLE = 'google'
     APPLE = 'apple'
+
+class SubscriptionStatuses(EnumBaseModel):
+    ACTIVE = 'active'
+    INACTIVE = 'inactive'
+    CANCELLED = 'cancelled'

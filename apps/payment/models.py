@@ -1,7 +1,8 @@
 from django.db import models
 from django.core.validators import MinValueValidator
 from apps.shared.models import BaseModel
-from shared.addons.enums import PaymentMethods, PaymentStatuses, CurrencyType, TransactionTypes, PricingPackageType
+from shared.addons.enums import PaymentMethods, PaymentStatuses, CurrencyType, \
+                                    TransactionTypes, PricingPackageType, SubscriptionStatuses
 
 
 
@@ -131,7 +132,9 @@ class Subscription(BaseModel):
     )
     start_date = models.DateField(null=True, blank=True)
     end_date = models.DateField(null=True, blank=True)
-    is_subscription_active = models.BooleanField(default=True)
+    status = models.CharField(max_length=100, 
+                              choices=SubscriptionStatuses.choices(), 
+                              default=SubscriptionStatuses.INACTIVE.value)
     next_payment_date = models.DateField(null=True, blank=True)
     retry_count = models.IntegerField(default=0)
     used_request_count = models.IntegerField(default=0)
