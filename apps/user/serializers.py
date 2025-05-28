@@ -183,7 +183,7 @@ class UserSerializer(serializers.ModelSerializer):
     def get_total_request_count(self, obj): # noqa
         subscription = obj.subscription
         if subscription:
-            return subscription.pricing_package.request_count - subscription.used_request_count
+            return subscription.have_request_count
         return 0
     
     def get_subscription(self, obj): # noqa
@@ -191,11 +191,20 @@ class UserSerializer(serializers.ModelSerializer):
         if subscription:
             return {
                 "id": subscription.id,
-                "pricing_package": subscription.pricing_package.name,
+                "pricing_package": {
+                    "id": subscription.pricing_package.id,
+                    "name": subscription.pricing_package.name,
+                    "type": subscription.pricing_package.type,
+                    "price": subscription.pricing_package.price,
+                    "request_count": subscription.pricing_package.request_count,
+                    "duration_days": subscription.pricing_package.duration_days,
+                    "discount_price": subscription.pricing_package.discount_price,
+                    "currency": subscription.pricing_package.currency,
+                },
                 "start_date": subscription.start_date,
                 "end_date": subscription.end_date,
                 "status": subscription.status,
-                "used_request_count": subscription.used_request_count,
+                "have_request_count": subscription.have_request_count,
                 "next_payment_date": subscription.next_payment_date,
                 "auto_renew": subscription.auto_renew,
                 "cancellation_reason": subscription.cancellation_reason,
