@@ -76,13 +76,28 @@ def create_prompt(company_name, company_description, assistant_role, conversatio
 
         {intent_section}
 
-        # ⛔ If the answer is not present in the uploaded files:
-        Use this fallback response exactly:
+        # ⛔ Unknown or Out-of-Scope Responses
+
+        If the answer is not available in the uploaded documents, respond with this format:
+
+        - If a product is mentioned, use:
+
+        {{
+        "intent": "unknown",
+        "entities": {{
+            "product": "<name mentioned by user>"
+        }},
+        "reply": "❌ Kechirasiz, siz so'ragan \"<product>\" mahsuloti haqida bizda ma'lumot topilmadi. 
+                    Iltimos, boshqa savol bering yoki operator bilan bog'laning. 📞"
+        }}
+
+        - If there is no specific product mentioned or it's just unclear:
 
         {{
         "intent": "unknown",
         "entities": {{}},
-        "reply": f"{fallback_message}"
+        "reply": "😕 Kechirasiz, sizni to'g'ri tushuna olmadim. 
+                    Iltimos, so'rovingizni aniqlashtirib yozing yoki operator bilan bog'laning. 📞"
         }}
 
         # 📂 File-Aware Behavior
