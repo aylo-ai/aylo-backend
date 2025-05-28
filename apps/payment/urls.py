@@ -19,6 +19,7 @@ urlpatterns = [
     #payme verification
     path("payme/get-verify-token/", views.PaymeGetVerifyCodeView.as_view()),
     path("payme/verify-code/", views.PaymeVerifyCodeView.as_view()),
+    path("transactions/", views.TransactionListView.as_view()),
 
 
     path("manual-payment/", views.ManualSubscriptionPaymentView.as_view()),

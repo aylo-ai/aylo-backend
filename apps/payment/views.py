@@ -4,7 +4,7 @@ from django.utils.timezone import now
 from rest_framework import generics, permissions
 from rest_framework.views import APIView
 
-from apps.payment.models import Feature, PricingPackage, Card, Subscription
+from apps.payment.models import Feature, PricingPackage, Card, Subscription, Transaction
 from shared.addons.enums import SubscriptionStatuses
 import apps.payment.serializers as serializers
 from shared.addons.payment import remove_payme_card
@@ -350,3 +350,11 @@ class SubscriptionCancellationView(APIView, SubscriptionValidationMixin):
             data={"reason": subscription.cancellation_reason},
             code=200
         )
+    
+class TransactionListView(generics.ListAPIView):
+    queryset = Transaction.objects.all()
+    serializer_class = serializers.TransactionSerializer
+    permission_classes = (permissions.IsAuthenticated,)
+
+    def get_queryset(self):
+        return Transaction.objects.filter(user=self.request.user)

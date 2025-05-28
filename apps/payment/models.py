@@ -137,7 +137,7 @@ class Subscription(BaseModel):
                               default=SubscriptionStatuses.INACTIVE.value)
     next_payment_date = models.DateField(null=True, blank=True)
     retry_count = models.IntegerField(default=0)
-    used_request_count = models.IntegerField(default=0)
+    have_request_count = models.IntegerField(default=0)
     auto_renew = models.BooleanField(default=True)
     cancellation_reason = models.TextField(null=True, blank=True)
     last_payment_date = models.DateField(null=True, blank=True)

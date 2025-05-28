@@ -166,7 +166,7 @@ def process_subscription_payment(user):
     # Step 4: Reset retry count and set next payment date
     subscription = transaction.user.subscription
     subscription.status = SubscriptionStatuses.ACTIVE.value
-    subscription.used_request_count = 0
+    subscription.have_request_count += pricing_package.request_count
     subscription.retry_count = 0
     subscription.last_payment_date = datetime.now().date()
     subscription.next_payment_date = datetime.now().date() + timedelta(days=pricing_package.duration_days)
