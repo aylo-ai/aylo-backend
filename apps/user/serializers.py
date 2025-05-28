@@ -183,7 +183,7 @@ class UserSerializer(serializers.ModelSerializer):
     def get_total_request_count(self, obj): # noqa
         subscription = obj.subscription
         if subscription:
-            return subscription.have_request_count
+            return subscription.remained_request_count
         return 0
     
     def get_subscription(self, obj): # noqa
@@ -204,7 +204,7 @@ class UserSerializer(serializers.ModelSerializer):
                 "start_date": subscription.start_date,
                 "end_date": subscription.end_date,
                 "status": subscription.status,
-                "have_request_count": subscription.have_request_count,
+                "remained_request_count": subscription.remained_request_count,
                 "next_payment_date": subscription.next_payment_date,
                 "auto_renew": subscription.auto_renew,
                 "cancellation_reason": subscription.cancellation_reason,

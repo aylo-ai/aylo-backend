@@ -82,64 +82,6 @@ class IntegrationRetrieveUpdateDestroyView(generics.RetrieveUpdateDestroyAPIView
         return success_response(message="Integration deleted successfully", code=204)
 
 
-# class TelegramWebhookViewDraft(APIView):
-#     def post(self, request, bot_token):  # noqa
-#         data = request.data.get('message')
-#         if not data:
-#             return error_response(message=_("No message data received"))
-
-#         chat_id = data['chat']['id']
-#         user_message = data.get('text')
-#         print(f"Chat ID: {chat_id}, Message: {user_message}")
-#         # Retrieve the assistant based on bot_token
-#         assistant = Assistant.objects.filter(integrations__api_token=bot_token).first()
-#         print(f"Assistant: {assistant}")
-#         if not assistant:
-#             return error_response(message=_("Invalid bot token"))
-
-#         wait_message = f"Iltimos, kutib turing. {assistant.name} sizga xabar yozmoqda.\n" \
-#                        f"Please wait, {assistant.name} is typing your message.\n" \
-#                         f"Пожалуйста, подождите, {assistant.name} печатает ваше сообщение."
-
-#         # Handle `/start` command
-#         if user_message == '/start':
-#             print("user_message: /start")
-#             return handle_start_command(chat_id, assistant, bot_token)
-#         # Handle regular messages
-#         conversation = get_or_create_conversation(chat_id, assistant, token=bot_token)
-#         print(f"conversation: {conversation}")
-#         # Check if the conversation is escalated
-#         if conversation.status == ConversationStatuses.ESCALATED.value or not assistant.is_active:
-#             create_message(conversation, 'user', user_message)
-
-#             return success_response(message=_("Message forwarded to admin"), code=200)
-
-#         response = send_telegram_message(chat_id, wait_message, bot_token)
-#         wait_message_id = response.json().get("result").get("message_id")
-#         print(f"Wait message sent: {wait_message_id}")
-
-#         create_message(conversation, 'user', user_message)
-#         print(f"Message created: {user_message}")
-#         # Generate and send assistant's response
-#         response_message, run_status = get_assistant_response_ai(user_message, assistant.assistant_id, conversation.thread_id)
-#         print(f"Response message: {response_message}, input_tokens: {run_status.usage.prompt_tokens}, output_tokens: {run_status.usage.completion_tokens}")
-#         create_message(conversation, 'assistant', response_message, run_status)
-#         delete_telegram_message(chat_id, wait_message_id, bot_token)
-#         # create lead
-#         if response_message and (response_message.get("intent") == "create_order" or response_message.get("intent") == "collect_order_info"):
-#             response_data = create_lead(
-#                 full_name=response_message['entities']['name'],
-#                 phone_number=response_message['entities']['phone_number'],
-#                 product=response_message['entities']['product'],
-#                 metadata=response_message['entities']
-#             )
-#             print("✅ Lead created from Telegram message" + response_data)  
-#         send_telegram_message(chat_id, response_message, bot_token)
-#         # send_lead_telegram_channel()
-#         print(f"Assistant message sent: {response_message}")
-#         return success_response(message=_("Message processed successfully"), code=200)
-
-
 class SendUserMessageView(generics.CreateAPIView):
     serializer_class = SendUserMessageSerializer
     permission_classes = [IsCustomer]

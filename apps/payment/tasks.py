@@ -7,6 +7,7 @@ from apps.user.models import User
 from shared.addons.payment import process_subscription_payment
 from shared.addons.utils import notify_user_about_failed_payment, restrict_user_account
 from shared.addons.enums import PricingPackageType
+# from apps.payment.models import RetryPayment
 
 
 @shared_task
@@ -22,6 +23,15 @@ def process_monthly_subscriptions():
             subscription.retry_count += 1
             subscription.next_payment_date = timezone.now().date() + timedelta(days=1)
             subscription.save()
+
+            # # Create RetryPayment record
+            # RetryPayment.objects.create(
+            #     subscription=subscription,
+            #     amount=subscription.pricing_package.price,
+            #     status='failed',
+            #     retry_date=timezone.now(),
+            #     error_message=message
+            # )
 
             notify_user_about_failed_payment(user)
 

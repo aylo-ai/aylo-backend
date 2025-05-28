@@ -97,9 +97,28 @@ def process_instagram_message(account_id, user_message):
         create_message(conversation, 'user', message_text)
         return
     create_message(conversation, 'user', message_text)
-    response_message, run_status = (message_text, assistant.assistant_id, conversation.thread_id)
+    response_message, run_status, response_data = get_assistant_response_ai(message_text, assistant.assistant_id, conversation.thread_id)
     print(f"Response message: {response_message}")
 
+    # Handle lead creation if response_data exists
+    if response_data:
+        response_text = f"""
+            New lead created:
+            Full name: {response_data.full_name}
+            Phone number: {response_data.phone_number}
+            Email: {response_data.email}
+            Product: {response_data.product}
+        """
+        # Send lead notification to Telegram groups if configured
+        telegram_integration = assistant.integrations.filter(integration_type="telegram").first()
+        telegram_groups = TelegramGroupIntegration.objects.filter(
+            integration=telegram_integration
+        ).all()
+        for telegram_group in telegram_groups:
+            send_telegram_message(telegram_group.group_id, response_text, telegram_integration.api_token)
+            telegram_group.lead_count += 1
+            telegram_group.save()
+            print(f"Lead sent to telegram group: {telegram_group.group_id}")
     # send response to user
     send_instagram_message(account_id, integration.api_token, sender_id, response_message)
     print(f"starting to create message: {response_message}, conversation: {conversation}")

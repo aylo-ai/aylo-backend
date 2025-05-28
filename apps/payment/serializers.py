@@ -283,7 +283,7 @@ class PayWithCardSerializer(serializers.Serializer):
             subscription.end_date = timezone.now().date() + timedelta(days=subscription.pricing_package.duration_days)
             subscription.status = SubscriptionStatuses.ACTIVE.value
             subscription.retry_count = 0
-            subscription.have_request_count += subscription.pricing_package.request_count
+            subscription.remained_request_count += subscription.pricing_package.request_count
             subscription.auto_renew = True
             subscription.pricing_package = subscription.pricing_package
             subscription.last_payment_date = timezone.now().date()
@@ -347,7 +347,7 @@ class SubscriptionSerializer(serializers.ModelSerializer):
             "status",
             "next_payment_date",
             "retry_count",
-            "have_request_count",
+            "remained_request_count",
             "auto_renew",
             "cancellation_reason",
             "last_payment_date",
@@ -361,7 +361,7 @@ class SubscriptionSerializer(serializers.ModelSerializer):
             "status",
             "next_payment_date",
             "retry_count",
-            "have_request_count",
+            "remained_request_count",
             "auto_renew",
             "cancellation_reason",
             "last_payment_date",
@@ -401,7 +401,7 @@ class SubscriptionSerializer(serializers.ModelSerializer):
             start_date=timezone.now().date(),
             end_date=timezone.now().date() + timedelta(days=pricing_package.duration_days),
             retry_count=0,
-            have_request_count = pricing_package.request_count,
+            remained_request_count = pricing_package.request_count,
             )
         if pricing_package.price == 0:
             subscription.next_payment_date = None

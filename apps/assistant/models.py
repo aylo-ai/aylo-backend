@@ -119,7 +119,7 @@ class Message(BaseModel):
     def save(self, *args, **kwargs):
         """
         Save method to update the conversation's updated_time and
-        increment the user's have_request_count if applicable.
+        increment the user's remained_request_count if applicable.
         """
         # Ensure atomicity of the operations
         with transaction.atomic():
@@ -128,12 +128,12 @@ class Message(BaseModel):
                 self.conversation.updated_time = now()
                 self.conversation.save(update_fields=["updated_time"])
 
-            # If the sender is the assistant, update the user's have_request_count
+            # If the sender is the assistant, update the user's remained_request_count
             assistant_user = getattr(self.conversation.assistant, "user", None) if self.conversation else None
             if assistant_user and self.sender == SenderTypes.ASSISTANT.value:
                 subscription = assistant_user.subscription
-                subscription.have_request_count -= 1
-                subscription.save(update_fields=["have_request_count"])
+                subscription.remained_request_count -= 1
+                subscription.save(update_fields=["remained_request_count"])
             # Call the parent save method
             super().save(*args, **kwargs)
 

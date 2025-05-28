@@ -283,22 +283,7 @@ class ManualSubscriptionPaymentView(generics.CreateAPIView):
         subscription.save()
 
         return success_response(message=_("To'lov muvaffaqiyatli qabul qilindi, rahmat"))
-    
-# class SubscriptionRetrieveView(generics.RetrieveAPIView):
-#     queryset = Subscription.objects.all()
-#     serializer_class = serializers.SubscriptionSerializer
-#     permission_classes = (permissions.IsAuthenticated,)
 
-#     def get_object(self):
-#         try:
-#             return self.queryset.get(user=self.request.user)
-#         except Subscription.DoesNotExist:
-#             return error_response(message=_("Obuna topilmadi"))
-
-#     def retrieve(self, request, *args, **kwargs):
-#         instance = self.get_object()
-#         serializer = self.get_serializer(instance)
-#         return success_response(message=_("Obuna muvaffaqiyatli ko'rsatildi"), data=serializer.data)
 
 class SubscriptionCreateView(generics.CreateAPIView):
     serializer_class = serializers.SubscriptionSerializer
@@ -357,4 +342,10 @@ class TransactionListView(generics.ListAPIView):
     permission_classes = (permissions.IsAuthenticated,)
 
     def get_queryset(self):
-        return Transaction.objects.filter(user=self.request.user)
+        user = self.request.user
+        if user.created_by:
+            # If user is created by an admin, show transactions for all users created by this admin
+            return Transaction.objects.filter(user__created_by=user)
+        else:
+            # For regular users, show only their own transactions
+            return Transaction.objects.filter(user=user)

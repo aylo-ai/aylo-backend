@@ -231,10 +231,23 @@ def get_assistant_response_ai(message, assistant_id, thread_id):
     clean_response = check_response(message)
 
     response_data = None
-    if intent == "create_order" or intent == "collect_order_info":
+    if intent == "create_order":
+        name = (
+                entities.get('name') or 
+                entities.get('full_name') or 
+                entities.get('customer_user') or 
+                entities.get('customer_name') or 
+                None
+                )
+        phone_number = (
+                entities.get('phone_number') or 
+                entities.get('contact_number') or 
+                None
+            )
+            
         response_data = create_lead(
-            full_name=entities.get('name', None),
-            phone_number=entities.get('phone_number', None),
+            full_name=name,
+            phone_number=phone_number,
             email=entities.get('email', None),
             product=entities.get('product', None),
             metadata=entities

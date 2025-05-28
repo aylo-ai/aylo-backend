@@ -137,7 +137,7 @@ class Subscription(BaseModel):
                               default=SubscriptionStatuses.INACTIVE.value)
     next_payment_date = models.DateField(null=True, blank=True)
     retry_count = models.IntegerField(default=0)
-    have_request_count = models.IntegerField(default=0)
+    remained_request_count = models.IntegerField(default=0, validators=[MinValueValidator(0)])
     auto_renew = models.BooleanField(default=True)
     cancellation_reason = models.TextField(null=True, blank=True)
     last_payment_date = models.DateField(null=True, blank=True)
@@ -152,3 +152,17 @@ class Subscription(BaseModel):
 
     def __str__(self):
         return f"{self.pricing_package.name} - {self.start_date} - {self.end_date}"
+    
+# class RetryPayment(BaseModel):
+#     subscription = models.ForeignKey(Subscription, on_delete=models.CASCADE, related_name="retry_payments")
+#     amount = models.DecimalField(max_digits=20, decimal_places=2)
+#     status = models.CharField(max_length=100, choices=PaymentStatuses.choices())
+#     retry_date = models.DateTimeField(null=True, blank=True)
+#     error_message = models.TextField(null=True, blank=True)
+    
+#     class Meta:
+#         db_table = "retry_payment"
+#         ordering = ["-created_time"]
+
+#     def __str__(self):
+#         return f"{self.subscription.pricing_package.name} - {self.amount} - {self.status}"

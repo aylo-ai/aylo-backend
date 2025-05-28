@@ -15,6 +15,9 @@ class SubscriptionValidationMixin:
         """
         if not subscription:
             raise_validation_error(message=_("Sizda obuna paketi yo'q. Iltimos, avval obuna paketini tanlang."))
+
+        if subscription.remained_request_count == 0:
+            raise_validation_error(message=_("Sizning obunangiz tokeni tugagan. Iltimos, obunangizni yangilang."))
         
         # Check if subscription is active
         if  subscription.status == SubscriptionStatuses.INACTIVE.value:
