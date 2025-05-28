@@ -28,7 +28,7 @@ def extract_text_from_txt_files(txt_file_path):
     return text[:2000]  # Limit text to the first 2000 characters
 
 
-def create_prompt(company_name, company_description, assistant_role, conversation_style, assistant_language, valid_intents):
+def create_prompt(company_name, company_description, assistant_role, conversation_style, assistant_language, valid_intents, fallback_message):
     """
     Generate a structured prompt for an AI assistant, including intent classification, reply format, and flow guidelines.
     """
@@ -82,7 +82,7 @@ def create_prompt(company_name, company_description, assistant_role, conversatio
         {{
         "intent": "unknown",
         "entities": {{}},
-        "reply": "❌ Kechirasiz, bu haqda aniq ma'lumot topa olmadim. Iltimos, boshqa savol bering yoki operator bilan bog‘laning 📞."
+        "reply": f"{fallback_message}"
         }}
 
         # 📂 File-Aware Behavior
@@ -101,6 +101,7 @@ def create_prompt(company_name, company_description, assistant_role, conversatio
         - DO NOT mention products, services, or pricing that are not explicitly stated in the documents.
         - DO NOT fabricate availability of items.
         - DO NOT respond with plain text or markdown — respond only with the JSON structure above.
+        - DO NOT create an order with product/service that is not explicitly stated in the documents.
         """
 
     return prompt_template

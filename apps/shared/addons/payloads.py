@@ -48,6 +48,7 @@ valid_intents = {
     "create_order": "Foydalanuvchi buyurtma bermoqchi",
     "cancel_order": "Foydalanuvchi buyurtmani bekor qilmoqchi",
     "get_description": "Foydalanuvchi mahsulot haqida ma'lumot so'raydi",
+    "collect_order_info": "Foydalanuvchi buyurtma ma'lumotlarini to'plash",
     "order_confirmation": "Foydalanuvchi buyurtmani tasdiqlashmoqda",
     "get_contact_info": "Foydalanuvchi telefon raqami yoki manzil so‘raydi",
     "get_payment_methods": "Foydalanuvchi to'lov usullarini so'raydi",
