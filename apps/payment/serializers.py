@@ -3,7 +3,7 @@ from datetime import timedelta
 from django.utils import timezone
 from rest_framework import serializers
 
-from apps.payment.models import Feature, PricingPackage, Card, Transaction, Subscription
+from apps.payment.models import Feature, PricingPackage, Card, Transaction, Subscription, RetryPayment
 from shared.addons.enums import TransactionTypes, PaymentStatuses, SubscriptionStatuses
 from shared.addons.payment import check_payme_card_token, create_payme_receipt, commit_payme_receipt, \
     update_user_balance, send_create_card_request, send_verify_code_request, verify_payme_card_token
@@ -420,5 +420,15 @@ class SubscriptionSerializer(serializers.ModelSerializer):
         return subscription
 
         
+class RetryPaymentSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = RetryPayment
+        fields = [
+            "id",
+            "subscription",
+            "amount",
+            "status",
+            "retry_date",
+            "error_message",
+        ]
 
-    

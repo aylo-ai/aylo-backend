@@ -1,5 +1,5 @@
 from django.contrib import admin
-from .models import Feature, PricingPackage, Transaction, Card, Balance, Subscription
+from .models import Feature, PricingPackage, Transaction, Card, Balance, Subscription, RetryPayment
 
 
 @admin.register(Feature)
@@ -40,3 +40,9 @@ class SubscriptionAdmin(admin.ModelAdmin):
     list_display = ('pricing_package', 'start_date', 'end_date', 'status', )
     search_fields = ('pricing_package__name', 'start_date', 'end_date', 'status', )
     list_filter = ('status', 'pricing_package')
+
+@admin.register(RetryPayment)
+class RetryPaymentAdmin(admin.ModelAdmin):
+    list_display = ('subscription', 'amount', 'status', 'retry_date')
+    search_fields = ('subscription__pricing_package__name', 'amount', 'status', 'retry_date')
+    list_filter = ('status', 'subscription')

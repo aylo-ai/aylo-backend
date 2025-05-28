@@ -4,7 +4,7 @@ from django.utils.timezone import now
 from rest_framework import generics, permissions
 from rest_framework.views import APIView
 
-from apps.payment.models import Feature, PricingPackage, Card, Subscription, Transaction
+from apps.payment.models import Feature, PricingPackage, Card, Subscription, Transaction, RetryPayment  
 from shared.addons.enums import SubscriptionStatuses
 import apps.payment.serializers as serializers
 from shared.addons.payment import remove_payme_card
@@ -312,12 +312,11 @@ class SubscriptionUpdateView(generics.UpdateAPIView):
         serializer.save()
         return success_response(message=_("Obuna muvaffaqiyatli tahrirlandi"), data=serializer.data)
 
-class SubscriptionCancellationView(APIView, SubscriptionValidationMixin):
+class SubscriptionCancellationView(APIView):
     permission_classes = [permissions.IsAuthenticated]
     
     def post(self, request, *args, **kwargs):
         user = request.user
-        self.validate_subscription(user.subscription)
 
         # Get cancellation reason from request data
         cancellation_reason = request.data.get('cancellation_reason')
@@ -349,3 +348,13 @@ class TransactionListView(generics.ListAPIView):
         else:
             # For regular users, show only their own transactions
             return Transaction.objects.filter(user=user)
+
+class RetryPaymentListView(generics.ListAPIView):
+    queryset = RetryPayment.objects.all()
+    serializer_class = serializers.RetryPaymentSerializer
+    permission_classes = (permissions.IsAuthenticated,)
+
+    def get_queryset(self):
+        subscription_id = self.kwargs.get('pk')
+        return RetryPayment.objects.filter(subscription_id=subscription_id)
+
