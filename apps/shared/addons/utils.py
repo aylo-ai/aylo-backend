@@ -136,6 +136,9 @@ def create_assistant(instructions, name, vector_store_id):
                                 "properties": {
                                     "product": {"type": "string"},
                                     "quantity": {"type": "string"},
+                                    "name": {"type": "string"},
+                                    "phone_number": {"type": "string"},
+                                    "email": {"type": "string"},
                                     "price": {"type": "string"},
                                     "total": {"type": "string"},
                                     "payment_method": {"type": "string"},
