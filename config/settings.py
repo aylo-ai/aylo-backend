@@ -480,6 +480,6 @@ STATICFILES_STORAGE = "storages.backends.s3boto3.S3Boto3Storage"
 CELERY_BEAT_SCHEDULE = {
     'process-monthly-subscriptions': {
         'task': 'apps.payment.tasks.process_monthly_subscriptions',
-        'schedule': crontab(minute='*/1'),  # Run every 2 minutes
+        'schedule': crontab(minute=0, hour=0),  # Run every day at 00:00
     }
 }
