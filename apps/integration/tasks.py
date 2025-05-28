@@ -97,7 +97,7 @@ def process_instagram_message(account_id, user_message):
         create_message(conversation, 'user', message_text)
         return
     create_message(conversation, 'user', message_text)
-    response_message, run_status = (message_text, assistant.assistant_id, conversation.thread_id)
+    response_message, run_status, response_data = get_assistant_response_ai(message_text, assistant.assistant_id, conversation.thread_id)
     print(f"Response message: {response_message}")
 
     # send response to user
