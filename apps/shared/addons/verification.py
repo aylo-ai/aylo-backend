@@ -48,8 +48,8 @@ def send_code(phone_number):
         return False, "Code already sent"
     code = generate_code()
     message = f"Repli.uz! Sizning tasdiqlash kodingiz - {code}\n"
-    # success, message = send_playmobile_sms(phone_number, message)
-    success, message = True, "Code sent successfully"
+    success, message = send_playmobile_sms(phone_number, message)
+    # success, message = True, "Code sent successfully"
     if not success:
         return False, message
     print(f"Your code for number {phone_number} is {code}")
