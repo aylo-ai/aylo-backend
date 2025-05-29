@@ -324,9 +324,10 @@ def speech_to_text(audio_bytes: bytes, language: str = "uz") -> str:
         client = genai.Client(api_key=settings.GOOGLE_GEMINI_API_KEY)
         print(f"Client: {client}")
         prompt = f"""
-        We have a call recording in the {language} language. Your task is to:  
-        1. Generate a transcript of the conversation accurately in {language}. 
-        """
+            Transcribe the following audio in plain {language} text. 
+            Do not include timestamps or any explanations. 
+            Only return the raw transcription.
+            """
         print(f"Prompt: {prompt}")
         response = client.models.generate_content(
             model="gemini-2.5-flash-preview-04-17",
