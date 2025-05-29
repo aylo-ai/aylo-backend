@@ -8,7 +8,6 @@ from shared.addons.enums import PaymentMethods, PaymentStatuses, CurrencyType, \
 
 class Feature(BaseModel):
     name = models.CharField(max_length=100)
-    description = models.TextField(null=True, blank=True)
     icon = models.CharField(max_length=50, null=True, blank=True)
     is_active = models.BooleanField(default=True)
 

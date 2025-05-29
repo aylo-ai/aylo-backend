@@ -22,6 +22,7 @@ ALLOWED_HOSTS = ["*"]
 
 DEFAULT_APPS = [
     # "jazzmin",
+    "modeltranslation",
     "django.contrib.admin",
     "django.contrib.auth",
     "django.contrib.contenttypes",
@@ -483,3 +484,14 @@ CELERY_BEAT_SCHEDULE = {
         'schedule': crontab(minute=0, hour=0),  # Run every day at 00:00
     }
 }
+
+# Modeltranslation settings
+MODELTRANSLATION_DEFAULT_LANGUAGE = 'en'
+
+LANGUAGES = (
+    ('en', 'English'),
+    ('uz', 'Uzbek'),
+    ('ru', 'Russian'),
+    ('kk', 'Kazakh'),
+)
+MODELTRANSLATION_LANGUAGES = ('en', 'uz', 'ru', 'kk')

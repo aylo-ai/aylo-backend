@@ -14,5 +14,4 @@ urlpatterns = [
 
     path("send-telegram-message/", views.SendUserMessageView.as_view()),
 
-
 ]

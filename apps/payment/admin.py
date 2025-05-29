@@ -4,8 +4,8 @@ from .models import Feature, PricingPackage, Transaction, Card, Balance, Subscri
 
 @admin.register(Feature)
 class FeatureAdmin(admin.ModelAdmin):
-    list_display = ('name', 'description')
-    search_fields = ('name', 'description')
+    list_display = ('name', )
+    search_fields = ('name', )
 
 
 @admin.register(PricingPackage)

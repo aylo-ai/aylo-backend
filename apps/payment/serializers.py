@@ -18,7 +18,6 @@ class FeatureSerializer(serializers.ModelSerializer):
         fields = [
             "id",
             "name",
-            "description",
             "icon",
         ]
 

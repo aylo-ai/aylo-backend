@@ -230,9 +230,24 @@ class InstagramDeauthorizeView(APIView):
         user_id = data.get("user_id")
 
         if user_id:
-            # Here you should remove the user from your database
-            print(f"User {user_id} deauthorized the app.")
-            return success_response(message="User deauthorized the app", code=200)
+            # Find and remove the user's Instagram integration
+            try:
+                integration = Integration.objects.filter(
+                    integration_type=IntegrationTypes.INSTAGRAM.value,
+                    instagram_user_id=user_id
+                ).first()
+                
+                if integration:
+                    # Delete the integration
+                    integration.delete()
+                    print(f"User {user_id} deauthorized the app and their integration was removed.")
+                else:
+                    print(f"User {user_id} deauthorized the app but no integration was found.")
+                
+                return success_response(message="User deauthorized the app", code=200)
+            except Exception as e:
+                print(f"Error during deauthorization: {str(e)}")
+                return error_response(message="Error processing deauthorization", code=500)
         else:
             return error_response(message="User ID not found in signed request", code=400)
 
