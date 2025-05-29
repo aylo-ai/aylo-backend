@@ -58,14 +58,14 @@ def process_message_task(chat_id, user_message, bot_token, audio_file=None):
             Email: {response_data.email}
             Product: {response_data.product}
         """
+        telegram_integration = assistant.integrations.filter(integration_type="telegram").first()
         telegram_groups = TelegramGroupIntegration.objects.filter(
-            integration=assistant.integrations.first()
+            integration=telegram_integration
         ).all()
         for telegram_group in telegram_groups:
             send_telegram_message(telegram_group.group_id, response_text, bot_token)
             telegram_group.lead_count += 1
             telegram_group.save()
-        send_telegram_message(chat_id, response_message, bot_token)
         create_message(conversation=conversation, sender=SenderTypes.ASSISTANT.value, content=response_message, run_status=run_status)
     elif response_message:
         send_telegram_message(chat_id, response_message, bot_token)

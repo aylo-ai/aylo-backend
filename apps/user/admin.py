@@ -1,5 +1,5 @@
 from django.contrib import admin
-from apps.user.models import User, PrivacyPolicy, UserAgreement
+from apps.user.models import User, PrivacyPolicy, UserAgreement, Notification
 
 
 @admin.register(User)
@@ -50,4 +50,14 @@ class UserAgreementAdmin(admin.ModelAdmin):
     fieldsets = (
         (None, {"fields": ("title", "content", "pricing_packge")}),
         ("Settings", {"fields": ("is_active", "language")}),
+    )
+    
+@admin.register(Notification)
+class NotificationAdmin(admin.ModelAdmin):
+    list_display = ("user__username", "title", "type", "is_read")
+    search_fields = ("user__username", "title", "type")
+    list_filter = ("type", "is_read")
+    fieldsets = (
+        (None, {"fields": ("user", "title", "content", "type", "is_read",)}),
+        ("Settings", {"fields": ("created_time", "updated_time")}),
     )

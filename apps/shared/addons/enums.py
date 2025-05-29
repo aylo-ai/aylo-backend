@@ -151,3 +151,9 @@ class SubscriptionStatuses(EnumBaseModel):
     ACTIVE = 'active'
     INACTIVE = 'inactive'
     CANCELLED = 'cancelled'
+
+class NotificationTypes(EnumBaseModel):
+    NEWS='news'
+    FAILED='failed'
+    SUCCESS='success'
+    WARNING='warning'

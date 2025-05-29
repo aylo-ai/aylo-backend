@@ -33,9 +33,11 @@ class IntegrationCreateSerializer(serializers.ModelSerializer, SubscriptionValid
         api_token = attrs.get("api_token", None)
         user = self.context.get("request").user
         base_url = self.context.get("base_url")
+        assistant_id = self.context.get("assistant_id")
         # Use the mixin's validation method
         self.validate_subscription(user.subscription)
-        # self.validate_intergation_count(user)
+        # validate integration count based on pricing package
+        self.validate_intergation_count(user, assistant_id)
 
         if integration_type == IntegrationTypes.TELEGRAM.value and api_token:
             success, code = telegram_get_me(api_token)

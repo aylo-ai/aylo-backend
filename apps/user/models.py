@@ -5,7 +5,7 @@ from django.db import models
 from rest_framework_simplejwt.tokens import RefreshToken
 
 from apps.payment.models import Subscription
-from shared.addons.enums import AuthTypes, UserRoles
+from shared.addons.enums import AuthTypes, UserRoles, NotificationTypes
 from shared.models import BaseModel
 
 from faker import Faker
@@ -107,4 +107,21 @@ class UserAgreement(BaseModel):
         indexes = [
             models.Index(fields=['title']),
             models.Index(fields=['language']),
+        ]
+
+class Notification(BaseModel):
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='notifications')
+    title = models.CharField(max_length=255)
+    content = models.TextField()
+    is_read = models.BooleanField(default=False)
+    type = models.CharField(max_length=255, choices=NotificationTypes.choices())
+
+    def __str__(self):
+        return self.title
+    
+    class Meta: 
+        db_table = "notification"
+        indexes = [
+            models.Index(fields=['user']),
+            models.Index(fields=['type']),
         ]

@@ -37,9 +37,16 @@ class BalanceAdmin(admin.ModelAdmin):
 
 @admin.register(Subscription)
 class SubscriptionAdmin(admin.ModelAdmin):
-    list_display = ('pricing_package', 'start_date', 'end_date', 'status', )
-    search_fields = ('pricing_package__name', 'start_date', 'end_date', 'status', )
+    list_display = ('get_username', 'pricing_package', 'start_date', 'end_date', 'status')
     list_filter = ('status', 'pricing_package')
+    search_fields = ('users__username', 'users__phone_number')
+    readonly_fields = ('created_time', 'updated_time')
+
+    def get_username(self, obj):
+        user = obj.users.first()  # Get the first user from the related users
+        return user.username if user else '-'
+    get_username.short_description = 'Username'  # Column header
+    get_username.admin_order_field = 'users__username'  # Enable sorting
 
 @admin.register(RetryPayment)
 class RetryPaymentAdmin(admin.ModelAdmin):

@@ -2,7 +2,8 @@ from django.utils.translation import gettext as _
 from django.utils import timezone
 
 from shared.addons.validations import raise_validation_error
-from shared.addons.enums import IntegrationTypes, SubscriptionStatuses
+from shared.addons.enums import IntegrationTypes, SubscriptionStatuses, PricingPackageType
+from apps.integration.models import Integration
 
 class SubscriptionValidationMixin:
     """
@@ -16,7 +17,7 @@ class SubscriptionValidationMixin:
         if not subscription:
             raise_validation_error(message=_("Sizda obuna paketi yo'q. Iltimos, avval obuna paketini tanlang."))
 
-        if subscription.remained_request_count == 0:
+        if subscription.remained_request_count <= 0:
             raise_validation_error(message=_("Sizning obunangiz tokeni tugagan. Iltimos, obunangizni yangilang."))
         
         # Check if subscription is active
@@ -26,10 +27,6 @@ class SubscriptionValidationMixin:
         if subscription.next_payment_date < timezone.now().date() if subscription.next_payment_date else False:
             raise_validation_error(message=_("Sizning obunangiz muddati tugagan. Iltimos, obunangizni yangilang."))
         
-        # Check if subscription has not expired
-        # if subscription.end_date < timezone.now().date():
-        #     raise_validation_error(message=_("Sizning obunangiz muddati tugagan. Iltimos, obunangizni yangilang."))
-        
         return subscription
             
 
@@ -38,10 +35,17 @@ class SubscriptionValidationMixin:
         if assistants >= 5:
             raise_validation_error(message=_("Sizning assistantlar soningiz tugagan. Iltimos, assistantlar sonini oshiring."))
 
-    # def validate_intergation_count(self, user):
-        # total_integrations = Integration.objects.filter(assistant=user.assistant).count()
-        # if total_integrations >= 2:
-        #     raise_validation_error(message=_("Sizning integratsiya soningiz tugagan. Iltimos, integratsiya sonini oshiring."))
+    def validate_intergation_count(self, user, assistant_id):
+        total_integrations = Integration.objects.filter(assistant_id=assistant_id).count()
+        if user.subscription.pricing_package.type == PricingPackageType.FREE.value:
+            if total_integrations >= 1:
+                raise_validation_error(message=_("Sizning integratsiya soningiz tugagan. Iltimos, integratsiya sonini oshiring."))
+        if user.subscription.pricing_package.type == PricingPackageType.CUSTOM.value:
+            if total_integrations >= 2:
+                raise_validation_error(message=_("Sizning integratsiya soningiz tugagan. Iltimos, integratsiya sonini oshiring."))
+        if user.subscription.pricing_package.type == PricingPackageType.PRO.value:
+            if total_integrations >= 3:
+                raise_validation_error(message=_("Sizning integratsiya soningiz tugagan. Iltimos, integratsiya sonini oshiring."))
 
     def validate_telegram_integration_count(self, subscription):
         telegram_integrations = subscription.integrations.filter(platform=IntegrationTypes.TELEGRAM.value).count()

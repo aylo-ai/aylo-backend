@@ -121,6 +121,7 @@ class Message(BaseModel):
         Save method to update the conversation's updated_time and
         increment the user's remained_request_count if applicable.
         """
+        from shared.addons.utils import notify_user_about_low_tokens
         # Ensure atomicity of the operations
         with transaction.atomic():
             # Update the conversation's updated_time if it exists
@@ -133,6 +134,8 @@ class Message(BaseModel):
             if assistant_user and self.sender == SenderTypes.ASSISTANT.value:
                 subscription = assistant_user.subscription
                 subscription.remained_request_count -= 1
+                if subscription.remained_request_count == 20:
+                    notify_user_about_low_tokens(assistant_user, subscription.remained_request_count)
                 subscription.save(update_fields=["remained_request_count"])
             # Call the parent save method
             super().save(*args, **kwargs)

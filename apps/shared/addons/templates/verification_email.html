@@ -2,51 +2,119 @@
 <html>
 <head>
     <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{{ subject|default:"Verification Code" }}</title>
     <style>
         body {
-            font-family: Arial, sans-serif;
-            background: #f7f7f7;
-            color: #333;
-            padding: 30px;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #fafafa;
+            color: #2c3e50;
+            margin: 0;
+            padding: 20px;
+            line-height: 1.5;
         }
         .container {
-            background: #fff;
+            background: #ffffff;
+            max-width: 500px;
+            margin: 20px auto;
+            border-radius: 12px;
+            box-shadow: 0 2px 12px rgba(0, 0, 0, 0.08);
+        }
+        .header {
+            background: #2563eb;
+            padding: 25px;
+            text-align: center;
+            border-radius: 12px 12px 0 0;
+        }
+        .header h1 {
+            color: #ffffff;
+            font-size: 24px;
+            margin: 0;
+            font-weight: 600;
+        }
+        .content {
+            padding: 30px;
+        }
+        .greeting {
+            font-size: 18px;
+            color: #1e293b;
+            margin-bottom: 20px;
+            font-weight: 500;
+        }
+        .code-box {
+            background: #f8fafc;
+            border: 1px solid #e2e8f0;
             border-radius: 8px;
-            max-width: 400px;
-            margin: 0 auto;
-            padding: 30px 40px;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.07);
+            padding: 25px;
+            text-align: center;
+            margin: 25px 0;
         }
         .code {
-            font-size: 2em;
-            font-weight: bold;
-            color: #2d8cf0;
-            letter-spacing: 4px;
+            font-size: 32px;
+            font-weight: 700;
+            color: #2563eb;
+            letter-spacing: 6px;
+            margin: 0;
+            font-family: 'SF Mono', 'Courier New', monospace;
+        }
+        .expiry {
+            color: #64748b;
+            font-size: 14px;
+            margin-top: 12px;
+        }
+        .warning {
+            background: #fef2f2;
+            border-left: 3px solid #ef4444;
+            padding: 12px 15px;
             margin: 20px 0;
+            border-radius: 0 4px 4px 0;
+        }
+        .warning p {
+            color: #991b1b;
+            margin: 0;
+            font-size: 13px;
         }
         .footer {
-            margin-top: 30px;
-            font-size: 0.9em;
-            color: #888;
+            background: #f8fafc;
+            padding: 20px;
+            text-align: center;
+            border-top: 1px solid #e2e8f0;
+            border-radius: 0 0 12px 12px;
+        }
+        .footer-text {
+            color: #64748b;
+            font-size: 13px;
+            margin: 0;
+        }
+        .brand {
+            color: #2563eb;
+            font-weight: 600;
         }
     </style>
 </head>
 <body>
     <div class="container">
-        <h2>{{ subject|default:"Verification Code" }}</h2>
-        <p>
-            {{ user_name|default:"Dear User" }},<br>
-            <br>
-            Your verification code is:
-        </p>
-        <div class="code">{{ code }}</div>
-        <p>
-            This code will expire in {{ expiry_minutes|default:"5" }} minutes.<br>
-            If you did not request this code, please ignore this email.
-        </p>
+        <div class="header">
+            <h1>{{ subject|default:"Verification Code" }}</h1>
+        </div>
+        <div class="content">
+            <p class="greeting">Hi {{ user_name|default:"there" }},</p>
+            
+            <p>Here's your verification code:</p>
+
+            <div class="code-box">
+                <div class="code">{{ code }}</div>
+                <div class="expiry">Expires in {{ expiry_minutes|default:"5" }} minutes</div>
+            </div>
+
+            <div class="warning">
+                <p>If you didn't request this code, please ignore this email.</p>
+            </div>
+        </div>
         <div class="footer">
-            &copy; {{ year|default:"2024" }} SG-AI
+            <p class="footer-text">
+                <span class="brand">SG-AI</span> &copy; {{ year|default:"2024" }}
+            </p>
         </div>
     </div>
 </body>
