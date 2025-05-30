@@ -206,21 +206,32 @@ class InstagramDeauthorizeView(APIView):
             return error_response(message="Signed request not found", code=400)
 
         def parse_signed_request(signed_request, secret):  # noqa
-            encoded_sig, payload = signed_request.split('.', 1)
-            decoded_payload = base64.urlsafe_b64decode(payload + "==").decode()
-            data = json.loads(decoded_payload)
+            try:
+                encoded_sig, payload = signed_request.split('.', 1)
+                
+                # Add padding to payload if needed
+                payload += '=' * (4 - len(payload) % 4)
+                decoded_payload = base64.urlsafe_b64decode(payload).decode()
+                data = json.loads(decoded_payload)
 
-            # Verify signature
-            expected_sig = hmac.new(
-                secret.encode(),
-                msg=payload.encode(),
-                digestmod=hashlib.sha256
-            ).digest()
+                # Verify signature
+                # Add padding to signature if needed
+                encoded_sig += '=' * (4 - len(encoded_sig) % 4)
+                decoded_sig = base64.urlsafe_b64decode(encoded_sig)
+                
+                expected_sig = hmac.new(
+                    secret.encode(),
+                    msg=payload.encode(),
+                    digestmod=hashlib.sha256
+                ).digest()
 
-            if not hmac.compare_digest(base64.urlsafe_b64encode(expected_sig).strip(), encoded_sig.encode()):
+                if not hmac.compare_digest(decoded_sig, expected_sig):
+                    return None
+
+                return data
+            except Exception as e:
+                print(f"Error parsing signed request: {str(e)}")
                 return None
-
-            return data
 
         CLIENT_SECRET = "5012f3e33700b8b659a9c97c1fc1f7bd"
         data = parse_signed_request(signed_request, CLIENT_SECRET)
@@ -263,22 +274,32 @@ class InstagramDataDeletionView(APIView):
         CLIENT_SECRET = "5012f3e33700b8b659a9c97c1fc1f7bd"
 
         def parse_signed_request(signed_request, secret):
-            import base64, hashlib, hmac
+            try:
+                encoded_sig, payload = signed_request.split('.', 1)
+                
+                # Add padding to payload if needed
+                payload += '=' * (4 - len(payload) % 4)
+                decoded_payload = base64.urlsafe_b64decode(payload).decode()
+                data = json.loads(decoded_payload)
 
-            encoded_sig, payload = signed_request.split('.', 1)
-            decoded_payload = base64.urlsafe_b64decode(payload + "==").decode()
-            data = json.loads(decoded_payload)
+                # Verify signature
+                # Add padding to signature if needed
+                encoded_sig += '=' * (4 - len(encoded_sig) % 4)
+                decoded_sig = base64.urlsafe_b64decode(encoded_sig)
+                
+                expected_sig = hmac.new(
+                    secret.encode(),
+                    msg=payload.encode(),
+                    digestmod=hashlib.sha256
+                ).digest()
 
-            expected_sig = hmac.new(
-                secret.encode(),
-                msg=payload.encode(),
-                digestmod=hashlib.sha256
-            ).digest()
+                if not hmac.compare_digest(decoded_sig, expected_sig):
+                    return None
 
-            if not hmac.compare_digest(base64.urlsafe_b64encode(expected_sig).strip(), encoded_sig.encode()):
+                return data
+            except Exception as e:
+                print(f"Error parsing signed request: {str(e)}")
                 return None
-
-            return data
 
         data = parse_signed_request(signed_request, CLIENT_SECRET)
         if not data:
