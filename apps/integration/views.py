@@ -197,34 +197,6 @@ class InstagramCallbackView(APIView):
             return error_response(message="Failed to enable webhook", code=400)
 
 
-def parse_signed_request(signed_request, secret):
-    try:
-        encoded_sig, payload = signed_request.split('.', 1)
-        
-        # Add padding to payload if needed
-        payload += '=' * (4 - len(payload) % 4)
-        decoded_payload = base64.urlsafe_b64decode(payload).decode()
-        data = json.loads(decoded_payload)
-
-        # Verify signature
-        # Add padding to signature if needed
-        encoded_sig += '=' * (4 - len(encoded_sig) % 4)
-        decoded_sig = base64.urlsafe_b64decode(encoded_sig)
-        
-        expected_sig = hmac.new(
-            secret.encode(),
-            msg=payload.encode(),
-            digestmod=hashlib.sha256
-        ).digest()
-
-        if not hmac.compare_digest(decoded_sig, expected_sig):
-            return None
-
-        return data
-    except Exception as e:
-        print(f"Error parsing signed request: {str(e)}")
-        return None
-
 
 class InstagramDeauthorizeView(APIView):
     def post(self, request, *args, **kwargs): # noqa
@@ -233,6 +205,47 @@ class InstagramDeauthorizeView(APIView):
         print(f"Deauthorize Signed request: {signed_request}")
         if not signed_request:
             return error_response(message="Signed request not found", code=400)
+        def parse_signed_request(signed_request: str, app_secret: str):
+            """
+            Parses and validates a signed_request from Instagram/Facebook.
+
+            Args:
+                signed_request (str): The signed request string from Meta.
+                app_secret (str): Your Instagram app's secret key.
+
+            Returns:
+                dict or None: Decoded data if valid, otherwise None.
+            """
+            try:
+                def base64_url_decode(input_str):
+                    input_str += '=' * ((4 - len(input_str) % 4) % 4)  # Proper padding
+                    return base64.urlsafe_b64decode(input_str.encode())
+
+                encoded_sig, payload = signed_request.split('.', 1)
+
+                # Decode the payload and signature
+                decoded_sig = base64_url_decode(encoded_sig)
+                decoded_payload = base64_url_decode(payload)
+                data = json.loads(decoded_payload)
+
+                # Generate expected signature
+                expected_sig = hmac.new(
+                    app_secret.encode(),
+                    msg=payload.encode(),
+                    digestmod=hashlib.sha256
+                ).digest()
+
+                # Validate signature
+                if not hmac.compare_digest(decoded_sig, expected_sig):
+                    print("Invalid signature!")
+                    return None
+
+                return data
+
+            except Exception as e:
+                print("Error parsing signed request:", str(e))
+                return None
+                
 
         data = parse_signed_request(signed_request, INSTAGRAM_CLIENT_SECRET)
         print(f"Deauthorize Data: {data}")
@@ -270,6 +283,46 @@ class InstagramDataDeletionView(APIView):
 
         if not signed_request:
             return error_response(message="Signed request not found", code=400)
+        def parse_signed_request(signed_request: str, app_secret: str):
+            """
+            Parses and validates a signed_request from Instagram/Facebook.
+
+            Args:
+                signed_request (str): The signed request string from Meta.
+                app_secret (str): Your Instagram app's secret key.
+
+            Returns:
+                dict or None: Decoded data if valid, otherwise None.
+            """
+            try:
+                def base64_url_decode(input_str):
+                    input_str += '=' * ((4 - len(input_str) % 4) % 4)  # Proper padding
+                    return base64.urlsafe_b64decode(input_str.encode())
+
+                encoded_sig, payload = signed_request.split('.', 1)
+
+                # Decode the payload and signature
+                decoded_sig = base64_url_decode(encoded_sig)
+                decoded_payload = base64_url_decode(payload)
+                data = json.loads(decoded_payload)
+
+                # Generate expected signature
+                expected_sig = hmac.new(
+                    app_secret.encode(),
+                    msg=payload.encode(),
+                    digestmod=hashlib.sha256
+                ).digest()
+
+                # Validate signature
+                if not hmac.compare_digest(decoded_sig, expected_sig):
+                    print("Invalid signature!")
+                    return None
+
+                return data
+
+            except Exception as e:
+                print("Error parsing signed request:", str(e))
+                return None
 
         data = parse_signed_request(signed_request, INSTAGRAM_CLIENT_SECRET)
         if not data:
