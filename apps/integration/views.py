@@ -206,35 +206,23 @@ class InstagramDeauthorizeView(APIView):
             return error_response(message="Signed request not found", code=400)
 
         def parse_signed_request(signed_request, secret):  # noqa
-            try:
-                encoded_sig, payload = signed_request.split('.', 1)
-                
-                # Add padding to payload if needed
-                payload += '=' * (4 - len(payload) % 4)
-                decoded_payload = base64.urlsafe_b64decode(payload).decode()
-                data = json.loads(decoded_payload)
+            encoded_sig, payload = signed_request.split('.', 1)
+            decoded_payload = base64.urlsafe_b64decode(payload + "==").decode()
+            data = json.loads(decoded_payload)
 
-                # Verify signature
-                # Add padding to signature if needed
-                encoded_sig += '=' * (4 - len(encoded_sig) % 4)
-                decoded_sig = base64.urlsafe_b64decode(encoded_sig)
-                
-                expected_sig = hmac.new(
-                    secret.encode(),
-                    msg=payload.encode(),
-                    digestmod=hashlib.sha256
-                ).digest()
+            # Verify signature
+            expected_sig = hmac.new(
+                secret.encode(),
+                msg=payload.encode(),
+                digestmod=hashlib.sha256
+            ).digest()
 
-                if not hmac.compare_digest(decoded_sig, expected_sig):
-                    return None
-
-                return data
-            except Exception as e:
-                print(f"Error parsing signed request: {str(e)}")
+            if not hmac.compare_digest(base64.urlsafe_b64encode(expected_sig).strip(), encoded_sig.encode()):
                 return None
 
-        CLIENT_SECRET = "5012f3e33700b8b659a9c97c1fc1f7bd"
-        data = parse_signed_request(signed_request, CLIENT_SECRET)
+            return data
+
+        data = parse_signed_request(signed_request, INSTAGRAM_CLIENT_ID)
         print(f"Deauthorize Data: {data}")
         if not data:
             return error_response(message="Invalid signed request", code=400)
@@ -271,37 +259,26 @@ class InstagramDataDeletionView(APIView):
         if not signed_request:
             return error_response(message="Signed request not found", code=400)
 
-        CLIENT_SECRET = "5012f3e33700b8b659a9c97c1fc1f7bd"
 
         def parse_signed_request(signed_request, secret):
-            try:
-                encoded_sig, payload = signed_request.split('.', 1)
-                
-                # Add padding to payload if needed
-                payload += '=' * (4 - len(payload) % 4)
-                decoded_payload = base64.urlsafe_b64decode(payload).decode()
-                data = json.loads(decoded_payload)
+            import base64, hashlib, hmac
 
-                # Verify signature
-                # Add padding to signature if needed
-                encoded_sig += '=' * (4 - len(encoded_sig) % 4)
-                decoded_sig = base64.urlsafe_b64decode(encoded_sig)
-                
-                expected_sig = hmac.new(
-                    secret.encode(),
-                    msg=payload.encode(),
-                    digestmod=hashlib.sha256
-                ).digest()
+            encoded_sig, payload = signed_request.split('.', 1)
+            decoded_payload = base64.urlsafe_b64decode(payload + "==").decode()
+            data = json.loads(decoded_payload)
 
-                if not hmac.compare_digest(decoded_sig, expected_sig):
-                    return None
+            expected_sig = hmac.new(
+                secret.encode(),
+                msg=payload.encode(),
+                digestmod=hashlib.sha256
+            ).digest()
 
-                return data
-            except Exception as e:
-                print(f"Error parsing signed request: {str(e)}")
+            if not hmac.compare_digest(base64.urlsafe_b64encode(expected_sig).strip(), encoded_sig.encode()):
                 return None
 
-        data = parse_signed_request(signed_request, CLIENT_SECRET)
+            return data
+
+        data = parse_signed_request(signed_request, INSTAGRAM_CLIENT_SECRET)
         if not data:
             return error_response(message="Invalid signed request", code=400)
 
