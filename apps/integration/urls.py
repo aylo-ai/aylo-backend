@@ -9,8 +9,8 @@ urlpatterns = [
     ,
     path("instagram/webhook/", views.InstagramWebhookView.as_view()),
     path("instagram/callback/", views.InstagramCallbackView.as_view()),
-    path('integration/instagram/deauthorize/', views.InstagramDeauthorizeView.as_view()),
-    path('integration/instagram/data-deletion/', views.InstagramDataDeletionView.as_view()),
+    path('instagram/deauthorize/', views.InstagramDeauthorizeView.as_view()),
+    path('instagram/data-deletion/', views.InstagramDataDeletionView.as_view()),
 
     path("send-telegram-message/", views.SendUserMessageView.as_view()),
 

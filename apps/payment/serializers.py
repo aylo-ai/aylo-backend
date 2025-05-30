@@ -217,7 +217,9 @@ class PayWithCardSerializer(serializers.Serializer):
             # user = self.context.get("request").user
             # if user.subscription.id != subscription_id:
             #     raise_validation_error(message=lang("Sizda bunday obuna mavjud emas. Iltimos, tekshirib qaytadan yuboring."))
-            attrs["amount"] = int(subscription.pricing_package.price)
+            price = subscription.pricing_package.price
+            discount_price = subscription.pricing_package.discount_price
+            attrs["amount"] = int(discount_price) if discount_price else int(price)
         except Subscription.DoesNotExist:
             raise_validation_error(message=lang("Obuna topilmadi. Iltimos, tekshirib qaytadan yuboring."))
 
