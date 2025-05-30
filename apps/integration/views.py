@@ -259,7 +259,7 @@ class InstagramDeauthorizeView(APIView):
             try:
                 integration = Integration.objects.filter(
                     integration_type=IntegrationTypes.INSTAGRAM.value,
-                    instagram_user_id=user_id
+                    instagram_account_id=user_id
                 ).first()
                 print(f"Deauthorize Integration: {integration}")
                 if integration:
