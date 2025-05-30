@@ -201,6 +201,7 @@ class InstagramDeauthorizeView(APIView):
     def post(self, request, *args, **kwargs): # noqa
         # Facebook sends a signed request
         signed_request = request.data.get("signed_request")
+        print(f"Deauthorize Signed request: {signed_request}")
         if not signed_request:
             return error_response(message="Signed request not found", code=400)
 
@@ -223,12 +224,12 @@ class InstagramDeauthorizeView(APIView):
 
         CLIENT_SECRET = "5012f3e33700b8b659a9c97c1fc1f7bd"
         data = parse_signed_request(signed_request, CLIENT_SECRET)
-
+        print(f"Deauthorize Data: {data}")
         if not data:
             return error_response(message="Invalid signed request", code=400)
 
         user_id = data.get("user_id")
-
+        print(f"Deauthorize User ID: {user_id}")
         if user_id:
             # Find and remove the user's Instagram integration
             try:
@@ -236,7 +237,7 @@ class InstagramDeauthorizeView(APIView):
                     integration_type=IntegrationTypes.INSTAGRAM.value,
                     instagram_user_id=user_id
                 ).first()
-                
+                print(f"Deauthorize Integration: {integration}")
                 if integration:
                     # Delete the integration
                     integration.delete()
@@ -255,6 +256,7 @@ class InstagramDeauthorizeView(APIView):
 class InstagramDataDeletionView(APIView):
     def post(self, request, *args, **kwargs):
         signed_request = request.data.get("signed_request")
+
         if not signed_request:
             return error_response(message="Signed request not found", code=400)
 
