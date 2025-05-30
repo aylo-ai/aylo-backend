@@ -19,7 +19,7 @@ from .models import Integration, TelegramGroupIntegration
 from .serializers import IntegrationCreateSerializer, IntegrationSerializer, SendUserMessageSerializer, \
     TelegramGroupSerializer
 from .tasks import process_message_task, process_instagram_message, process_voice_task
-
+from shared.addons.ai_requests import create_assistant_and_vector_id
 
 class IntegrationListCreateView(generics.ListCreateAPIView):
     queryset = Integration.objects.all()

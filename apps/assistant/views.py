@@ -59,6 +59,10 @@ class AssistantRetrieveView(generics.RetrieveUpdateDestroyAPIView):
         serializer = self.get_serializer(instance, data=request.data, partial=True, context={'request': request})
         serializer.is_valid(raise_exception=True)
         self.perform_update(serializer)
+        assistant = instance
+        if assistant and assistant.vector_id:
+            success, message = create_assistant_and_vector_id(assistant, request)
+            print(f"Assistant updated successfully: {success}, {message}")
         return success_response(message='Assistant updated successfully', data=serializer.data, code=200)
 
     def destroy(self, request, *args, **kwargs):
