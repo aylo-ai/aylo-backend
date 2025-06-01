@@ -8,7 +8,7 @@ from shared.addons.ai_requests import create_assistant_and_vector_id, delete_ass
 from shared.addons.validations import success_response, error_response
 from rest_framework.exceptions import NotFound
 from django.utils.translation import gettext_lazy as _
-
+from shared.addons.utils import update_assistant
 
 class AssistantListCreateView(generics.ListCreateAPIView):
     queryset = Assistant.objects.all()
@@ -60,8 +60,8 @@ class AssistantRetrieveView(generics.RetrieveUpdateDestroyAPIView):
         serializer.is_valid(raise_exception=True)
         self.perform_update(serializer)
         assistant = instance
-        if assistant and assistant.vector_id:
-            success, message = create_assistant_and_vector_id(assistant, request)
+        if assistant and assistant.assistant_id:
+            success, message = update_assistant(assistant.assistant_id, assistant.name, assistant)
             print(f"Assistant updated successfully: {success}, {message}")
         return success_response(message='Assistant updated successfully', data=serializer.data, code=200)
 

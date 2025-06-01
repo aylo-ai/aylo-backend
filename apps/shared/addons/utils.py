@@ -19,6 +19,8 @@ from shared.ai_service.helper import upload_knowledge_base_file
 from shared.ai_service.assistant import check_response
 from shared.ai_service.thread import wait_on_run
 from config.settings import OPENAI_API_KEY
+from shared.ai_service.helper import create_prompt
+from shared.addons.payloads import valid_intents
 
 def create_message(conversation, sender, content, audio_file=None, run_status=None):
     message_type = 'audio' if audio_file else 'text'
@@ -107,6 +109,67 @@ def restrict_user_account(user):
     message = _("Hurmatli {user.username}, sizning repli.uz dagi to'lovlaringiz bir necha marta muvaffaqiyatsiz "
                 "amalga oshirilgani uchun sizning platformadagi obunangiz cheklab qo'yildi.")
     send_sms_text(user.phone_number, message)
+
+def update_assistant(assistant_id, name,  assistant):
+    print(f"Updating assistant with instructions")
+    try:
+        instruction = create_prompt(
+            assistant.company_name,
+            assistant.description,
+            assistant.role,
+            assistant.personality_style,
+            assistant.language,
+            valid_intents,
+            assistant.fallback_message
+        )
+        assistant = client.beta.assistants.update(
+            assistant_id=assistant_id,
+            name=name,
+            instructions=instruction,
+            tools=[{"type": "file_search"}],
+            model="gpt-4o",
+            response_format = {
+                "type": "json_schema",
+                "json_schema": {
+                    "name": "chatbot_response",
+                    "strict": False,
+                    "schema": {
+                        "type": "object",
+                        "properties": {
+                            "intent": {"type": "string"},
+                            "entities": {
+                                "type": "object",
+                                "properties": {
+                                    "product": {"type": "string"},
+                                    "quantity": {"type": "string"},
+                                    "name": {"type": "string"},
+                                    "phone_number": {"type": "string"},
+                                    "email": {"type": "string"},
+                                    "price": {"type": "string"},
+                                    "total": {"type": "string"},
+                                    "payment_method": {"type": "string"},
+                                    "payment_status": {"type": "string"},
+                                    "payment_date": {"type": "string"},
+                                    "payment_amount": {"type": "string"},
+                                    
+                                },
+                                "additionalProperties": False
+                            },
+                            "reply": {"type": "string"}
+                        },
+                        "required": ["intent", "reply"],
+                        "additionalProperties": False
+                    }
+                }
+            }
+        )
+        print(f"Assistant updated: {assistant}")
+        if assistant is None:
+            raise Exception("Assistant creation returned None unexpectedly.")
+        return True, "Successfully updated assistant"
+    except Exception as e:
+        print(f"Error updating assistant: {e}")
+        raise Exception(f"Error updating assistant: {e}")
 
 
 def create_assistant(instructions, name, vector_store_id):
