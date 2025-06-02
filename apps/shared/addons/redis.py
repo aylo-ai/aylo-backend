@@ -48,13 +48,31 @@ def get_from_redis_cache(key: str) -> Optional[str]:
     return value
 
 
-def publish_message_to_ws(conversation_id, message, sender="assistant", run_status=None):
+def publish_message_to_ws(conversation_id, message, sender="assistant"):
     redis = get_redis_connection()
     payload = {
         "conversation_id": str(conversation_id),
         "message": message,
         "sender": sender,
-        "run_status": run_status,
         "timestamp": datetime.now().isoformat()
     }
     redis.publish("chat-messages", json.dumps(payload))
+
+def publish_message_to_ws_assistant(conversation):
+    redis = get_redis_connection()
+    last_message = conversation.messages.order_by('-created_time').first()
+    last_message_time = last_message.created_time if last_message else None
+    payload = {
+        "id": str(conversation.id),
+        "assistant": str(conversation.assistant.id),
+        "status": conversation.status,
+        "thread_id": conversation.thread_id,
+        "platform": conversation.platform,
+        "start_time": str(conversation.start_time),
+        "end_time": str(conversation.end_time),
+        "created_time": str(conversation.created_time),
+        "updated_time": str(conversation.updated_time),
+        "last_message": last_message.message_content if last_message else None,
+        "last_message_time": last_message_time if last_message_time else None,
+    }
+    redis.publish("assistant-conversations", json.dumps(payload))

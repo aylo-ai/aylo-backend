@@ -41,6 +41,7 @@ def process_message_task(chat_id, user_message, bot_token, audio_file=None):
         wait_message_id = response.json().get("result").get("message_id")
 
     create_message(conversation, 'user', user_message, audio_file)
+    publish_message_to_ws(conversation_id=conversation.id, message=user_message, sender='user')
     response_message, run_status, response_data = get_assistant_response_ai(user_message, assistant.assistant_id, conversation.thread_id)
     print(f"Response message: {response_message}")
     # user_register_message = check_register_info(response_message)

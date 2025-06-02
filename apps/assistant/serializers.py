@@ -17,7 +17,7 @@ from shared.addons.enums import ConversationPlatforms, ConversationStatuses
 from shared.addons.enums import MessageTypes
 from shared.addons.parsing import WebsiteScreenshot
 from shared.mixins import SubscriptionValidationMixin
-
+from shared.addons.redis import publish_message_to_ws_assistant
 
 class AssistantSerializer(serializers.ModelSerializer,
                           SubscriptionValidationMixin):
@@ -102,6 +102,8 @@ class ConversationSerializer(serializers.ModelSerializer,
             assistant=assistant,
             thread_id=thread_id
         )
+        publish_message_to_ws_assistant(conversation)
+        print("Published message to web socket")
         return conversation
 
     def to_representation(self, instance):
