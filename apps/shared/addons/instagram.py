@@ -1,5 +1,5 @@
 import requests
-
+from config.settings import INSTAGRAM_CLIENT_ID
 
 def get_long_lived_access_token(short_lived_access_token):
     """Get long-lived access token from short-lived access token"""
@@ -75,5 +75,32 @@ def send_instagram_message(account_id, access_token, recipient_id, message):
 
         if response.status_code != 200:
             success = False  # agar bitta qismi yuborilmasa, false qaytaramiz
+
+    return success
+
+
+def send_instagram_private_reply(access_token, comment_id, message):
+    """Send private reply to an Instagram comment"""
+    url = f"https://graph.instagram.com/v22.0/{INSTAGRAM_CLIENT_ID}/messages"
+    headers = {
+        "Content-Type": "application/json",
+        "Authorization": f"Bearer {access_token}",
+    }
+
+    success = True
+    payload = {
+             "recipient":{ 
+                 "comment_id": comment_id 
+             },
+             "message": { 
+                 "text": message 
+             }
+    }
+
+    response = requests.post(url, json=payload, headers=headers)
+    print(f"send_instagram_private_reply response: {response.text}")
+
+    if response.status_code != 200:
+        success = False
 
     return success

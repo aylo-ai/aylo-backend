@@ -18,7 +18,7 @@ from shared.permissions import IsCustomer
 from .models import Integration, TelegramGroupIntegration
 from .serializers import IntegrationCreateSerializer, IntegrationSerializer, SendUserMessageSerializer, \
     TelegramGroupSerializer
-from .tasks import process_message_task, process_instagram_message, process_voice_task
+from .tasks import process_message_task, process_instagram_message, process_voice_task, process_instagram_comment
 
 class IntegrationListCreateView(generics.ListCreateAPIView):
     queryset = Integration.objects.all()
@@ -111,24 +111,39 @@ class InstagramWebhookView(APIView):
         print(f"Instagram webhook data: {data}")
         if not data:
             return error_response(message="No data received", code=400)
+        
         entry = data.get("entry")[0]
         print(f"Entry: {entry}")
         account_id = entry.get("id")
         print(f"Account ID: {account_id}")
+
+        # Handle comments
+        if "changes" in entry:
+            for change in entry["changes"]:
+                if change.get("field") == "comments":
+                    comment_data = change.get("value", {})
+                    if comment_data:
+                        process_instagram_comment.delay(account_id, comment_data)
+                        return success_response(message="Comment webhook data received successfully", code=200)
+
+        # Handle messages
         messaging = entry.get("messaging")
-        is_echo = messaging[0].get("message", {}).get("is_echo")
-        audio_file = messaging[0].get("message", {}).get("attachments", [{}])[0].get("payload", {}).get("url", None)
-        print(f"Is echo: {is_echo}, Audio file: {audio_file}")
-        if is_echo:
-            print(f"Echo message received")
-            return success_response(message="Echo message received", code=200)
-        print(f"Messaging: {messaging}")
-        if not Integration.objects.filter(instagram_account_id=account_id).exists():
-            print(f"Integration not found for account ID: {account_id}")
-            return error_response(message="Integration not found", code=404)
-        # Start celery task to process the incoming message
-        process_instagram_message.delay(account_id, messaging, audio_file)
-        return success_response(message="Webhook data receieved successfully", code=200)
+        if messaging:
+            is_echo = messaging[0].get("message", {}).get("is_echo")
+            audio_file = messaging[0].get("message", {}).get("attachments", [{}])[0].get("payload", {}).get("url", None)
+            print(f"Is echo: {is_echo}, Audio file: {audio_file}")
+            if is_echo:
+                print(f"Echo message received")
+                return success_response(message="Echo message received", code=200)
+            print(f"Messaging: {messaging}")
+            if not Integration.objects.filter(instagram_account_id=account_id).exists():
+                print(f"Integration not found for account ID: {account_id}")
+                return error_response(message="Integration not found", code=404)
+            # Start celery task to process the incoming message
+            process_instagram_message.delay(account_id, messaging, audio_file)
+            return success_response(message="Message webhook data received successfully", code=200)
+
+        return success_response(message="Webhook data received successfully", code=200)
 
 
 class InstagramCallbackView(APIView):
@@ -188,7 +203,7 @@ class InstagramCallbackView(APIView):
             return error_response(message="Failed to get user profile", code=400)
         
         # enable webhook for the integration
-        url = f"https://graph.instagram.com/v22.0/me/subscribed_apps?access_token={access_token}&subscribed_fields=messages"
+        url = f"https://graph.instagram.com/v22.0/me/subscribed_apps?access_token={access_token}&subscribed_fields=messages,comments"
         response = requests.post(url)
         print(f"Response: {response.text}")
         if response.status_code == 200:

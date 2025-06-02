@@ -2,7 +2,7 @@ import requests
 from celery import shared_task
 
 from apps.shared.addons.enums import SenderTypes
-from shared.addons.instagram import send_instagram_message
+from shared.addons.instagram import send_instagram_message, send_instagram_private_reply
 from shared.addons.telegram import send_telegram_message, check_register_info, delete_telegram_message
 from shared.addons.utils import get_assistant_response_ai, handle_start_command, get_or_create_conversation, create_message, \
     speech_to_text, convert_ogg_to_mp3, process_instagram_audio
@@ -167,4 +167,32 @@ def process_voice_task(chat_id, voice_file_id, bot_token):
 
     # Step 4: Trigger the regular message processor
     process_message_task.delay(chat_id, transcribed_text, bot_token, audio_bytes_mp3)
+
+@shared_task
+def process_instagram_comment(account_id, comment_data):
+    """Process Instagram comment and send private reply"""
+    print(f"Processing Instagram comment for account_id: {account_id}")
+    assistant = Assistant.objects.filter(integrations__instagram_account_id=account_id).first()
+    print(f"Assistant: {assistant}")
+    if not assistant:
+        return
+    
+    integration = assistant.integrations.filter(integration_type="instagram", instagram_account_id=account_id).first()
+    print(f"Integration: {integration}")
+    if not integration:
+        return
+
+    # Extract comment information
+    comment_id = comment_data.get("id")
+    comment_text = comment_data.get("text")
+    commenter_id = comment_data.get("from", {}).get("id")
+    print(f"Comment ID: {comment_id}, Comment Text: {comment_text}, Commenter ID: {commenter_id}")
+    if not all([comment_id, comment_text, commenter_id]):
+        print("Missing required comment data")
+        return
+
+    response_message = "Thank you for your comment!, It was done by Repli AI"
+    # Send private reply to the comment
+    send_instagram_private_reply(integration.api_token, comment_id, response_message)
+    
         
