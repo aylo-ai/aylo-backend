@@ -264,6 +264,7 @@ def create_vector_store(file_urls):
         return None
     
 def get_assistant_response_ai(message, assistant_id, thread_id):
+    print(f"Getting assistant response from AI: {message}, {assistant_id}, {thread_id}")
     assistant = Assistant.objects.get(assistant_id=assistant_id)
     subscription = assistant.user.subscription
     if subscription.remained_request_count <= 0:
@@ -412,10 +413,15 @@ def speech_to_text(audio_bytes: bytes, language: str = "uz") -> str:
             ),
         )
         
-        print(f"Response: {response}")
-        return response.text.strip()
+        print(f"[speech_to_text] Response received: {response}")
+        result = response.text.strip()
+        print(f"[speech_to_text] Final result: {result}")
+        return result
     except Exception as e:
-        print(f"[speech_to_text] Error: {e}")
+        print(f"[speech_to_text] Error: {str(e)}")
+        print(f"[speech_to_text] Error type: {type(e)}")
+        import traceback
+        print(f"[speech_to_text] Traceback: {traceback.format_exc()}")
         return "Sorry, I couldn't understand the audio."
     
 def create_lead(full_name, phone_number, email, product, metadata=None):  
@@ -465,14 +471,22 @@ def get_audio_from_url(url: str) -> bytes:
 def process_instagram_audio(audio_url: str, language: str = "uz") -> str:
     """Process Instagram audio URL and convert to text."""
     try:
+        print(f"[process_instagram_audio] Starting processing with URL: {audio_url}")
         # Get audio bytes from URL
         audio_bytes = get_audio_from_url(audio_url)
         if not audio_bytes:
+            print("[process_instagram_audio] Failed to get audio bytes from URL")
             return "Sorry, I couldn't process the audio."
         
         # Convert to text using speech_to_text
-        return speech_to_text(audio_bytes, language)
+        print(f"[process_instagram_audio] Attempting to convert audio to text with language: {language}")
+        data = speech_to_text(audio_bytes, language)
+        print(f"[process_instagram_audio] Speech to text result: {data}")
+        return data
     except Exception as e:
-        print(f"[process_instagram_audio] Error: {e}")
+        print(f"[process_instagram_audio] Error: {str(e)}")
+        print(f"[process_instagram_audio] Error type: {type(e)}")
+        import traceback
+        print(f"[process_instagram_audio] Traceback: {traceback.format_exc()}")
         return "Sorry, I couldn't process the audio."
     

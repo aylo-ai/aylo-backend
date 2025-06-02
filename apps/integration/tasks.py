@@ -102,16 +102,14 @@ def process_instagram_message(account_id, user_message, audio_file=None):
     print(f"Conversation: {conversation}, thread_id: {conversation.thread_id}")
     if conversation.status == "ESCALATED" or not assistant.is_active:
         audio_file = create_message(conversation, 'user', message_text, audio_file)
+        print("publish message to web socket")
         publish_message_to_ws(conversation.id, message_text, sender="user", audio_file=str(audio_file))
         return
     print("Sending message to web socket")
     audio_file = create_message(conversation, 'user', message_text, audio_file)
     publish_message_to_ws(conversation.id, message_text, sender="user", audio_file=str(audio_file))
-    if audio_file:
-        message_text = process_instagram_audio(audio_file, assistant.language)
     response_message, run_status, response_data = get_assistant_response_ai(message_text, assistant.assistant_id, conversation.thread_id)
-    print(f"Response message: {response_message}")
-
+    print(f"Assistant response in Instagram: {response_message}")
     # Handle lead creation if response_data exists
     if response_data:
         response_text = f"""
