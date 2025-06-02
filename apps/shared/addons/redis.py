@@ -1,5 +1,5 @@
 import json
-import uuid
+from datetime import datetime
 from typing import Optional
 
 from redis import Redis
@@ -46,3 +46,15 @@ def get_from_redis_cache(key: str) -> Optional[str]:
             value = str(value)
     print(f"Got {key} from Redis cache.")
     return value
+
+
+def publish_message_to_ws(conversation_id, message, sender="assistant", run_status=None):
+    redis = get_redis_connection()
+    payload = {
+        "conversation_id": str(conversation_id),
+        "message": message,
+        "sender": sender,
+        "run_status": run_status,
+        "timestamp": datetime.now().isoformat()
+    }
+    redis.publish("chat-messages", json.dumps(payload))

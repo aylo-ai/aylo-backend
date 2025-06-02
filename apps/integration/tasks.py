@@ -8,7 +8,7 @@ from shared.addons.utils import get_assistant_response_ai, handle_start_command,
     speech_to_text, convert_ogg_to_mp3
 from apps.assistant.models import Assistant
 from .models import TelegramGroupIntegration
-
+from shared.addons.redis import publish_message_to_ws
 
 @shared_task
 def process_message_task(chat_id, user_message, bot_token, audio_file=None):
@@ -30,6 +30,7 @@ def process_message_task(chat_id, user_message, bot_token, audio_file=None):
     print(f"Conversation: {conversation}")
     if conversation.status == "ESCALATED" or not assistant.is_active:
         create_message(conversation, 'user', user_message, audio_file)
+        publish_message_to_ws(conversation.id, user_message, sender="user")
         print(f"Message created for user: {user_message}")
         return
 
@@ -67,10 +68,11 @@ def process_message_task(chat_id, user_message, bot_token, audio_file=None):
             telegram_group.lead_count += 1
             telegram_group.save()
         create_message(conversation=conversation, sender=SenderTypes.ASSISTANT.value, content=response_message, run_status=run_status)
+        publish_message_to_ws(conversation.id, response_message, sender="assistant")
     elif response_message:
         send_telegram_message(chat_id, response_message, bot_token)
         create_message(conversation=conversation, sender=SenderTypes.ASSISTANT.value, content=response_message, run_status=run_status)
-
+        publish_message_to_ws(conversation.id, response_message, sender="assistant")
 
 @shared_task
 def process_instagram_message(account_id, user_message):
@@ -95,8 +97,11 @@ def process_instagram_message(account_id, user_message):
     print(f"Conversation: {conversation}, thread_id: {conversation.thread_id}")
     if conversation.status == "ESCALATED" or not assistant.is_active:
         create_message(conversation, 'user', message_text)
+        publish_message_to_ws(conversation.id, message_text, sender="user")
         return
+    print("Sending message to web socket")
     create_message(conversation, 'user', message_text)
+    publish_message_to_ws(conversation.id, message_text, sender="user")
     response_message, run_status, response_data = get_assistant_response_ai(message_text, assistant.assistant_id, conversation.thread_id)
     print(f"Response message: {response_message}")
 
@@ -124,7 +129,8 @@ def process_instagram_message(account_id, user_message):
     print(f"starting to create message: {response_message}, conversation: {conversation}")
     create_message(conversation=conversation, sender=SenderTypes.ASSISTANT.value, content=response_message, run_status=run_status)
     print(f"Sent message to Instagram user: {sender_id} with message: {response_message}")
-
+    publish_message_to_ws(conversation.id, response_message, sender="assistant")
+    print("Sent message to web socket")
 
 @shared_task
 def process_voice_task(chat_id, voice_file_id, bot_token):
