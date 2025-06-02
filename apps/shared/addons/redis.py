@@ -48,12 +48,14 @@ def get_from_redis_cache(key: str) -> Optional[str]:
     return value
 
 
-def publish_message_to_ws(conversation_id, message, sender="assistant"):
+def publish_message_to_ws(conversation_id, message, sender="assistant", audio_file=None):
     redis = get_redis_connection()
     payload = {
         "conversation_id": str(conversation_id),
         "message": message,
         "sender": sender,
+        "message_type": "text" if not audio_file else "audio",
+        "audio_file": audio_file,
         "timestamp": datetime.now().isoformat()
     }
     redis.publish("chat-messages", json.dumps(payload))

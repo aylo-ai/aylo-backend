@@ -5,7 +5,7 @@ from apps.shared.addons.enums import SenderTypes
 from shared.addons.instagram import send_instagram_message
 from shared.addons.telegram import send_telegram_message, check_register_info, delete_telegram_message
 from shared.addons.utils import get_assistant_response_ai, handle_start_command, get_or_create_conversation, create_message, \
-    speech_to_text, convert_ogg_to_mp3
+    speech_to_text, convert_ogg_to_mp3, process_instagram_audio
 from apps.assistant.models import Assistant
 from .models import TelegramGroupIntegration
 from shared.addons.redis import publish_message_to_ws
@@ -29,8 +29,8 @@ def process_message_task(chat_id, user_message, bot_token, audio_file=None):
     conversation = get_or_create_conversation(chat_id, assistant, token=bot_token)
     print(f"Conversation: {conversation}")
     if conversation.status == "ESCALATED" or not assistant.is_active:
-        create_message(conversation, 'user', user_message, audio_file)
-        publish_message_to_ws(conversation.id, user_message, sender="user")
+        audio_file = create_message(conversation, 'user', user_message, audio_file)
+        publish_message_to_ws(conversation.id, user_message, sender="user", audio_file=str(audio_file))
         print(f"Message created for user: {user_message}")
         return
 
@@ -40,8 +40,8 @@ def process_message_task(chat_id, user_message, bot_token, audio_file=None):
         response = send_telegram_message(chat_id, assistant.wait_message, bot_token)
         wait_message_id = response.json().get("result").get("message_id")
 
-    create_message(conversation, 'user', user_message, audio_file)
-    publish_message_to_ws(conversation_id=conversation.id, message=user_message, sender='user')
+    audio_file = create_message(conversation, 'user', user_message, audio_file)
+    publish_message_to_ws(conversation_id=conversation.id, message=user_message, sender='user', audio_file=str(audio_file))
     response_message, run_status, response_data = get_assistant_response_ai(user_message, assistant.assistant_id, conversation.thread_id)
     print(f"Response message: {response_message}")
     # user_register_message = check_register_info(response_message)
@@ -76,33 +76,39 @@ def process_message_task(chat_id, user_message, bot_token, audio_file=None):
         publish_message_to_ws(conversation.id, response_message, sender="assistant")
 
 @shared_task
-def process_instagram_message(account_id, user_message):
+def process_instagram_message(account_id, user_message, audio_file=None):
     print(f"celery task is started with account_id: {account_id}, user_message: {user_message}")
     assistant = Assistant.objects.filter(integrations__instagram_account_id=account_id).first()
     print(f"Assistant: {assistant}")
     if not assistant:
         return
+    
     integration = assistant.integrations.filter(integration_type="instagram", instagram_account_id=account_id).first()
     print(f"Integration: {integration}")
     if not integration:
         return
+    
     sender_id = user_message[0].get("sender", {}).get("id")
     print(f"Sender ID: {sender_id}")
     if not sender_id:
         return
     message_text = user_message[0].get("message", {}).get("text")
+    if audio_file:
+        message_text = process_instagram_audio(audio_file, assistant.language)
     print(f"Message text: {message_text}")
     if not message_text:
         return
     conversation = get_or_create_conversation(sender_id, assistant, platform="instagram")
     print(f"Conversation: {conversation}, thread_id: {conversation.thread_id}")
     if conversation.status == "ESCALATED" or not assistant.is_active:
-        create_message(conversation, 'user', message_text)
-        publish_message_to_ws(conversation.id, message_text, sender="user")
+        audio_file = create_message(conversation, 'user', message_text, audio_file)
+        publish_message_to_ws(conversation.id, message_text, sender="user", audio_file=str(audio_file))
         return
     print("Sending message to web socket")
-    create_message(conversation, 'user', message_text)
-    publish_message_to_ws(conversation.id, message_text, sender="user")
+    audio_file = create_message(conversation, 'user', message_text, audio_file)
+    publish_message_to_ws(conversation.id, message_text, sender="user", audio_file=str(audio_file))
+    if audio_file:
+        message_text = process_instagram_audio(audio_file, assistant.language)
     response_message, run_status, response_data = get_assistant_response_ai(message_text, assistant.assistant_id, conversation.thread_id)
     print(f"Response message: {response_message}")
 

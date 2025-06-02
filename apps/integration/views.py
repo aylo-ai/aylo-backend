@@ -117,7 +117,8 @@ class InstagramWebhookView(APIView):
         print(f"Account ID: {account_id}")
         messaging = entry.get("messaging")
         is_echo = messaging[0].get("message", {}).get("is_echo")
-        print(f"Is echo: {is_echo}")
+        audio_file = messaging[0].get("message", {}).get("attachments", [{}])[0].get("payload", {}).get("url", None)
+        print(f"Is echo: {is_echo}, Audio file: {audio_file}")
         if is_echo:
             print(f"Echo message received")
             return success_response(message="Echo message received", code=200)
@@ -126,7 +127,7 @@ class InstagramWebhookView(APIView):
             print(f"Integration not found for account ID: {account_id}")
             return error_response(message="Integration not found", code=404)
         # Start celery task to process the incoming message
-        process_instagram_message.delay(account_id, messaging)
+        process_instagram_message.delay(account_id, messaging, audio_file)
         return success_response(message="Webhook data receieved successfully", code=200)
 
 

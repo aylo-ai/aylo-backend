@@ -5,6 +5,7 @@ from pydub.utils import which
 from pydub import AudioSegment
 from google import genai
 from google.genai import types
+from io import BytesIO
 
 from django.utils.translation import gettext as _
 from django.conf import settings
@@ -25,6 +26,8 @@ from shared.addons.payloads import valid_intents
 def create_message(conversation, sender, content, audio_file=None, run_status=None):
     message_type = 'audio' if audio_file else 'text'
     print(f"Creating message: {conversation}, {sender}, {content}, {audio_file}")
+    if audio_file and audio_file.startswith("https://"):
+        audio_file = get_audio_from_url(audio_file)
     
     # Extract token usage from run_status if available
     input_tokens = run_status.usage.prompt_tokens if run_status and hasattr(run_status, 'usage') else 0
@@ -49,6 +52,10 @@ def create_message(conversation, sender, content, audio_file=None, run_status=No
         print(f"File name: {file_name}")
         message.audio_file.save(file_name, ContentFile(audio_file))
         message.save()
+        print(f"Message audio file: {message.audio_file}")
+        return message.audio_file
+    else:
+        return None
 
 def get_or_create_conversation(user_id, assistant, reset=False, token=None, platform='telegram'):
     conversation = Conversation.objects.filter(
@@ -438,4 +445,34 @@ def notify_user_about_low_tokens(user, count):
         type=NotificationTypes.WARNING.value
     )
     print(f"Notification created to notify user about low request token count")
+    
+def get_audio_from_url(url: str) -> bytes:
+    """Download audio from URL and convert to MP3 bytes."""
+    try:
+        # Download the audio file
+        response = requests.get(url)
+        response.raise_for_status()
+        print(f"Response: {response}")
+        # Convert to MP3 if needed
+        audio = AudioSegment.from_file(BytesIO(response.content))
+        mp3_buffer = BytesIO()
+        audio.export(mp3_buffer, format="mp3")
+        return mp3_buffer.getvalue()
+    except Exception as e:
+        print(f"[get_audio_from_url] Error: {e}")
+        return None
+
+def process_instagram_audio(audio_url: str, language: str = "uz") -> str:
+    """Process Instagram audio URL and convert to text."""
+    try:
+        # Get audio bytes from URL
+        audio_bytes = get_audio_from_url(audio_url)
+        if not audio_bytes:
+            return "Sorry, I couldn't process the audio."
+        
+        # Convert to text using speech_to_text
+        return speech_to_text(audio_bytes, language)
+    except Exception as e:
+        print(f"[process_instagram_audio] Error: {e}")
+        return "Sorry, I couldn't process the audio."
     
