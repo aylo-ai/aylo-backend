@@ -22,4 +22,5 @@ urlpatterns = [
     path("accounts/google/login/callback/", views.GoogleAuthCallbackView.as_view()),
 
     path("add-staff/", views.AddStaffView.as_view()),
+    path("verify-access-token/", views.VerifyAccessTokenView.as_view()),
 ]

@@ -12,14 +12,15 @@ from rest_framework_simplejwt.exceptions import TokenError
 from rest_framework_simplejwt.tokens import RefreshToken
 from django.utils.translation import gettext_lazy as _
 
-from config.settings import redis_connection, GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, GOOGLE_REDIRECT_URI
+from config.settings import redis_connection, GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, GOOGLE_REDIRECT_URI, SECRET_KEY
 import user.serializers as serializers
 from shared.addons.validations import error_response, success_response
 from shared.addons.verification import send_code
 from apps.user.models import User, PrivacyPolicy, UserAgreement
 from shared.addons.verification import send_email_code, verify_email_code, verify_code_cache
 from shared.permissions import IsAdmin, IsSuperAdmin, IsCustomer
-
+import jwt
+from jwt import ExpiredSignatureError, InvalidTokenError
 
 class SendCodeView(generics.GenericAPIView):
     serializer_class = serializers.SendCodeSerializer
@@ -343,3 +344,26 @@ class AddStaffView(generics.CreateAPIView):
             data=serializer.data,
             code=status.HTTP_201_CREATED
         )
+        
+class VerifyAccessTokenView(APIView):
+    permission_classes = [permissions.AllowAny, ]
+    
+    def get(self, request):
+        access_token = request.data.get("access_token")
+        if not access_token:
+            return error_response(message="Access token is missing", code=400)
+        try:
+            payload = jwt.decode(access_token, SECRET_KEY, algorithms=["HS256"])
+            print(f"payload: {payload}")
+            user_id = payload.get("user_id")
+            print(f"user_id: {user_id}")
+            user = User.objects.filter(id=user_id).first()
+            print(f"user: {user}")
+            if not user:
+                return error_response(message="User not found", code=400)
+            return success_response(message="Success", code=status.HTTP_200_OK)
+        except Exception as e:
+            return error_response(message=str(e), code=400)
+        
+        
+    
