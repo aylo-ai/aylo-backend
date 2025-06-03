@@ -193,6 +193,6 @@ def process_instagram_comment(account_id, comment_data):
 
     response_message = "Thank you for your comment!, It was done by Repli AI"
     # Send private reply to the comment
-    send_instagram_private_reply(integration.api_token, comment_id, response_message)
+    send_instagram_private_reply(integration.api_token, account_id, comment_id, response_message)
     
         

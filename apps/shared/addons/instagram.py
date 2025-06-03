@@ -79,9 +79,9 @@ def send_instagram_message(account_id, access_token, recipient_id, message):
     return success
 
 
-def send_instagram_private_reply(access_token, comment_id, message):
+def send_instagram_private_reply(access_token, account_id, comment_id, message):
     """Send private reply to an Instagram comment"""
-    url = f"https://graph.instagram.com/v22.0/{INSTAGRAM_CLIENT_ID}/messages"
+    url = f"https://graph.instagram.com/v23.0/{account_id}/messages"
     headers = {
         "Content-Type": "application/json",
         "Authorization": f"Bearer {access_token}",

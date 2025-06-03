@@ -123,6 +123,7 @@ class InstagramWebhookView(APIView):
                 if change.get("field") == "comments":
                     comment_data = change.get("value", {})
                     if comment_data:
+                        print(f"Comment data: {comment_data}, Account ID: {account_id}")
                         process_instagram_comment.delay(account_id, comment_data)
                         return success_response(message="Comment webhook data received successfully", code=200)
 
