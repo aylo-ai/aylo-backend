@@ -192,7 +192,6 @@ class MessageSerializer(serializers.ModelSerializer, SubscriptionValidationMixin
         request = self.context.get("request")
         if not request:
             raise_validation_error("Request object is required")
-        user = request.user
         audio_file = validated_data.get("audio_file")
         conversation = validated_data.get("conversation")
         assistant = conversation.assistant
@@ -208,7 +207,8 @@ class MessageSerializer(serializers.ModelSerializer, SubscriptionValidationMixin
             validated_data["message_type"] = MessageTypes.AUDIO.value
         else:
             transcribed_text = validated_data.get("message_content")
-        
+
+        validated_data['sender'] = sender
         message = Message.objects.create(**validated_data)
         if conversation.status == ConversationStatuses.ESCALATED.value or not assistant.is_active:
             return message

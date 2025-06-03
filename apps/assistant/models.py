@@ -134,7 +134,7 @@ class Message(BaseModel):
             if assistant_user and self.sender == SenderTypes.ASSISTANT.value:
                 subscription = assistant_user.subscription
                 subscription.remained_request_count -= 1
-                if subscription.remained_request_count == 20:
+                if subscription.remained_request_count in [0, 10, 20]:
                     notify_user_about_low_tokens(assistant_user, subscription.remained_request_count)
                 subscription.save(update_fields=["remained_request_count"])
             # Call the parent save method

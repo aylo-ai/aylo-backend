@@ -284,7 +284,7 @@ class PayWithCardSerializer(serializers.Serializer):
             subscription.end_date = timezone.now().date() + timedelta(days=subscription.pricing_package.duration_days)
             subscription.status = SubscriptionStatuses.ACTIVE.value
             subscription.retry_count = 0
-            subscription.remained_request_count += subscription.pricing_package.request_count
+            subscription.remained_request_count = subscription.pricing_package.request_count
             subscription.auto_renew = True
             subscription.pricing_package = subscription.pricing_package
             subscription.last_payment_date = timezone.now().date()
