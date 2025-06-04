@@ -133,7 +133,8 @@ class Message(BaseModel):
             assistant_user = getattr(self.conversation.assistant, "user", None) if self.conversation else None
             if assistant_user and self.sender == SenderTypes.ASSISTANT.value:
                 subscription = assistant_user.subscription
-                subscription.remained_request_count -= 1
+                if subscription.remained_request_count > 0:
+                    subscription.remained_request_count -= 1
                 if subscription.remained_request_count in [0, 10, 20]:
                     notify_user_about_low_tokens(assistant_user, subscription.remained_request_count)
                 subscription.save(update_fields=["remained_request_count"])

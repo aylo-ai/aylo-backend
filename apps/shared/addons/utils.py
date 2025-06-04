@@ -43,7 +43,6 @@ def create_message(conversation, sender, content, audio_file=None, run_status=No
     )
     print(f"Message created: {conversation}, {sender}")
 
-    print(f"Audio file: {audio_file}")
     if audio_file:
         from django.core.files.base import ContentFile
         from django.utils.text import slugify
@@ -457,7 +456,6 @@ def get_audio_from_url(url: str) -> bytes:
         # Download the audio file
         response = requests.get(url)
         response.raise_for_status()
-        print(f"Response: {response}")
         # Convert to MP3 if needed
         audio = AudioSegment.from_file(BytesIO(response.content))
         mp3_buffer = BytesIO()
