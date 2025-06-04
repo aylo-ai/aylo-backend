@@ -24,7 +24,7 @@ class Assistant(BaseModel):
         null=True, blank=True,
         related_name='assistants'
     )
-    company_name = models.CharField(max_length=50)
+    company_name = models.CharField(max_length=100)
     role = models.CharField(max_length=100, default="sales, support, and operations")
 
     language = models.CharField(
