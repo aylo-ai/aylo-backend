@@ -56,6 +56,12 @@ class AssistantSerializer(serializers.ModelSerializer,
     def validate(self, attrs):
         user = self.context.get("request").user
         self.validate_subscription(user.subscription)
+        company_name = attrs.get("company_name")
+        role = attrs.get("role")
+        if len(company_name) > 100:
+            raise_validation_error(message=_("Company name must be less than 100 characters."))
+        if len(role) > 100:
+            raise_validation_error(message=_("Role must be less than 100 characters."))
         return attrs
 
 
