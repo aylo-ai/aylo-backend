@@ -294,23 +294,17 @@ class SubscriptionCreateView(generics.CreateAPIView):
         serializer.is_valid(raise_exception=True)
         serializer.save()
         return success_response(message=_("Obuna muvaffaqiyatli yaratildi"), data=serializer.data)
+    
 
-class SubscriptionUpdateView(generics.UpdateAPIView):
-    serializer_class = serializers.SubscriptionSerializer
+class SubscriptionUpdateView(APIView):
+    serializer_class = serializers.SubscriptionUpdateSerializer
     permission_classes = (permissions.IsAuthenticated,)
 
-    def get_object(self):
-        subscription = Subscription.objects.get(user=self.request.user) 
-        if not subscription:
-            return error_response(message=_("Obuna topilmadi"))
-        return subscription
-
-    def update(self, request, *args, **kwargs):
-        instance = self.get_object()
-        serializer = self.get_serializer(instance, data=request.data, partial=True)
+    def post(self, request, *args, **kwargs):
+        serializer = self.serializer_class(data=request.data, context={"request": request})
         serializer.is_valid(raise_exception=True)
-        serializer.save()
-        return success_response(message=_("Obuna muvaffaqiyatli tahrirlandi"), data=serializer.data)
+        subscription = serializer.update(serializer.validated_data)
+        return success_response(message=_("Obuna muvaffaqiyatli tahrirlandi"), data=subscription)
 
 class SubscriptionCancellationView(APIView):
     permission_classes = [permissions.IsAuthenticated]
@@ -357,4 +351,4 @@ class RetryPaymentListView(generics.ListAPIView):
     def get_queryset(self):
         subscription_id = self.kwargs.get('pk')
         return RetryPayment.objects.filter(subscription_id=subscription_id)
-
+    

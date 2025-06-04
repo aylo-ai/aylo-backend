@@ -345,25 +345,5 @@ class AddStaffView(generics.CreateAPIView):
             code=status.HTTP_201_CREATED
         )
         
-class VerifyAccessTokenView(APIView):
-    permission_classes = [permissions.AllowAny, ]
-    
-    def get(self, request):
-        access_token = request.data.get("access_token")
-        if not access_token:
-            return error_response(message="Access token is missing", code=400)
-        try:
-            payload = jwt.decode(access_token, SECRET_KEY, algorithms=["HS256"])
-            print(f"payload: {payload}")
-            user_id = payload.get("user_id")
-            print(f"user_id: {user_id}")
-            user = User.objects.filter(id=user_id).first()
-            print(f"user: {user}")
-            if not user:
-                return error_response(message="User not found", code=400)
-            return success_response(message="Success", code=status.HTTP_200_OK)
-        except Exception as e:
-            return error_response(message=str(e), code=400)
-        
         
     

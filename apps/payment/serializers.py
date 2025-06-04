@@ -9,6 +9,7 @@ from shared.addons.payment import check_payme_card_token, create_payme_receipt, 
     update_user_balance, send_create_card_request, send_verify_code_request, verify_payme_card_token
 from shared.addons.validations import raise_validation_error
 from user.serializers import UserSerializer
+from shared.addons.enums import PricingPackageType
 from django.utils.translation import gettext as lang
 
 
@@ -431,3 +432,94 @@ class RetryPaymentSerializer(serializers.ModelSerializer):
             "error_message",
         ]
 
+class SubscriptionUpdateSerializer(serializers.Serializer):
+    pricing_package_id = serializers.UUIDField()
+    card_id = serializers.UUIDField()
+
+    def validate(self, attrs):
+        pricing_package_id = attrs.get("pricing_package_id")
+        card_id = attrs.get("card_id")
+
+        user = self.context.get("request").user
+        if not user.subscription:
+            raise_validation_error(message=lang("Sizda obuna mavjud emas."))
+        
+        if not pricing_package_id or not card_id:
+            raise_validation_error(message=lang("Narx paketi ID va karta ID talab qilinadi"))
+        try:
+            pricing_package = PricingPackage.objects.get(id=pricing_package_id)
+            if not pricing_package.is_active:
+                raise_validation_error(message=lang("Narx paketi hozirda faol emas."))
+            if pricing_package.type == PricingPackageType.FREE.value:
+                raise_validation_error(message=lang("Bu tekin paketni yangilash mumkin emas."))
+        except PricingPackage.DoesNotExist:
+            raise_validation_error(message=lang("Narx paketi topilmadi."))
+
+        try:
+            card = Card.objects.get(id=card_id)
+        except Card.DoesNotExist:
+            raise_validation_error(message=lang("Karta topilmadi."))
+        
+        attrs["card"] = card
+        attrs["pricing_package"] = pricing_package
+        return attrs
+    
+    def update(self, validated_data):
+        user = self.context.get("request").user
+        card = validated_data.get("card")
+        pricing_package = validated_data.get("pricing_package")
+        amount = int(pricing_package.discount_price)
+        try:
+            success, message, receipt_id = create_payme_receipt(amount)
+            if not success:
+                raise_validation_error(message=lang(f"To'lov chekini yaratishda tizim bilan bog'liq"
+                                                f" muammo yuz berdi: {message}"))
+
+            transaction = Transaction.objects.create(
+                user=user,
+                amount=amount,
+                currency="UZS",
+                transaction_type=TransactionTypes.WITHDRAW.value,
+                status=PaymentStatuses.DRAFT.value,
+            )
+        
+            success, message, receipt_id = commit_payme_receipt(card.card_token, receipt_id)
+            if not success:
+                raise_validation_error(message=lang(f"To'lov tizimi bilan bog'liq muammo yuz berdi: {message}"))
+            
+            transaction.status = PaymentStatuses.SUCCESS.value
+            transaction.transaction_id = receipt_id
+            transaction.save()
+
+            update_user_balance(user, amount)
+
+            #Update subscription
+            subscription = user.subscription
+            subscription.next_payment_date = timezone.now().date() + timedelta(days=pricing_package.duration_days)
+            subscription.auto_renew = True
+            subscription.retry_count = 0
+            subscription.last_payment_date = timezone.now().date()
+            subscription.grace_period_days = 0
+            subscription.status = SubscriptionStatuses.ACTIVE.value 
+            subscription.pricing_package = pricing_package
+            subscription.remained_request_count += pricing_package.request_count
+            subscription.save()
+
+            return {
+                "amount": transaction.amount,
+                "status": transaction.status,
+                "subscription": {
+                    "id": subscription.id,
+                    "start_date": subscription.start_date,
+                    "end_date": subscription.end_date,
+                    "is_active": subscription.status
+                }
+            }
+            
+        except Exception as e:
+            transaction.status = PaymentStatuses.FAILED.value
+            transaction.error_message = str(e)
+            transaction.save()
+            subscription.status = SubscriptionStatuses.INACTIVE.value
+            subscription.save()
+            raise_validation_error(message=lang(f"To'lov jarayonida xatolik yuz berdi: {str(e)}"))

@@ -12,6 +12,7 @@ urlpatterns = [
     path("subscriptions/cancel/", views.SubscriptionCancellationView.as_view()),
     path("payme/card/add/", views.CardCreateWithPaymeView.as_view()),
     path("payme/card/pay-subscription/", views.PayWithCard.as_view()),
+    path("payme/card/update-subscription/", views.SubscriptionUpdateView.as_view()),
     path("cards/", views.CardListView.as_view()),
     path("cards/<uuid:pk>/", views.CardDetailView.as_view()),
     path("cards/<uuid:pk>/remove/", views.CardRemoveView.as_view()),

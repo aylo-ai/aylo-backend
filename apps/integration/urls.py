@@ -5,8 +5,8 @@ urlpatterns = [
     path("assistant/<uuid:pk>/integration/", views.IntegrationListCreateView.as_view()),
     path("integration/<uuid:pk>/", views.IntegrationRetrieveUpdateDestroyView.as_view()),
     path("integration/<uuid:pk>/telegram-group/", views.TelegramGroupListView.as_view()),
-    path('telegram/webhook/<str:bot_token>/', views.TelegramWebhookView.as_view())
-    ,
+    path('telegram/webhook/<str:bot_token>/', views.TelegramWebhookView.as_view()),
+    
     path("instagram/webhook/", views.InstagramWebhookView.as_view()),
     path("instagram/callback/", views.InstagramCallbackView.as_view()),
     path('instagram/deauthorize/', views.InstagramDeauthorizeView.as_view()),
