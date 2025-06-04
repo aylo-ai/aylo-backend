@@ -100,7 +100,7 @@ def process_instagram_message(account_id, user_message, audio_file=None):
         return
     conversation = get_or_create_conversation(sender_id, assistant, platform="instagram")
     print(f"Conversation: {conversation}, thread_id: {conversation.thread_id}")
-    if conversation.status == "ESCALATED" or not assistant.is_active:
+    if conversation.status == ConversationStatuses.ESCALATED.value or not assistant.is_active:
         audio_file = create_message(conversation, 'user', message_text, audio_file)
         print("publish message to web socket")
         publish_message_to_ws(conversation.id, message_text, sender="user", audio_file=str(audio_file))
