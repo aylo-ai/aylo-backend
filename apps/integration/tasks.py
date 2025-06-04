@@ -1,7 +1,7 @@
 import requests
 from celery import shared_task
 
-from apps.shared.addons.enums import SenderTypes
+from apps.shared.addons.enums import SenderTypes, ConversationStatuses
 from shared.addons.instagram import send_instagram_message, send_instagram_private_reply
 from shared.addons.telegram import send_telegram_message, check_register_info, delete_telegram_message
 from shared.addons.utils import get_assistant_response_ai, handle_start_command, get_or_create_conversation, create_message, \
@@ -28,7 +28,7 @@ def process_message_task(chat_id, user_message, bot_token, audio_file=None):
     # Handle regular messages
     conversation = get_or_create_conversation(chat_id, assistant, token=bot_token)
     print(f"Conversation: {conversation}")
-    if conversation.status == "ESCALATED" or not assistant.is_active:
+    if conversation.status == ConversationStatuses.ESCALATED.value or not assistant.is_active:
         audio_file = create_message(conversation, 'user', user_message, audio_file)
         publish_message_to_ws(conversation.id, user_message, sender="user", audio_file=str(audio_file) if audio_file else None)
         print(f"Message created for user: {user_message}")
