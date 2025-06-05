@@ -48,9 +48,11 @@ class AssistantSerializer(serializers.ModelSerializer,
         #  count of instagram and telegram integrations
         telegram_count = obj.integrations.filter(integration_type="telegram").exists()
         instagram_count = obj.integrations.filter(integration_type="instagram").exists()
+        widget_count = obj.integrations.filter(integration_type="website").exists()
         return {
             "is_telegram_integration": telegram_count,
             "is_instagram_integration": instagram_count,
+            "is_widget_integration": widget_count,
         }
     
     def validate(self, attrs):
