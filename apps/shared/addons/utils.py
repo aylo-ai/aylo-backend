@@ -26,7 +26,7 @@ from shared.addons.payloads import valid_intents
 def create_message(conversation, sender, content, audio_file=None, run_status=None):
     message_type = 'audio' if audio_file else 'text'
     print(f"Creating message: {conversation}, {sender}, {content}, {audio_file}")
-    if audio_file and audio_file.startswith("https://"):
+    if audio_file.startswith("https://"):
         audio_file = get_audio_from_url(audio_file)
     
     # Extract token usage from run_status if available
