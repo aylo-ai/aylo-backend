@@ -103,7 +103,7 @@ def process_instagram_message(account_id, user_message, audio_file=None):
     if conversation.status == ConversationStatuses.ESCALATED.value or not assistant.is_active:
         audio_file = create_message(conversation, 'user', message_text, audio_file)
         print("publish message to web socket")
-        publish_message_to_ws(conversation.id, message_text, sender="user", audio_file=str(audio_file))
+        publish_message_to_ws(conversation.id, message_text, sender="user", audio_file=str(audio_file) if audio_file else None)
         return
     print("Sending message to web socket")
     audio_file = create_message(conversation, 'user', message_text, audio_file)

@@ -54,7 +54,7 @@ def publish_message_to_ws(conversation_id, message, sender="assistant", audio_fi
         "conversation_id": str(conversation_id),
         "message": message,
         "sender": sender,
-        "message_type": "text" if audio_file == 'None' else "audio",
+        "message_type": "text" if audio_file is None else "audio",
         "audio_file": audio_file,
         "timestamp": datetime.now().isoformat()
     }
