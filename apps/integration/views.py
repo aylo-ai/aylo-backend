@@ -131,7 +131,10 @@ class InstagramWebhookView(APIView):
         messaging = entry.get("messaging")
         if messaging:
             is_echo = messaging[0].get("message", {}).get("is_echo")
-            audio_file = messaging[0].get("message", {}).get("attachments", [{}])[0].get("payload", {}).get("url", None)
+            if messaging[0].get("message", {}).get("attachments").get('type') == 'audio':
+                audio_file = messaging[0].get("message", {}).get("attachments", [{}])[0].get("payload", {}).get("url", None)
+            else:
+                audio_file = None
             print(f"Is echo: {is_echo}, Audio file: {audio_file}")
             if is_echo:
                 print(f"Echo message received")
