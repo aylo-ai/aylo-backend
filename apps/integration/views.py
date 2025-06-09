@@ -381,11 +381,11 @@ class TelegramWebhookView(APIView):
         if chat_type in ['group', 'supergroup']:
             # if "reply_to_message" in data and data["reply_to_message"]["from"]["is_bot"]:
             print("Ignoring group messages and replies to the bot.")
-            return success_response(message=_("Message received"), code=200)
-        if data.get('new_chat_member', {}).get('is_bot'):
-            handle_bot_added_to_group(chat_id, chat_title, bot_token)
-        elif data.get('left_chat_member', {}).get('is_bot'):
-            handle_bot_removed_from_group(chat_id, chat_title)
+            
+            if data.get('new_chat_member', {}).get('is_bot'):
+                handle_bot_added_to_group(chat_id, chat_title, bot_token)
+            elif data.get('left_chat_member', {}).get('is_bot'):
+                handle_bot_removed_from_group(chat_id, chat_title)
         else:
             # Start the Celery task
             process_message_task.delay(chat_id, user_message, bot_token)
