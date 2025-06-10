@@ -34,7 +34,7 @@ class AssistantListCreateView(generics.ListCreateAPIView):
             serializer.save(user=request.user.created_by, created_by=request.user)
         else:
             serializer.save(user=request.user)
-        return success_response(message='Assistant created successfully', data=serializer.data, code=201)
+        return success_response(message=_("Assistant muvaffaqiyatli yaratildi"), data=serializer.data, code=201)
 
 
 class AssistantRetrieveView(generics.RetrieveUpdateDestroyAPIView):
@@ -52,7 +52,7 @@ class AssistantRetrieveView(generics.RetrieveUpdateDestroyAPIView):
     def retrieve(self, request, *args, **kwargs):
         instance = self.get_object()
         serializer = self.get_serializer(instance,context={'request': request})
-        return success_response(data=serializer.data, message='Assistant retrieved successfully', code=200)
+        return success_response(data=serializer.data, message=_("Assistant muvaffaqiyatli olindi"), code=200)
 
     def update(self, request, *args, **kwargs):
         instance = self.get_object()
@@ -63,14 +63,14 @@ class AssistantRetrieveView(generics.RetrieveUpdateDestroyAPIView):
         if assistant and assistant.assistant_id:
             success, message = update_assistant(assistant.assistant_id, assistant.name, assistant)
             print(f"Assistant updated successfully: {success}, {message}")
-        return success_response(message='Assistant updated successfully', data=serializer.data, code=200)
+        return success_response(message=_("Assistant muvaffaqiyatli o'zgartirildi"), data=serializer.data, code=200)
 
     def destroy(self, request, *args, **kwargs):
         instance = self.get_object()
         # Only allow deletion if the user is the original creator of the assistant
         if instance.user != request.user:
             return error_response(
-                message=_("Only customer can delete their assistants"),
+                message=_("Faqat mijozlar o'zlarining assistantlarini o'chirishlari mumkin"),
                 code=403
             )
         assistant_id = instance.assistant_id
@@ -78,7 +78,7 @@ class AssistantRetrieveView(generics.RetrieveUpdateDestroyAPIView):
         if assistant_id:
             delete_assitant(assistant_id)
         self.perform_destroy(instance)
-        return success_response(message='Assistant deleted successfully', code=204)
+        return success_response(message=_("Assistant muvaffaqiyatli o'chirildi"), code=204)
 
 
 class ConversationListCreateView(generics.ListCreateAPIView):
@@ -109,7 +109,7 @@ class ConversationListCreateView(generics.ListCreateAPIView):
             "conversation_id": conversation.id,
             "thread_id": conversation.thread_id
         }
-        return success_response(message='Conversation created successfully', data=data, code=201)
+        return success_response(message=_("Conversation muvaffaqiyatli yaratildi"), data=data, code=201)
 
 
 class ConversationRetrieveView(generics.RetrieveUpdateDestroyAPIView):
@@ -124,19 +124,19 @@ class ConversationRetrieveView(generics.RetrieveUpdateDestroyAPIView):
     def retrieve(self, request, *args, **kwargs):
         instance = self.get_object()
         serializer = self.get_serializer(instance)
-        return success_response(data=serializer.data, message='Conversation retrieved successfully', code=200)
+        return success_response(data=serializer.data, message=_("Conversation muvaffaqiyatli olindi"), code=200)
 
     def update(self, request, *args, **kwargs):
         instance = self.get_object()
         serializer = self.get_serializer(instance, data=request.data, partial=True)
         serializer.is_valid(raise_exception=True)
         self.perform_update(serializer)
-        return success_response(message='Conversation updated successfully', data=serializer.data, code=200)
+        return success_response(message=_("Conversation muvaffaqiyatli o'zgartirildi"), data=serializer.data, code=200)
 
     def destroy(self, request, *args, **kwargs):
         instance = self.get_object()
         self.perform_destroy(instance)
-        return success_response(message='Conversation deleted successfully', code=204)
+        return success_response(message=_("Conversation muvaffaqiyatli o'chirildi"), code=204)
 
 
 class MessageListCreateView(generics.ListCreateAPIView):
@@ -157,7 +157,7 @@ class MessageListCreateView(generics.ListCreateAPIView):
         serializer = self.get_serializer(data=request.data, context={'conversation_id': conversation_id, 'request': request})
         serializer.is_valid(raise_exception=True)
         serializer.save()
-        return success_response(message='Message created successfully', data=serializer.data, code=201)
+        return success_response(message=_("Message muvaffaqiyatli yaratildi"), data=serializer.data, code=201)
 
 
 class MessageRetrieveView(generics.RetrieveUpdateDestroyAPIView):
@@ -171,19 +171,19 @@ class MessageRetrieveView(generics.RetrieveUpdateDestroyAPIView):
     def retrieve(self, request, *args, **kwargs):
         instance = self.get_object()
         serializer = self.get_serializer(instance)
-        return success_response(data=serializer.data, message='Message retrieved successfully', code=200)
+        return success_response(data=serializer.data, message=_("Message muvaffaqiyatli olindi"), code=200)
 
     def update(self, request, *args, **kwargs):
         instance = self.get_object()
         serializer = self.get_serializer(instance, data=request.data, partial=True)
         serializer.is_valid(raise_exception=True)
         self.perform_update(serializer)
-        return success_response(message='Message updated successfully', data=serializer.data, code=200)
+        return success_response(message=_("Message muvaffaqiyatli o'zgartirildi"), data=serializer.data, code=200)
 
     def destroy(self, request, *args, **kwargs):
         instance = self.get_object()
         self.perform_destroy(instance)
-        return success_response(message='Message deleted successfully', code=204)
+        return success_response(message=_("Message muvaffaqiyatli o'chirildi"), code=204)
 
 
 class ConversationMessagesListView(generics.ListAPIView):
@@ -217,7 +217,7 @@ class SettingsListCreateView(generics.ListCreateAPIView):
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         self.perform_create(serializer)
-        return success_response(message='Settings created successfully', data=serializer.data, code=201)
+        return success_response(message=_("Settings muvaffaqiyatli yaratildi"), data=serializer.data, code=201)
 
 
 class SettingsRetrieveView(generics.RetrieveUpdateDestroyAPIView):
@@ -231,19 +231,19 @@ class SettingsRetrieveView(generics.RetrieveUpdateDestroyAPIView):
     def retrieve(self, request, *args, **kwargs):
         instance = self.get_object()
         serializer = self.get_serializer(instance)
-        return success_response(data=serializer.data, message='Settings retrieved successfully', code=200)
+        return success_response(data=serializer.data, message=_("Settings muvaffaqiyatli olindi"), code=200)
 
     def update(self, request, *args, **kwargs):
         instance = self.get_object()
         serializer = self.get_serializer(instance, data=request.data, partial=True)
         serializer.is_valid(raise_exception=True)
         self.perform_update(serializer)
-        return success_response(message='Settings updated successfully', data=serializer.data, code=200)
+        return success_response(message=_("Settings muvaffaqiyatli o'zgartirildi"), data=serializer.data, code=200)
 
     def destroy(self, request, *args, **kwargs):
         instance = self.get_object()
         self.perform_destroy(instance)
-        return success_response(message='Settings deleted successfully', code=204)
+        return success_response(message=_("Settings muvaffaqiyatli o'chirildi"), code=204)
 
 
 class AssistantFileUploadListCreateView(generics.ListCreateAPIView):
@@ -264,7 +264,7 @@ class AssistantFileUploadListCreateView(generics.ListCreateAPIView):
         try:
             assistant = Assistant.objects.get(id=assistant_id)
         except Assistant.DoesNotExist:
-            return error_response(message="Assistant not found", code=404)
+            return error_response(message=_("Assistant topilmadi"), code=404)
         files = request.FILES.getlist('file')  # Handle multiple files
         serializer = self.get_serializer(
             data=request.data,
@@ -278,7 +278,7 @@ class AssistantFileUploadListCreateView(generics.ListCreateAPIView):
             if not success:
                 return error_response(message=message, code=400)
             print("saved assistant data")
-        return success_response(message='File uploaded successfully', code=201)
+        return success_response(message=_("File muvaffaqiyatli yaratildi"), code=201)
 
 
 class AssistantFileUploadUpdateView(generics.CreateAPIView):
@@ -291,7 +291,7 @@ class AssistantFileUploadUpdateView(generics.CreateAPIView):
         try:
             assistant = Assistant.objects.get(id=assistant_id)
         except Assistant.DoesNotExist:
-            return error_response(message="Assistant not found", code=404)
+            return error_response(message=_("Assistant topilmadi"), code=404)
 
         files = request.FILES.getlist('file')  # Handle multiple files
         context = {'assistant': assistant, 'files': files, 'request': request}
@@ -299,7 +299,7 @@ class AssistantFileUploadUpdateView(generics.CreateAPIView):
         serializer = self.get_serializer(data=request.data, context=context, many=True)
         serializer.is_valid(raise_exception=True)
         serializer.save()
-        return success_response(message='File updated successfully', data=serializer.data, code=200)
+        return success_response(message=_("File muvaffaqiyatli o'zgartirildi"), data=serializer.data, code=200)
 
 
 class AssistantFileUploadRetrieveView(generics.RetrieveUpdateDestroyAPIView):
@@ -311,21 +311,21 @@ class AssistantFileUploadRetrieveView(generics.RetrieveUpdateDestroyAPIView):
         try:
             return self.queryset.get(pk=self.kwargs.get('pk'), assistant__user=self.request.user)
         except AssistantFileUpload.DoesNotExist:
-            raise NotFound(detail="File not found with given pk.")
+            raise NotFound(detail=_("Berilgan ID ga ega fayl topilmadi"))
 
     def retrieve(self, request, *args, **kwargs):
         instance = self.get_object()
         serializer = self.get_serializer(instance)
-        return success_response(data=serializer.data, message='File retrieved successfully', code=200)
+        return success_response(data=serializer.data, message=_("File muvaffaqiyatli olindi"), code=200)
 
     def update(self, request, *args, **kwargs):
         instance = self.get_object()
         serializer = self.get_serializer(instance, data=request.data, partial=True)
         serializer.is_valid(raise_exception=True)
         self.perform_update(serializer)
-        return success_response(message='File updated successfully', data=serializer.data, code=200)
+        return success_response(message=_("File muvaffaqiyatli o'zgartirildi"), data=serializer.data, code=200)
 
     def destroy(self, request, *args, **kwargs):
         instance = self.get_object()
         self.perform_destroy(instance)
-        return success_response(message='File deleted successfully', code=204)
+        return success_response(message=_("File muvaffaqiyatli o'chirildi"), code=204)

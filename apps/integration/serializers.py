@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from django.utils.translation import gettext as _
+from django.utils.translation import gettext_lazy as _
 
 from .models import Integration, TelegramGroupIntegration
 from apps.assistant.models import Conversation
@@ -42,11 +42,11 @@ class IntegrationCreateSerializer(serializers.ModelSerializer, SubscriptionValid
         if integration_type == IntegrationTypes.TELEGRAM.value and api_token:
             success, code = telegram_get_me(api_token)
             if not success or code == 401:
-                raise_validation_error(message=_("Invalid Telegram API token"))
+                raise_validation_error(message=_("Telegram API token yaroqli emas"))
             set_telegram_webhook(api_token, f"{base_url}/api/v1/integration/telegram/webhook/{api_token}/")
             code = get_webhook_info(api_token)
             if code == 400:
-                raise_validation_error(message=_("Failed to set Telegram webhook"))
+                raise_validation_error(message=_("Telegram webhook topilmadi"))
         elif integration_type == IntegrationTypes.INSTAGRAM.value:
             pass
         return attrs
@@ -71,9 +71,9 @@ class IntegrationSerializer(serializers.ModelSerializer, SubscriptionValidationM
         try:
             assistant = Assistant.objects.get(id=assistant_id)
             if not assistant.vector_id or not assistant.assistant_id:
-                raise_validation_error(message=_("Assistant is not active, please upload a necessary file"))
+                raise_validation_error(message=_("Assistant faol emas, zarur fayl yuklash"))
         except Assistant.DoesNotExist:
-            raise_validation_error(message=_("Assistant not found"))
+            raise_validation_error(message=_("Assistant topilmadi"))
         self.validate_subscription(assistant.user.subscription)
         return attrs
 
@@ -100,15 +100,15 @@ class SendUserMessageSerializer(serializers.Serializer, SubscriptionValidationMi
         conversation_id = attrs.get("conversation_id")
         message = attrs.get("message")
         if not conversation_id or not message:
-            raise_validation_error(message=_("Conversation ID and message are required"))
+            raise_validation_error(message=_("Muloqot ID va xabar mavjud emas"))
         conversation = Conversation.objects.filter(id=conversation_id, assistant__user=user).first()
         self.validate_subscription(conversation.assistant.user.subscription)
         
         print(f"Conversation: {conversation}")
         if not conversation:
-            raise_validation_error(message=_("Conversation not found"))
+            raise_validation_error(message=_("Muloqot topilmadi"))
         if conversation.status != ConversationStatuses.ESCALATED.value:
-            raise_validation_error(message=_("Conversation is not escalated"))
+            raise_validation_error(message=_("Muloqot xabar yuborish mumkin emas"))
         platform = conversation.platform
         attrs["platform"] = platform
         attrs["conversation"] = conversation
@@ -117,10 +117,10 @@ class SendUserMessageSerializer(serializers.Serializer, SubscriptionValidationMi
             user_id = getattr(conversation, "telegram_user_id", None)
             bot_token = getattr(conversation, "token", None)
             if not user_id:
-                raise_validation_error(message=_("Telegram user ID not found"))
+                raise_validation_error(message=_("Telegram foydalanuvchi ID topilmadi"))
             attrs["user_id"] = user_id
             if not bot_token:
-                raise_validation_error(message=_("Telegram bot token not found"))
+                raise_validation_error(message=_("Telegram bot token topilmadi"))
             attrs["bot_token"] = bot_token
 
         return attrs
@@ -139,6 +139,6 @@ class SendUserMessageSerializer(serializers.Serializer, SubscriptionValidationMi
             message = validated_data.get("message")
             create_message(conversation, "admin", message)
 
-        return success_response(message=_("Message sent successfully"), code=200)
+        return success_response(message=_("Xabar muvaffaqiyatli yuborildi"), code=200)
 
 

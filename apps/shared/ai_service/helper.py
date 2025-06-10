@@ -7,7 +7,7 @@ from openai import OpenAIError
 
 from shared.addons.validations import error_response
 from shared.ai_service.openai_client import client
-
+from django.utils.translation import gettext_lazy as _
 
 SUPPORTED_MIME_TYPES = {
     "application/octet-stream", "application/pdf", "application/csv", "image/gif", "text/x-script.python",
@@ -195,14 +195,17 @@ def update_vector_store_files_ai(vector_store_id: str, new_file_urls: List[str])
             if file_id:
                 new_file_ids.append(file_id)
             else:
-                raise ValueError(f"Failed to upload file from URL: {file_url}")
+                raise ValueError(_("Failed to upload file from URL: {}").format(file_url))
         except Exception as e:
-            return error_response(message=f"Error uploading file from URL: {file_url}, Error: {str(e)}", code=400)
+            return error_response(
+                message=_("Error uploading file from URL: {}, Error: {}").format(file_url, str(e)),
+                code=400
+            )
 
     if not new_file_ids:
-        print("No valid file IDs obtained from provided URLs.")
+        print(_("No valid file IDs obtained from provided URLs."))
         return error_response(
-            message="No valid file IDs obtained from provided URLs.",
+            message=_("No valid file IDs found"),
             code=400
         )
 

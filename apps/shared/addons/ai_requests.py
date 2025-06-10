@@ -1,7 +1,7 @@
 import requests
 from openai import OpenAI
 
-from django.utils.translation import gettext as _
+from django.utils.translation import gettext_lazy as _
 from shared.addons.payloads import create_assistant_payload
 from shared.addons.validations import raise_validation_error
 from config.settings import OPENAI_API_KEY

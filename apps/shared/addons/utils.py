@@ -7,7 +7,7 @@ from google import genai
 from google.genai import types
 from io import BytesIO
 
-from django.utils.translation import gettext as _
+from django.utils.translation import gettext_lazy as _
 from django.conf import settings
 
 from apps.assistant.models import Message, Conversation, Lead, Assistant
@@ -93,7 +93,7 @@ def handle_start_command(chat_id, assistant, bot_token):
     # Start a new or reopen an existing conversation
     conversation = get_or_create_conversation(chat_id, assistant, reset=True, token=bot_token)
     print(f"Conversation get_create: {conversation}")
-    return success_response(message=_("Greeting sent and conversation started"), code=200)
+    return success_response(message=_("Salomlashish va yangi chat muvaffaqiyatli bajarildi"), code=200)
 
 
 def notify_user_about_failed_payment(user):
@@ -435,7 +435,7 @@ def create_lead(full_name, phone_number, email, product, metadata=None):
         return lead
     except Exception as e:
         print(f"[create_lead] Error: {e}")
-        return error_response(message=_("Failed to create lead"), code=500)
+        return error_response(message=_("Xaridor yaratishda xatolik"), code=500)
 
 def notify_user_about_low_tokens(user, count):
     """Notify the user when their token count is low."""

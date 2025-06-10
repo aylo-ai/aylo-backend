@@ -1,0 +1,773 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) YEAR THE PACKAGE'S COPYRIGHT HOLDER
+# This file is distributed under the same license as the PACKAGE package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, YEAR.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: PACKAGE VERSION\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-06-10 12:19+0500\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: LANGUAGE <LL@li.org>\n"
+"Language: \n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+#: apps/assistant/serializers.py:64
+msgid "Company nomi 100 ta belgidan kam bo'lishi kerak"
+msgstr "Company name must be less than 100 characters"
+
+#: apps/assistant/serializers.py:66
+msgid "Role 100 ta belgidan kam bo'lishi kerak"
+msgstr "Role must be less than 100 characters"
+
+#: apps/assistant/serializers.py:97 apps/assistant/serializers.py:99
+#: apps/assistant/views.py:267 apps/assistant/views.py:294
+#: apps/integration/serializers.py:76 apps/shared/ai_service/assistant.py:92
+msgid "Assistant topilmadi"
+msgstr "Assistant not found"
+
+#: apps/assistant/serializers.py:101
+msgid "Assistant uchun fayl yuklash kerak"
+msgstr "File upload required for assistant"
+
+#: apps/assistant/serializers.py:181 apps/assistant/serializers.py:194
+msgid "Xabar matni yoki audio fayl kerak"
+msgstr "Message text or audio file required"
+
+#: apps/assistant/serializers.py:187
+msgid "Conversation topilmadi"
+msgstr "Conversation not found"
+
+#: apps/assistant/serializers.py:202
+msgid "Request obyekti kerak"
+msgstr "Request object required"
+
+#: apps/assistant/serializers.py:326
+msgid "Assistant kerak"
+msgstr "Assistant required"
+
+#: apps/assistant/serializers.py:411 apps/assistant/serializers.py:433
+msgid "Request obyekt kerak"
+msgstr "Request object required"
+
+#: apps/assistant/serializers.py:416
+msgid "Fayl yuklanmadi"
+msgstr "File not uploaded"
+
+#: apps/assistant/serializers.py:439
+msgid "Fayl va assistant kerak"
+msgstr "File and assistant required"
+
+#: apps/assistant/views.py:37
+msgid "Assistant muvaffaqiyatli yaratildi"
+msgstr "Assistant successfully created"
+
+#: apps/assistant/views.py:55
+msgid "Assistant muvaffaqiyatli olindi"
+msgstr "Assistant successfully retrieved"
+
+#: apps/assistant/views.py:66
+msgid "Assistant muvaffaqiyatli o'zgartirildi"
+msgstr "Assistant successfully updated"
+
+#: apps/assistant/views.py:73
+msgid "Faqat mijozlar o'zlarining assistantlarini o'chirishlari mumkin"
+msgstr "Only clients can delete their own assistants"
+
+#: apps/assistant/views.py:81
+msgid "Assistant muvaffaqiyatli o'chirildi"
+msgstr "Assistant successfully deleted"
+
+#: apps/assistant/views.py:112
+msgid "Conversation muvaffaqiyatli yaratildi"
+msgstr "Conversation successfully created"
+
+#: apps/assistant/views.py:127
+msgid "Conversation muvaffaqiyatli olindi"
+msgstr "Conversation successfully retrieved"
+
+#: apps/assistant/views.py:134
+msgid "Conversation muvaffaqiyatli o'zgartirildi"
+msgstr "Conversation successfully updated"
+
+#: apps/assistant/views.py:139
+msgid "Conversation muvaffaqiyatli o'chirildi"
+msgstr "Conversation successfully deleted"
+
+#: apps/assistant/views.py:160
+msgid "Message muvaffaqiyatli yaratildi"
+msgstr "Message successfully created"
+
+#: apps/assistant/views.py:174
+msgid "Message muvaffaqiyatli olindi"
+msgstr "Message successfully retrieved"
+
+#: apps/assistant/views.py:181
+msgid "Message muvaffaqiyatli o'zgartirildi"
+msgstr "Message successfully updated"
+
+#: apps/assistant/views.py:186
+msgid "Message muvaffaqiyatli o'chirildi"
+msgstr "Message successfully deleted"
+
+#: apps/assistant/views.py:220
+msgid "Settings muvaffaqiyatli yaratildi"
+msgstr "Settings successfully created"
+
+#: apps/assistant/views.py:234
+msgid "Settings muvaffaqiyatli olindi"
+msgstr "Settings successfully retrieved"
+
+#: apps/assistant/views.py:241
+msgid "Settings muvaffaqiyatli o'zgartirildi"
+msgstr "Settings successfully updated"
+
+#: apps/assistant/views.py:246
+msgid "Settings muvaffaqiyatli o'chirildi"
+msgstr "Settings successfully deleted"
+
+#: apps/assistant/views.py:281
+msgid "File muvaffaqiyatli yaratildi"
+msgstr "File successfully created"
+
+#: apps/assistant/views.py:302 apps/assistant/views.py:326
+msgid "File muvaffaqiyatli o'zgartirildi"
+msgstr "File successfully updated"
+
+#: apps/assistant/views.py:314
+msgid "Berilgan ID ga ega fayl topilmadi"
+msgstr "File with given ID not found"
+
+#: apps/assistant/views.py:319
+msgid "File muvaffaqiyatli olindi"
+msgstr "File successfully retrieved"
+
+#: apps/assistant/views.py:331
+msgid "File muvaffaqiyatli o'chirildi"
+msgstr "File successfully deleted"
+
+#: apps/integration/serializers.py:45
+msgid "Telegram API token yaroqli emas"
+msgstr "Telegram API token is invalid"
+
+#: apps/integration/serializers.py:49
+msgid "Telegram webhook topilmadi"
+msgstr "Telegram webhook not found"
+
+#: apps/integration/serializers.py:74
+msgid "Assistant faol emas, zarur fayl yuklash"
+msgstr "Assistant is not active, file upload required"
+
+#: apps/integration/serializers.py:103
+msgid "Muloqot ID va xabar mavjud emas"
+msgstr "Conversation ID and message do not exist"
+
+#: apps/integration/serializers.py:109
+msgid "Muloqot topilmadi"
+msgstr "Conversation not found"
+
+#: apps/integration/serializers.py:111
+msgid "Muloqot xabar yuborish mumkin emas"
+msgstr "Cannot send message to conversation"
+
+#: apps/integration/serializers.py:120
+msgid "Telegram foydalanuvchi ID topilmadi"
+msgstr "Telegram user ID not found"
+
+#: apps/integration/serializers.py:123
+msgid "Telegram bot token topilmadi"
+msgstr "Telegram bot token not found"
+
+#: apps/integration/serializers.py:142
+msgid "Xabar muvaffaqiyatli yuborildi"
+msgstr "Message successfully sent"
+
+#: apps/integration/views.py:48 apps/integration/views.py:215
+msgid "Integration muvaffaqiyatli yaratildi"
+msgstr "Integration successfully created"
+
+#: apps/integration/views.py:60 apps/shared/addons/telegram.py:159
+msgid "Integration topilmadi"
+msgstr "Integration not found"
+
+#: apps/integration/views.py:66
+msgid "Integration muvaffaqiyatli olindi"
+msgstr "Integration successfully retrieved"
+
+#: apps/integration/views.py:73
+msgid "Integration muvaffaqiyatli o'zgartirildi"
+msgstr "Integration successfully updated"
+
+#: apps/integration/views.py:78
+msgid "Integration muvaffaqiyatli o'chirildi"
+msgstr "Integration successfully deleted"
+
+#: apps/integration/views.py:106
+msgid "Token yaroqsiz"
+msgstr "Token is invalid"
+
+#: apps/integration/views.py:113
+msgid "Ma'lumot topilmadi"
+msgstr "Information not found"
+
+#: apps/integration/views.py:128
+msgid "Comment webhook ma'lumotlar muvaffaqiyatli olindi"
+msgstr "Comment webhook information successfully retrieved"
+
+#: apps/integration/views.py:138
+msgid "Reel yoki qo'shimcha turdagi xabar muvaffaqiyatli olindi"
+msgstr "Reel or additional type message successfully retrieved"
+
+#: apps/integration/views.py:142
+msgid "Echo xabar muvaffaqiyatli olindi"
+msgstr "Echo message successfully retrieved"
+
+#: apps/integration/views.py:149
+msgid "Xabar webhook ma'lumotlar muvaffaqiyatli olindi"
+msgstr "Message webhook information successfully retrieved"
+
+#: apps/integration/views.py:151
+msgid "Webhook ma'lumotlar muvaffaqiyatli olindi"
+msgstr "Webhook information successfully retrieved"
+
+#: apps/integration/views.py:164
+msgid "Assistant ID topilmadi"
+msgstr "Assistant ID not found"
+
+#: apps/integration/views.py:166 apps/user/views.py:283
+msgid "Authorization code topilmadi"
+msgstr "Authorization code not found"
+
+#: apps/integration/views.py:190
+msgid "Access token topilmadi"
+msgstr "Access token not found"
+
+#: apps/integration/views.py:208
+msgid "Foydalanuvchi profili topilmadi"
+msgstr "User profile not found"
+
+#: apps/integration/views.py:217
+msgid "Webhook topilmadi"
+msgstr "Webhook not found"
+
+#: apps/integration/views.py:292
+msgid "Foydalanuvchi appni deauthorized qildi"
+msgstr "User deauthorized the app"
+
+#: apps/integration/views.py:295
+msgid "Deauthorization xatolik"
+msgstr "Deauthorization error"
+
+#: apps/integration/views.py:297
+msgid "Foydalanuvchi ID topilmadi"
+msgstr "User ID not found"
+
+#: apps/integration/views.py:305
+msgid "Signed request topilmadi"
+msgstr "Signed request not found"
+
+#: apps/integration/views.py:367
+msgid "No message data received"
+msgstr "No message data received"
+
+#: apps/integration/views.py:377
+msgid "Voice message muvaffaqiyatli olindi"
+msgstr "Voice message successfully retrieved"
+
+#: apps/integration/views.py:393
+msgid "Xabar muvaffaqiyatli olindi"
+msgstr "Message successfully retrieved"
+
+#: apps/payment/serializers.py:44
+msgid "Narx manfiy bo'lishi mumkin emas."
+msgstr "Price cannot be negative."
+
+#: apps/payment/serializers.py:46
+msgid "Chegirma narxi narxdan kichik bo'lishi mumkin emas."
+msgstr "Discount price cannot be less than the original price."
+
+#: apps/payment/serializers.py:70
+msgid "Karta muddati o'tgan."
+msgstr "Card has expired."
+
+#: apps/payment/serializers.py:72 apps/payment/serializers.py:132
+msgid "Karta raqami 16 ta raqamdan kam bo'lishi mumkin emas."
+msgstr "Card number cannot be less than 16 digits."
+
+#: apps/payment/serializers.py:94
+msgid "Karta tokeni noto'g'ri. Iltimos, tekshirib qaytadan yuboring."
+msgstr "Card token is incorrect. Please check and resend."
+
+#: apps/payment/serializers.py:99 apps/payment/serializers.py:185
+msgid "Karta noto'g'ri. Iltimos, tekshirib qaytadan yuboring."
+msgstr "Card is incorrect. Please check and resend."
+
+#: apps/payment/serializers.py:129
+msgid "Karta raqami va muddati talab qilinadi"
+msgstr "Card number and expiry date are required"
+
+#: apps/payment/serializers.py:134 apps/payment/serializers.py:147
+msgid "Kartaning muddati 4 ta raqamdan kam bo'lishi mumkin emas."
+msgstr "Card expiry date cannot be less than 4 digits."
+
+#: apps/payment/serializers.py:167
+msgid "Token va kod talab qilinadi"
+msgstr "Token and code are required"
+
+#: apps/payment/serializers.py:216
+msgid "Obuna paketi faol emas. Iltimos, tekshirib qaytadan yuboring."
+msgstr "Subscription package is not active. Please check and resend."
+
+#: apps/payment/serializers.py:224
+msgid "Obuna topilmadi. Iltimos, tekshirib qaytadan yuboring."
+msgstr "Subscription not found. Please check and resend."
+
+#: apps/payment/serializers.py:229
+msgid "Karta tasdiqlanmagan. Iltimos, tekshirib qaytadan yuboring."
+msgstr "Card is not verified. Please check and resend."
+
+#: apps/payment/serializers.py:232
+msgid "Karta topilmadi. Iltimos, tekshirib qaytadan yuboring."
+msgstr "Card not found. Please check and resend."
+
+#: apps/payment/serializers.py:248 apps/payment/serializers.py:474
+msgid "To'lov chekini yaratishda tizim bilan bog'liq muammo yuz berdi: {}"
+msgstr "System-related issue occurred while creating payment receipt: {}"
+
+#: apps/payment/serializers.py:268 apps/payment/serializers.py:487
+msgid "To'lov tizimi bilan bog'liq muammo yuz berdi: {}"
+msgstr "System-related issue occurred with payment system: {}"
+
+#: apps/payment/serializers.py:311 apps/payment/serializers.py:524
+msgid "To'lov jarayonida xatolik yuz berdi: {}"
+msgstr "Error occurred during payment process: {}"
+
+#: apps/payment/serializers.py:378
+msgid "Sizda allaqachon faol obuna mavjud."
+msgstr "You already have an active subscription."
+
+#: apps/payment/serializers.py:386
+msgid "Bu narx paketi hozirda faol emas."
+msgstr "This price package is currently not active."
+
+#: apps/payment/serializers.py:388 apps/payment/serializers.py:455
+msgid "Narx paketi topilmadi."
+msgstr "Price package not found."
+
+#: apps/payment/serializers.py:444
+msgid "Sizda obuna mavjud emas."
+msgstr "You don't have a subscription."
+
+#: apps/payment/serializers.py:447
+msgid "Narx paketi ID va karta ID talab qilinadi"
+msgstr "Price package ID and card ID are required"
+
+#: apps/payment/serializers.py:451
+msgid "Narx paketi hozirda faol emas."
+msgstr "Price package is currently not active."
+
+#: apps/payment/serializers.py:453
+msgid "Bu tekin paketni yangilash mumkin emas."
+msgstr "This free package cannot be updated."
+
+#: apps/payment/serializers.py:460
+msgid "Karta topilmadi."
+msgstr "Card not found."
+
+#: apps/payment/views.py:25
+msgid "Funksiya muvaffaqiyatli yaratildi"
+msgstr "Function successfully created"
+
+#: apps/payment/views.py:36
+msgid "Funksiya muvaffaqiyatli ko'rsatildi"
+msgstr "Function successfully displayed"
+
+#: apps/payment/views.py:43
+msgid "Funksiya muvaffaqiyatli tahrirlandi"
+msgstr "Function successfully edited"
+
+#: apps/payment/views.py:48
+msgid "Funksiya muvaffaqiyatli o'chirildi"
+msgstr "Function successfully deleted"
+
+#: apps/payment/views.py:65
+msgid "Narx paketi muvaffaqiyatli yaratildi"
+msgstr "Price package successfully created"
+
+#: apps/payment/views.py:81
+msgid "Narx paketi muvaffaqiyatli olindi"
+msgstr "Price package successfully retrieved"
+
+#: apps/payment/views.py:88
+msgid "Narx paketi muvaffaqiyatli tahrirlandi"
+msgstr "Price package successfully edited"
+
+#: apps/payment/views.py:93
+msgid "Narx paketi muvaffaqiyatli o'chirildi"
+msgstr "Price package successfully deleted"
+
+#: apps/payment/views.py:110
+msgid "Kartalar ro'yxati muvaffaqiyatli olindi"
+msgstr "Card list successfully retrieved"
+
+#: apps/payment/views.py:126
+msgid "Karta muvaffaqiyatli saqlandi"
+msgstr "Card successfully saved"
+
+#: apps/payment/views.py:140
+msgid "Karta ID kiritilmagan"
+msgstr "Card ID not entered"
+
+#: apps/payment/views.py:148 apps/payment/views.py:173 apps/payment/views.py:232
+msgid "Karta topilmadi"
+msgstr "Card not found"
+
+#: apps/payment/views.py:151
+msgid "{default_card.card_number[:4]}{'*' * 8}{default_card.card_number[-4:]} "
+msgstr ""
+
+#: apps/payment/views.py:177
+msgid "Karta muvaffaqiyatli ko'rsatildi"
+msgstr "Card successfully displayed"
+
+#: apps/payment/views.py:183
+msgid "Kalit topilmadi"
+msgstr "Key not found"
+
+#: apps/payment/views.py:189
+msgid "Karta muvaffaqiyatli tahrirlandi"
+msgstr "Card successfully edited"
+
+#: apps/payment/views.py:203
+msgid "Verification code sent successfully"
+msgstr "Verification code sent successfully"
+
+#: apps/payment/views.py:217
+msgid "Verification code muvaffaqiyatli yuborildi"
+msgstr "Verification code successfully sent"
+
+#: apps/payment/views.py:237
+msgid "To'lov tizimi bilan bog'lanishda xatolik yuz berdi. Iltimos, qaytadan urinib ko'ring"
+msgstr "An error occurred while connecting to the payment system. Please try again"
+
+#: apps/payment/views.py:241
+msgid "Karta va uning ma'lumotlari muvaffaqiyatli o'chirildi"
+msgstr "Card and its information were successfully deleted"
+
+#: apps/payment/views.py:255
+msgid "Foydalanuvchi hisobi muvaffaqiyatli to'ldirildi"
+msgstr "User account was successfully topped up"
+
+#: apps/payment/views.py:267
+msgid "Pullik obuna paketi yo'q. Iltimos, administrator bilan bog'laning."
+msgstr "No paid subscription package available. Please contact the administrator."
+
+#: apps/payment/views.py:282
+msgid "To'lov muvaffaqiyatli qabul qilindi, rahmat"
+msgstr "Payment was successfully received, thank you"
+
+#: apps/payment/views.py:293
+msgid "Obuna muvaffaqiyatli yaratildi"
+msgstr "Subscription was successfully created"
+
+#: apps/payment/views.py:304
+msgid "Obuna muvaffaqiyatli tahrirlandi"
+msgstr "Subscription was successfully edited"
+
+#: apps/payment/views.py:315
+msgid "Bekor qilish sababi talab qilinadi"
+msgstr "Cancellation reason is required"
+
+#: apps/payment/views.py:324
+msgid "Obuna muvaffaqiyatli bekor qilindi"
+msgstr "Subscription was successfully cancelled"
+
+#: apps/shared/addons/utils.py:96
+msgid "Salomlashish va yangi chat muvaffaqiyatli bajarildi"
+msgstr "Greeting and new chat successfully completed"
+
+#: apps/shared/addons/utils.py:101
+#, python-brace-format
+msgid ""
+"Hurmatli {user.first_name}, sizning repli.uz dagi obuna to'lovingiz "
+"muvaffaqiyatsiz amalga oshirildi. Iltimos, platformaga kirib, to'lovni qayta "
+"amalga oshiring."
+msgstr ""
+"Dear {user.first_name}, your subscription payment on repli.uz was "
+"unsuccessful. Please log in to the platform and try the payment again."
+
+#: apps/shared/addons/utils.py:114
+#, python-brace-format
+msgid ""
+"Hurmatli {user.username}, sizning repli.uz dagi to'lovlaringiz bir necha "
+"marta muvaffaqiyatsiz amalga oshirilgani uchun sizning platformadagi "
+"obunangiz cheklab qo'yildi."
+msgstr ""
+"Dear {user.username}, your subscription on the platform has been restricted "
+"due to multiple unsuccessful payment attempts on repli.uz."
+
+#: apps/shared/addons/utils.py:351
+#, python-brace-format
+msgid "Assistant or vector id is not found: {assistant_id}"
+msgstr "Assistant or vector id is not found: {assistant_id}"
+
+#: apps/shared/addons/utils.py:356
+#, python-brace-format
+msgid "Failed to initialize thread for error: {assistant_id}"
+msgstr "Failed to initialize thread for error: {assistant_id}"
+
+#: apps/shared/addons/utils.py:438
+msgid "Xaridor yaratishda xatolik"
+msgstr "Error creating customer"
+
+#: apps/shared/addons/utils.py:447
+msgid "Low Token Count Warning"
+msgstr "Low Token Count Warning"
+
+#: apps/shared/addons/utils.py:448
+#, python-brace-format
+msgid ""
+"Hurmatli {user.first_name}, sizning repli.uz dagi so'rovlar soningiz {count} "
+"tadan kam qoldi. Iltimos, platformaga kirib, obunangizni yangilang."
+msgstr ""
+"Dear {user.first_name}, your request count on repli.uz is below {count}. "
+"Please log in to the platform and renew your subscription."
+
+#: apps/shared/addons/validations.py:86
+msgid "Telefon raqamni kiritish majburiy"
+msgstr "Phone number entry is required"
+
+#: apps/shared/addons/validations.py:88
+msgid "Noto'g'ri telefon raqami kiritildi"
+msgstr "Invalid phone number entered"
+
+#: apps/shared/addons/validations.py:90
+msgid "Telefon raqam allaqachon ro'yxatdan o'tgan"
+msgstr "Phone number is already registered"
+
+#: apps/shared/addons/validations.py:99
+msgid "Parol kamida 6 ta belgidan iborat bo'lishi kerak"
+msgstr "Password must be at least 6 characters long"
+
+#: apps/shared/addons/verification.py:111
+msgid "Verification Code"
+msgstr "Verification Code"
+
+#: apps/shared/addons/verification.py:112
+msgid "Your verification code is: {}"
+msgstr "Your verification code is: {}"
+
+#: apps/shared/addons/verification.py:137
+msgid "Verification code sent to your email"
+msgstr "Verification code sent to your email"
+
+#: apps/shared/addons/verification.py:140
+msgid "Failed to send verification code: {}"
+msgstr "Failed to send verification code: {}"
+
+#: apps/shared/addons/verification.py:159
+msgid "Verification code expired or not found"
+msgstr "Verification code expired or not found"
+
+#: apps/shared/addons/verification.py:171
+msgid "Email verified successfully"
+msgstr "Email verified successfully"
+
+#: apps/shared/addons/verification.py:173
+msgid "Invalid verification code"
+msgstr "Invalid verification code"
+
+#: apps/shared/addons/verification.py:176
+msgid "Failed to verify code: {}"
+msgstr "Failed to verify code: {}"
+
+#: apps/shared/ai_service/assistant.py:94
+msgid "Assistant o'chirishda xatolik"
+msgstr "Error deleting assistant"
+
+#: apps/shared/ai_service/helper.py:198
+msgid "Failed to upload file from URL: {}"
+msgstr "Failed to upload file from URL: {}"
+
+#: apps/shared/ai_service/helper.py:201
+msgid "Error uploading file from URL: {}, Error: {}"
+msgstr "Error uploading file from URL: {}, Error: {}"
+
+#: apps/shared/ai_service/helper.py:206
+msgid "No valid file IDs obtained from provided URLs."
+msgstr "No valid file IDs obtained from provided URLs."
+
+#: apps/shared/ai_service/helper.py:208
+msgid "No valid file IDs found"
+msgstr "No valid file IDs found"
+
+#: apps/shared/mixins.py:18
+msgid "Sizda obuna paketi yo'q. Iltimos, avval obuna paketini tanlang."
+msgstr "You don't have a subscription package. Please select a subscription package first."
+
+#: apps/shared/mixins.py:21
+msgid "Sizning obunangiz tokeni tugagan. Iltimos, obunangizni yangilang."
+msgstr "Your subscription tokens have expired. Please renew your subscription."
+
+#: apps/shared/mixins.py:25
+msgid "Sizning obunangiz faol emas. Iltimos, obunangizni faollashtiring."
+msgstr "Your subscription is not active. Please activate your subscription."
+
+#: apps/shared/mixins.py:28
+msgid "Sizning obunangiz muddati tugagan. Iltimos, obunangizni yangilang."
+msgstr "Your subscription period has expired. Please renew your subscription."
+
+#: apps/shared/mixins.py:36
+msgid "Sizning assistantlar soningiz tugagan. Iltimos, assistantlar sonini oshiring."
+msgstr "You have reached your assistant limit. Please increase your assistant limit."
+
+#: apps/shared/mixins.py:42 apps/shared/mixins.py:45 apps/shared/mixins.py:48
+msgid "Sizning integratsiya soningiz tugagan. Iltimos, integratsiya sonini oshiring."
+msgstr "You have reached your integration limit. Please increase your integration limit."
+
+#: apps/shared/mixins.py:53
+msgid "Sizning telegram integratsiya soningiz tugagan. Iltimos, telegram integratsiya sonini oshiring."
+msgstr "You have reached your Telegram integration limit. Please increase your Telegram integration limit."
+
+#: apps/shared/mixins.py:58
+msgid "Sizning instagram integratsiya soningiz tugagan. Iltimos, instagram integratsiya sonini oshiring."
+msgstr "You have reached your Instagram integration limit. Please increase your Instagram integration limit."
+
+#: apps/shared/mixins.py:63
+msgid "Sizning assistant fayl yuklash soningiz tugagan. Iltimos, assistant fayl yuklash sonini oshiring."
+msgstr "You have reached your assistant file upload limit. Please increase your assistant file upload limit."
+
+#: apps/user/serializers.py:18 apps/user/serializers.py:37
+#: apps/user/serializers.py:96 apps/user/views.py:43 apps/user/views.py:68
+msgid "Telefon raqam yoki email kiritilmagan"
+msgstr "Phone number or email not entered"
+
+#: apps/user/serializers.py:22 apps/user/serializers.py:112
+#: apps/user/serializers.py:276
+msgid "Notog'ri telefon raqam kiritilgan"
+msgstr "Invalid phone number entered"
+
+#: apps/user/serializers.py:39
+msgid "Kod kiritilmagan"
+msgstr "Code not entered"
+
+#: apps/user/serializers.py:100
+msgid "Ism faqat bir so'z bo'lishi kerak"
+msgstr "First name must be a single word"
+
+#: apps/user/serializers.py:102
+msgid "Familya faqat bir so'z bo'lishi kerak"
+msgstr "Last name must be a single word"
+
+#: apps/user/serializers.py:107
+msgid "Parol kamida 8 ta belgidan iborat bo'lishi kerak"
+msgstr "Password must be at least 8 characters long"
+
+#: apps/user/serializers.py:135 apps/user/serializers.py:146
+msgid "Refresh token noto'g'ri kiritilgan"
+msgstr "Invalid refresh token entered"
+
+#: apps/user/serializers.py:250 apps/user/serializers.py:350
+msgid "Ism bir so'zdan iborat bo'lishi kerak"
+msgstr "First name must be a single word"
+
+#: apps/user/serializers.py:252 apps/user/serializers.py:352
+msgid "Familya bir so'zdan iborat bo'lishi kerak"
+msgstr "Last name must be a single word"
+
+#: apps/user/serializers.py:278 apps/user/serializers.py:358
+msgid "Bu telefon raqam allaqachon ro'yxatdan o'tgan"
+msgstr "This phone number is already registered"
+
+#: apps/user/serializers.py:300
+msgid "Foydalanuvchilar tanlanmagan"
+msgstr "No users selected"
+
+#: apps/user/serializers.py:366
+msgid "Bu email allaqachon ro'yxatdan o'tgan"
+msgstr "This email is already registered"
+
+#: apps/user/views.py:98
+msgid "Foydalanuvchi muvaffaqiyatli yaratildi"
+msgstr "User successfully created"
+
+#: apps/user/views.py:113
+msgid "Login muvaffaqiyatli amalga oshirildi"
+msgstr "Login successfully completed"
+
+#: apps/user/views.py:142
+msgid "Foydalanuvchi ma'lumotlari muvaffaqiyatli yangilandi"
+msgstr "User information successfully updated"
+
+#: apps/user/views.py:159
+msgid "Siz muvaffaqiyatli chiqdingiz"
+msgstr "You have successfully logged out"
+
+#: apps/user/views.py:163
+msgid "TokenEror - Noto'g'ri refresh token"
+msgstr "TokenError - Invalid refresh token"
+
+#: apps/user/views.py:167
+msgid "Exception - Noto'g'ri refresh token"
+msgstr "Exception - Invalid refresh token"
+
+#: apps/user/views.py:189
+msgid "Privacy policy muvaffaqiyatli yaratildi"
+msgstr "Privacy policy successfully created"
+
+#: apps/user/views.py:211
+msgid "Privacy policy muvaffaqiyatli yangilandi"
+msgstr "Privacy policy successfully updated"
+
+#: apps/user/views.py:234
+msgid "User agreement muvaffaqiyatli yaratildi"
+msgstr "User agreement successfully created"
+
+#: apps/user/views.py:256
+msgid "User agreement muvaffaqiyatli yangilandi"
+msgstr "User agreement successfully updated"
+
+#: apps/user/views.py:299
+msgid "ID token topilmadi"
+msgstr "ID token not found"
+
+#: apps/user/views.py:311
+msgid "Sub topilmadi"
+msgstr "Sub not found"
+
+#: apps/user/views.py:333
+msgid "Foydalanuvchi muvaffaqiyatli autentifikatsiya qilindi"
+msgstr "User successfully authenticated"
+
+#: apps/user/views.py:344
+msgid "Uzur jigar sizda hodim yaratish huquqi yo'q"
+msgstr "Sorry, you don't have permission to create staff"
+
+#: apps/user/views.py:350
+msgid "Hodim muvaffaqiyatli yaratildi"
+msgstr "Staff successfully created"
+
+#: config/settings.py:231
+msgid "English"
+msgstr "English"
+
+#: config/settings.py:232
+msgid "Kazakh"
+msgstr "Kazakh"
+
+#: config/settings.py:233
+msgid "Russian"
+msgstr "Russian"
+
+#: config/settings.py:234
+msgid "Uzbek"
+msgstr "Uzbek"
+
+#: config/settings.py:235
+msgid "Korean"
+msgstr "Korean"

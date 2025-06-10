@@ -2,7 +2,7 @@ import time
 import os
 
 from rest_framework import serializers
-from django.utils.translation import gettext as _
+from django.utils.translation import gettext_lazy as _
 from django.utils.timezone import localtime
 from django.core.files import File
 
@@ -61,9 +61,9 @@ class AssistantSerializer(serializers.ModelSerializer,
         company_name = attrs.get("company_name")
         role = attrs.get("role")
         if len(company_name) > 100:
-            raise_validation_error(message=_("Company name must be less than 100 characters."))
+            raise_validation_error(message=_("Company nomi 100 ta belgidan kam bo'lishi kerak"))
         if len(role) > 100:
-            raise_validation_error(message=_("Role must be less than 100 characters."))
+            raise_validation_error(message=_("Role 100 ta belgidan kam bo'lishi kerak"))
         return attrs
 
 
@@ -94,11 +94,11 @@ class ConversationSerializer(serializers.ModelSerializer,
             assistant = Assistant.objects.get(id=assistant)
             self.validate_subscription(assistant.user.subscription)
         except Assistant.DoesNotExist:
-            raise_validation_error("Assistant does not exist.")
+            raise_validation_error(message=_("Assistant topilmadi"))
         if assistant is None:
-            raise_validation_error("Assistant is not found.")
+            raise_validation_error(message=_("Assistant topilmadi"))
         if not assistant.assistant_id or not assistant.vector_id:
-            raise_validation_error("Firstly, upload file for assistant.")
+            raise_validation_error(message=_("Assistant uchun fayl yuklash kerak"))
         attrs["assistant"] = assistant
         return attrs
 
@@ -178,20 +178,20 @@ class MessageSerializer(serializers.ModelSerializer, SubscriptionValidationMixin
         message_content = attrs.get("message_content")
         audio_file = attrs.get("audio_file")
         if not message_content and not audio_file:
-            raise_validation_error(message=_("Message content or audio file is required."))
+            raise_validation_error(message=_("Xabar matni yoki audio fayl kerak"))
         conversation = self.context.get("conversation_id")
         print(f"validate: conversation_id: {conversation}")
         try:
             conversation = Conversation.objects.get(id=conversation)
         except Conversation.DoesNotExist:
-            raise_validation_error("Conversation does not exist.")
+            raise_validation_error(message=_("Conversation topilmadi"))
         # Use the mixin's validation method
         self.validate_subscription(conversation.assistant.user.subscription)
 
         message_content = attrs.get("message_content")
         audio_file = attrs.get("audio_file")
         if not message_content and not audio_file:
-            raise_validation_error(message=_("Message content or audio file is required."))
+            raise_validation_error(message=_("Xabar matni yoki audio fayl kerak"))
         attrs["conversation"] = conversation
         print(f"validate: conversation: {conversation}")
         return attrs
@@ -199,7 +199,7 @@ class MessageSerializer(serializers.ModelSerializer, SubscriptionValidationMixin
     def create(self, validated_data):
         request = self.context.get("request")
         if not request:
-            raise_validation_error("Request object is required")
+            raise_validation_error(message=_("Request obyekti kerak"))
         audio_file = validated_data.get("audio_file")
         conversation = validated_data.get("conversation")
         assistant = conversation.assistant
@@ -323,7 +323,7 @@ class AssistantFileUploadSerializer(serializers.ModelSerializer, SubscriptionVal
         website_url = validated_data.get("website_url")
         
         if not assistant:
-            raise_validation_error(message="Assistant is required.")
+            raise_validation_error(message=_("Assistant kerak"))
 
         uploaded_files = []
 
@@ -408,12 +408,12 @@ class UpdateFileUploadSerializer(serializers.ModelSerializer, SubscriptionValida
     def validate(self, attrs):
         request = self.context.get("request")
         if not request:
-            raise_validation_error("Request object is required")
+            raise_validation_error(message=_("Request obyekt kerak"))
         user = request.user
         # Use the mixin's validation method
         self.validate_subscription(user.subscription)
         if not files:
-            raise_validation_error(message="No files were uploaded.")
+            raise_validation_error(message=_("Fayl yuklanmadi"))
 
         if not isinstance(files, (list, tuple)):
             files = [files]
@@ -424,19 +424,19 @@ class UpdateFileUploadSerializer(serializers.ModelSerializer, SubscriptionValida
             if not hasattr(file, 'size') or not hasattr(file, 'name'):
                 raise_validation_error(message=f"Invalid file object: {file}")
             if file.size > 30 * 1024 * 1024:  # 30MB limit
-                raise_validation_error(message=f"File {file.name} exceeds the 30MB size limit.")
+                raise_validation_error(message=f"Fayl {file.name} 30MB dan katta")
         return attrs
 
     def create(self, validated_data):
         request = self.context.get("request")
         if not request:
-            raise_validation_error("Request object is required")
+            raise_validation_error(message=_("Request obyekt kerak"))
         user = request.user
         files = self.context.get('files')
         assistant = self.context.get("assistant")
         
         if not files or not assistant:
-            raise_validation_error(message="Files and assistant are required.")
+            raise_validation_error(message=_("Fayl va assistant kerak"))
 
         if not isinstance(files, (list, tuple)):
             files = [files]

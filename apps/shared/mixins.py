@@ -1,4 +1,4 @@
-from django.utils.translation import gettext as _
+from django.utils.translation import gettext_lazy as _
 from django.utils import timezone
 
 from shared.addons.validations import raise_validation_error

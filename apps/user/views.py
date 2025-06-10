@@ -156,7 +156,7 @@ class LogoutView(APIView):
             token = RefreshToken(refresh_token)
             token.blacklist()
             return success_response(
-                message="You are logged out", code=status.HTTP_205_RESET_CONTENT
+                message=_("Siz muvaffaqiyatli chiqdingiz"), code=status.HTTP_205_RESET_CONTENT
             )
         except TokenError:
             return error_response(
@@ -280,7 +280,7 @@ class GoogleAuthCallbackView(APIView):
             code = request.GET.get("code")
             print(f"code: {code}")
             if not code:
-                return error_response(message="Authorization code is missing", code=400)
+                return error_response(message=_("Authorization code topilmadi"), code=400)
 
             # Exchange code for tokens
             token_url = "https://oauth2.googleapis.com/token"
@@ -296,19 +296,19 @@ class GoogleAuthCallbackView(APIView):
             print(f"token_json: {token_json}")
             id_token = token_json.get("id_token")
             if not id_token:
-                return error_response(message="ID token missing in response", code=400)
+                return error_response(message=_("ID token topilmadi"), code=400)
             try:
                 payload = id_token.split('.')[1]
                 padded = payload + '=' * (-len(payload) % 4)
                 decoded = base64.urlsafe_b64decode(padded)
                 user_info = json.loads(decoded)
             except Exception as decode_error:
-                return error_response(message=f"Invalid ID token: {str(decode_error)}", code=400)
+                return error_response(message=f"{_('Invalid ID token')}: {str(decode_error)}", code=400)
             print(f"user_info: {user_info}")
             sub = user_info.get("sub")
             print(f"sub: {sub}")
             if not sub:
-                return error_response(message="Sub missing in user info", code=400)
+                return error_response(message=_("Sub topilmadi"), code=400)
             print("sub topildi")
 
             user = User.objects.filter(sub=sub).first()
@@ -330,7 +330,7 @@ class GoogleAuthCallbackView(APIView):
                 )
                 print(f"user created: {user}")
             tokens = user.tokens()
-            return success_response(message="User authenticated successfully", data=tokens, code=status.HTTP_200_OK)
+            return success_response(message=_("Foydalanuvchi muvaffaqiyatli autentifikatsiya qilindi"), data=tokens, code=status.HTTP_200_OK)
         except Exception as e:
             return error_response(message=str(e), code=400)
 
@@ -341,13 +341,13 @@ class AddStaffView(generics.CreateAPIView):
 
     def create(self, request, *args, **kwargs):
         if request.user.created_by is not None:
-            return error_response(message="Uzur jigar sizda hodim yaratish huquqi yo'q", code=403)
+            return error_response(message=_("Uzur jigar sizda hodim yaratish huquqi yo'q"), code=403)
         
         serializer = self.get_serializer(data=request.data, context={"request": request})
         serializer.is_valid(raise_exception=True)
         serializer.save()
         return success_response(
-            message=_("Staff added successfully with access to your assistants"),
+            message=_("Hodim muvaffaqiyatli yaratildi"),
             data=serializer.data,
             code=status.HTTP_201_CREATED
         )

@@ -8,9 +8,9 @@ from apps.payment.models import Feature, PricingPackage, Card, Subscription, Tra
 from shared.addons.enums import SubscriptionStatuses
 import apps.payment.serializers as serializers
 from shared.addons.payment import remove_payme_card
-from shared.addons.validations import success_response, error_response
+from shared.addons.validations import success_response, error_response, raise_validation_error
 from shared.permissions import IsAdmin
-from django.utils.translation import gettext as _
+from django.utils.translation import gettext_lazy as _
 from shared.mixins import SubscriptionValidationMixin
 
 class FeatureListCreateView(generics.ListCreateAPIView):
@@ -22,7 +22,7 @@ class FeatureListCreateView(generics.ListCreateAPIView):
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         self.perform_create(serializer)
-        return success_response(message="Funksiya muvaffaqiyatli yaratildi", data=serializer.data, code=201)
+        return success_response(message=_("Funksiya muvaffaqiyatli yaratildi"), data=serializer.data, code=201)
 
 
 class FeatureRetrieveView(generics.RetrieveUpdateDestroyAPIView):
@@ -33,19 +33,19 @@ class FeatureRetrieveView(generics.RetrieveUpdateDestroyAPIView):
     def retrieve(self, request, *args, **kwargs):
         instance = self.get_object()
         serializer = self.get_serializer(instance)
-        return success_response(data=serializer.data, message="Funksiya muvaffaqiyatli ko'rsatildi")
+        return success_response(data=serializer.data, message=_("Funksiya muvaffaqiyatli ko'rsatildi"))
 
     def update(self, request, *args, **kwargs):
         instance = self.get_object()
         serializer = self.get_serializer(instance, data=request.data)
         serializer.is_valid(raise_exception=True)
         self.perform_update(serializer)
-        return success_response(message="Funksiya muvaffaqiyatli tahrirlandi", data=serializer.data)
+        return success_response(message=_("Funksiya muvaffaqiyatli tahrirlandi"), data=serializer.data)
 
     def destroy(self, request, *args, **kwargs):
         instance = self.get_object()
         self.perform_destroy(instance)
-        return success_response(message="Funksiya muvaffaqiyatli o'chirildi", code=204)
+        return success_response(message=_("Funksiya muvaffaqiyatli o'chirildi"), code=204)
 
 
 class PricingPackageListCreateView(generics.ListCreateAPIView):
@@ -62,7 +62,7 @@ class PricingPackageListCreateView(generics.ListCreateAPIView):
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         self.perform_create(serializer)
-        return success_response(message="Narx paketi muvaffaqiyatli yaratildi", data=serializer.data, code=201)
+        return success_response(message=_("Narx paketi muvaffaqiyatli yaratildi"), data=serializer.data, code=201)
 
 
 class PricingPackageRetrieveView(generics.RetrieveUpdateDestroyAPIView):
@@ -78,19 +78,19 @@ class PricingPackageRetrieveView(generics.RetrieveUpdateDestroyAPIView):
     def retrieve(self, request, *args, **kwargs):
         instance = self.get_object()
         serializer = self.get_serializer(instance)
-        return success_response(data=serializer.data, message="Narx paketi muvaffaqiyatli olindi")
+        return success_response(data=serializer.data, message=_("Narx paketi muvaffaqiyatli olindi"))
 
     def update(self, request, *args, **kwargs):
         instance = self.get_object()
         serializer = self.get_serializer(instance, data=request.data)
         serializer.is_valid(raise_exception=True)
         self.perform_update(serializer)
-        return success_response(message="Narx paketi muvaffaqiyatli tahrirlandi", data=serializer.data)
+        return success_response(message=_("Narx paketi muvaffaqiyatli tahrirlandi"), data=serializer.data)
 
     def destroy(self, request, *args, **kwargs):
         instance = self.get_object()
         self.perform_destroy(instance)
-        return success_response(message="Narx paketi muvaffaqiyatli o'chirildi", code=204)
+        return success_response(message=_("Narx paketi muvaffaqiyatli o'chirildi"), code=204)
 
 
 class CardListView(generics.ListAPIView):
@@ -214,7 +214,7 @@ class PaymeVerifyCodeView(generics.CreateAPIView):
         serializer.is_valid(raise_exception=True)
         is_card, card_data = serializer.save()
         return success_response(
-            message=_("Verification code sent successfully"),
+            message=_("Verification code muvaffaqiyatli yuborildi"),
             data=serializers.CardSerializer(card_data).data if is_card else None,
         )
 
@@ -234,10 +234,7 @@ class CardRemoveView(generics.DestroyAPIView):
         response = remove_payme_card(card_token)
         if not response:
             return error_response(
-                message=_(
-                    "To'lov tizimi bilan bog'lanishda xatolik yuz berdi. Iltimos, qaytadan urinib ko'ring"
-                )
-            )
+                message=_("To'lov tizimi bilan bog'lanishda xatolik yuz berdi. Iltimos, qaytadan urinib ko'ring"))
         # delete card object from Database table
         card.delete()
         return success_response(
@@ -315,7 +312,7 @@ class SubscriptionCancellationView(APIView):
         # Get cancellation reason from request data
         cancellation_reason = request.data.get('cancellation_reason')
         if not cancellation_reason:
-            return error_response(message=_("Cancellation reason is required"), code=400)
+            return error_response(message=_("Bekor qilish sababi talab qilinadi"), code=400)
 
         # Update subscription status
         subscription = user.subscription
@@ -324,7 +321,7 @@ class SubscriptionCancellationView(APIView):
         subscription.save()
         
         return success_response(
-            message=_("Subscription cancelled successfully"),
+            message=_("Obuna muvaffaqiyatli bekor qilindi"),
             data={"reason": subscription.cancellation_reason},
             code=200
         )

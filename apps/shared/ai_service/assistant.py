@@ -8,7 +8,7 @@ from shared.ai_service.helper import create_prompt, create_vector_store
 from shared.ai_service.openai_client import client
 from shared.ai_service.thread import wait_on_run
 from shared.addons.payloads import valid_intents
-
+from django.utils.translation import gettext_lazy as _
 def check_response(response):
     """
     Removes asterisks and patterns enclosed within 【】 from the response.
@@ -89,9 +89,9 @@ def delete_assistant_by_id(assistant_id: str) -> dict:
     if response.status_code == 200:
         return response.json()
     elif response.status_code == 404:
-        return error_response(message="Assistant not found", code=404)
+        return error_response(message=_("Assistant topilmadi"), code=404)
     else:
-        return error_response(message="Failed to delete assistant", code=response.status_code)
+        return error_response(message=_("Assistant o'chirishda xatolik"), code=response.status_code)
 
 
 def update_assistant_id_vector_id(assistant, request):

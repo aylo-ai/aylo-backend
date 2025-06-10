@@ -7,7 +7,7 @@ import json
 from django.http import HttpResponse
 from rest_framework.views import APIView
 from rest_framework import generics, permissions
-from django.utils.translation import gettext as _
+from django.utils.translation import gettext_lazy as _
 
 from config.settings import INSTAGRAM_CLIENT_ID, INSTAGRAM_CLIENT_SECRET, INSTAGRAM_REDIRECT_URI
 from shared.addons.enums import IntegrationTypes
@@ -45,7 +45,7 @@ class IntegrationListCreateView(generics.ListCreateAPIView):
         serializer = self.get_serializer(data=request.data, context=context_data)
         serializer.is_valid(raise_exception=True)
         serializer.save(assistant_id=assistant_id)
-        return success_response(message="Integration created successfully", data=serializer.data, code=201)
+        return success_response(message=_("Integration muvaffaqiyatli yaratildi"), data=serializer.data, code=201)
 
 
 class IntegrationRetrieveUpdateDestroyView(generics.RetrieveUpdateDestroyAPIView):
@@ -57,25 +57,25 @@ class IntegrationRetrieveUpdateDestroyView(generics.RetrieveUpdateDestroyAPIView
         # check if the integration belongs to the assistant
         obj = super().get_object()
         if obj.assistant.user != self.request.user:
-            return error_response(message="Integration not found")
+            return error_response(message=_("Integration topilmadi"))
         return obj
 
     def retrieve(self, request, *args, **kwargs):
         instance = self.get_object()
         serializer = self.get_serializer(instance)
-        return success_response(data=serializer.data, code=200)
+        return success_response(data=serializer.data, message=_("Integration muvaffaqiyatli olindi"), code=200)
 
     def update(self, request, *args, **kwargs):
         instance = self.get_object()
         serializer = self.get_serializer(instance, data=request.data, partial=True)
         serializer.is_valid(raise_exception=True)
         serializer.save()
-        return success_response(message="Integration updated successfully", data=serializer.data, code=200)
+        return success_response(message=_("Integration muvaffaqiyatli o'zgartirildi"), data=serializer.data, code=200)
 
     def destroy(self, request, *args, **kwargs):
         instance = self.get_object()
         instance.delete()
-        return success_response(message="Integration deleted successfully", code=204)
+        return success_response(message=_("Integration muvaffaqiyatli o'chirildi"), code=204)
 
 
 class SendUserMessageView(generics.CreateAPIView):
@@ -103,14 +103,14 @@ class InstagramWebhookView(APIView):
             return HttpResponse(challenge, content_type="text/plain", status=200)
 
         # Return 403 if the validation fails
-        return error_response(message="Invalid token", code=403)
+        return error_response(message=_("Token yaroqsiz"), code=403)
 
     def post(self, request, *args, **kwargs):  # noqa
         print("Instagram webhook data received")
         data = request.data
         print(f"Instagram webhook data: {data}")
         if not data:
-            return error_response(message="No data received", code=400)
+            return error_response(message=_("Ma'lumot topilmadi"), code=400)
         
         entry = data.get("entry")[0]
         print(f"Entry: {entry}")
@@ -125,7 +125,7 @@ class InstagramWebhookView(APIView):
                     if comment_data:
                         print(f"Comment data: {comment_data}, Account ID: {account_id}")
                         # process_instagram_comment.delay(account_id, comment_data)
-                        return success_response(message="Comment webhook data received successfully", code=200)
+                        return success_response(message=_("Comment webhook ma'lumotlar muvaffaqiyatli olindi"), code=200)
 
         # Handle messages
         messaging = entry.get("messaging")
@@ -135,20 +135,20 @@ class InstagramWebhookView(APIView):
             if messaging[0].get("message", {}).get("attachments",[{}])[0].get('type') == 'audio':
                 audio_file = messaging[0].get("message", {}).get("attachments", [{}])[0].get("payload", {}).get("url", None)
             elif messaging[0].get("message", {}).get("attachments",[{}])[0].get('type') in ['ig_reel', 'unsupported_type']:
-                return success_response(message="Reel or unsupported type message received", code=200)
+                return success_response(message=_("Reel yoki qo'shimcha turdagi xabar muvaffaqiyatli olindi"), code=200)
             print(f"Is echo: {is_echo}, Audio file: {audio_file}")
             if is_echo:
                 print(f"Echo message received")
-                return success_response(message="Echo message received", code=200)
+                return success_response(message=_("Echo xabar muvaffaqiyatli olindi"), code=200)
             print(f"Messaging: {messaging}")
             if not Integration.objects.filter(instagram_account_id=account_id).exists():
                 print(f"Integration not found for account ID: {account_id}")
                 return error_response(message="Integration not found", code=404)
             # Start celery task to process the incoming message
             process_instagram_message.delay(account_id, messaging, audio_file)
-            return success_response(message="Message webhook data received successfully", code=200)
+            return success_response(message=_("Xabar webhook ma'lumotlar muvaffaqiyatli olindi"), code=200)
 
-        return success_response(message="Webhook data received successfully", code=200)
+        return success_response(message=_("Webhook ma'lumotlar muvaffaqiyatli olindi"), code=200)
 
 
 class InstagramCallbackView(APIView):
@@ -161,9 +161,9 @@ class InstagramCallbackView(APIView):
         code = request.query_params.get("code")
         assistant_id = request.query_params.get("assistant_id")
         if not assistant_id:
-            return error_response(message="Assistant ID not found", code=400)
+            return error_response(message=_("Assistant ID topilmadi"), code=400)
         if not code:
-            return error_response(message="Authorization code not found", code=400)
+            return error_response(message=_("Authorization code topilmadi"), code=400)
 
         # Exchange the authorization code for an access token
         token_url = "https://api.instagram.com/oauth/access_token"
@@ -187,7 +187,7 @@ class InstagramCallbackView(APIView):
             access_token = get_long_lived_access_token(short_lived_access_token)
             print(f"Long lived Access Token: {access_token}")
         else:
-            return error_response(message="Failed to get access token", code=400)
+            return error_response(message=_("Access token topilmadi"), code=400)
         # get instagram user profile
         user_profile = get_user_profile(access_token)
         if user_profile:
@@ -205,16 +205,16 @@ class InstagramCallbackView(APIView):
             )
             print(f"Integration is successfully created: {integration}")
         else:
-            return error_response(message="Failed to get user profile", code=400)
+            return error_response(message=_("Foydalanuvchi profili topilmadi"), code=400)
         
         # enable webhook for the integration
         url = f"https://graph.instagram.com/v22.0/me/subscribed_apps?access_token={access_token}&subscribed_fields=messages,comments"
         response = requests.post(url)
         print(f"Response: {response.text}")
         if response.status_code == 200:
-            return success_response(message="Integration created successfully", code=200,)
+            return success_response(message=_("Integration muvaffaqiyatli yaratildi"), code=200,)
         else:
-            return error_response(message="Failed to enable webhook", code=400)
+            return error_response(message=_("Webhook topilmadi"), code=400)
 
 
 
@@ -289,12 +289,12 @@ class InstagramDeauthorizeView(APIView):
                 else:
                     print(f"User {user_id} deauthorized the app but no integration was found.")
                 
-                return success_response(message="User deauthorized the app", code=200)
+                return success_response(message=_("Foydalanuvchi appni deauthorized qildi"), code=200)
             except Exception as e:
                 print(f"Error during deauthorization: {str(e)}")
-                return error_response(message="Error processing deauthorization", code=500)
+                return error_response(message=_("Deauthorization xatolik"), code=500)
         else:
-            return error_response(message="User ID not found in signed request", code=400)
+            return error_response(message=_("Foydalanuvchi ID topilmadi"), code=400)
 
 
 class InstagramDataDeletionView(APIView):
@@ -302,7 +302,7 @@ class InstagramDataDeletionView(APIView):
         signed_request = request.data.get("signed_request")
 
         if not signed_request:
-            return error_response(message="Signed request not found", code=400)
+            return error_response(message=_("Signed request topilmadi"), code=400)
         def parse_signed_request(signed_request: str, app_secret: str):
             """
             Parses and validates a signed_request from Instagram/Facebook.
@@ -374,7 +374,7 @@ class TelegramWebhookView(APIView):
         if "voice" in data:
             voice_file_id = data["voice"]["file_id"]
             process_voice_task.delay(chat_id, voice_file_id, bot_token)
-            return success_response(message=_("Voice message received"), code=200)
+            return success_response(message=_("Voice message muvaffaqiyatli olindi"), code=200)
 
         user_message = data.get('text')
         print(f"Chat ID: {chat_id}, Message: {user_message}")
@@ -390,7 +390,7 @@ class TelegramWebhookView(APIView):
             # Start the Celery task
             process_message_task.delay(chat_id, user_message, bot_token)
             print("celery task started")
-        return success_response(message=_("Message received"), code=200)
+        return success_response(message=_("Xabar muvaffaqiyatli olindi"), code=200)
 
 
 class TelegramGroupListView(generics.ListAPIView):

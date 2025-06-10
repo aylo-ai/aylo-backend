@@ -156,7 +156,7 @@ def handle_bot_added_to_group(chat_id, chat_title, bot_token):
     integration = Integration.objects.filter(api_token=bot_token).first()
     if not integration:
         print(f"No integration found for bot token: {bot_token}")
-        return error_response("Integration not found", 404)
+        return error_response(message=_("Integration topilmadi"), code=404)
 
     if not TelegramGroupIntegration.objects.filter(integration=integration).exists():
         telegram_group = TelegramGroupIntegration(integration=integration, group_id=chat_id, group_title=chat_title)

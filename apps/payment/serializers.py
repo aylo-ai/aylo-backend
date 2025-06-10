@@ -10,7 +10,7 @@ from shared.addons.payment import check_payme_card_token, create_payme_receipt, 
 from shared.addons.validations import raise_validation_error
 from user.serializers import UserSerializer
 from shared.addons.enums import PricingPackageType
-from django.utils.translation import gettext as lang
+from django.utils.translation import gettext_lazy as _
 
 
 class FeatureSerializer(serializers.ModelSerializer):
@@ -41,9 +41,9 @@ class PricingPackageSerializer(serializers.ModelSerializer):
 
     def validate(self, attrs):
         if attrs["price"] < 0:
-            raise_validation_error(message="Narx manfiy bo'lishi mumkin emas.")
+            raise_validation_error(message=_("Narx manfiy bo'lishi mumkin emas."))
         if attrs["discount_price"] < attrs["price"]:
-            raise_validation_error(message="Chegirma narxi narxdan kichik bo'lishi mumkin emas.")
+            raise_validation_error(message=_("Chegirma narxi narxdan kichik bo'lishi mumkin emas."))
         return attrs
     
     def to_representation(self, instance):
@@ -67,9 +67,9 @@ class CardSerializer(serializers.ModelSerializer):
         )
     def validate(self, attrs):
         if attrs["expiry_date"] < timezone.now().date():
-            raise_validation_error(message="Karta muddati o'tgan.")
+            raise_validation_error(message=_("Karta muddati o'tgan."))
         if attrs["card_number"] < 16:
-            raise_validation_error(message="Karta raqami 16 ta raqamdan kam bo'lishi mumkin emas.")
+            raise_validation_error(message=_("Karta raqami 16 ta raqamdan kam bo'lishi mumkin emas."))
         return attrs
     
 class CardCreateSerializer(serializers.ModelSerializer):
@@ -91,12 +91,12 @@ class CardCreateSerializer(serializers.ModelSerializer):
         """Validate the card token with the Payme system."""
         response = check_payme_card_token(value)
         if not response:
-            raise_validation_error(message=lang("Karta tokeni noto'g'ri. Iltimos, tekshirib qaytadan yuboring."))
+            raise_validation_error(message=_("Karta tokeni noto'g'ri. Iltimos, tekshirib qaytadan yuboring."))
 
         card_data = response.json().get("result", {}).get("card", {})
         print(f"Card data: {card_data}")
         if not card_data.get("verify") or not card_data.get("recurrent"):
-            raise_validation_error(message=lang("Karta noto'g'ri. Iltimos, tekshirib qaytadan yuboring."))
+            raise_validation_error(message=_("Karta noto'g'ri. Iltimos, tekshirib qaytadan yuboring."))
         self.card_data = card_data  # noqa - Store card data for later use in create method
         return value
 
@@ -126,12 +126,12 @@ class PaymeGetVerifyCodeSerializer(serializers.Serializer):  # noqa
         expire = attrs.get("expire")
         if not number or not expire:
             raise_validation_error(
-                message=lang("Karta raqami va muddati talab qilinadi")
+                message=_("Karta raqami va muddati talab qilinadi")
             )
         if len(number) != 16:
-            raise_validation_error(message=lang("Karta raqami 16 ta raqamdan kam bo'lishi mumkin emas."))
+            raise_validation_error(message=_("Karta raqami 16 ta raqamdan kam bo'lishi mumkin emas."))
         if len(expire) != 4:
-            raise_validation_error(message=lang("Kartaning muddati 4 ta raqamdan kam bo'lishi mumkin emas."))
+            raise_validation_error(message=_("Kartaning muddati 4 ta raqamdan kam bo'lishi mumkin emas."))
         return attrs
 
     def create(self, validated_data):
@@ -144,15 +144,14 @@ class PaymeGetVerifyCodeSerializer(serializers.Serializer):  # noqa
 
         if "error" in create_response:
             raise_validation_error(
-                message=lang(create_response.get("error").get("message"))
-            )
+                message=_("Kartaning muddati 4 ta raqamdan kam bo'lishi mumkin emas."))
 
         token = create_response.get("result", {}).get("card", {}).get("token")
 
         verify_response = send_verify_code_request(token)
         if "error" in verify_response:
             raise_validation_error(
-                message=lang(verify_response.get("error").get("message"))
+                message=_(verify_response.get("error").get("message"))
             )
         return token
 
@@ -165,7 +164,7 @@ class PaymeVerifyCodeSerializer(serializers.Serializer):  # noqa
         token = attrs.get("token")
         code = attrs.get("code")
         if not token or not code:
-            raise_validation_error(message=lang("Token va kod talab qilinadi"))
+            raise_validation_error(message=_("Token va kod talab qilinadi")) 
         return attrs
 
     def create(self, validated_data):
@@ -176,14 +175,14 @@ class PaymeVerifyCodeSerializer(serializers.Serializer):  # noqa
         )
         if "error" in verify_response:
             raise_validation_error(
-                message=lang(verify_response.get("error").get("message"))
+                message=_(verify_response.get("error").get("message"))
             )
         recurrent, verify = (
             verify_response.get("result").get("card").get("recurrent"),
             verify_response.get("result").get("card").get("verify"),
         )
         if not verify:
-            raise_validation_error(message=lang("Karta noto'g'ri. Iltimos, tekshirib qaytadan yuboring."))
+            raise_validation_error(message=_("Karta noto'g'ri. Iltimos, tekshirib qaytadan yuboring."))
         number, expire, token = (
             verify_response.get("result").get("card").get("number"),
             verify_response.get("result").get("card").get("expire"),
@@ -214,7 +213,7 @@ class PayWithCardSerializer(serializers.Serializer):
         try:
             subscription = Subscription.objects.get(id=subscription_id)
             if not subscription.pricing_package.is_active:
-                raise_validation_error(message=lang("Obuna paketi faol emas. Iltimos, tekshirib qaytadan yuboring."))
+                raise_validation_error(message=_("Obuna paketi faol emas. Iltimos, tekshirib qaytadan yuboring."))
             # user = self.context.get("request").user
             # if user.subscription.id != subscription_id:
             #     raise_validation_error(message=lang("Sizda bunday obuna mavjud emas. Iltimos, tekshirib qaytadan yuboring."))
@@ -222,15 +221,15 @@ class PayWithCardSerializer(serializers.Serializer):
             discount_price = subscription.pricing_package.discount_price
             attrs["amount"] = int(discount_price) if discount_price else int(price)
         except Subscription.DoesNotExist:
-            raise_validation_error(message=lang("Obuna topilmadi. Iltimos, tekshirib qaytadan yuboring."))
+            raise_validation_error(message=_("Obuna topilmadi. Iltimos, tekshirib qaytadan yuboring."))
 
         try:
             card = Card.objects.get(id=card_id)
             if not card.is_verified:
-                raise_validation_error(message=lang("Karta tasdiqlanmagan. Iltimos, tekshirib qaytadan yuboring."))
+                raise_validation_error(message=_("Karta tasdiqlanmagan. Iltimos, tekshirib qaytadan yuboring."))
             attrs["card_token"] = card.card_token
         except Card.DoesNotExist:
-            raise_validation_error(message=lang("Karta topilmadi. Iltimos, tekshirib qaytadan yuboring."))
+            raise_validation_error(message=_("Karta topilmadi. Iltimos, tekshirib qaytadan yuboring."))
 
         return attrs
 
@@ -246,8 +245,8 @@ class PayWithCardSerializer(serializers.Serializer):
         success, message, receipt_id = create_payme_receipt(amount)
         success = True
         if not success:
-            raise_validation_error(message=lang(f"To'lov chekini yaratishda tizim bilan bog'liq"
-                                                f" muammo yuz berdi: {message}"))
+            raise_validation_error(message=_("To'lov chekini yaratishda tizim bilan bog'liq"
+                                                " muammo yuz berdi: {}").format(message))
         transaction_type = TransactionTypes.WITHDRAW.value if is_withdrawal else TransactionTypes.DEPOSIT
 
         # Step 2: Log the transaction with DRAFT status
@@ -266,7 +265,7 @@ class PayWithCardSerializer(serializers.Serializer):
             if not success:
                 transaction.error_message = message
                 transaction.save()
-                raise_validation_error(message=lang(f"To'lov tizimi bilan bog'liq muammo yuz berdi: {message}"))
+                raise_validation_error(message=_("To'lov tizimi bilan bog'liq muammo yuz berdi: {}").format(message))
 
             # Step 4: Update transaction status to COMMITTED
             transaction.status = PaymentStatuses.SUCCESS.value
@@ -309,7 +308,7 @@ class PayWithCardSerializer(serializers.Serializer):
             # Update subscription status to INACTIVE
             subscription.status = SubscriptionStatuses.INACTIVE.value
             subscription.save()
-            raise_validation_error(message=lang(f"To'lov jarayonida xatolik yuz berdi: {str(e)}"))
+            raise_validation_error(message=_("To'lov jarayonida xatolik yuz berdi: {}").format(str(e)))
 
 
 class TransactionSerializer(serializers.ModelSerializer):
@@ -376,7 +375,7 @@ class SubscriptionSerializer(serializers.ModelSerializer):
         try:
             existing_subscription = user.subscription
             if existing_subscription and existing_subscription.status == SubscriptionStatuses.ACTIVE.value:
-                raise_validation_error(message=lang("Sizda allaqachon faol obuna mavjud."))
+                raise_validation_error(message=_("Sizda allaqachon faol obuna mavjud."))
         except (AttributeError, Subscription.DoesNotExist):
             pass
 
@@ -384,9 +383,9 @@ class SubscriptionSerializer(serializers.ModelSerializer):
         try:
             pricing_package = PricingPackage.objects.get(id=pricing_package_id)
             if not pricing_package.is_active:
-                raise_validation_error(message=lang("Bu narx paketi hozirda faol emas."))
+                raise_validation_error(message=_("Bu narx paketi hozirda faol emas."))
         except PricingPackage.DoesNotExist:
-            raise_validation_error(message=lang("Narx paketi topilmadi."))
+            raise_validation_error(message=_("Narx paketi topilmadi."))
 
         attrs["pricing_package"] = pricing_package
         return attrs
@@ -442,23 +441,23 @@ class SubscriptionUpdateSerializer(serializers.Serializer):
 
         user = self.context.get("request").user
         if not user.subscription:
-            raise_validation_error(message=lang("Sizda obuna mavjud emas."))
+            raise_validation_error(message=_("Sizda obuna mavjud emas."))
         
         if not pricing_package_id or not card_id:
-            raise_validation_error(message=lang("Narx paketi ID va karta ID talab qilinadi"))
+            raise_validation_error(message=_("Narx paketi ID va karta ID talab qilinadi"))
         try:
             pricing_package = PricingPackage.objects.get(id=pricing_package_id)
             if not pricing_package.is_active:
-                raise_validation_error(message=lang("Narx paketi hozirda faol emas."))
+                raise_validation_error(message=_("Narx paketi hozirda faol emas."))
             if pricing_package.type == PricingPackageType.FREE.value:
-                raise_validation_error(message=lang("Bu tekin paketni yangilash mumkin emas."))
+                raise_validation_error(message=_("Bu tekin paketni yangilash mumkin emas."))
         except PricingPackage.DoesNotExist:
-            raise_validation_error(message=lang("Narx paketi topilmadi."))
+            raise_validation_error(message=_("Narx paketi topilmadi."))
 
         try:
             card = Card.objects.get(id=card_id)
         except Card.DoesNotExist:
-            raise_validation_error(message=lang("Karta topilmadi."))
+            raise_validation_error(message=_("Karta topilmadi."))
         
         attrs["card"] = card
         attrs["pricing_package"] = pricing_package
@@ -472,8 +471,8 @@ class SubscriptionUpdateSerializer(serializers.Serializer):
         try:
             success, message, receipt_id = create_payme_receipt(amount)
             if not success:
-                raise_validation_error(message=lang(f"To'lov chekini yaratishda tizim bilan bog'liq"
-                                                f" muammo yuz berdi: {message}"))
+                raise_validation_error(message=_("To'lov chekini yaratishda tizim bilan bog'liq"
+                                                " muammo yuz berdi: {}").format(message))
 
             transaction = Transaction.objects.create(
                 user=user,
@@ -485,7 +484,7 @@ class SubscriptionUpdateSerializer(serializers.Serializer):
         
             success, message, receipt_id = commit_payme_receipt(card.card_token, receipt_id)
             if not success:
-                raise_validation_error(message=lang(f"To'lov tizimi bilan bog'liq muammo yuz berdi: {message}"))
+                raise_validation_error(message=_("To'lov tizimi bilan bog'liq muammo yuz berdi: {}").format(message))
             
             transaction.status = PaymentStatuses.SUCCESS.value
             transaction.transaction_id = receipt_id
@@ -522,4 +521,4 @@ class SubscriptionUpdateSerializer(serializers.Serializer):
             transaction.save()
             subscription.status = SubscriptionStatuses.INACTIVE.value
             subscription.save()
-            raise_validation_error(message=lang(f"To'lov jarayonida xatolik yuz berdi: {str(e)}"))
+            raise_validation_error(message=_("To'lov jarayonida xatolik yuz berdi: {}").format(str(e)))
