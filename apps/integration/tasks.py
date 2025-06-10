@@ -70,7 +70,7 @@ def process_message_task(chat_id, user_message, bot_token, audio_file=None):
             telegram_group.save()
         create_message(conversation=conversation, sender=SenderTypes.ASSISTANT.value, content=response_message, run_status=run_status)
         publish_message_to_ws(conversation.id, response_message, sender="assistant")
-    elif response_message:
+    if response_message:
         send_telegram_message(chat_id, response_message, bot_token)
         create_message(conversation=conversation, sender=SenderTypes.ASSISTANT.value, content=response_message, run_status=run_status)
         publish_message_to_ws(conversation.id, response_message, sender="assistant")

@@ -132,6 +132,7 @@ def update_assistant(assistant_id, name,  assistant):
             name=name,
             instructions=instruction,
             tools=[{"type": "file_search"}],
+            tool_resources={"file_search": {"vector_store_ids": [assistant.vector_id]}},
             model="gpt-4o",
             response_format = {
                 "type": "json_schema",

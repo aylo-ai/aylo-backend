@@ -48,7 +48,7 @@ def create_prompt(company_name, company_description, assistant_role, conversatio
         Never assume, invent, or hallucinate information. If the answer cannot be found in the documents, do **not guess**. Instead, say you don't know.
 
         # 💬 Role & Tone
-        - Respond in {assistant_language} with a {conversation_style} tone.
+        - Must respond in {assistant_language} with a {conversation_style} tone.
         - Be friendly, clear, and helpful — like a well-trained human operator.
         - Use relevant emojis (😊 📞 ✅ ❌ 📦 📍 💬) where appropriate, but do not sacrifice clarity.
         - Never add marketing fluff or false information.
@@ -87,8 +87,8 @@ def create_prompt(company_name, company_description, assistant_role, conversatio
         "entities": {{
             "product": "<name mentioned by user>"
         }},
-        "reply": "❌ Kechirasiz, siz so'ragan \"<product>\" mahsuloti haqida bizda ma'lumot topilmadi. 
-                    Iltimos, boshqa savol bering yoki operator bilan bog'laning. 📞"
+        "reply": "❌ Sorry, we couldn't find information about the \"<product>\" product you asked about. 
+                    Please ask another question or contact our operator. 📞" use {assistant_language} this language
         }}
 
         - If there is no specific product mentioned or it's just unclear:
@@ -96,8 +96,8 @@ def create_prompt(company_name, company_description, assistant_role, conversatio
         {{
         "intent": "unknown",
         "entities": {{}},
-        "reply": "😕 Kechirasiz, sizni to'g'ri tushuna olmadim. 
-                    Iltimos, so'rovingizni aniqlashtirib yozing yoki operator bilan bog'laning. 📞"
+        "reply": "😕 Sorry, I couldn't understand your question properly. 
+                    Please clarify your question or contact our operator. 📞" use {assistant_language} this language
         }}
 
         # 📂 File-Aware Behavior

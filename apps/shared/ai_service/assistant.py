@@ -7,7 +7,7 @@ from shared.addons.validations import error_response, success_response
 from shared.ai_service.helper import create_prompt, create_vector_store
 from shared.ai_service.openai_client import client
 from shared.ai_service.thread import wait_on_run
-
+from shared.addons.payloads import valid_intents
 
 def check_response(response):
     """
@@ -37,6 +37,8 @@ def create_payload_and_assistant(assistant, request=None):
         assistant.role,
         assistant.personality_style,
         assistant.language,
+        valid_intents,
+        assistant.fallback_message
     )
     vector_store_id = create_vector_store(file_urls)
     if not vector_store_id:
