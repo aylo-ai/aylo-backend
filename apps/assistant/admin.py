@@ -56,7 +56,7 @@ class ConversationAdmin(admin.ModelAdmin):
 
     fieldsets = (
         (None, {
-            'fields': ('assistant', 'status', 'thread_id', 'user_id', 'token')
+            'fields': ('assistant', 'status', 'thread_id', 'user_id', 'token','client_full_name','client_phone_email')
         }),
         ('System', {
             'fields': ('start_time', 'end_time'),

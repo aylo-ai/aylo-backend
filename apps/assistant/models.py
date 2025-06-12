@@ -50,6 +50,7 @@ class Assistant(BaseModel):
     assistant_id = models.CharField(max_length=255, null=True, blank=True)
     vector_id = models.CharField(max_length=255, null=True, blank=True)
     is_active = models.BooleanField(default=True)
+    ai_enabled = models.BooleanField(default=True)
 
     # Type hint for the reverse relationship using string reference
     integrations: 'models.QuerySet[Integration]'
@@ -82,6 +83,8 @@ class Conversation(BaseModel):
     thread_id = models.CharField(max_length=255, null=True, blank=True)
     start_time = models.DateTimeField(default=timezone.now)
     end_time = models.DateTimeField(null=True, blank=True)
+    client_full_name = models.CharField(max_length=255, null=True, blank=True)
+    client_phone_email = models.CharField(max_length=255, null=True, blank=True)
 
     def save(self, *args, **kwargs):
         super().save(*args, **kwargs)

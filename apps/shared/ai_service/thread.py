@@ -18,10 +18,10 @@ def create_and_run_thread(assistant_id, vector_store_id):
     return thread_id, run
 
 
-def wait_on_run(run, thread):
+def wait_on_run(run, thread_id):
     while run.status in ["queued", "in_progress"]:
         run = client.beta.threads.runs.retrieve(
-            thread_id=thread, # this is probelm here thread_id.id dont have so i change to thread it self
+            thread_id=thread_id,
             run_id=run.id,
         )
         time.sleep(0.5)

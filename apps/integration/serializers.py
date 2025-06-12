@@ -34,6 +34,12 @@ class IntegrationCreateSerializer(serializers.ModelSerializer, SubscriptionValid
         user = self.context.get("request").user
         base_url = self.context.get("base_url")
         assistant_id = self.context.get("assistant_id")
+        try:
+            assistant = Assistant.objects.get(id=assistant_id)
+            if not assistant.ai_enabled or integration_type == IntegrationTypes.WEBSITE.value:
+                raise_validation_error(message=_("Assistant AI sizda yoqilmagan"))
+        except Assistant.DoesNotExist:
+            raise_validation_error(message=_("Assistant topilmadi"))
         # Use the mixin's validation method
         self.validate_subscription(user.subscription)
         # validate integration count based on pricing package
@@ -70,12 +76,15 @@ class IntegrationSerializer(serializers.ModelSerializer, SubscriptionValidationM
         print(f"Assistant ID {assistant_id}")
         try:
             assistant = Assistant.objects.get(id=assistant_id)
+            if not assistant.ai_enabled:
+                raise_validation_error(message=_("Assistant AI sizda yoqilmagan"))
             if not assistant.vector_id or not assistant.assistant_id:
                 raise_validation_error(message=_("Assistant faol emas, zarur fayl yuklash"))
         except Assistant.DoesNotExist:
             raise_validation_error(message=_("Assistant topilmadi"))
         self.validate_subscription(assistant.user.subscription)
         return attrs
+
 
 class TelegramGroupSerializer(serializers.ModelSerializer):
     class Meta:

@@ -40,6 +40,7 @@ class AssistantSerializer(serializers.ModelSerializer,
             "created_time",
             "updated_time",
             "is_active",
+            "ai_enabled",
             "integrations",
         ]
         read_only_fields = ["created_time", "updated_time"]
@@ -97,14 +98,18 @@ class ConversationSerializer(serializers.ModelSerializer,
             raise_validation_error(message=_("Assistant topilmadi"))
         if assistant is None:
             raise_validation_error(message=_("Assistant topilmadi"))
-        if not assistant.assistant_id or not assistant.vector_id:
-            raise_validation_error(message=_("Assistant uchun fayl yuklash kerak"))
+        if assistant.ai_enabled:
+            if not assistant.assistant_id or not assistant.vector_id:
+                raise_validation_error(message=_("Assistant uchun fayl yuklash kerak"))
+
         attrs["assistant"] = assistant
         return attrs
 
     def create(self, validated_data):
         assistant = validated_data.get("assistant")
-        thread_id = get_thread_id(str(assistant.assistant_id), str(assistant.vector_id))
+        thread_id = None
+        if assistant.ai_enabled:
+            thread_id = get_thread_id(str(assistant.assistant_id), str(assistant.vector_id))
         conversation = Conversation.objects.create(
             platform=ConversationPlatforms.WEBSITE.value,
             assistant=assistant,
@@ -252,7 +257,6 @@ class MessageSerializer(serializers.ModelSerializer, SubscriptionValidationMixin
             output_tokens = run_status.usage.completion_tokens or 0
         )
         return response_message
-        
 
 
 class SettingsSerializer(serializers.ModelSerializer):
@@ -294,6 +298,8 @@ class AssistantFileUploadSerializer(serializers.ModelSerializer, SubscriptionVal
         assistant = self.context.get("assistant")
         # Use the mixin's validation method
         self.validate_subscription(assistant.user.subscription)
+        if not assistant.ai_enabled:
+            raise_validation_error(message=_("Assistant AI sizda yoqilmagan"))
         # Validate website URL if provided
         if website_url:
             if not website_url.startswith(('http://', 'https://')):
@@ -407,6 +413,9 @@ class UpdateFileUploadSerializer(serializers.ModelSerializer, SubscriptionValida
 
     def validate(self, attrs):
         request = self.context.get("request")
+        assistant = self.context.get("assistant")
+        if not assistant.ai_enabled:
+            raise_validation_error(message=_("Assistant AI sizda yoqilmagan"))
         if not request:
             raise_validation_error(message=_("Request obyekt kerak"))
         user = request.user
@@ -459,7 +468,8 @@ class UpdateFileUploadSerializer(serializers.ModelSerializer, SubscriptionValida
             update_vector_store_files(assistant.vector_id, file_urls)
 
         return uploaded_files[0] if len(uploaded_files) == 1 else uploaded_files
-    
+
+
 class MessageBulkReadSerializer(serializers.Serializer):
     message_ids = serializers.ListField(
         child=serializers.UUIDField(),

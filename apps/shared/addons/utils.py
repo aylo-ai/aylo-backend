@@ -279,66 +279,83 @@ def get_assistant_response_ai(message, assistant_id, thread_id):
         if thread_id is None:
             return "Thread not initialized. Please create an assistant first."
 
-        # Check if an active run exists for the given thread_id
-        active_run = client.beta.threads.runs.list(thread_id=thread_id)
-        if active_run.data:
-            print(f"active run found")
-            # Wait for the active run to complete
-            wait_on_run(active_run.data[0], thread_id) 
+        try:
+            # Check if an active run exists for the given thread_id
+            active_runs = client.beta.threads.runs.list(thread_id=thread_id)
+            if active_runs.data:
+                print(f"active run found")
+                # Wait for all active runs to complete
+                for run in active_runs.data:
+                    wait_on_run(run, thread_id)
 
-        # Send the user's message to the assistant
-        user_message = client.beta.threads.messages.create(
-            thread_id=thread_id,
-            role="user",
-            content=f"User: {message}",
-        )
-        print(f"User message: {user_message}")
-
-        # Start a new assistant run
-        run = client.beta.threads.runs.create(
-            thread_id=thread_id,
-            assistant_id=assistant_id,
-        )
-        # thread_obj = client.beta.threads.retrieve(thread_id)
-        run_status = wait_on_run(run, thread_id)     # Retrieve the assistant's response
-        messages = client.beta.threads.messages.list(
-            thread_id=thread_id, order="asc", after=user_message.id
-        )
-        print(f"Assistant response: {messages.data}, messages: {messages}, input_tokens: {run_status.usage.prompt_tokens}, output_tokens: {run_status.usage.completion_tokens}")
-
-        # Get the response text or a fallback message if empty
-        assistant_response_str = messages.data[0].content[0].text.value if messages.data else "No response received."
-        print(f"Assistant response: {assistant_response_str}")
-        assistant_response = json.loads(assistant_response_str)
-        intent = assistant_response.get("intent", None)
-        message = assistant_response.get("reply", None)
-        entities = assistant_response.get("entities", None)
-        clean_response = check_response(message)
-
-        response_data = None
-        if intent == "create_order":
-            name = (
-                    entities.get('name') or 
-                    entities.get('full_name') or 
-                    entities.get('customer_user') or 
-                    entities.get('customer_name') or 
-                    None
-                    )
-            phone_number = (
-                    entities.get('phone_number') or 
-                    entities.get('contact_number') or 
-                    None
-                )
-                
-            response_data = create_lead(
-                full_name=name,
-                phone_number=phone_number,
-                email=entities.get('email', None),
-                product=entities.get('product', None),
-                metadata=entities
+            # Send the user's message to the assistant
+            user_message = client.beta.threads.messages.create(
+                thread_id=thread_id,
+                role="user",
+                content=f"User: {message}",
             )
-            print("✅ Lead created from Telegram message")
-        return clean_response, run_status, response_data
+            print(f"User message: {user_message}")
+
+            # Start a new assistant run
+            run = client.beta.threads.runs.create(
+                thread_id=thread_id,
+                assistant_id=assistant_id,
+            )
+            run_status = wait_on_run(run, thread_id)
+
+            # Retrieve the assistant's response
+            messages = client.beta.threads.messages.list(
+                thread_id=thread_id, order="asc", after=user_message.id
+            )
+            print(f"Assistant response: {messages.data}, messages: {messages}, input_tokens: {run_status.usage.prompt_tokens}, output_tokens: {run_status.usage.completion_tokens}")
+
+            # Get the response text or a fallback message if empty
+            assistant_response_str = messages.data[0].content[0].text.value if messages.data else "No response received."
+            print(f"Assistant response: {assistant_response_str}")
+            assistant_response = json.loads(assistant_response_str)
+            intent = assistant_response.get("intent", None)
+            message = assistant_response.get("reply", None)
+            entities = assistant_response.get("entities", None)
+            clean_response = check_response(message)
+
+            response_data = None
+            if intent == "create_order":
+                name = (
+                        entities.get('name') or 
+                        entities.get('full_name') or 
+                        entities.get('customer_user') or 
+                        entities.get('customer_name') or 
+                        None
+                        )
+                phone_number = (
+                        entities.get('phone_number') or 
+                        entities.get('contact_number') or 
+                        None
+                    )
+                    
+                response_data = create_lead(
+                    full_name=name,
+                    phone_number=phone_number,
+                    email=entities.get('email', None),
+                    product=entities.get('product', None),
+                    metadata=entities
+                )
+                print("✅ Lead created from Telegram message")
+            return clean_response, run_status, response_data
+        except Exception as e:
+            print(f"Error in get_assistant_response_ai: {str(e)}")
+            # If there's an error, wait a bit and try to get the latest response
+            try:
+                messages = client.beta.threads.messages.list(
+                    thread_id=thread_id, order="desc", limit=1
+                )
+                if messages.data:
+                    assistant_response_str = messages.data[0].content[0].text.value
+                    assistant_response = json.loads(assistant_response_str)
+                    return assistant_response.get("reply", "Sorry, there was an error processing your request."), None, None
+            except:
+                pass
+            return "Sorry, there was an error processing your request.", None, None
 
 def create_and_run_thread(assistant_id, vector_store_id):
     try:
