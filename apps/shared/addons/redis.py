@@ -48,7 +48,18 @@ def get_from_redis_cache(key: str) -> Optional[str]:
     return value
 
 
-def publish_message_to_ws(conversation_id, message, sender="assistant", audio_file=None):
+def publish_new_message_to_ws(conversation_id, unread_message_count, assistant_id, last_message):
+    redis = get_redis_connection()
+    payload = {
+        "type": "new_message",
+        "conversation_id": str(conversation_id),
+        "unread_message_count": unread_message_count,
+        "assistant_id": str(assistant_id),
+        "last_message": last_message
+    }
+    redis.publish("chat-messages", json.dumps(payload))
+
+def publish_message_to_ws(conversation_id, message, sender="assistant", audio_file=None, assistant_id=None):
     redis = get_redis_connection()
     payload = {
         "conversation_id": str(conversation_id),
@@ -56,7 +67,8 @@ def publish_message_to_ws(conversation_id, message, sender="assistant", audio_fi
         "sender": sender,
         "message_type": "text" if audio_file is None else "audio",
         "audio_file": audio_file,
-        "timestamp": datetime.now().isoformat()
+        "timestamp": datetime.now().isoformat(),
+        "assistant_id": str(assistant_id)
     }
     redis.publish("chat-messages", json.dumps(payload))
 

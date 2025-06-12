@@ -15,4 +15,6 @@ urlpatterns = [
     path("assistant/<uuid:pk>/upload-file/", views.AssistantFileUploadListCreateView.as_view()),
     path("assistant/<uuid:pk>/update-file/", views.AssistantFileUploadUpdateView.as_view()),
     path("assistant-files/<uuid:pk>/", views.AssistantFileUploadRetrieveView.as_view()),
+
+    path('conversation/<uuid:pk>/messages/bulk-read/', views.MessageBulkReadView.as_view(), name='message-bulk-read'),
 ]

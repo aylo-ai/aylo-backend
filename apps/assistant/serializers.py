@@ -459,3 +459,15 @@ class UpdateFileUploadSerializer(serializers.ModelSerializer, SubscriptionValida
             update_vector_store_files(assistant.vector_id, file_urls)
 
         return uploaded_files[0] if len(uploaded_files) == 1 else uploaded_files
+    
+class MessageBulkReadSerializer(serializers.Serializer):
+    message_ids = serializers.ListField(
+        child=serializers.UUIDField(),
+        help_text="List of message UUIDs to mark as read"
+    )
+
+    def validate(self, attrs):
+        message_ids = attrs.get('message_ids')
+        if not message_ids:
+            raise_validation_error(message=_("Xabar ID lari kiritilmagan"))
+        return attrs

@@ -106,6 +106,7 @@ class Message(BaseModel):
         choices=MessageStatuses.choices(),
         default=MessageStatuses.DELIVERED.value
     )
+    is_read = models.BooleanField(default=False)
 
     class Meta:
         db_table = 'messages'

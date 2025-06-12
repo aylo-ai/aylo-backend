@@ -3,12 +3,14 @@ from rest_framework import permissions, filters, generics
 
 from apps.assistant.models import Assistant, AssistantFileUpload, Conversation, Message
 from apps.assistant.serializers import AssistantSerializer, ConversationSerializer, MessageSerializer, \
-    SettingsSerializer, AssistantFileUploadSerializer, ConversationRetrieveSerializer, UpdateFileUploadSerializer
+        SettingsSerializer, AssistantFileUploadSerializer, ConversationRetrieveSerializer, UpdateFileUploadSerializer, \
+             MessageBulkReadSerializer
 from shared.addons.ai_requests import create_assistant_and_vector_id, delete_assitant
 from shared.addons.validations import success_response, error_response
 from rest_framework.exceptions import NotFound
 from django.utils.translation import gettext_lazy as _
 from shared.addons.utils import update_assistant
+from shared.addons.redis import publish_new_message_to_ws
 
 class AssistantListCreateView(generics.ListCreateAPIView):
     queryset = Assistant.objects.all()
@@ -329,3 +331,34 @@ class AssistantFileUploadRetrieveView(generics.RetrieveUpdateDestroyAPIView):
         instance = self.get_object()
         self.perform_destroy(instance)
         return success_response(message=_("File muvaffaqiyatli o'chirildi"), code=204)
+
+
+class MessageBulkReadView(generics.UpdateAPIView):
+    serializer_class = MessageBulkReadSerializer
+    permission_classes = [permissions.IsAuthenticated]
+
+    def update(self, request, *args, **kwargs):
+        conversation_id = kwargs.get('pk')
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        message_ids = serializer.validated_data['message_ids']
+        
+        # Update all messages in a single query
+        updated_count = Message.objects.filter(
+            id__in=message_ids,
+            conversation__id=conversation_id,
+        ).update(is_read=True)
+
+        unread_message_count = Message.objects.filter(
+            conversation__id=conversation_id,
+            is_read=False
+        ).count()
+        last_message = Message.objects.filter(conversation__id=conversation_id).order_by('-created_time').first()
+        publish_new_message_to_ws(conversation_id=conversation_id, unread_message_count=unread_message_count, 
+                                  assistant_id=last_message.conversation.assistant.id, last_message=last_message.message_content)
+        print(f"Published new message to WS for conversation {conversation_id}")
+        return success_response(
+            message=_("Xabarlar muvaffaqiyatli o'qildi"),
+            data={"updated_count": updated_count},
+            code=200
+        )

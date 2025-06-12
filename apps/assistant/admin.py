@@ -68,7 +68,7 @@ class ConversationAdmin(admin.ModelAdmin):
 
 @admin.register(Message)
 class MessageAdmin(admin.ModelAdmin):
-    list_display = ('id', 'conversation', 'sender', 'message_type', 'status', 'created_time', 'input_tokens', 'output_tokens')
+    list_display = ('id', 'conversation', 'sender', 'message_type', 'status', 'created_time', 'input_tokens', 'output_tokens',"is_read")
     list_filter = ('conversation', 'sender')
     ordering = ('conversation', 'created_time')
     list_per_page = 20
@@ -81,7 +81,7 @@ class MessageAdmin(admin.ModelAdmin):
     readonly_fields = ('created_time', 'updated_time')
     fieldsets = (
         (None, {
-            'fields': ('conversation', 'sender', 'message_content', 'message_type', 'status', 'audio_file', 'input_tokens', 'output_tokens')
+            'fields': ('conversation', 'sender', 'message_content', 'message_type', 'status', 'audio_file', 'input_tokens', 'output_tokens','is_read')
         }),
         ('System', {
             'fields': ('created_time', 'updated_time'),
