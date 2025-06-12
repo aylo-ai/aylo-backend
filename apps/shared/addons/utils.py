@@ -51,9 +51,16 @@ def create_message(conversation, sender, content, audio_file=None, run_status=No
         print(f"File name: {file_name}")
         message.audio_file.save(file_name, ContentFile(audio_file))
         message.save()
-        return message.audio_file
+        return {
+            "id": message.id,
+            "audio_file": message.audio_file
+        }
     else:
-        return None
+        return {
+            "id": message.id,
+            "audio_file": None
+        }
+    
 
 def get_or_create_conversation(user_id, assistant, reset=False, token=None, platform='telegram'):
     conversation = Conversation.objects.filter(

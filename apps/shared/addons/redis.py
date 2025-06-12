@@ -59,14 +59,15 @@ def publish_new_message_to_ws(conversation_id, unread_message_count, assistant_i
     }
     redis.publish("chat-messages", json.dumps(payload))
 
-def publish_message_to_ws(conversation_id, message, sender="assistant", audio_file=None, assistant_id=None):
+def publish_message_to_ws(conversation_id, message, data,sender="assistant", assistant_id=None):
     redis = get_redis_connection()
     payload = {
+        "id": str(data.get("id",None)),
         "conversation_id": str(conversation_id),
         "message": message,
         "sender": sender,
-        "message_type": "text" if audio_file is None else "audio",
-        "audio_file": audio_file,
+        "message_type": "text" if data.get("audio_file",None) is None else "audio",
+        "audio_file": data.get("audio_file",None),
         "timestamp": datetime.now().isoformat(),
         "assistant_id": str(assistant_id)
     }
