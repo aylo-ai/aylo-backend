@@ -22,6 +22,7 @@ from shared.ai_service.thread import wait_on_run
 from config.settings import OPENAI_API_KEY
 from shared.ai_service.helper import create_prompt
 from shared.addons.payloads import valid_intents
+from shared.addons.redis import publish_message_to_ws_assistant
 
 def create_message(conversation, sender, content, audio_file=None, run_status=None):
     message_type = 'audio' if audio_file else 'text'
@@ -79,6 +80,7 @@ def get_or_create_conversation(user_id, assistant, reset=False, token=None, plat
             token=token,
             platform=platform
         )
+        publish_message_to_ws_assistant(conversation)
         print(f"Conversation created: {conversation}")
 
     elif reset and conversation is not None:
@@ -309,7 +311,6 @@ def get_assistant_response_ai(message, assistant_id, thread_id):
             )
             print(f"Assistant response: {messages.data}, messages: {messages}, input_tokens: {run_status.usage.prompt_tokens}, output_tokens: {run_status.usage.completion_tokens}")
 
-            # Get the response text or a fallback message if empty
             assistant_response_str = messages.data[0].content[0].text.value if messages.data else "No response received."
             print(f"Assistant response: {assistant_response_str}")
             assistant_response = json.loads(assistant_response_str)
@@ -332,7 +333,6 @@ def get_assistant_response_ai(message, assistant_id, thread_id):
                         entities.get('contact_number') or 
                         None
                     )
-                    
                 response_data = create_lead(
                     full_name=name,
                     phone_number=phone_number,
