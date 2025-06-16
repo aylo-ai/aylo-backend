@@ -294,21 +294,16 @@ class AssistantFileUploadSerializer(serializers.ModelSerializer, SubscriptionVal
 
     def validate(self, attrs):
         files = self.context.get("files")
-        website_url = attrs.get("website_url")
         assistant = self.context.get("assistant")
+        print(f"validate: assistant: {assistant}")
         # Use the mixin's validation method
         self.validate_subscription(assistant.user.subscription)
         if not assistant.ai_enabled:
             raise_validation_error(message=_("Assistant AI sizda yoqilmagan"))
-        # Validate website URL if provided
-        if website_url:
-            if not website_url.startswith(('http://', 'https://')):
-                raise_validation_error(message="Invalid website URL. Must start with http:// or https://")
-            return attrs
 
         # Validate files if no website URL
         if not files:
-            raise_validation_error(message="Either files or website_url must be provided.")
+            raise_validation_error(message=_("Fayl yuklanmadi"))
 
         if not isinstance(files, (list, tuple)):
             files = [files]

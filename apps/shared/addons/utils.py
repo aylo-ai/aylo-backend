@@ -54,7 +54,7 @@ def create_message(conversation, sender, content, audio_file=None, run_status=No
         message.save()
         return {
             "id": message.id,
-            "audio_file": message.audio_file
+            "audio_file": message.audio_file.url
         }
     else:
         return {

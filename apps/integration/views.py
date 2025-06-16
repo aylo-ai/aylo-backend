@@ -2,6 +2,7 @@ import requests
 import base64
 import hashlib
 import hmac
+import time
 import json
 
 from django.http import HttpResponse
@@ -18,7 +19,10 @@ from shared.permissions import IsCustomer
 from .models import Integration, TelegramGroupIntegration
 from .serializers import IntegrationCreateSerializer, IntegrationSerializer, SendUserMessageSerializer, \
     TelegramGroupSerializer
-from .tasks import process_message_task, process_instagram_message, process_voice_task, process_instagram_comment
+from .tasks import process_message_task, process_instagram_message, process_voice_task, \
+                                process_instagram_comment, WAIT_SECONDS, process_collected_messages
+
+from shared.addons.redis import redis_client
 
 class IntegrationListCreateView(generics.ListCreateAPIView):
     queryset = Integration.objects.all()
@@ -145,7 +149,15 @@ class InstagramWebhookView(APIView):
                 print(f"Integration not found for account ID: {account_id}")
                 return error_response(message="Integration not found", code=404)
             # Start celery task to process the incoming message
-            process_instagram_message.delay(account_id, messaging, audio_file)
+            if audio_file:
+                process_instagram_message.delay(account_id, messaging, audio_file)
+            else:
+                redis_client.rpush(f"messages:{account_id}", messaging)
+                redis_client.set(f"last_seen:{account_id}", time.time())
+
+                # Schedule collector task only if not already scheduled
+                redis_client.setex(f"collecting:{account_id}", WAIT_SECONDS + 1, "1")  # Prevent overlap
+                process_collected_messages.apply_async((account_id, None), countdown=WAIT_SECONDS)
             return success_response(message=_("Xabar webhook ma'lumotlar muvaffaqiyatli olindi"), code=200)
 
         return success_response(message=_("Webhook ma'lumotlar muvaffaqiyatli olindi"), code=200)
@@ -387,8 +399,14 @@ class TelegramWebhookView(APIView):
             elif data.get('left_chat_member', {}).get('is_bot'):
                 handle_bot_removed_from_group(chat_id, chat_title)
         else:
+            # --- Redis Message Queuing ---
+            redis_client.rpush(f"messages:{chat_id}", user_message)
+            redis_client.set(f"last_seen:{chat_id}", time.time())
+
+            # Schedule collector task only if not already scheduled
+            redis_client.setex(f"collecting:{chat_id}", WAIT_SECONDS + 1, "1")  # Prevent overlap
+            process_collected_messages.apply_async((chat_id, bot_token), countdown=WAIT_SECONDS)
             # Start the Celery task
-            process_message_task.delay(chat_id, user_message, bot_token)
             print("celery task started")
         return success_response(message=_("Xabar muvaffaqiyatli olindi"), code=200)
 

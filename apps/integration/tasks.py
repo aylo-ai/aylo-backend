@@ -1,4 +1,4 @@
-import requests
+import requests, time
 from celery import shared_task
 
 from apps.shared.addons.enums import SenderTypes, ConversationStatuses
@@ -8,7 +8,9 @@ from shared.addons.utils import get_assistant_response_ai, handle_start_command,
     speech_to_text, convert_ogg_to_mp3, process_instagram_audio
 from apps.assistant.models import Assistant
 from .models import TelegramGroupIntegration
-from shared.addons.redis import publish_message_to_ws
+from shared.addons.redis import publish_message_to_ws, redis_client
+
+WAIT_SECONDS = 5
 
 @shared_task
 def process_message_task(chat_id, user_message, bot_token, audio_file=None):
@@ -132,6 +134,10 @@ def process_instagram_message(account_id, user_message, audio_file=None):
             telegram_group.lead_count += 1
             telegram_group.save()
             print(f"Lead sent to telegram group: {telegram_group.group_id}")
+    # handling wait message
+    if assistant.wait_message:
+        send_instagram_message(account_id, integration.api_token, sender_id, assistant.wait_message)
+        print(f"Sent wait message to Instagram user: {sender_id} with message: {assistant.wait_message}")
     # send response to user
     send_instagram_message(account_id, integration.api_token, sender_id, response_message)
     print(f"starting to create message: {response_message}, conversation: {conversation}")
@@ -197,3 +203,31 @@ def process_instagram_comment(account_id, comment_data):
     response_message = "Thank you for your comment!, It was done by Repli AI"
     # Send private reply to the comment
     send_instagram_private_reply(integration.api_token, account_id, comment_id, response_message)
+
+
+@shared_task
+def process_collected_messages(chat_id, bot_token=None):
+    user_key = f"messages:{chat_id}"
+    last_seen_key = f"last_seen:{chat_id}"
+
+    # Check if we should wait longer
+    last_seen = float(redis_client.get(last_seen_key) or 0)
+    if time.time() - last_seen < WAIT_SECONDS:
+        return  # Another message came in recently, skip for now
+
+    messages = redis_client.lrange(user_key, 0, -1)
+    if not messages:
+        return
+
+    combined_message = ", ".join(m for m in messages)
+    print(f"Combined message: {combined_message}")
+
+    # Clean up Redis
+    redis_client.delete(user_key)
+    redis_client.delete(last_seen_key)
+
+    # Call your existing task
+    if bot_token:
+        process_message_task.delay(chat_id, combined_message, bot_token)
+    else:
+        process_instagram_message.delay(chat_id, combined_message)

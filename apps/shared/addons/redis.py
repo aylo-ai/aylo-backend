@@ -23,7 +23,7 @@ def get_redis_connection() -> Redis:
 
     return redis_connection
 
-
+redis_client = get_redis_connection()
 
 def add_to_redis_cache(key: str, value: str, exp_time: Optional[int] = None) -> None:
     """Add key-value pair to Redis cache."""

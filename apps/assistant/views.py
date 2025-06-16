@@ -322,7 +322,8 @@ class AssistantFileUploadRetrieveView(generics.RetrieveUpdateDestroyAPIView):
 
     def update(self, request, *args, **kwargs):
         instance = self.get_object()
-        serializer = self.get_serializer(instance, data=request.data, partial=True)
+        serializer = self.get_serializer(instance, data=request.data, context={'assistant': instance.assistant, 
+                                                                               'files': request.FILES.getlist('file')}, partial=True)
         serializer.is_valid(raise_exception=True)
         self.perform_update(serializer)
         return success_response(message=_("File muvaffaqiyatli o'zgartirildi"), data=serializer.data, code=200)
