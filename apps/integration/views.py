@@ -152,7 +152,7 @@ class InstagramWebhookView(APIView):
             if audio_file:
                 process_instagram_message.delay(account_id, messaging, audio_file)
             else:
-                message = messaging[0].get("message", {}).get("text", None)
+                message = messaging[0].get("message", {}).get("text")
                 redis_client.rpush(f"messages:{account_id}", message)
                 redis_client.set(f"last_seen:{account_id}", time.time())
 

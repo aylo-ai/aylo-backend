@@ -81,7 +81,7 @@ def process_message_task(chat_id, user_message, bot_token, audio_file=None):
         publish_message_to_ws(conversation.id, response_message, sender="assistant", assistant_id=assistant.id,data=data)
 
 @shared_task
-def process_instagram_message(account_id, user_message, audio_file=None):
+def process_instagram_message(account_id, combined_message, user_message, audio_file=None):
     print(f"celery task is started with account_id: {account_id}, user_message: {user_message}")
     assistant = Assistant.objects.filter(integrations__instagram_account_id=account_id).first()
     print(f"Assistant: {assistant}")
@@ -97,23 +97,26 @@ def process_instagram_message(account_id, user_message, audio_file=None):
     print(f"Sender ID: {sender_id}")
     if not sender_id:
         return
-    message_text = user_message[0].get("message", {}).get("text")
+    # message_text = user_message[0].get("message", {}).get("text")
     if audio_file:
         message_text = process_instagram_audio(audio_file, assistant.language)
-    print(f"Message text: {message_text}")
-    if not message_text:
+    print(f"Message text: {combined_message}")
+    if not combined_message:
         return
     conversation = get_or_create_conversation(sender_id, assistant, platform="instagram")
     print(f"Conversation: {conversation}, thread_id: {conversation.thread_id}")
     if conversation.status == ConversationStatuses.ESCALATED.value or not assistant.is_active:
-        data = create_message(conversation, 'user', message_text, audio_file)
+        data = create_message(conversation, 'user', combined_message, audio_file)
         print("publish message to web socket")
-        publish_message_to_ws(conversation.id, message_text, sender="user", data=data, assistant_id=assistant.id)
+        publish_message_to_ws(conversation.id, combined_message, sender="user", data=data, assistant_id=assistant.id)
         return
     print("Sending message to web socket")
-    data = create_message(conversation, 'user', message_text, audio_file)
-    publish_message_to_ws(conversation.id, message_text, sender="user", data=data, assistant_id=assistant.id)
-    response_message, run_status, response_data = get_assistant_response_ai(message_text, assistant.assistant_id, conversation.thread_id)
+    data = create_message(conversation, 'user', combined_message, audio_file)
+    publish_message_to_ws(conversation.id, combined_message, sender="user", data=data, assistant_id=assistant.id)
+    if assistant.wait_message:
+        send_instagram_message(account_id, integration.api_token, sender_id, assistant.wait_message)
+        print(f"Sent wait message to Instagram user: {sender_id} with message: {assistant.wait_message}")
+    response_message, run_status, response_data = get_assistant_response_ai(combined_message, assistant.assistant_id, conversation.thread_id)
     print(f"Assistant response in Instagram: {response_message}")
     # Handle lead creation if response_data exists
     if response_data:
@@ -135,9 +138,7 @@ def process_instagram_message(account_id, user_message, audio_file=None):
             telegram_group.save()
             print(f"Lead sent to telegram group: {telegram_group.group_id}")
     # handling wait message
-    if assistant.wait_message:
-        send_instagram_message(account_id, integration.api_token, sender_id, assistant.wait_message)
-        print(f"Sent wait message to Instagram user: {sender_id} with message: {assistant.wait_message}")
+    
     # send response to user
     send_instagram_message(account_id, integration.api_token, sender_id, response_message)
     print(f"starting to create message: {response_message}, conversation: {conversation}")
@@ -230,4 +231,4 @@ def process_collected_messages(chat_id, bot_token=None, messaging=None):
     if bot_token:
         process_message_task.delay(chat_id, combined_message, bot_token)
     else:
-        process_instagram_message.delay(chat_id, combined_message,messaging)
+        process_instagram_message.delay(account_id = chat_id, combined_message = combined_message, messaging = messaging)
