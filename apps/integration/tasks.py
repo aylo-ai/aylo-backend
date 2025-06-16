@@ -113,9 +113,7 @@ def process_instagram_message(account_id, combined_message, user_message, audio_
     print("Sending message to web socket")
     data = create_message(conversation, 'user', combined_message, audio_file)
     publish_message_to_ws(conversation.id, combined_message, sender="user", data=data, assistant_id=assistant.id)
-    if assistant.wait_message:
-        send_instagram_message(account_id, integration.api_token, sender_id, assistant.wait_message)
-        print(f"Sent wait message to Instagram user: {sender_id} with message: {assistant.wait_message}")
+
     response_message, run_status, response_data = get_assistant_response_ai(combined_message, assistant.assistant_id, conversation.thread_id)
     print(f"Assistant response in Instagram: {response_message}")
     # Handle lead creation if response_data exists
