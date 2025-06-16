@@ -3,9 +3,8 @@ import os
 from django.db import models, transaction
 from django.utils import timezone
 from django.utils.timezone import now
-
 from shared.addons.enums import AssistantLanguages, PersonalityStyles, SenderTypes, MessageStatuses, \
-    ConversationStatuses, MessageTypes, ConversationPlatforms
+    ConversationStatuses, MessageTypes, ConversationPlatforms, FileTypes
 from shared.models import BaseModel
 from apps.integration.models import Integration
 
@@ -165,6 +164,8 @@ class AssistantFileUpload(BaseModel):
     website_url = models.URLField(max_length=255, null=True, blank=True)
     file = models.FileField(upload_to=assistant_file_path)
     filename = models.CharField(max_length=255, null=True, blank=True)
+    google_sheet_doc_id = models.CharField(max_length=255, null=True, blank=True)
+    file_type = models.CharField(max_length=255, null=True, blank=True, choices=FileTypes.choices())
 
     def __str__(self):
         return self.filename

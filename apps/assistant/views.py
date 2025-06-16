@@ -4,7 +4,7 @@ from rest_framework import permissions, filters, generics
 from apps.assistant.models import Assistant, AssistantFileUpload, Conversation, Message
 from apps.assistant.serializers import AssistantSerializer, ConversationSerializer, MessageSerializer, \
         SettingsSerializer, AssistantFileUploadSerializer, ConversationRetrieveSerializer, UpdateFileUploadSerializer, \
-             MessageBulkReadSerializer
+             MessageBulkReadSerializer, AssistantFileGoogleDocSerializer
 from shared.addons.ai_requests import create_assistant_and_vector_id, delete_assitant
 from shared.addons.validations import success_response, error_response
 from rest_framework.exceptions import NotFound
@@ -362,3 +362,13 @@ class MessageBulkReadView(generics.UpdateAPIView):
             data={"updated_count": updated_count},
             code=200
         )
+
+class AssistantFileGoogleDocView(generics.CreateAPIView):
+    serializer_class = AssistantFileGoogleDocSerializer
+    permission_classes = [permissions.IsAuthenticated]
+
+    def create(self, request, *args, **kwargs):
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+        return success_response(message=_("Assistant google sheet muvaffaqiyatli yaratildi"), data=serializer.data, code=201)

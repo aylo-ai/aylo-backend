@@ -157,3 +157,7 @@ class NotificationTypes(EnumBaseModel):
     FAILED='failed'
     SUCCESS='success'
     WARNING='warning'
+
+class FileTypes(EnumBaseModel):
+    GOOGLE_SPREADSHEET = 'google_spreadsheet'
+    GOOGLE_DOCUMENT = 'google_document'

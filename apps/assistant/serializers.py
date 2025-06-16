@@ -6,7 +6,7 @@ from django.utils.translation import gettext_lazy as _
 from django.utils.timezone import localtime
 from django.core.files import File
 
-
+from shared.addons.google_integrations import process_google_doc
 from apps.assistant.models import Assistant, Conversation, Message, Settings, AssistantFileUpload
 from apps.integration.models import TelegramGroupIntegration
 from shared.addons.ai_requests import update_vector_store_files
@@ -18,6 +18,7 @@ from shared.addons.enums import MessageTypes
 from shared.addons.parsing import WebsiteScreenshot
 from shared.mixins import SubscriptionValidationMixin
 from shared.addons.redis import publish_message_to_ws_assistant
+from shared.addons.utils import update_assistant
 
 class AssistantSerializer(serializers.ModelSerializer,
                           SubscriptionValidationMixin):
@@ -284,6 +285,7 @@ class AssistantFileUploadSerializer(serializers.ModelSerializer, SubscriptionVal
             "filename",
             "website_url",
             "file",
+            "file_type",
             "created_time",
             "updated_time",
         ]
@@ -481,3 +483,38 @@ class MessageBulkReadSerializer(serializers.Serializer):
         if not message_ids:
             raise_validation_error(message=_("Xabar ID lari kiritilmagan"))
         return attrs
+
+class AssistantFileGoogleDocSerializer(serializers.Serializer):
+    sheet_doc_url = serializers.CharField(required=True)
+    assistant_id = serializers.UUIDField(required=True)
+    file_type = serializers.CharField(read_only=True)
+
+    def validate(self, attrs):
+        sheet_doc_url = attrs.get('sheet_doc_url')
+        assistant_id = attrs.get('assistant_id')
+        if not sheet_doc_url:
+            raise_validation_error(message=_("Sheet URL kiritilmagan"))
+        if not assistant_id:
+            raise_validation_error(message=_("Assistant ID kiritilmagan"))
+        try:
+            assistant = Assistant.objects.get(id=assistant_id)
+        except Assistant.DoesNotExist:
+            raise_validation_error(message=_("Assistant topilmadi"))
+
+        attrs['sheet_doc_url'] = sheet_doc_url
+        attrs['assistant'] = assistant
+        return attrs
+
+    def create(self, validated_data):
+        sheet_doc_url = validated_data.get('sheet_doc_url')
+        assistant = validated_data.get('assistant')
+        response = process_google_doc(sheet_doc_url, assistant)
+        if assistant and assistant.vector_id:
+            file_url = response.get("file_url")
+            print(f"file_url: {file_url}")
+            update_vector_store_files(assistant.vector_id, [file_url])
+        
+        print(f"response: {response}")
+        validated_data["file_type"] = response.get("file_type")
+        print(f"validated_data: {validated_data}")
+        return validated_data
