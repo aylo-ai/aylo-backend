@@ -231,4 +231,4 @@ def process_collected_messages(chat_id, bot_token=None, messaging=None):
     if bot_token:
         process_message_task.delay(chat_id, combined_message, bot_token)
     else:
-        process_instagram_message.delay(account_id = chat_id, combined_message = combined_message, messaging = messaging)
+        process_instagram_message.delay(account_id = chat_id, combined_message = combined_message, user_message = messaging)
