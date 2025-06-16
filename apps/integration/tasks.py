@@ -206,7 +206,7 @@ def process_instagram_comment(account_id, comment_data):
 
 
 @shared_task
-def process_collected_messages(chat_id, bot_token=None):
+def process_collected_messages(chat_id, bot_token=None, messaging=None):
     user_key = f"messages:{chat_id}"
     last_seen_key = f"last_seen:{chat_id}"
 
@@ -230,4 +230,4 @@ def process_collected_messages(chat_id, bot_token=None):
     if bot_token:
         process_message_task.delay(chat_id, combined_message, bot_token)
     else:
-        process_instagram_message.delay(chat_id, combined_message)
+        process_instagram_message.delay(chat_id, combined_message,messaging)

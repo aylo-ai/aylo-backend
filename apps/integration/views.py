@@ -152,12 +152,13 @@ class InstagramWebhookView(APIView):
             if audio_file:
                 process_instagram_message.delay(account_id, messaging, audio_file)
             else:
-                redis_client.rpush(f"messages:{account_id}", messaging)
+                message = messaging[0].get("message", {}).get("text", None)
+                redis_client.rpush(f"messages:{account_id}", message)
                 redis_client.set(f"last_seen:{account_id}", time.time())
 
                 # Schedule collector task only if not already scheduled
                 redis_client.setex(f"collecting:{account_id}", WAIT_SECONDS + 1, "1")  # Prevent overlap
-                process_collected_messages.apply_async((account_id, None), countdown=WAIT_SECONDS)
+                process_collected_messages.apply_async((account_id, None, messaging), countdown=WAIT_SECONDS)
             return success_response(message=_("Xabar webhook ma'lumotlar muvaffaqiyatli olindi"), code=200)
 
         return success_response(message=_("Webhook ma'lumotlar muvaffaqiyatli olindi"), code=200)
