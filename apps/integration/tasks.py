@@ -105,7 +105,7 @@ def process_instagram_message(account_id, combined_message, user_message, audio_
     chat_username = f"instagram_{sender_id}"
     # message_text = user_message[0].get("message", {}).get("text")
     if audio_file:
-        message_text = process_instagram_audio(audio_file, assistant.language)
+        combined_message = process_instagram_audio(audio_file, assistant.language)
     print(f"Message text: {combined_message}")
     if not combined_message:
         return
