@@ -150,7 +150,7 @@ class InstagramWebhookView(APIView):
                 return error_response(message="Integration not found", code=404)
             # Start celery task to process the incoming message
             if audio_file:
-                process_instagram_message.delay(account_id, messaging, audio_file)
+                process_instagram_message.delay(account_id, messaging, messaging,audio_file)
             else:
                 message = messaging[0].get("message", {}).get("text",None)
                 if message is not None:  # Only push if message is not None
