@@ -36,8 +36,6 @@ class IntegrationCreateSerializer(serializers.ModelSerializer, SubscriptionValid
         assistant_id = self.context.get("assistant_id")
         try:
             assistant = Assistant.objects.get(id=assistant_id)
-            if not assistant.ai_enabled or integration_type == IntegrationTypes.WEBSITE.value:
-                raise_validation_error(message=_("Assistant AI sizda yoqilmagan"))
         except Assistant.DoesNotExist:
             raise_validation_error(message=_("Assistant topilmadi"))
         # Use the mixin's validation method

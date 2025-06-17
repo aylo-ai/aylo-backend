@@ -63,28 +63,32 @@ def create_message(conversation, sender, content, audio_file=None, run_status=No
         }
     
 
-def get_or_create_conversation(user_id, assistant, reset=False, token=None, platform='telegram'):
+def get_or_create_conversation(user_id, assistant, reset=False, token=None, platform='telegram', chat_username=None):
     conversation = Conversation.objects.filter(
         assistant=assistant,
         user_id=user_id,
         token=token).first()
+    thread_id = None
     print(f"Conversation: {conversation}")
     if conversation is None:
-        thread_id = get_thread_id(str(assistant.assistant_id), str(assistant.vector_id))
-        print(f"conversation is None, creating new conversation with thread_id: {thread_id}")
+        if assistant.ai_enabled:
+            thread_id = get_thread_id(str(assistant.assistant_id), str(assistant.vector_id))
+            print(f"conversation is None, creating new conversation with thread_id: {thread_id}")
         conversation = Conversation.objects.create(
             assistant=assistant,
             user_id=user_id,
             thread_id=thread_id,
             status='open',
             token=token,
-            platform=platform
+            platform=platform,
+            client_full_name=chat_username
         )
         publish_message_to_ws_assistant(conversation)
         print(f"Conversation created: {conversation}")
 
     elif reset and conversation is not None:
-        conversation.thread_id = get_thread_id(str(assistant.assistant_id), str(assistant.vector_id))
+        if assistant.ai_enabled:
+            conversation.thread_id = get_thread_id(str(assistant.assistant_id), str(assistant.vector_id))
         conversation.status = 'open'
         print(f"Resetting conversation with new thread_id: {conversation.thread_id}")
         conversation.save()

@@ -20,7 +20,7 @@ from .models import Integration, TelegramGroupIntegration
 from .serializers import IntegrationCreateSerializer, IntegrationSerializer, SendUserMessageSerializer, \
     TelegramGroupSerializer
 from .tasks import process_message_task, process_instagram_message, process_voice_task, \
-                                process_instagram_comment, WAIT_SECONDS, process_collected_messages
+                                process_instagram_comment, WAIT_SECONDS, process_collected_messages, send_telegram_message
 
 from shared.addons.redis import redis_client
 
@@ -152,13 +152,14 @@ class InstagramWebhookView(APIView):
             if audio_file:
                 process_instagram_message.delay(account_id, messaging, audio_file)
             else:
-                message = messaging[0].get("message", {}).get("text")
-                redis_client.rpush(f"messages:{account_id}", message)
-                redis_client.set(f"last_seen:{account_id}", time.time())
+                message = messaging[0].get("message", {}).get("text",None)
+                if message is not None:  # Only push if message is not None
+                    redis_client.rpush(f"messages:{account_id}", message)
+                    redis_client.set(f"last_seen:{account_id}", time.time())
 
-                # Schedule collector task only if not already scheduled
-                redis_client.setex(f"collecting:{account_id}", WAIT_SECONDS + 1, "1")  # Prevent overlap
-                process_collected_messages.apply_async((account_id, None, messaging), countdown=WAIT_SECONDS)
+                    # Schedule collector task only if not already scheduled
+                    redis_client.setex(f"collecting:{account_id}", WAIT_SECONDS + 1, "1")  # Prevent overlap
+                    process_collected_messages.apply_async((account_id, None, messaging), countdown=WAIT_SECONDS)
             return success_response(message=_("Xabar webhook ma'lumotlar muvaffaqiyatli olindi"), code=200)
 
         return success_response(message=_("Webhook ma'lumotlar muvaffaqiyatli olindi"), code=200)
@@ -382,6 +383,17 @@ class TelegramWebhookView(APIView):
         chat_id = data.get("chat", {}).get("id", None)
         chat_title = data.get('chat', {}).get('title', 'Private Chat')
         chat_type = data.get("chat", {}).get("type", None)
+        #handling username
+        first_name = data.get("chat", {}).get("first_name", None)
+        last_name = data.get("chat", {}).get("last_name", None)
+        username = data.get("chat", {}).get("username", None)
+        chat_username = None
+        if first_name and last_name:
+            chat_username = f"{first_name} {last_name}"
+        elif first_name:
+            chat_username = first_name
+        else:
+            chat_username = f"@{username}_{chat_id}"
 
             # Voice message handling
         if "voice" in data:
@@ -405,8 +417,9 @@ class TelegramWebhookView(APIView):
             redis_client.set(f"last_seen:{chat_id}", time.time())
 
             # Schedule collector task only if not already scheduled
+            print(f"chat_username: {chat_username}")
             redis_client.setex(f"collecting:{chat_id}", WAIT_SECONDS + 1, "1")  # Prevent overlap
-            process_collected_messages.apply_async((chat_id, bot_token), countdown=WAIT_SECONDS)
+            process_collected_messages.apply_async((chat_id, bot_token, None, chat_username), countdown=WAIT_SECONDS)
             # Start the Celery task
             print("celery task started")
         return success_response(message=_("Xabar muvaffaqiyatli olindi"), code=200)

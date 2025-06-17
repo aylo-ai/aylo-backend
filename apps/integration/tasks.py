@@ -13,7 +13,7 @@ from shared.addons.redis import publish_message_to_ws, redis_client
 WAIT_SECONDS = 5
 
 @shared_task
-def process_message_task(chat_id, user_message, bot_token, audio_file=None):
+def process_message_task(chat_id, user_message, bot_token, chat_username=None, audio_file=None):
     print(f"celery task is started with chat_id: {chat_id}, user_message: {user_message}, bot_token: {bot_token}")
     assistant = Assistant.objects.filter(integrations__api_token=bot_token).first()
     print(f"Assistant: {assistant}")
@@ -28,7 +28,7 @@ def process_message_task(chat_id, user_message, bot_token, audio_file=None):
         return
 
     # Handle regular messages
-    conversation = get_or_create_conversation(chat_id, assistant, token=bot_token)
+    conversation = get_or_create_conversation(chat_id, assistant, token=bot_token,chat_username=chat_username)
     print(f"Conversation: {conversation}")
     if conversation.status == ConversationStatuses.ESCALATED.value or not assistant.is_active:
         data = create_message(conversation, 'user', user_message, audio_file)
@@ -38,13 +38,18 @@ def process_message_task(chat_id, user_message, bot_token, audio_file=None):
 
     # Wait message handling
     wait_message_id = None
-    if assistant.wait_message:
-        response = send_telegram_message(chat_id, assistant.wait_message, bot_token)
-        wait_message_id = response.json().get("result").get("message_id")
+    response_data = None
+    response_message = None
+    if assistant.ai_enabled:
+        if assistant.wait_message:
+            response = send_telegram_message(chat_id, assistant.wait_message, bot_token)
+            wait_message_id = response.json().get("result").get("message_id")
 
     data = create_message(conversation, 'user', user_message, audio_file)
     publish_message_to_ws(conversation_id=conversation.id, message=user_message, sender='user', data=data, assistant_id=assistant.id)
-    response_message, run_status, response_data = get_assistant_response_ai(user_message, assistant.assistant_id, conversation.thread_id)
+    if assistant.ai_enabled:
+        response_message, run_status, response_data = get_assistant_response_ai(user_message, assistant.assistant_id, conversation.thread_id)
+
     print(f"Response message: {response_message}")
     # user_register_message = check_register_info(response_message)
     
@@ -97,13 +102,14 @@ def process_instagram_message(account_id, combined_message, user_message, audio_
     print(f"Sender ID: {sender_id}")
     if not sender_id:
         return
+    chat_username = f"instagram_{sender_id}"
     # message_text = user_message[0].get("message", {}).get("text")
     if audio_file:
         message_text = process_instagram_audio(audio_file, assistant.language)
     print(f"Message text: {combined_message}")
     if not combined_message:
         return
-    conversation = get_or_create_conversation(sender_id, assistant, platform="instagram")
+    conversation = get_or_create_conversation(sender_id, assistant, platform="instagram", chat_username=chat_username)
     print(f"Conversation: {conversation}, thread_id: {conversation.thread_id}")
     if conversation.status == ConversationStatuses.ESCALATED.value or not assistant.is_active:
         data = create_message(conversation, 'user', combined_message, audio_file)
@@ -205,10 +211,10 @@ def process_instagram_comment(account_id, comment_data):
 
 
 @shared_task
-def process_collected_messages(chat_id, bot_token=None, messaging=None):
+def process_collected_messages(chat_id, bot_token=None, messaging=None, chat_username=None):
     user_key = f"messages:{chat_id}"
     last_seen_key = f"last_seen:{chat_id}"
-
+    print(f"chat_username: {chat_username}")
     # Check if we should wait longer
     last_seen = float(redis_client.get(last_seen_key) or 0)
     if time.time() - last_seen < WAIT_SECONDS:
@@ -227,6 +233,6 @@ def process_collected_messages(chat_id, bot_token=None, messaging=None):
 
     # Call your existing task
     if bot_token:
-        process_message_task.delay(chat_id, combined_message, bot_token)
+        process_message_task.delay(chat_id, combined_message, bot_token,chat_username)
     else:
         process_instagram_message.delay(account_id = chat_id, combined_message = combined_message, user_message = messaging)
