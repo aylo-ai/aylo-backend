@@ -66,6 +66,14 @@ def telegram_get_me(token):
     success = response.json().get("ok")
     return success, code
 
+def send_telegram_action(chat_id,token):
+    url = f"https://api.telegram.org/bot{token}/sendChatAction"
+    data = {
+        "chat_id": chat_id,
+        "action": 'typing'
+    }
+    response = requests.post(url, json=data)
+    return response
 
 def send_telegram_message(chat_id, text, token):
     print(f"Sending message to chat_id: {chat_id}, text: {text}")

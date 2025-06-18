@@ -3,7 +3,7 @@ from celery import shared_task
 
 from apps.shared.addons.enums import SenderTypes, ConversationStatuses
 from shared.addons.instagram import send_instagram_message, send_instagram_private_reply
-from shared.addons.telegram import send_telegram_message, check_register_info, delete_telegram_message
+from shared.addons.telegram import send_telegram_message, check_register_info, delete_telegram_message, send_telegram_action
 from shared.addons.utils import get_assistant_response_ai, handle_start_command, get_or_create_conversation, create_message, \
     speech_to_text, convert_ogg_to_mp3, process_instagram_audio
 from apps.assistant.models import Assistant
@@ -36,14 +36,10 @@ def process_message_task(chat_id, user_message, bot_token, chat_username=None, a
         print(f"Message created for user: {user_message}")
         return
 
-    # Wait message handling
-    wait_message_id = None
     response_data = None
     response_message = None
-    if assistant.ai_enabled:
-        if assistant.wait_message:
-            response = send_telegram_message(chat_id, assistant.wait_message, bot_token)
-            wait_message_id = response.json().get("result").get("message_id")
+    #send typing action
+    send_telegram_action(chat_id, bot_token)
 
     data = create_message(conversation, 'user', user_message, audio_file)
     publish_message_to_ws(conversation_id=conversation.id, message=user_message, sender='user', data=data, assistant_id=assistant.id)
@@ -51,11 +47,6 @@ def process_message_task(chat_id, user_message, bot_token, chat_username=None, a
         response_message, run_status, response_data = get_assistant_response_ai(user_message, assistant.assistant_id, conversation.thread_id)
 
     print(f"Response message: {response_message}")
-    # user_register_message = check_register_info(response_message)
-    
-    # Remove wait message
-    if wait_message_id:
-        delete_telegram_message(chat_id, wait_message_id, bot_token)
 
     # Send response to user
     print(f"Response data: {response_data}")
@@ -78,8 +69,6 @@ def process_message_task(chat_id, user_message, bot_token, chat_username=None, a
             send_telegram_message(telegram_group.group_id, response_text, bot_token)
             telegram_group.lead_count += 1
             telegram_group.save()
-        # data = create_message(conversation=conversation, sender=SenderTypes.ASSISTANT.value, content=response_message, run_status=run_status)
-        # publish_message_to_ws(conversation.id, response_message, sender="assistant", assistant_id=assistant.id,data=data)
     if response_message:
         send_telegram_message(chat_id, response_message, bot_token)
         data = create_message(conversation=conversation, sender=SenderTypes.ASSISTANT.value, content=response_message, run_status=run_status)
@@ -180,7 +169,7 @@ def process_voice_task(chat_id, voice_file_id, bot_token):
     print(f"Transcribed text: {transcribed_text}")
 
     # Step 4: Trigger the regular message processor
-    process_message_task.delay(chat_id, transcribed_text, bot_token, audio_bytes_mp3)
+    process_message_task.delay(chat_id=chat_id, user_message=transcribed_text, bot_token=bot_token, audio_file=audio_bytes_mp3)
 
 @shared_task
 def process_instagram_comment(account_id, comment_data):
