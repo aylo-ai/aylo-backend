@@ -315,13 +315,13 @@ class GoogleAuthCallbackView(APIView):
             print(f"user: {user}")
             if not user:
                 # create user
-                full_name = user_info.get("given_name").split(" ")
+                full_name = user_info.get("name").split(" ")
                 if len(full_name) > 1:
                     first_name = full_name[0]
                     last_name = full_name[1]
                 else:
                     first_name = user_info.get("given_name", "")
-                    last_name = user_info.get("name", "")
+                    last_name = user_info.get("family_name", "")
                 user = User.objects.create(
                     sub=sub,
                     email=user_info.get("email", ""),
