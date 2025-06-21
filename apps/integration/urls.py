@@ -14,4 +14,5 @@ urlpatterns = [
 
     path("send-telegram-message/", views.SendUserMessageView.as_view()),
 
+    # path("google-drive/webhook/", views.GoogleDriveWebhookView.as_view()),
 ]

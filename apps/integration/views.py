@@ -401,3 +401,11 @@ class TelegramGroupListView(generics.ListAPIView):
     def get_queryset(self):
         integration_id = self.kwargs.get('pk')
         return self.queryset.filter(integration_id=integration_id)
+    
+# class GoogleDriveWebhookView(APIView):
+#     def post(self, request, *args, **kwargs):
+#         data = request.data
+#         headers = request.headers
+#         print(f"Google Drive webhook data: {data}")
+#         print(f"Google Drive webhook headers: {headers}")
+#         return success_response(message=_("Google Drive webhook muvaffaqiyatli olindi"), code=200)

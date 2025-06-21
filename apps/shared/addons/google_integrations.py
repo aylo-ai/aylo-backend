@@ -1,5 +1,6 @@
-import os
+import uuid
 from google.oauth2.service_account import Credentials
+from google.oauth2 import service_account
 from googleapiclient.discovery import build
 import json
 from datetime import datetime
@@ -253,3 +254,52 @@ def process_google_doc(url, assistant):
 # Example usage
 # url = "https://docs.google.com/document/d/your-doc-id/edit"
 # print(process_google_doc(url))
+# def watch_google_drive_file(file_id, webhook_url):
+
+#     SCOPES = [
+#         'https://www.googleapis.com/auth/drive',
+#         'https://www.googleapis.com/auth/drive.file'
+#     ]
+    
+#     try:
+#         # Load credentials
+#         creds = service_account.Credentials.from_service_account_file(
+#             'apps/shared/addons/repli-ai-cred.json',
+#             scopes=SCOPES
+#         )        # Build the service
+#         service = build('drive', 'v3', credentials=creds)
+        
+#         try:
+#             file_info = service.files().get(fileId=file_id).execute()
+#             print(f"✅ File accessible: {file_info.get('name', 'Unknown')}")
+#         except Exception as e:
+#             print(f"❌ Cannot access file {file_id}: {e}")
+#             return {
+#                 "status": "error",
+#                 "message": f"Cannot access file: {str(e)}"
+#             }
+
+#         # Watch channel setup
+#         channel_id = str(uuid.uuid4())  # Unique per watch
+#         channel = {
+#             "id": channel_id,
+#             "type": "web_hook",
+#             "address": webhook_url,
+#         }
+
+#         # Set up the watch
+#         response = service.files().watch(fileId=file_id, body=channel).execute()
+        
+#     except Exception as e:
+#         print(f"❌ Error setting up watch: {e}")
+#         return {
+#             "status": "error",
+#             "message": f"Error setting up watch: {str(e)}"
+#         }
+
+# # Example usage - uncomment to test
+# result = watch_google_drive_file(
+#     '1_U_QXvZi_z6yXa5PnOH3UCBpGR8g-r4AixTplgTAtkg', 
+#     "https://2114-89-249-62-104.ngrok-free.app/api/v1/integration/google-drive/webhook/"
+# )
+# print(result)
