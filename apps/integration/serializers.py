@@ -183,7 +183,7 @@ class InstagramCommentResponseSerializer(serializers.ModelSerializer):
         write_only=True,
         queryset=CommentTriggerWord.objects.all(),
         required=False,
-        source='trigger_word'
+        source='trigger_words'
     )
     class Meta:
         model = InstagramCommentResponse
