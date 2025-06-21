@@ -186,6 +186,7 @@ def process_instagram_comment(account_id, comment_data):
     comment_id = comment_data.get("id")
     comment_text = comment_data.get("text", "").strip()
     commenter_id = comment_data.get("from", {}).get("id")
+    parent_id = comment_data.get("parent_id", None)
 
     print(f"Comment ID: {comment_id}, Text: '{comment_text}', Commenter ID: {commenter_id}")
 
@@ -194,31 +195,34 @@ def process_instagram_comment(account_id, comment_data):
         return
     
     # Step 1: Check if the specific media has is_respond_to_all_comments=True
-    media = InstagramMedia.objects.filter(media_id=media_id, integration=integration).first()
-    if media and media.is_respond_to_all_comments:
-        print(f"[+] Media {media_id} has is_respond_to_all_comments=True, checking its responses first")
-        responses = media.instagram_comment_responses.all()
-        for response in responses:
-                print(f"[✓] Match found (media-specific with is_respond_to_all_comments=True)")
-                if response.comment_message_template:
-                    send_instagram_comment_reply(integration.api_token, comment_id, response.comment_message_template)
-                if response.private_message_template:
-                    send_instagram_private_reply(integration.api_token, account_id, comment_id, response.private_message_template)
-                return  # Stop after first match
-    
-    # Step 2: Handle media-specific responses (for specific media without is_respond_to_all_comments=True)
-    if media and not media.is_respond_to_all_comments:
-        responses = media.instagram_comment_responses.all()
-        for response in responses:
-            if response_matches_comment(response, comment_text):
-                print(f"[✓] Match found (media-specific)")
-                if response.comment_message_template:
-                    send_instagram_comment_reply(integration.api_token, comment_id, response.comment_message_template)
-                if response.private_message_template:
-                    send_instagram_private_reply(integration.api_token, account_id, comment_id, response.private_message_template)
-                return  # Stop after first match
+    if parent_id is None:
+        media = InstagramMedia.objects.filter(media_id=media_id, integration=integration).first()
+        if media and media.is_respond_to_all_comments:
+            print(f"[+] Media {media_id} has is_respond_to_all_comments=True, checking its responses first")
+            responses = media.instagram_comment_responses.all()
+            for response in responses:
+                    print(f"[✓] Match found (media-specific with is_respond_to_all_comments=True)")
+                    if response.comment_message_template:
+                        send_instagram_comment_reply(integration.api_token, comment_id, response.comment_message_template)
+                    if response.private_message_template:
+                        send_instagram_private_reply(integration.api_token, account_id, comment_id, response.private_message_template)
+                    return  # Stop after first match
+        
+        # Step 2: Handle media-specific responses (for specific media without is_respond_to_all_comments=True)
+        if media and not media.is_respond_to_all_comments:
+            responses = media.instagram_comment_responses.all()
+            for response in responses:
+                if response_matches_comment(response, comment_text):
+                    print(f"[✓] Match found (media-specific)")
+                    if response.comment_message_template:
+                        send_instagram_comment_reply(integration.api_token, comment_id, response.comment_message_template)
+                    if response.private_message_template:
+                        send_instagram_private_reply(integration.api_token, account_id, comment_id, response.private_message_template)
+                    return  # Stop after first match
 
-    print("[-] No matching trigger word found.")
+        print("[-] No matching trigger word found.")
+    else:
+        print(f"[+] Media {media_id} has parent_id: {parent_id}")
 
 @shared_task
 def process_collected_messages(chat_id, bot_token=None, messaging=None, chat_username=None):
