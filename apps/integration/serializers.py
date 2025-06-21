@@ -1,14 +1,13 @@
 from rest_framework import serializers
 from django.utils.translation import gettext_lazy as _
 
-from .models import Integration, TelegramGroupIntegration
-from apps.assistant.models import Conversation
-from apps.assistant.models import Assistant, Conversation
+from .models import Integration, TelegramGroupIntegration, InstagramMedia, CommentTriggerWord, InstagramCommentResponse
+from apps.assistant.models import Conversation, Assistant
 
 from shared.addons.enums import IntegrationTypes, ConversationPlatforms, ConversationStatuses
 from shared.addons.telegram import telegram_get_me, set_telegram_webhook, get_webhook_info, send_telegram_message
 from shared.addons.utils import create_message
-from shared.addons.validations import raise_validation_error, success_response
+from shared.addons.validations import raise_validation_error, success_response, error_response
 from shared.mixins import SubscriptionValidationMixin
 
 
@@ -149,3 +148,68 @@ class SendUserMessageSerializer(serializers.Serializer, SubscriptionValidationMi
         return success_response(message=_("Xabar muvaffaqiyatli yuborildi"), code=200)
 
 
+class InstagramMediaSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = InstagramMedia
+        fields = [
+            "id",
+            "integration",
+            "media_id",
+            "media_type",
+            "is_respond_to_all_comments",
+            "created_time",
+        ]
+
+
+class CommentTriggerWordSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = CommentTriggerWord
+        fields = [
+            'id',
+            'trigger_word'
+        ]
+
+    def validate_trigger_word(self, value):
+        if not value or not value.strip():
+            raise serializers.ValidationError(_("Trigger word bo'sh bo'lishi mumkin emas"))
+        
+        return value.strip()
+
+
+class InstagramCommentResponseSerializer(serializers.ModelSerializer):
+    trigger_words = CommentTriggerWordSerializer(many=True, read_only=True)
+
+    class Meta:
+        model = InstagramCommentResponse
+        fields = [
+            'id',
+            'instagram_media',
+            'comment_message_template',
+            'private_message_template',
+            'trigger_words',
+        ]
+
+    def validate(self, attrs):
+        comment_template = attrs.get('comment_message_template', '')
+        private_template = attrs.get('private_message_template', '')
+        
+        if not comment_template.strip() and not private_template.strip():
+            raise serializers.ValidationError(_("Kamida bitta xabar shabloni kiritilishi kerak"))
+        
+        return attrs
+
+
+class InstagramMediaDetailSerializer(serializers.ModelSerializer):
+    comment_responses = InstagramCommentResponseSerializer(many=True, read_only=True)
+    
+    class Meta:
+        model = InstagramMedia
+        fields = [
+            'id',
+            'integration',
+            'media_id',
+            'media_type',
+            'is_respond_to_all_comments',
+            'comment_responses',
+        ]
+        

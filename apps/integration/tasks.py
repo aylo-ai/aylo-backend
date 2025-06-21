@@ -2,12 +2,12 @@ import requests, time
 from celery import shared_task
 
 from apps.shared.addons.enums import SenderTypes, ConversationStatuses
-from shared.addons.instagram import send_instagram_message, send_instagram_private_reply
+from shared.addons.instagram import send_instagram_message, send_instagram_private_reply,send_instagram_comment_reply
 from shared.addons.telegram import send_telegram_message, check_register_info, delete_telegram_message, send_telegram_action
 from shared.addons.utils import get_assistant_response_ai, handle_start_command, get_or_create_conversation, create_message, \
     speech_to_text, convert_ogg_to_mp3, process_instagram_audio
 from apps.assistant.models import Assistant
-from .models import TelegramGroupIntegration
+from .models import TelegramGroupIntegration, Integration, InstagramMedia
 from shared.addons.redis import publish_message_to_ws, redis_client
 
 WAIT_SECONDS = 5
@@ -174,30 +174,51 @@ def process_voice_task(chat_id, voice_file_id, bot_token):
 @shared_task
 def process_instagram_comment(account_id, comment_data):
     """Process Instagram comment and send private reply"""
-    print(f"Processing Instagram comment for account_id: {account_id}")
-    assistant = Assistant.objects.filter(integrations__instagram_account_id=account_id).first()
-    print(f"Assistant: {assistant}")
-    if not assistant:
+    print(f"[+] Processing Instagram comment for account_id: {account_id}")
+    
+    integration = Integration.objects.filter(instagram_account_id=account_id).first()
+    if not integration:
+        print("[-] Integration not found")
+        return
+
+    # Extract incoming comment data
+    media_id = comment_data.get("media_id")
+    comment_id = comment_data.get("id")
+    comment_text = comment_data.get("text", "").strip()
+    commenter_id = comment_data.get("from", {}).get("id")
+
+    print(f"Comment ID: {comment_id}, Text: '{comment_text}', Commenter ID: {commenter_id}")
+
+    if not all([media_id, comment_id, comment_text, commenter_id]):
+        print("[-] Missing required comment data")
         return
     
-    integration = assistant.integrations.filter(integration_type="instagram", instagram_account_id=account_id).first()
-    print(f"Integration: {integration}")
-    if not integration:
-        return
+    # Step 1: Check if the specific media has is_respond_to_all_comments=True
+    media = InstagramMedia.objects.filter(media_id=media_id, integration=integration).first()
+    if media and media.is_respond_to_all_comments:
+        print(f"[+] Media {media_id} has is_respond_to_all_comments=True, checking its responses first")
+        responses = media.instagram_comment_responses.all()
+        for response in responses:
+                print(f"[✓] Match found (media-specific with is_respond_to_all_comments=True)")
+                if response.comment_message_template:
+                    send_instagram_comment_reply(integration.api_token, comment_id, response.comment_message_template)
+                if response.private_message_template:
+                    send_instagram_private_reply(integration.api_token, account_id, comment_id, response.private_message_template)
+                return  # Stop after first match
+    
+    # Step 2: Handle media-specific responses (for specific media without is_respond_to_all_comments=True)
+    if media and not media.is_respond_to_all_comments:
+        responses = media.instagram_comment_responses.all()
+        for response in responses:
+            if response_matches_comment(response, comment_text):
+                print(f"[✓] Match found (media-specific)")
+                if response.comment_message_template:
+                    send_instagram_comment_reply(integration.api_token, comment_id, response.comment_message_template)
+                if response.private_message_template:
+                    send_instagram_private_reply(integration.api_token, account_id, comment_id, response.private_message_template)
+                return  # Stop after first match
 
-    # Extract comment information
-    comment_id = comment_data.get("id")
-    comment_text = comment_data.get("text")
-    commenter_id = comment_data.get("from", {}).get("id")
-    print(f"Comment ID: {comment_id}, Comment Text: {comment_text}, Commenter ID: {commenter_id}")
-    if not all([comment_id, comment_text, commenter_id]):
-        print("Missing required comment data")
-        return
-
-    response_message = "Thank you for your comment!, It was done by Repli AI"
-    # Send private reply to the comment
-    send_instagram_private_reply(integration.api_token, account_id, comment_id, response_message)
-
+    print("[-] No matching trigger word found.")
 
 @shared_task
 def process_collected_messages(chat_id, bot_token=None, messaging=None, chat_username=None):
@@ -225,3 +246,9 @@ def process_collected_messages(chat_id, bot_token=None, messaging=None, chat_use
         process_message_task.delay(chat_id, combined_message, bot_token,chat_username)
     else:
         process_instagram_message.delay(account_id = chat_id, combined_message = combined_message, user_message = messaging)
+
+def response_matches_comment(response, comment_text):
+    for trigger in response.trigger_words.all():
+        if trigger.trigger_word.lower() in comment_text.lower():
+            return True
+    return False

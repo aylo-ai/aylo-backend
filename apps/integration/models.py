@@ -37,3 +37,41 @@ class TelegramGroupIntegration(BaseModel):
 
     class Meta:
         db_table = 'telegram_group_integration'
+
+
+class InstagramMedia(BaseModel):
+    integration = models.ForeignKey(Integration, on_delete=models.CASCADE, related_name='instagram_media')
+    media_id = models.CharField(max_length=255, null=True, blank=True)
+    media_type = models.CharField(max_length=255, null=True, blank=True)
+    is_respond_to_all_comments = models.BooleanField(default=False)
+
+    def __str__(self):
+        return f"Instagram Media {self.media_id}"
+
+    class Meta:
+        db_table = 'instagram_media'
+        ordering = ['-created_time']
+
+
+class InstagramCommentResponse(BaseModel):
+    instagram_media = models.ForeignKey(InstagramMedia, on_delete=models.CASCADE, related_name='instagram_comment_responses')
+    comment_message_template = models.TextField(blank=True)
+    private_message_template = models.TextField(blank=True)
+    trigger_words = models.ManyToManyField("CommentTriggerWord", related_name='instagram_comment_responses')
+
+    def __str__(self):
+        return f"{self.private_message_template} - {self.comment_message_template}"
+    
+    class Meta:
+        db_table = 'instagram_comment_response'
+        ordering = ['-created_time']
+
+class CommentTriggerWord(BaseModel):
+    trigger_word = models.CharField(max_length=255, blank=True)
+
+    def __str__(self):
+        return f"Comment Trigger Word {self.trigger_word}"
+    
+    class Meta:
+        db_table = 'comment_trigger_word'
+        ordering = ['-created_time']    

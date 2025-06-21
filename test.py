@@ -43,8 +43,6 @@ import requests
 #         return None
 
 # # 🔐 Your access token and the comment_id you're interested in
-# access_token = "IGAARTl03yXtZABZAFB1RWNoWUdnOTI4SU9lTnNDY2tfTGRsajFlZAjlzX2NqWGJyME9pUVhwWG1nbnJsVEZApSUlicXA4WkF1ZAEMtb016cjVzbC1wLXNOX29ZAMmVJV2ZAaclBfd181cDZAES2RoZAWhaZAmNYTGVB"
-# comment_id = "18183087160316336"  # Replace with actual comment ID
 
 # Step 1: Get the media ID from the comment
 # media_id = get_media_id_from_comment(access_token, comment_id)
@@ -129,45 +127,23 @@ import requests
 #     if verify_response.status_code == 401:
 #         print("Your access token is invalid or expired. Please get a new token.")
 
-
-
-import requests
-
-BITRIX_WEBHOOK_URL = "https://b24-l1optd.bitrix24.ru/rest/1/p494qa3urpwurnq7/"  # Replace with your real webhook
-
-def create_bitrix_lead(name='shahid', last_name='khan', phone='9876543210', email='shahid@gmail.com', title="New Lead from My App"):
-    url = f"{BITRIX_WEBHOOK_URL}/crm.lead.add.json"
-    payload = {
-        "fields": {
-            "TITLE": title,
-            "NAME": name,
-            "LAST_NAME": last_name,
-            "PHONE": [{"VALUE": phone, "VALUE_TYPE": "WORK"}],
-            "EMAIL": [{"VALUE": email, "VALUE_TYPE": "WORK"}],
-        }
+def get_all_posts(access_token):
+    url = f"https://graph.instagram.com/v23.0/me/media"
+    params = {
+        "access_token": access_token,
+        "fields": "id,media_type,media_url,username,timestamp,caption,comments_count,like_count,permalink,thumbnail_url,children{id,media_type,media_url,username,timestamp,caption,comments_count,like_count,permalink,thumbnail_url}"
     }
-
-    response = requests.post(url, json=payload)
+    response = requests.get(url, params=params)
     return response.json()
+# print(get_all_posts(access_token))
 
-# print(create_bitrix_lead())
-
-def create_bitrix_deal(title, amount=0, stage_id="NEW", contact_id=None):
-    url = f"{BITRIX_WEBHOOK_URL}/crm.deal.add.json"
-
-    fields = {
-        "TITLE": title,
-        "STAGE_ID": stage_id,     # default stage like "NEW" or custom (e.g. PREPAYMENT_INVOICE)
-        "OPPORTUNITY": amount     # this is the price or expected amount
+def get_comment_from_post(access_token, post_id):
+    url = f"https://graph.instagram.com/v23.0/{post_id}/comments"
+    params = {
+        "access_token": access_token,
+        "fields": "id,text,username,timestamp,from"
     }
-
-    if contact_id:
-        fields["CONTACT_ID"] = contact_id
-
-    payload = {
-        "fields": fields
-    }
-
-    response = requests.post(url, json=payload)
+    response = requests.get(url, params=params)
     return response.json()
-# print(create_bitrix_deal(title="New Deal from My App", amount=1000))
+# print(get_comment_from_post(access_token, '17878953921223680'))
+

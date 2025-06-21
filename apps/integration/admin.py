@@ -1,5 +1,5 @@
 from django.contrib import admin
-from .models import Integration, TelegramGroupIntegration
+from .models import Integration, TelegramGroupIntegration, InstagramMedia
 
 
 @admin.register(Integration)
@@ -14,7 +14,6 @@ class Integration(admin.ModelAdmin):
 
     def get_asssitant_name(self, obj): # noqa
         return obj.assistant.name
-
 
 @admin.register(TelegramGroupIntegration)
 class TelegramGroupIntegrationAdmin(admin.ModelAdmin):
