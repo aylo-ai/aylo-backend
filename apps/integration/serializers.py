@@ -178,7 +178,13 @@ class CommentTriggerWordSerializer(serializers.ModelSerializer):
 
 class InstagramCommentResponseSerializer(serializers.ModelSerializer):
     trigger_words = CommentTriggerWordSerializer(many=True, read_only=True)
-
+    trigger_word_ids = serializers.PrimaryKeyRelatedField(
+        many=True,
+        write_only=True,
+        queryset=CommentTriggerWord.objects.all(),
+        required=False,
+        source='trigger_word'
+    )
     class Meta:
         model = InstagramCommentResponse
         fields = [
@@ -187,6 +193,7 @@ class InstagramCommentResponseSerializer(serializers.ModelSerializer):
             'comment_message_template',
             'private_message_template',
             'trigger_words',
+            'trigger_word_ids',
         ]
 
     def validate(self, attrs):

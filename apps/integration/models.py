@@ -75,3 +75,4 @@ class CommentTriggerWord(BaseModel):
     class Meta:
         db_table = 'comment_trigger_word'
         ordering = ['-created_time']    
+
