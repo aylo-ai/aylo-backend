@@ -182,7 +182,7 @@ def process_instagram_comment(account_id, comment_data):
         return
 
     # Extract incoming comment data
-    media_id = comment_data.get("media_id")
+    media_id = comment_data.get("media",{}).get("id")
     comment_id = comment_data.get("id")
     comment_text = comment_data.get("text", "").strip()
     commenter_id = comment_data.get("from", {}).get("id")
