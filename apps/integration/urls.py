@@ -11,18 +11,16 @@ urlpatterns = [
     path("instagram/callback/", views.InstagramCallbackView.as_view()),
     path('instagram/deauthorize/', views.InstagramDeauthorizeView.as_view()),
     path('instagram/data-deletion/', views.InstagramDataDeletionView.as_view()),
-    path("instagram/media/<uuid:pk>/", views.InstagramMediaRetrieveView.as_view()),
 
     path("integration/<uuid:pk>/instagram/posts/", views.InstagramPostListView.as_view()),
-    path("integration/<uuid:pk>/instagram/media/", views.InstagramMediaListView.as_view()),
     
     # Trigger words endpoints
     path("trigger-words/", views.CommentTriggerWordListCreateView.as_view()),
     path("trigger-words/<uuid:pk>/", views.CommentTriggerWordRetrieveView.as_view()),
     
     # Comment responses endpoints
-    path("instagram/media/<uuid:pk>/comment-responses/", views.InstagramCommentResponseListCreateView.as_view()),
-    path("comment-responses/<uuid:pk>/", views.InstagramCommentResponseRetrieveView.as_view()),
+    path("integration/<uuid:pk>/instagram/comment-responses/", views.InstagramCommentResponseListCreateView.as_view()),
+    path("instagram/comment-responses/<uuid:pk>/", views.InstagramCommentResponseRetrieveView.as_view()),
 
     path("send-telegram-message/", views.SendUserMessageView.as_view()),
 ]

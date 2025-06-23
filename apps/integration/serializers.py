@@ -153,11 +153,7 @@ class InstagramMediaSerializer(serializers.ModelSerializer):
         model = InstagramMedia
         fields = [
             "id",
-            "integration",
             "media_id",
-            "media_type",
-            "is_respond_to_all_comments",
-            "created_time",
         ]
 
 
@@ -178,45 +174,70 @@ class CommentTriggerWordSerializer(serializers.ModelSerializer):
 
 class InstagramCommentResponseSerializer(serializers.ModelSerializer):
     trigger_words = CommentTriggerWordSerializer(many=True, read_only=True)
-    trigger_word_ids = serializers.PrimaryKeyRelatedField(
-        many=True,
-        write_only=True,
-        queryset=CommentTriggerWord.objects.all(),
-        required=False,
-        source='trigger_words'
+    instagram_medias = InstagramMediaSerializer(source='instagram_media', many=True, read_only=True)
+
+    trigger_words_list = serializers.ListField(
+        child=serializers.CharField(), write_only=True, required=False
     )
+    instagram_media_list = serializers.ListField(
+        child=serializers.CharField(), write_only=True, required=False
+    )
+
     class Meta:
         model = InstagramCommentResponse
         fields = [
             'id',
-            'instagram_media',
             'comment_message_template',
             'private_message_template',
             'trigger_words',
-            'trigger_word_ids',
+            'instagram_medias',
+            'trigger_words_list',
+            'instagram_media_list',
+            'is_respond_to_all_comments'
         ]
 
     def validate(self, attrs):
-        comment_template = attrs.get('comment_message_template', '')
-        private_template = attrs.get('private_message_template', '')
-        
-        if not comment_template.strip() and not private_template.strip():
+        if not attrs.get('comment_message_template', '').strip() and not attrs.get('private_message_template', '').strip():
             raise serializers.ValidationError(_("Kamida bitta xabar shabloni kiritilishi kerak"))
-        
         return attrs
 
+    def create(self, validated_data):
+        print(f"Validated data: {validated_data}")
+        integration = self.context.get('integration')
+        trigger_words_list = validated_data.pop('trigger_words_list', [])
+        instagram_media_list = validated_data.pop('instagram_media_list', [])
 
-class InstagramMediaDetailSerializer(serializers.ModelSerializer):
-    comment_responses = InstagramCommentResponseSerializer(many=True, read_only=True)
+        instance = InstagramCommentResponse.objects.create(**validated_data, integration=integration)
+
+        # Create or get trigger words
+        for word in trigger_words_list:
+            if word.strip():
+                trigger_word, _ = CommentTriggerWord.objects.get_or_create(trigger_word=word.strip())
+                instance.trigger_words.add(trigger_word)
+
+        # Create or get Instagram media
+        for media_id in instagram_media_list:
+            if media_id.strip():
+                media, _ = InstagramMedia.objects.get_or_create(media_id=media_id.strip())
+                instance.instagram_media.add(media)
+
+        instance.save()
+        return instance
     
-    class Meta:
-        model = InstagramMedia
-        fields = [
-            'id',
-            'integration',
-            'media_id',
-            'media_type',
-            'is_respond_to_all_comments',
-            'comment_responses',
-        ]
-        
+    def update(self, instance, validated_data):
+        trigger_words_list = validated_data.pop('trigger_words_list', [])
+        trigger_words = validated_data.pop('trigger_words', [])
+        instance = super().update(instance, validated_data)
+        # Set trigger words from IDs
+        if trigger_words:
+            instance.trigger_words.set(trigger_words)
+        # Add new trigger words from list
+        if trigger_words_list:
+            trigger_word_objs = []
+            for word in trigger_words_list:
+                obj, _ = CommentTriggerWord.objects.get_or_create(trigger_word=word)
+                trigger_word_objs.append(obj)
+            instance.trigger_words.add(*trigger_word_objs)
+        return instance
+
+
