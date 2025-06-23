@@ -60,12 +60,7 @@ class InstagramCommentResponse(BaseModel):
 
     def __str__(self):
         return f"{self.private_message_template} - {self.comment_message_template}"
-    
-    def save(self, *args, **kwargs):
-        if self.trigger_words.count() == 0:
-            self.is_respond_to_all_comments = True
-        super().save(*args, **kwargs)
-    
+
     class Meta:
         db_table = 'instagram_comment_response'
         ordering = ['-created_time']

@@ -75,17 +75,14 @@ class CommentTriggerWordAdmin(admin.ModelAdmin):
 
 @admin.register(InstagramMedia)
 class InstagramMediaAdmin(admin.ModelAdmin):
-    list_display = ["media_id", "get_media_type", "created_time", "comment_response_count"]
+    list_display = ["media_id", "created_time", "comment_response_count"]
     search_fields = ["media_id"]
     list_filter = ["created_time"]
     inlines = [InstagramCommentResponseInline]
     fieldsets = (
-        (None, {"fields": ("media_id", "media_type")}),
+        (None, {"fields": ("media_id")}),
     )
 
-    def get_media_type(self, obj):
-        return getattr(obj, "media_type", "-")
-    get_media_type.short_description = "Media Type"
 
     def comment_response_count(self, obj):
         return obj.instagram_comment_responses.count()

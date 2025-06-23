@@ -206,6 +206,10 @@ class InstagramCommentResponseSerializer(serializers.ModelSerializer):
         integration = self.context.get('integration')
         trigger_words_list = validated_data.pop('trigger_words_list', [])
         instagram_media_list = validated_data.pop('instagram_media_list', [])
+        if len(trigger_words_list) == 0:
+            validated_data['is_respond_to_all_comments'] = True
+        else:
+            validated_data['is_respond_to_all_comments'] = False
 
         instance = InstagramCommentResponse.objects.create(**validated_data, integration=integration)
 
