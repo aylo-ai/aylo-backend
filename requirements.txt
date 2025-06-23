@@ -102,3 +102,4 @@ boto3==1.38.18
 django-storages==1.14.6
 django-modeltranslation==0.19.14
 sentry-sdk==2.29.1
+playwright==1.52.0
