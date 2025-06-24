@@ -127,23 +127,22 @@ import requests
 #     if verify_response.status_code == 401:
 #         print("Your access token is invalid or expired. Please get a new token.")
 
-def get_all_posts(access_token):
-    url = f"https://graph.instagram.com/v23.0/me/media"
-    params = {
-        "access_token": access_token,
-        "fields": "id,media_type,media_url,username,timestamp,caption,comments_count,like_count,permalink,thumbnail_url,children{id,media_type,media_url,username,timestamp,caption,comments_count,like_count,permalink,thumbnail_url}"
-    }
-    response = requests.get(url, params=params)
-    return response.json()
-# print(get_all_posts(access_token))
+# def get_all_posts(access_token):
+#     url = f"https://graph.instagram.com/v23.0/me/media"
+#     params = {
+#         "access_token": access_token,
+#         "fields": "id,media_type,media_url,username,timestamp,caption,comments_count,like_count,permalink,thumbnail_url,children{id,media_type,media_url,username,timestamp,caption,comments_count,like_count,permalink,thumbnail_url}"
+#     }
+#     response = requests.get(url, params=params)
+#     return response.json()
+# # print(get_all_posts(access_token))
 
-def get_comment_from_post(access_token, post_id):
-    url = f"https://graph.instagram.com/v23.0/{post_id}/comments"
-    params = {
-        "access_token": access_token,
-        "fields": "id,text,username,timestamp,from"
-    }
-    response = requests.get(url, params=params)
-    return response.json()
+# def get_comment_from_post(access_token, post_id):
+#     url = f"https://graph.instagram.com/v23.0/{post_id}/comments"
+#     params = {
+#         "access_token": access_token,
+#         "fields": "id,text,username,timestamp,from"
+#     }
+#     response = requests.get(url, params=params)
+#     return response.json()
 # print(get_comment_from_post(access_token, '17878953921223680'))
-

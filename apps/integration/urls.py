@@ -17,6 +17,7 @@ urlpatterns = [
     # Trigger words endpoints
     path("trigger-words/", views.CommentTriggerWordListCreateView.as_view()),
     path("trigger-words/<uuid:pk>/", views.CommentTriggerWordRetrieveView.as_view()),
+    path("intagram-media/<uuid:pk>/", views.InstagramMediaRetrieveView.as_view()),
     
     # Comment responses endpoints
     path("integration/<uuid:pk>/instagram/comment-responses/", views.InstagramCommentResponseListCreateView.as_view()),

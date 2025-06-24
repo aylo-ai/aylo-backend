@@ -75,18 +75,11 @@ class CommentTriggerWordAdmin(admin.ModelAdmin):
 
 @admin.register(InstagramMedia)
 class InstagramMediaAdmin(admin.ModelAdmin):
-    list_display = ["media_id", "created_time", "comment_response_count"]
+    list_display = ["media_id", "created_time"]
     search_fields = ["media_id"]
     list_filter = ["created_time"]
     inlines = [InstagramCommentResponseInline]
-    fieldsets = (
-        (None, {"fields": ("media_id")}),
-    )
 
-
-    def comment_response_count(self, obj):
-        return obj.instagram_comment_responses.count()
-    comment_response_count.short_description = "Comment Responses"
 
 @admin.register(TelegramGroupIntegration)
 class TelegramGroupIntegrationAdmin(admin.ModelAdmin):

@@ -11,7 +11,7 @@ def get_playmobile_payload(recipient: str, message_id: str, originator: str, mes
                 "sms": {
                     "originator": f"{originator}",
                     "content": {
-                        "text": message
+                        "text": str(message)
                     }
                 }
             }
