@@ -75,10 +75,13 @@ class CommentTriggerWordAdmin(admin.ModelAdmin):
 
 @admin.register(InstagramMedia)
 class InstagramMediaAdmin(admin.ModelAdmin):
-    list_display = ["media_id", "created_time"]
+    list_display = ["media_id", "media_type", "created_time"]
     search_fields = ["media_id"]
     list_filter = ["created_time"]
     inlines = [InstagramCommentResponseInline]
+    fieldsets = (
+        (None, {"fields": ("media_id", "media_type", "media_url", "username", "timestamp", "caption", "comments_count", "like_count", "children")}),
+    )
 
 
 @admin.register(TelegramGroupIntegration)

@@ -149,11 +149,21 @@ class SendUserMessageSerializer(serializers.Serializer, SubscriptionValidationMi
 
 
 class InstagramMediaSerializer(serializers.ModelSerializer):
+    children = serializers.JSONField(required=False)
+
     class Meta:
         model = InstagramMedia
         fields = [
             "id",
             "media_id",
+            "media_type",
+            "media_url",
+            "username",
+            "timestamp",
+            "caption",
+            "comments_count",
+            "like_count",
+            'children'
         ]
 
 
@@ -180,7 +190,7 @@ class InstagramCommentResponseSerializer(serializers.ModelSerializer):
         child=serializers.CharField(), write_only=True, required=False
     )
     instagram_media_list = serializers.ListField(
-        child=serializers.CharField(), write_only=True, required=False
+        child=serializers.JSONField(), write_only=True, required=False
     )
 
     class Meta:
@@ -206,6 +216,7 @@ class InstagramCommentResponseSerializer(serializers.ModelSerializer):
         integration = self.context.get('integration')
         trigger_words_list = validated_data.pop('trigger_words_list', [])
         instagram_media_list = validated_data.pop('instagram_media_list', [])
+
         if len(trigger_words_list) == 0:
             validated_data['is_respond_to_all_comments'] = True
         else:
@@ -220,28 +231,52 @@ class InstagramCommentResponseSerializer(serializers.ModelSerializer):
                 instance.trigger_words.add(trigger_word)
 
         # Create or get Instagram media
-        for media_id in instagram_media_list:
-            if media_id.strip():
-                media, _ = InstagramMedia.objects.get_or_create(media_id=media_id.strip())
-                instance.instagram_media.add(media)
+        for media_data in instagram_media_list:
+            media, _ = InstagramMedia.objects.get_or_create(
+                                    media_id=media_data.get('id'), 
+                                    media_type=media_data.get('media_type', None), 
+                                    media_url=media_data.get('media_url', None), 
+                                    username=media_data.get('username', None), 
+                                    timestamp=media_data.get('timestamp', None), 
+                                    caption=media_data.get('caption', None), 
+                                    comments_count=media_data.get('comments_count', None), 
+                                    like_count=media_data.get('like_count', None), 
+                                    children=media_data.get('children', None))
+            instance.instagram_media.add(media)
 
         instance.save()
         return instance
     
     def update(self, instance, validated_data):
+        print(f"Validated data: {validated_data}")
         trigger_words_list = validated_data.pop('trigger_words_list', [])
-        trigger_words = validated_data.pop('trigger_words', [])
+        instagram_media_list = validated_data.pop('instagram_media_list', [])
         instance = super().update(instance, validated_data)
-        # Set trigger words from IDs
-        if trigger_words:
-            instance.trigger_words.set(trigger_words)
-        # Add new trigger words from list
+        instance.trigger_words.clear()
+        instance.instagram_media.clear()
+
         if trigger_words_list:
             trigger_word_objs = []
             for word in trigger_words_list:
                 obj, _ = CommentTriggerWord.objects.get_or_create(trigger_word=word)
                 trigger_word_objs.append(obj)
             instance.trigger_words.add(*trigger_word_objs)
+        if instagram_media_list:
+            instagram_media_objs = []
+            for media_data in instagram_media_list:
+                print(f"Media data: {media_data}")
+                obj, _ = InstagramMedia.objects.get_or_create(
+                                    media_id=media_data.get('id'), 
+                                    media_type=media_data.get('media_type', None), 
+                                    media_url=media_data.get('media_url', None), 
+                                    username=media_data.get('username', None), 
+                                    timestamp=media_data.get('timestamp', None),
+                                    caption=media_data.get('caption', None), 
+                                    comments_count=media_data.get('comments_count', None), 
+                                    like_count=media_data.get('like_count', None), 
+                                    children=media_data.get('children', None))
+                instagram_media_objs.append(obj)
+            instance.instagram_media.add(*instagram_media_objs)
         return instance
 
 

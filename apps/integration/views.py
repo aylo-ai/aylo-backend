@@ -447,7 +447,7 @@ class InstagramPostListView(APIView):
         url = f"https://graph.instagram.com/v23.0/me/media"
         params = {
             "access_token": access_token,
-            "fields": "id,media_type,media_url,username,timestamp,caption,comments_count,like_count,permalink,thumbnail_url,children{id,media_type,media_url,username,timestamp,caption,comments_count,like_count,permalink,thumbnail_url}"
+            "fields": "id,media_type,media_url,username,timestamp,caption,comments_count,like_count,permalink,thumbnail_url,children{media_type,media_url}"
         }
         response = requests.get(url, params=params)
         if response.status_code == 200:
