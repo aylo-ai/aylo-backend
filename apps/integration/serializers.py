@@ -232,20 +232,16 @@ class InstagramCommentResponseSerializer(serializers.ModelSerializer):
         # Create or get Instagram media
         instagram_media_objs = []
         for media_data in instagram_media_list:
-            media_id = media_data.get('media_id')
-            if InstagramMedia.objects.filter(media_id=media_id).exists():
-                raise_validation_error(message=("Media already exists"))
-            else:
-                media = InstagramMedia.objects.create(
-                    media_id=media_id,
-                    media_type=media_data.get('media_type', None),
-                    media_url=media_data.get('media_url', None),
-                    username=media_data.get('username', None),
-                    timestamp=media_data.get('timestamp', None),
-                    caption=media_data.get('caption', None),
-                    comments_count=media_data.get('comments_count', None),
-                    like_count=media_data.get('like_count', None),
-                    children=media_data.get('children', None)
+            media = InstagramMedia.objects.create(
+                media_id=media_data.get('id'),
+                media_type=media_data.get('media_type', None),
+                media_url=media_data.get('media_url', None),
+                username=media_data.get('username', None),
+                timestamp=media_data.get('timestamp', None),
+                caption=media_data.get('caption', None),
+                comments_count=media_data.get('comments_count', None),
+                like_count=media_data.get('like_count', None),
+                children=media_data.get('children', None)
                 )
             instagram_media_objs.append(media)
         
@@ -274,20 +270,16 @@ class InstagramCommentResponseSerializer(serializers.ModelSerializer):
             instagram_media_objs = []
             for media_data in instagram_media_list:
                 print(f"Media data: {media_data}")
-                media_id = media_data.get('media_id')
-                if InstagramMedia.objects.filter(media_id=media_id).exists():
-                    raise_validation_error(message=("Media already exists"))
-                else:
-                    obj = InstagramMedia.objects.create(
-                        media_id=media_id,
-                        media_type=media_data.get('media_type', None),
-                        media_url=media_data.get('media_url', None),
-                        username=media_data.get('username', None),
-                        timestamp=media_data.get('timestamp', None),
-                        caption=media_data.get('caption', None),
-                        comments_count=media_data.get('comments_count', None),
-                        like_count=media_data.get('like_count', None),
-                        children=media_data.get('children', None)
+                obj = InstagramMedia.objects.create(
+                    media_id=media_data.get('id'),
+                    media_type=media_data.get('media_type', None),
+                    media_url=media_data.get('media_url', None),
+                    username=media_data.get('username', None),
+                    timestamp=media_data.get('timestamp', None),
+                    caption=media_data.get('caption', None),
+                    comments_count=media_data.get('comments_count', None),
+                    like_count=media_data.get('like_count', None),
+                    children=media_data.get('children', None)
                     )
                 instagram_media_objs.append(obj)
             
