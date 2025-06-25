@@ -113,6 +113,7 @@ def notify_user_about_failed_payment(user):
     """Notify the user about payment failure."""
     message = _("Hurmatli {user.first_name}, sizning repli.uz dagi obuna to'lovingiz muvaffaqiyatsiz amalga oshirildi. "
                 "Iltimos, platformaga kirib, to'lovni qayta amalga oshiring.")
+    print(f"Payment notification message: {message}")
     response = send_sms_text(user.phone_number, message)
     print(f"Payment failure notification response: {response.text}")
 

@@ -3,7 +3,7 @@ from rest_framework_simplejwt.tokens import RefreshToken, TokenError
 from django.utils.translation import gettext_lazy as _
 
 from shared.addons.validations import raise_validation_error, check_number, check_email_phone_number
-from apps.user.models import User, PrivacyPolicy, UserAgreement
+from apps.user.models import User, PrivacyPolicy, UserAgreement, Notification
 from shared.addons.enums import AuthTypes, UserRoles
 
 class SendCodeSerializer(serializers.Serializer): # noqa
@@ -383,3 +383,14 @@ class AddStaffSerializer(serializers.ModelSerializer):
         data = super().to_representation(instance)
         data["tokens"] = instance.tokens()
         return data
+    
+class NotificationSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Notification
+        fields = [
+            'id',
+            'title',
+            'content',
+            'is_read',
+            'type',
+        ]

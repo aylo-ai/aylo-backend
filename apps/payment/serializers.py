@@ -3,7 +3,7 @@ from datetime import timedelta
 from django.utils import timezone
 from rest_framework import serializers
 
-from apps.payment.models import Feature, PricingPackage, Card, Transaction, Subscription, RetryPayment
+from apps.payment.models import Feature, PricingPackage, Card, Transaction, Subscription, RetryPayment, Balance
 from shared.addons.enums import TransactionTypes, PaymentStatuses, SubscriptionStatuses
 from shared.addons.payment import check_payme_card_token, create_payme_receipt, commit_payme_receipt, \
     update_user_balance, send_create_card_request, send_verify_code_request, verify_payme_card_token
@@ -22,6 +22,17 @@ class FeatureSerializer(serializers.ModelSerializer):
             "icon",
         ]
 
+class BalanceSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Balance
+        fields = [
+            "id",
+            "user",
+            "amount",
+            "currency",
+            "created_time",
+            "updated_time",
+        ]
 
 class PricingPackageSerializer(serializers.ModelSerializer):
     class Meta:

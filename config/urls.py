@@ -7,15 +7,15 @@ from drf_spectacular.views import SpectacularAPIView, SpectacularSwaggerView
 from config import settings
 
 urlpatterns = [
-    path("admin/", admin.site.urls),
+    path("acer-laptop/samsung-g10/", admin.site.urls),
     path("api/v1/", include("apps.urls")),
     path("", lambda _: JsonResponse({"message": "ok"})),
 ]
 
 urlpatterns += [
-    path("api/schema/", SpectacularAPIView.as_view(), name="schema"),
+    path("G7@qz3!KwfX2//schema/", SpectacularAPIView.as_view(), name="schema"),
     path(
-        "docs/",
+        "G7@qz3!KwfX2/",
         SpectacularSwaggerView.as_view(url_name="schema"),
         name="swagger-ui",
     ),

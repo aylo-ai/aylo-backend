@@ -57,6 +57,7 @@ class NotificationAdmin(admin.ModelAdmin):
     list_display = ("user__username", "title", "type", "is_read")
     search_fields = ("user__username", "title", "type")
     list_filter = ("type", "is_read")
+    readonly_fields = ("created_time", "updated_time")
     fieldsets = (
         (None, {"fields": ("user", "title", "content", "type", "is_read",)}),
         ("Settings", {"fields": ("created_time", "updated_time")}),
