@@ -212,7 +212,6 @@ class InstagramCommentResponseSerializer(serializers.ModelSerializer):
         return attrs
 
     def create(self, validated_data):
-        print(f"Validated data: {validated_data}")
         integration = self.context.get('integration')
         trigger_words_list = validated_data.pop('trigger_words_list', [])
         instagram_media_list = validated_data.pop('instagram_media_list', [])
@@ -231,24 +230,33 @@ class InstagramCommentResponseSerializer(serializers.ModelSerializer):
                 instance.trigger_words.add(trigger_word)
 
         # Create or get Instagram media
+        instagram_media_objs = []
         for media_data in instagram_media_list:
-            media, _ = InstagramMedia.objects.get_or_create(
-                                    media_id=media_data.get('id'), 
-                                    media_type=media_data.get('media_type', None), 
-                                    media_url=media_data.get('media_url', None), 
-                                    username=media_data.get('username', None), 
-                                    timestamp=media_data.get('timestamp', None), 
-                                    caption=media_data.get('caption', None), 
-                                    comments_count=media_data.get('comments_count', None), 
-                                    like_count=media_data.get('like_count', None), 
-                                    children=media_data.get('children', None))
-            instance.instagram_media.add(media)
+            media_id = media_data.get('media_id')
+            if InstagramMedia.objects.filter(media_id=media_id).exists():
+                raise_validation_error(message=("Media already exists"))
+            else:
+                media = InstagramMedia.objects.create(
+                    media_id=media_id,
+                    media_type=media_data.get('media_type', None),
+                    media_url=media_data.get('media_url', None),
+                    username=media_data.get('username', None),
+                    timestamp=media_data.get('timestamp', None),
+                    caption=media_data.get('caption', None),
+                    comments_count=media_data.get('comments_count', None),
+                    like_count=media_data.get('like_count', None),
+                    children=media_data.get('children', None)
+                )
+            instagram_media_objs.append(media)
+        
+        # Add all media at once to prevent duplicates
+        if instagram_media_objs:
+            instance.instagram_media.add(*instagram_media_objs)
 
         instance.save()
         return instance
     
     def update(self, instance, validated_data):
-        print(f"Validated data: {validated_data}")
         trigger_words_list = validated_data.pop('trigger_words_list', [])
         instagram_media_list = validated_data.pop('instagram_media_list', [])
         instance = super().update(instance, validated_data)
@@ -261,22 +269,31 @@ class InstagramCommentResponseSerializer(serializers.ModelSerializer):
                 obj, _ = CommentTriggerWord.objects.get_or_create(trigger_word=word)
                 trigger_word_objs.append(obj)
             instance.trigger_words.add(*trigger_word_objs)
+        
         if instagram_media_list:
             instagram_media_objs = []
             for media_data in instagram_media_list:
                 print(f"Media data: {media_data}")
-                obj, _ = InstagramMedia.objects.get_or_create(
-                                    media_id=media_data.get('id'), 
-                                    media_type=media_data.get('media_type', None), 
-                                    media_url=media_data.get('media_url', None), 
-                                    username=media_data.get('username', None), 
-                                    timestamp=media_data.get('timestamp', None),
-                                    caption=media_data.get('caption', None), 
-                                    comments_count=media_data.get('comments_count', None), 
-                                    like_count=media_data.get('like_count', None), 
-                                    children=media_data.get('children', None))
+                media_id = media_data.get('media_id')
+                if InstagramMedia.objects.filter(media_id=media_id).exists():
+                    raise_validation_error(message=("Media already exists"))
+                else:
+                    obj = InstagramMedia.objects.create(
+                        media_id=media_id,
+                        media_type=media_data.get('media_type', None),
+                        media_url=media_data.get('media_url', None),
+                        username=media_data.get('username', None),
+                        timestamp=media_data.get('timestamp', None),
+                        caption=media_data.get('caption', None),
+                        comments_count=media_data.get('comments_count', None),
+                        like_count=media_data.get('like_count', None),
+                        children=media_data.get('children', None)
+                    )
                 instagram_media_objs.append(obj)
-            instance.instagram_media.add(*instagram_media_objs)
+            
+            # Add all media at once to prevent duplicates
+            if instagram_media_objs:
+                instance.instagram_media.add(*instagram_media_objs)
         return instance
 
 
