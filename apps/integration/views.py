@@ -128,11 +128,8 @@ class InstagramWebhookView(APIView):
                     comment_data = change.get("value", {})
                     if comment_data:
                         print(f"Comment data: {comment_data}, Account ID: {account_id}")
-                        if account_id in ['17841461784331766']:
-                            process_instagram_comment.delay(account_id, comment_data)
-                        else:
-                            print(f"[-] No permission to process comment for acount {account_id}")
-                        return error_response(message=_("Comment webhook ma'lumotlar muvaffaqiyatli olindi"), code=200)
+                        process_instagram_comment.delay(account_id, comment_data)
+                        return success_response(message=_("Comment webhook ma'lumotlar muvaffaqiyatli olindi"), code=200)
 
         # Handle messages
         messaging = entry.get("messaging")
