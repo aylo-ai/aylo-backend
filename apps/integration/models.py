@@ -68,6 +68,11 @@ class InstagramCommentResponse(BaseModel):
 
     def __str__(self):
         return f"{self.private_message_template} - {self.comment_message_template}"
+    
+    def delete(self, *args, **kwargs):
+        self.trigger_words.all().delete()
+        self.instagram_media.all().delete()
+        super().delete(*args, **kwargs)
 
     class Meta:
         db_table = 'instagram_comment_response'

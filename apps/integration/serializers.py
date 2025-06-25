@@ -260,8 +260,8 @@ class InstagramCommentResponseSerializer(serializers.ModelSerializer):
         trigger_words_list = validated_data.pop('trigger_words_list', [])
         instagram_media_list = validated_data.pop('instagram_media_list', [])
         instance = super().update(instance, validated_data)
-        instance.trigger_words.clear()
-        instance.instagram_media.clear()
+        instance.trigger_words.all().delete()
+        instance.instagram_media.all().delete()
 
         if trigger_words_list:
             trigger_word_objs = []
@@ -295,5 +295,4 @@ class InstagramCommentResponseSerializer(serializers.ModelSerializer):
             if instagram_media_objs:
                 instance.instagram_media.add(*instagram_media_objs)
         return instance
-
 
