@@ -451,7 +451,11 @@ class InstagramPostListView(APIView):
         }
         response = requests.get(url, params=params)
         if response.status_code == 200:
-            return success_response(message=_("Instagram post muvaffaqiyatli olindi"), code=200, data=response.json()["data"])
+            data = []
+            for item in response.json()["data"]:
+                if not InstagramMedia.objects.filter(media_id=item.get("id")).exists():
+                    data.append(item)
+            return success_response(message=_("Instagram post muvaffaqiyatli olindi"), code=200, data=data)
         else:
             return error_response(message=_("Instagram post topilmadi"), code=400)
         
