@@ -226,7 +226,7 @@ class InstagramCommentResponseSerializer(serializers.ModelSerializer):
         # Create or get trigger words
         for word in trigger_words_list:
             if word.strip():
-                trigger_word, _ = CommentTriggerWord.objects.create(trigger_word=word.strip())
+                trigger_word, _ = CommentTriggerWord.objects.get_or_create(trigger_word=word.strip())
                 instance.trigger_words.add(trigger_word)
 
         # Create or get Instagram media
@@ -256,7 +256,6 @@ class InstagramCommentResponseSerializer(serializers.ModelSerializer):
         trigger_words_list = validated_data.pop('trigger_words_list', [])
         instagram_media_list = validated_data.pop('instagram_media_list', [])
         instance = super().update(instance, validated_data)
-        instance.trigger_words.all().delete()
         instance.instagram_media.all().delete()
 
         if trigger_words_list:
