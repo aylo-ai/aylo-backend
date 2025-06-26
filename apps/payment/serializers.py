@@ -258,7 +258,7 @@ class PayWithCardSerializer(serializers.Serializer):
         if not success:
             raise_validation_error(message=_("To'lov chekini yaratishda tizim bilan bog'liq"
                                                 " muammo yuz berdi: {}").format(message))
-        transaction_type = TransactionTypes.WITHDRAW.value if is_withdrawal else TransactionTypes.DEPOSIT
+        transaction_type = TransactionTypes.WITHDRAW.value if is_withdrawal else TransactionTypes.DEPOSIT.value
 
         # Step 2: Log the transaction with DRAFT status
         transaction = Transaction.objects.create(

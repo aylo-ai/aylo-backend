@@ -200,26 +200,24 @@ def process_instagram_comment(account_id, comment_data):
         media = InstagramMedia.objects.filter(media_id=media_id).first()
         if media:
             # 1a. Respond to all comments if flag is set
-            responses = InstagramCommentResponse.objects.filter(instagram_media=media)
-            if responses.is_respond_to_all_comments:
-                for response in responses:
-                    print(f"[✓] Media-specific: Respond to all comments (is_respond_to_all_comments=True)")
-                    if response.comment_message_template:
+            response = InstagramCommentResponse.objects.filter(instagram_media=media).first()
+            if response.is_respond_to_all_comments:
+                print(f"[✓] Media-specific: Respond to all comments (is_respond_to_all_comments=True)")
+                if response.comment_message_template:
                         send_instagram_comment_reply(integration.api_token, comment_id, response.comment_message_template)
-                    if response.private_message_template:
+                if response.private_message_template:
                         send_instagram_private_reply(integration.api_token, account_id, comment_id, response.private_message_template)
 
 
             else:
-                for response in responses:
-                    print(f"[✓] Media-specific: Respond to all comments (is_respond_to_all_comments=False)")
-                    trigger_words = [tw.trigger_word for tw in response.trigger_words.all()]
-                    if comment_text in trigger_words:
-                        print(f"[✓] Media-specific trigger match: {trigger_words}")
-                        if response.comment_message_template:
-                            send_instagram_comment_reply(integration.api_token, comment_id, response.comment_message_template)
-                        if response.private_message_template:
-                            send_instagram_private_reply(integration.api_token, account_id, comment_id, response.private_message_template)
+                print(f"[✓] Media-specific: Respond to all comments (is_respond_to_all_comments=False)")
+                trigger_words = [tw.trigger_word for tw in response.trigger_words.all()]
+                if comment_text in trigger_words:
+                    print(f"[✓] Media-specific trigger match: {trigger_words}")
+                    if response.comment_message_template:
+                        send_instagram_comment_reply(integration.api_token, comment_id, response.comment_message_template)
+                    if response.private_message_template:
+                        send_instagram_private_reply(integration.api_token, account_id, comment_id, response.private_message_template)
         else:
             print(f"[!] No matching response found for this comment.")
     else:

@@ -385,6 +385,7 @@ class AddStaffSerializer(serializers.ModelSerializer):
         return data
     
 class NotificationSerializer(serializers.ModelSerializer):
+    user = UserShortSerializer(read_only=True)
     class Meta:
         model = Notification
         fields = [
@@ -393,4 +394,5 @@ class NotificationSerializer(serializers.ModelSerializer):
             'content',
             'is_read',
             'type',
+            'user',
         ]

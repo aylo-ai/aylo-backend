@@ -16,7 +16,10 @@ urlpatterns = [
     path("privacy-policy/", views.PrivacyPolicyListCreateView.as_view()),
     path("privacy-policy/<uuid:pk>/", views.PrivacyPolicyRetrieveView.as_view()),
     path("user-agreement/", views.UserAgreementListCreateView.as_view()),
-    path("user-agreement/<uuid:pk>/", views.UserAgreementRetrieveView.as_view()),   
+    path("user-agreement/<uuid:pk>/", views.UserAgreementRetrieveView.as_view()),
+
+    path("notifications/", views.NotificationListView.as_view()),
+    path("notification/<uuid:pk>/", views.NotificationUpdateView.as_view()),
     #oauth2 google
     path("accounts/google/login/", views.GoogleLoginView.as_view()),
     path("accounts/google/login/callback/", views.GoogleAuthCallbackView.as_view()),
