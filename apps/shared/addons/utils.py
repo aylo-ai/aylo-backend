@@ -111,11 +111,11 @@ def handle_start_command(chat_id, assistant, bot_token):
 
 def notify_user_about_failed_payment(user):
     """Notify the user about payment failure."""
-    message = _("Hurmatli {user.first_name}, sizning repli.uz dagi obuna to'lovingiz muvaffaqiyatsiz amalga oshirildi. "
-                "Iltimos, platformaga kirib, to'lovni qayta amalga oshiring.")
-    print(f"Payment notification message: {message}")
+    message = f"Hurmatli {user.first_name}, sizning repli.uz dagi obuna to'lovingiz muvaffaqiyatsiz amalga oshirildi. " \
+              "Iltimos, platformaga kirib, to'lovni qayta amalga oshiring."
+    print(f"Payment failure notification message: {user.phone_number}, {message}")
     response = send_sms_text(user.phone_number, message)
-    print(f"Payment failure notification response: {response.text}")
+    print(f"Payment failure notification response: {response}")
 
 
 def restrict_user_account(user):
@@ -124,10 +124,6 @@ def restrict_user_account(user):
     subscription.status = SubscriptionStatuses.INACTIVE.value
     subscription.save()
 
-    # Send restriction notification
-    message = _("Hurmatli {user.username}, sizning repli.uz dagi to'lovlaringiz bir necha marta muvaffaqiyatsiz "
-                "amalga oshirilgani uchun sizning platformadagi obunangiz cheklab qo'yildi.")
-    send_sms_text(user.phone_number, message)
 
 def update_assistant(assistant_id, name,  assistant):
     print(f"Updating assistant with instructions")
