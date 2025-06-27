@@ -33,8 +33,7 @@ def send_playmobile_sms(phone_number, message):
             auth=(PLAY_MOBILE_LOGIN, PLAY_MOBILE_PASSWORD),
             timeout=(30, 60)  # 10s connect timeout, 30s read timeout
         )
-        print(f"content{response.content}")
-        print(f"Response: {response.status_code} — {response.json()}")
+        print(f"Response: {response.status_code} — {response.text}")
         if response.status_code == 200:
             return True, "SMS successfully sent"
         return False, f"Failed with status: {response.status_code}"
