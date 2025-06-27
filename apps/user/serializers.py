@@ -175,6 +175,7 @@ class UserSerializer(serializers.ModelSerializer):
             'first_name',
             'last_name',
             'phone_number',
+            'email',
             'user_role',
             'total_used_token_count',
             'subscription',

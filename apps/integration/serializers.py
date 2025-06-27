@@ -35,6 +35,8 @@ class IntegrationCreateSerializer(serializers.ModelSerializer, SubscriptionValid
         assistant_id = self.context.get("assistant_id")
         try:
             assistant = Assistant.objects.get(id=assistant_id)
+            if not assistant.vector_id or not assistant.assistant_id:
+                raise_validation_error(message=_("Assistant faol emas, zarur fayl yuklash"))
         except Assistant.DoesNotExist:
             raise_validation_error(message=_("Assistant topilmadi"))
         # Use the mixin's validation method
@@ -256,6 +258,7 @@ class InstagramCommentResponseSerializer(serializers.ModelSerializer):
         trigger_words_list = validated_data.pop('trigger_words_list', [])
         instagram_media_list = validated_data.pop('instagram_media_list', [])
         instance = super().update(instance, validated_data)
+        instance.trigger_words.all().clear()
         instance.instagram_media.all().delete()
 
         if trigger_words_list:

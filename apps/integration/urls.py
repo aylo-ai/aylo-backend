@@ -20,7 +20,7 @@ urlpatterns = [
     path("intagram-media/<uuid:pk>/", views.InstagramMediaRetrieveView.as_view()),
     
     # Comment responses endpoints
-    path("integration/<uuid:pk>/instagram/comment-responses/", views.InstagramCommentResponseListCreateView.as_view()),
+    path("assistant/<uuid:pk>/instagram/comment-responses/", views.InstagramCommentResponseListCreateView.as_view()),
     path("instagram/comment-responses/<uuid:pk>/", views.InstagramCommentResponseRetrieveView.as_view()),
 
     path("send-telegram-message/", views.SendUserMessageView.as_view()),

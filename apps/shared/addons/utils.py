@@ -9,13 +9,13 @@ from io import BytesIO
 
 from django.utils.translation import gettext_lazy as _
 from django.conf import settings
-
+from django.core.mail import send_mail
 from apps.assistant.models import Message, Conversation, Lead, Assistant
 from config.settings import client
 from shared.addons.enums import SubscriptionStatuses, NotificationTypes
 from shared.addons.telegram import send_telegram_message
 from shared.addons.validations import success_response, raise_validation_error, error_response
-from shared.addons.verification import send_sms_text
+from shared.addons.verification import send_playmobile_sms
 from shared.ai_service.helper import upload_knowledge_base_file
 from shared.ai_service.assistant import check_response
 from shared.ai_service.thread import wait_on_run
@@ -111,11 +111,46 @@ def handle_start_command(chat_id, assistant, bot_token):
 
 def notify_user_about_failed_payment(user):
     """Notify the user about payment failure."""
-    message = f"Hurmatli {user.first_name}, sizning repli.uz dagi obuna to'lovingiz muvaffaqiyatsiz amalga oshirildi. " \
-              "Iltimos, platformaga kirib, to'lovni qayta amalga oshiring."
-    print(f"Payment failure notification message: {user.phone_number}, {message}")
-    response = send_sms_text(user.phone_number, message)
-    print(f"Payment failure notification response: {response}")
+    message = f"Hurmatli {user.first_name}, sizning repli.uz dagi obuna tugadi." 
+    print(f"Payment failure notification message: {user.phone_number} or {user.email}, {message}")
+
+    print(type(message))
+    
+    if user.phone_number:
+        response = send_playmobile_sms(user.phone_number, message)
+        print(f"Sms response: {response}")
+    elif user.email:
+        response = send_email_message(user.email, user)
+        print(f"Email response: {response}")
+
+def send_email_message(email, user):
+    try:
+        print(f"Sending email message to: {email}")
+        subject = _("Warning: Your subscription has expired")
+        message = _("Hurmatli {user.first_name}, sizning repli.uz dagi obuna to'lovingiz muvaffaqiyatsiz amalga oshirildi. Iltimos, platformaga kirib, to'lovni qayta amalga oshiring.").format(user=user)
+        from_email = settings.EMAIL_HOST_USER
+        print(f"from_email: {from_email}")
+        from django.template.loader import render_to_string
+
+        html_message = render_to_string(
+            'warning_notification.html',
+            {'user': user}
+        )
+        print(f"html_message: {html_message}")
+        
+        send_mail(
+            subject=subject,
+            message=message,
+            from_email=from_email,
+            recipient_list=[email],
+            html_message=html_message,
+            fail_silently=False,
+        )
+        
+        return True, _("Warning message sent to your email")
+        
+    except Exception as e:
+        return False, _("Failed to send warning message: {}").format(str(e))
 
 
 def restrict_user_account(user):
@@ -404,7 +439,7 @@ def delete_assistant_by_id(assistant_id):
 
 def convert_ogg_to_mp3(audio_bytes: bytes) -> bytes:
     AudioSegment.converter = which("ffmpeg")    # mp3 konvertatsiyasi uchun
-    AudioSegment.ffprobe = which("ffprobe")     # fayl formatini o‘qish uchun
+    AudioSegment.ffprobe = which("ffprobe")     # fayl formatini o'qish uchun
     audio = AudioSegment.from_file(io.BytesIO(audio_bytes), format="ogg")
     print(f"Audio: {audio}")
     mp3_io = io.BytesIO()

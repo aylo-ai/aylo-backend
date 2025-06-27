@@ -33,7 +33,7 @@ def process_monthly_subscriptions():
                 retry_date=timezone.now(),
                 error_message=message
             )
-            if subscription.retry_count >= 3:
+            if subscription.retry_count > 3:
                 restrict_user_account(user)
             else:
                 notify_user_about_failed_payment(user)

@@ -499,7 +499,8 @@ class InstagramCommentResponseListCreateView(generics.ListCreateAPIView):
     permission_classes = [permissions.IsAuthenticated]
 
     def get_queryset(self):
-        integration_id = self.kwargs.get('pk')
+        assistant_id = self.kwargs.get('pk')
+        integration_id = Integration.objects.filter(assistant_id = assistant_id, integration_type=IntegrationTypes.INSTAGRAM.value).first()
         return self.queryset.filter(integration_id=integration_id)
 
     def list(self, request, *args, **kwargs):
@@ -508,9 +509,9 @@ class InstagramCommentResponseListCreateView(generics.ListCreateAPIView):
         return success_response(message=_("Comment responses muvaffaqiyatli olindi"), data=serializer.data, code=200)
 
     def create(self, request, *args, **kwargs):
-        integration_id = self.kwargs.get('pk')
+        assistant_id = self.kwargs.get('pk')
         try:
-            integration = Integration.objects.get(id=integration_id)
+            integration = Integration.objects.get(assistant_id=assistant_id, integration_type=IntegrationTypes.INSTAGRAM.value)
         except Integration.DoesNotExist:
             return error_response(message=_("Integration topilmadi"), code=404)
         

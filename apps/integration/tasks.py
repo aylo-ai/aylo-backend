@@ -212,7 +212,7 @@ def process_instagram_comment(account_id, comment_data):
             else:
                 print(f"[✓] Media-specific: Respond to all comments (is_respond_to_all_comments=False)")
                 trigger_words = [tw.trigger_word for tw in response.trigger_words.all()]
-                if comment_text in trigger_words:
+                if comment_text.strip() in trigger_words:
                     print(f"[✓] Media-specific trigger match: {trigger_words}")
                     if response.comment_message_template:
                         send_instagram_comment_reply(integration.api_token, comment_id, response.comment_message_template)
