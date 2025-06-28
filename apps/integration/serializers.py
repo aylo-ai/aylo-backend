@@ -255,10 +255,11 @@ class InstagramCommentResponseSerializer(serializers.ModelSerializer):
         return instance
     
     def update(self, instance, validated_data):
+        print(f"Instance: {instance}")
         trigger_words_list = validated_data.pop('trigger_words_list', [])
         instagram_media_list = validated_data.pop('instagram_media_list', [])
         instance = super().update(instance, validated_data)
-        instance.trigger_words.all().clear()
+        instance.trigger_words.clear()
         instance.instagram_media.all().delete()
 
         if trigger_words_list:
@@ -268,25 +269,28 @@ class InstagramCommentResponseSerializer(serializers.ModelSerializer):
                 trigger_word_objs.append(obj)
             instance.trigger_words.add(*trigger_word_objs)
         
+        old_media = list(instance.instagram_media.all())  # save to delete after disconnection
+        instance.instagram_media.clear()  # remove M2M relations first
+
+        for media in old_media:
+            media.delete()  # now safe to delete, no relation exists
+
         if instagram_media_list:
-            instagram_media_objs = []
+            new_media_objs = []
             for media_data in instagram_media_list:
-                print(f"Media data: {media_data}")
                 obj = InstagramMedia.objects.create(
                     media_id=media_data.get('id'),
-                    media_type=media_data.get('media_type', None),
-                    media_url=media_data.get('media_url', None),
-                    username=media_data.get('username', None),
-                    timestamp=media_data.get('timestamp', None),
-                    caption=media_data.get('caption', None),
-                    comments_count=media_data.get('comments_count', None),
-                    like_count=media_data.get('like_count', None),
-                    children=media_data.get('children', None)
-                    )
-                instagram_media_objs.append(obj)
-            
-            # Add all media at once to prevent duplicates
-            if instagram_media_objs:
-                instance.instagram_media.add(*instagram_media_objs)
+                    media_type=media_data.get('media_type'),
+                    media_url=media_data.get('media_url'),
+                    username=media_data.get('username'),
+                    timestamp=media_data.get('timestamp'),
+                    caption=media_data.get('caption'),
+                    comments_count=media_data.get('comments_count'),
+                    like_count=media_data.get('like_count'),
+                    children=media_data.get('children')
+                )
+                new_media_objs.append(obj)
+
+            instance.instagram_media.add(*new_media_objs)
         return instance
 
