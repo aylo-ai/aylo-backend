@@ -136,6 +136,10 @@ class InstagramWebhookView(APIView):
         if messaging:
             audio_file = None
             is_echo = messaging[0].get("message", {}).get("is_echo")
+            reaction = messaging[0].get("reaction", {}).get("action", None)
+            if reaction:
+                print(f"Reaction received: {reaction}")
+                return success_response(message=_("Reaction muvaffaqiyatli olindi"), code=200)
             if messaging[0].get("message", {}).get("attachments",[{}])[0].get('type') == 'audio':
                 audio_file = messaging[0].get("message", {}).get("attachments", [{}])[0].get("payload", {}).get("url", None)
             elif messaging[0].get("message", {}).get("attachments",[{}])[0].get('type') in ['ig_reel', 'unsupported_type']:
