@@ -279,7 +279,7 @@ class InstagramCommentResponseSerializer(serializers.ModelSerializer):
             new_media_objs = []
             for media_data in instagram_media_list:
                 obj = InstagramMedia.objects.create(
-                    media_id=media_data.get('id'),
+                    media_id=media_data.get('media_id'),
                     media_type=media_data.get('media_type'),
                     media_url=media_data.get('media_url'),
                     username=media_data.get('username'),
