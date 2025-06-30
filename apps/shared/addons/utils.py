@@ -63,7 +63,7 @@ def create_message(conversation, sender, content, audio_file=None, run_status=No
         }
     
 
-def get_or_create_conversation(user_id, assistant, reset=False, token=None, platform='telegram', chat_username=None):
+def get_or_create_conversation(user_id, assistant, reset=False, token=None, platform='telegram', chat_username=None, username=None):
     conversation = Conversation.objects.filter(
         assistant=assistant,
         user_id=user_id,
@@ -81,7 +81,8 @@ def get_or_create_conversation(user_id, assistant, reset=False, token=None, plat
             status='open',
             token=token,
             platform=platform,
-            client_full_name=chat_username
+            client_full_name=chat_username,
+            client_phone_email=f"@{username}" if username else None
         )
         publish_message_to_ws_assistant(conversation)
         print(f"Conversation created: {conversation}")
@@ -97,24 +98,22 @@ def get_or_create_conversation(user_id, assistant, reset=False, token=None, plat
     return conversation
 
 
-def handle_start_command(chat_id, assistant, bot_token):
+def handle_start_command(chat_id, assistant, bot_token, chat_username, username):
     print(f"Handling start command for chat_id: {chat_id}, assistant: {assistant}, bot_token: {bot_token}")
     greeting_message = assistant.greeting_message
     print(f"Greeting message: {greeting_message}")
     send_telegram_message(chat_id, greeting_message, bot_token)
 
     # Start a new or reopen an existing conversation
-    conversation = get_or_create_conversation(chat_id, assistant, reset=True, token=bot_token)
+    conversation = get_or_create_conversation(chat_id, assistant, reset=True, token=bot_token,chat_username=chat_username, username=username)
     print(f"Conversation get_create: {conversation}")
     return success_response(message=_("Salomlashish va yangi chat muvaffaqiyatli bajarildi"), code=200)
 
 
 def notify_user_about_failed_payment(user):
     """Notify the user about payment failure."""
-    message = f"Hurmatli {user.first_name}, sizning repli.uz dagi obuna tugadi." 
+    message = f"Hurmatli {user.first_name}, sizning repli.uz dagi obuna tugadi. Iltimos, platformaga kirib, to'lovni qayta amalga oshiring." 
     print(f"Payment failure notification message: {user.phone_number} or {user.email}, {message}")
-
-    print(type(message))
     
     if user.phone_number:
         response = send_playmobile_sms(user.phone_number, message)

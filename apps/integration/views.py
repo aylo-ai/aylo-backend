@@ -397,33 +397,39 @@ class TelegramWebhookView(APIView):
         else:
             chat_username = f"@{username}_{chat_id}"
 
+        if "sticker" in data:
+            print("[-] Cannot handle sticker messages")
+            return success_response(message=_("Sticker message muvaffaqiyatli olindi"), code=200)
+
             # Voice message handling
         if "voice" in data:
             voice_file_id = data["voice"]["file_id"]
             process_voice_task.delay(chat_id, voice_file_id, bot_token)
             return success_response(message=_("Voice message muvaffaqiyatli olindi"), code=200)
 
-        user_message = data.get('text')
-        print(f"Chat ID: {chat_id}, Message: {user_message}")
-        if chat_type in ['group', 'supergroup']:
-            # if "reply_to_message" in data and data["reply_to_message"]["from"]["is_bot"]:
-            print("Ignoring group messages and replies to the bot.")
-            
-            if data.get('new_chat_member', {}).get('is_bot'):
-                handle_bot_added_to_group(chat_id, chat_title, bot_token)
-            elif data.get('left_chat_member', {}).get('is_bot'):
-                handle_bot_removed_from_group(chat_id, chat_title)
-        else:
-            # --- Redis Message Queuing ---
-            redis_client.rpush(f"messages:{chat_id}", user_message)
-            redis_client.set(f"last_seen:{chat_id}", time.time())
+        user_message = data.get('text', None)
+        if user_message:
+            print(f"Chat ID: {chat_id}, Message: {user_message}")
+            if chat_type in ['group', 'supergroup']:
+                # if "reply_to_message" in data and data["reply_to_message"]["from"]["is_bot"]:
+                print("Ignoring group messages and replies to the bot.")
+                
+                if data.get('new_chat_member', {}).get('is_bot'):
+                    handle_bot_added_to_group(chat_id, chat_title, bot_token)
+                elif data.get('left_chat_member', {}).get('is_bot'):
+                    handle_bot_removed_from_group(chat_id, chat_title)
+            else:
+                # --- Redis Message Queuing ---
+                redis_client.rpush(f"messages:{chat_id}", user_message)
+                redis_client.set(f"last_seen:{chat_id}", time.time())
 
-            # Schedule collector task only if not already scheduled
-            print(f"chat_username: {chat_username}")
-            redis_client.setex(f"collecting:{chat_id}", WAIT_SECONDS + 1, "1")  # Prevent overlap
-            process_collected_messages.apply_async((chat_id, bot_token, None, chat_username), countdown=WAIT_SECONDS)
-            # Start the Celery task
-            print("celery task started")
+                # Schedule collector task only if not already scheduled
+                print(f"chat_username: {chat_username}")
+                print(f"contact username: {username}")
+                redis_client.setex(f"collecting:{chat_id}", WAIT_SECONDS + 1, "1")  # Prevent overlap
+                process_collected_messages.apply_async((chat_id, bot_token, None, chat_username, username), countdown=WAIT_SECONDS)
+                # Start the Celery task
+                print("celery task started")
         return success_response(message=_("Xabar muvaffaqiyatli olindi"), code=200)
 
 

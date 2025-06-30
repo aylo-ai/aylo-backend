@@ -13,7 +13,7 @@ from shared.addons.redis import publish_message_to_ws, redis_client
 WAIT_SECONDS = 5
 
 @shared_task
-def process_message_task(chat_id, user_message, bot_token, chat_username=None, audio_file=None):
+def process_message_task(chat_id, user_message, bot_token, chat_username=None, username=None, audio_file=None):
     print(f"celery task is started with chat_id: {chat_id}, user_message: {user_message}, bot_token: {bot_token}")
     assistant = Assistant.objects.filter(integrations__api_token=bot_token).first()
     print(f"Assistant: {assistant}")
@@ -24,7 +24,7 @@ def process_message_task(chat_id, user_message, bot_token, chat_username=None, a
     # Handle `/start` command
     if user_message == '/start':
         print(f"Handling start command for assistant: {assistant}")
-        handle_start_command(chat_id, assistant, bot_token)
+        handle_start_command(chat_id, assistant, bot_token, chat_username, username)
         return
 
     # Handle regular messages
@@ -52,14 +52,14 @@ def process_message_task(chat_id, user_message, bot_token, chat_username=None, a
     print(f"Response data: {response_data}")
     if response_data:
         response_text = f"""
-            🎉 *New Lead Created!*
+🎉 *New Lead Created!*
 
-            👤 *Full Name:* {response_data.full_name}  
-            📞 *Phone Number:* {response_data.phone_number}  
-            📧 *Email:* {response_data.email}  
-            📦 *Interested Product:* {response_data.product}
+👤 *Full Name:* {response_data.full_name}  
+📞 *Phone Number:* {response_data.phone_number}  
+📧 *Email:* {response_data.email}  
+📦 *Interested Product:* {response_data.product}
 
-            ✅ Please follow up accordingly.
+✅ Please follow up accordingly.
             """
         telegram_integration = assistant.integrations.filter(integration_type="telegram").first()
         telegram_groups = TelegramGroupIntegration.objects.filter(
@@ -224,10 +224,11 @@ def process_instagram_comment(account_id, comment_data):
         print(f"[+] Media {media_id} has parent_id: {parent_id}")
 
 @shared_task
-def process_collected_messages(chat_id, bot_token=None, messaging=None, chat_username=None):
+def process_collected_messages(chat_id, bot_token=None, messaging=None, chat_username=None, username=None):
     user_key = f"messages:{chat_id}"
     last_seen_key = f"last_seen:{chat_id}"
     print(f"chat_username: {chat_username}")
+    print(f"username: {username}")
     # Check if we should wait longer
     last_seen = float(redis_client.get(last_seen_key) or 0)
     if time.time() - last_seen < WAIT_SECONDS:
@@ -246,7 +247,7 @@ def process_collected_messages(chat_id, bot_token=None, messaging=None, chat_use
 
     # Call your existing task
     if bot_token:
-        process_message_task.delay(chat_id, combined_message, bot_token,chat_username)
+        process_message_task.delay(chat_id, combined_message, bot_token,chat_username, username)
     else:
         process_instagram_message.delay(account_id = chat_id, combined_message = combined_message, user_message = messaging)
 
