@@ -3,7 +3,7 @@ from celery import shared_task
 from django.utils import timezone
 
 from apps.user.models import User
-from apps.shared.addons.enums import PricingPackageType
+from apps.shared.addons.enums import PricingPackageType, SubscriptionStatuses
 from shared.addons.payment import process_subscription_payment, create_notification
 from shared.addons.utils import notify_user_about_failed_payment, restrict_user_account
 from apps.payment.models import RetryPayment
@@ -12,11 +12,15 @@ from apps.payment.models import RetryPayment
 @shared_task
 def process_monthly_subscriptions():
     """Process subscription payments for all active users."""
-    users = User.objects.filter(Q(subscription__next_payment_date__lte=timezone.now().date()) & 
-                                ~Q(subscription__pricing_package__type=PricingPackageType.FREE.value))
+    users = User.objects.filter(Q(subscription__next_payment_date__lte=timezone.now().date()))
     print(f"[+] Found {len(users)} users to process monthly subscriptions")
 
     for user in users:
+        if user.subscription and user.subscription.pricing_package.type == PricingPackageType.FREE.value:
+            subscription = user.subscription
+            subscription.status = SubscriptionStatuses.INACTIVE.value
+            subscription.save()
+            continue
         if user.subscription.auto_renew == False:
             create_notification(user, "Obuna tarifingiz tugadi. Iltimos, platformaga kirib, to'lovni qo'lda kiriting.")
         else:

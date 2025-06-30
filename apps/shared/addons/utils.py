@@ -389,10 +389,10 @@ def get_assistant_response_ai(message, assistant_id, thread_id):
                 if messages.data:
                     assistant_response_str = messages.data[0].content[0].text.value
                     assistant_response = json.loads(assistant_response_str)
-                    return assistant_response.get("reply", "Sorry, there was an error processing your request."), None, None
+                    return assistant_response.get("reply", "We already know the problem and we are working on it."), None, None
             except:
                 pass
-            return "Sorry, there was an error processing your request.", None, None
+            return "We already know the problem and we are working on it.", None, None
 
 def create_and_run_thread(assistant_id, vector_store_id):
     try:

@@ -316,8 +316,6 @@ class SubscriptionCancellationView(APIView):
 
         # Update subscription status
         subscription = user.subscription
-        user.subscription = None
-        user.save()
         subscription.status = SubscriptionStatuses.INACTIVE.value
         subscription.cancellation_reason = cancellation_reason
         subscription.save()
