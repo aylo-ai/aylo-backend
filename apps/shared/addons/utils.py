@@ -309,6 +309,8 @@ def create_vector_store(file_urls):
 def get_assistant_response_ai(message, assistant_id, thread_id):
     print(f"Getting assistant response from AI: {message}, {assistant_id}, {thread_id}")
     assistant = Assistant.objects.get(assistant_id=assistant_id)
+    if assistant.user.subscription is None:
+        return error_response(message=_("Sizning obunangiz tugadi. Iltimos, platformaga kirib, to'lovni qayta amalga oshiring."), code=400)
     subscription = assistant.user.subscription
     if subscription.remained_request_count <= 0 or subscription.status == SubscriptionStatuses.INACTIVE.value:
         return assistant.fallback_message, None, None
