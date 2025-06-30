@@ -310,7 +310,7 @@ def get_assistant_response_ai(message, assistant_id, thread_id):
     print(f"Getting assistant response from AI: {message}, {assistant_id}, {thread_id}")
     assistant = Assistant.objects.get(assistant_id=assistant_id)
     subscription = assistant.user.subscription
-    if subscription.remained_request_count <= 0:
+    if subscription.remained_request_count <= 0 or subscription.status == SubscriptionStatuses.INACTIVE.value:
         return assistant.fallback_message, None, None
     else:
         if thread_id is None:

@@ -359,7 +359,7 @@ class NotificationListView(generics.ListAPIView):
     permission_classes = [IsCustomer]
     
     def get_queryset(self):
-        return self.queryset.filter(user=self.request.user, is_read=False)
+        return self.queryset.filter(user=self.request.user)
     
 
 class NotificationUpdateView(generics.UpdateAPIView):
