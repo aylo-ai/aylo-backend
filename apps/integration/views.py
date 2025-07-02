@@ -305,12 +305,15 @@ class InstagramDeauthorizeView(APIView):
                 if integration:
                     # Delete the integration
                     comment_response = InstagramCommentResponse.objects.filter(integration=integration)
-                    for response in comment_response:
+                    if comment_response:
                         integration.delete()
-                        if response:
-                            old_media = list(response.instagram_media.all())
-                            for media in old_media:
-                                media.delete()
+                        for response in comment_response:
+                            if response:
+                                old_media = list(response.instagram_media.all())
+                                for media in old_media:
+                                        media.delete()
+                    else:
+                        integration.delete()
                     print(f"User {user_id} deauthorized the app and their integration was removed.")
                 else:
                     print(f"User {user_id} deauthorized the app but no integration was found.")
