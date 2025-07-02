@@ -306,23 +306,19 @@ class InstagramDeauthorizeView(APIView):
                 ).first()
                 print(f"Deauthorize Integration: {integration}")
                 if integration:
-                    # Delete the integration
-                    comment_response = InstagramCommentResponse.objects.filter(integration=integration)
-                    if comment_response:
-                        integration.delete()
-                        for response in comment_response:
-                            if response:
-                                old_media = list(response.instagram_media.all())
-                                response.instagram_media.clear()
-                                for media in old_media:
-                                    media.delete()
-                        
-                    else:
-                        integration.delete()
-                    print(f"User {user_id} deauthorized the app and their integration was removed.")
+                    # Delete all related InstagramCommentResponse and their InstagramMedia
+                    comment_responses = InstagramCommentResponse.objects.filter(integration=integration)
+                    for response in comment_responses:
+                        old_media = list(response.instagram_media.all())
+                        print(f"Old media: {old_media}")
+                        for media in old_media:
+                            media.delete()
+                        response.delete()
+                    # Delete the integration itself
+                    integration.delete()
+                    print(f"User {user_id} deauthorized the app and their integration and related data were removed.")
                 else:
                     print(f"User {user_id} deauthorized the app but no integration was found.")
-                
                 return success_response(message=_("Foydalanuvchi appni deauthorized qildi"), code=200)
             except Exception as e:
                 print(f"Error during deauthorization: {str(e)}")
