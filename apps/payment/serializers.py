@@ -372,7 +372,6 @@ class SubscriptionSerializer(serializers.ModelSerializer):
             "next_payment_date",
             "retry_count",
             "remained_request_count",
-            "auto_renew",
             "cancellation_reason",
             "last_payment_date",
             "grace_period_days",
@@ -428,8 +427,15 @@ class SubscriptionSerializer(serializers.ModelSerializer):
         subscription.save()
 
         return subscription
+    
+class SubscriptionUpdateAutoRenewSerializer(serializers.Serializer):
+    auto_renew = serializers.BooleanField()
 
-        
+    def update(self, instance, validated_data):
+        instance.auto_renew = validated_data.get("auto_renew")
+        instance.save()
+        return instance
+   
 class RetryPaymentSerializer(serializers.ModelSerializer):
     class Meta:
         model = RetryPayment
