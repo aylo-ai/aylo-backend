@@ -60,7 +60,7 @@ class Transaction(BaseModel):
                               default=PaymentStatuses.DRAFT.value)
     transaction_type = models.CharField(max_length=100, choices=TransactionTypes.choices(),
                                         null=True, blank=True)
-    user = models.ForeignKey("user.User", on_delete=models.CASCADE, related_name='transactions')
+    user = models.ForeignKey("user.User", on_delete=models.SET_NULL, related_name='transactions', null=True, blank=True)
     currency = models.CharField(
         max_length=50,
         null=True,
@@ -91,7 +91,7 @@ class Card(BaseModel):
     is_verified = models.BooleanField(default=False)
     is_default = models.BooleanField(default=True)
     color = models.IntegerField(null=True, blank=True)
-    user = models.ForeignKey("user.User", on_delete=models.CASCADE, related_name="cards")
+    user = models.ForeignKey("user.User", on_delete=models.SET_NULL, related_name="cards", null=True, blank=True)
 
     def save(self, *args, **kwargs):
         self.card_number = self.card_number[:4] + '*' * 8 + self.card_number[-4:]
@@ -110,7 +110,7 @@ class Card(BaseModel):
 
 
 class Balance(BaseModel):
-    user = models.OneToOneField("user.User", on_delete=models.CASCADE, related_name="balance")
+    user = models.OneToOneField("user.User", on_delete=models.SET_NULL, related_name="balance", null=True, blank=True)
     amount = models.DecimalField(max_digits=20, decimal_places=2, default=0)
     currency = models.CharField(
         max_length=50,
@@ -127,7 +127,7 @@ class Balance(BaseModel):
 
 class Subscription(BaseModel):
     pricing_package = models.ForeignKey(
-        PricingPackage, on_delete=models.CASCADE, related_name="subscriptions"
+        PricingPackage, on_delete=models.SET_NULL, related_name="subscriptions", null=True, blank=True
     )
     start_date = models.DateField(null=True, blank=True)
     end_date = models.DateField(null=True, blank=True)

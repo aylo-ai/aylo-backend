@@ -1,9 +1,9 @@
 from django.db.models import Q
 from celery import shared_task
 from django.utils import timezone
-
+from datetime import timedelta
 from apps.user.models import User
-from apps.shared.addons.enums import PricingPackageType, SubscriptionStatuses
+from apps.shared.addons.enums import PricingPackageType
 from shared.addons.payment import process_subscription_payment, create_notification
 from shared.addons.utils import notify_user_about_failed_payment, restrict_user_account
 from apps.payment.models import RetryPayment
@@ -18,7 +18,8 @@ def process_monthly_subscriptions():
     for user in users:
         if user.subscription and user.subscription.pricing_package.type == PricingPackageType.FREE.value:
             subscription = user.subscription
-            subscription.status = SubscriptionStatuses.INACTIVE.value
+            subscription.end_date = timezone.now() + timedelta(days=30)
+            subscription.remained_request_count = user.subscription.pricing_package.request_count
             subscription.save()
             continue
         if user.subscription.auto_renew == False:

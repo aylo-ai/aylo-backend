@@ -437,6 +437,21 @@ def delete_assistant_by_id(assistant_id):
             message=f"Failed to delete assistant: {response.text}",
         )
 
+def delete_vector_store_by_id(vector_store_id):
+    BASE_URL = "https://api.openai.com/v1/vector_stores"
+    headers = {
+        "Authorization": f"Bearer {OPENAI_API_KEY}",
+        "Content-Type": "application/json",
+        "OpenAI-Beta": "vector_stores=v1",
+    }
+    url = f"{BASE_URL}/{vector_store_id}"
+    response = requests.delete(url, headers=headers)
+    print(f"Delete vector store response: {response.text}")
+    if response.status_code == 200:
+        return response.json()
+    elif response.status_code == 404:
+        raise_validation_error(message="Vector store not found.")
+
 
 def convert_ogg_to_mp3(audio_bytes: bytes) -> bytes:
     AudioSegment.converter = which("ffmpeg")    # mp3 konvertatsiyasi uchun

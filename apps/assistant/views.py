@@ -1,11 +1,10 @@
 from django.db.models import Q
 from rest_framework import permissions, filters, generics
-
 from apps.assistant.models import Assistant, AssistantFileUpload, Conversation, Message
 from apps.assistant.serializers import AssistantSerializer, ConversationSerializer, MessageSerializer, \
         SettingsSerializer, AssistantFileUploadSerializer, ConversationRetrieveSerializer, UpdateFileUploadSerializer, \
              MessageBulkReadSerializer
-from shared.addons.ai_requests import create_assistant_and_vector_id, delete_assitant
+from shared.addons.ai_requests import create_assistant_and_vector_id, delete_assitant, delete_vector_store
 from shared.addons.validations import success_response, error_response
 from rest_framework.exceptions import NotFound
 from django.utils.translation import gettext_lazy as _
@@ -76,9 +75,12 @@ class AssistantRetrieveView(generics.RetrieveUpdateDestroyAPIView):
                 code=403
             )
         assistant_id = instance.assistant_id
+        vector_id = instance.vector_id
         print(f"Assistant ID: {assistant_id}")
         if assistant_id:
             delete_assitant(assistant_id)
+        if vector_id:
+            delete_vector_store(vector_id)
         self.perform_destroy(instance)
         return success_response(message=_("Assistant muvaffaqiyatli o'chirildi"), code=204)
 

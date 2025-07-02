@@ -91,14 +91,15 @@ def process_instagram_message(account_id, combined_message, user_message, audio_
     print(f"Sender ID: {sender_id}")
     if not sender_id:
         return
-    chat_username = f"instagram_{sender_id}"
-    # message_text = user_message[0].get("message", {}).get("text")
     if audio_file:
         combined_message = process_instagram_audio(audio_file, assistant.language)
     print(f"Message text: {combined_message}")
     if not combined_message:
         return
-    conversation = get_or_create_conversation(sender_id, assistant, platform="instagram", chat_username=chat_username)
+    conversation = get_or_create_conversation(sender_id, assistant, platform="instagram", chat_username=None)
+    if conversation.client_full_name is None:
+        conversation.client_full_name = get_user_info(integration.api_token, sender_id).get("username", None)
+        conversation.save()
     print(f"Conversation: {conversation}, thread_id: {conversation.thread_id}")
     if conversation.status == ConversationStatuses.ESCALATED.value or not assistant.is_active:
         data = create_message(conversation, 'user', combined_message, audio_file)
@@ -256,3 +257,12 @@ def response_matches_comment(response, comment_text):
         if trigger.trigger_word.lower() in comment_text.lower():
             return True
     return False
+
+def get_user_info(access_token, user_id):
+    url = f"https://graph.instagram.com/v23.0/{user_id}"
+    params = {
+        "access_token": access_token,
+        "fields": "id, username"
+    }
+    response = requests.get(url, params=params)
+    return response.json()

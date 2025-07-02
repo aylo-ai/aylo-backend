@@ -1,4 +1,5 @@
 import mimetypes
+import time
 from io import BytesIO
 from typing import List
 
@@ -211,20 +212,36 @@ def update_vector_store_files_ai(vector_store_id: str, new_file_urls: List[str])
 
     try:
         # Replace the current files in the vector store with the new file IDs
-        batch_response = client.beta.vector_stores.file_batches.create(
+        batch_response = client.vector_stores.file_batches.create(
             vector_store_id=vector_store_id,
             file_ids=new_file_ids
         )
+        # Wait for batch completion
+        while True:
+            batch_status = client.beta.vector_stores.file_batches.retrieve(
+                vector_store_id=vector_store_id,
+                batch_id=batch_response.id
+            )
+            print(f"Batch status: {batch_status.status}")
+            if batch_status.status == "completed":
+                break
+            elif batch_status.status == "failed":
+                raise Exception("File batch processing failed.")
+            time.sleep(1)  # wait before polling again
+        print(f"Batch status: {batch_response.status}")
         return {
             "message": "Files replaced successfully.",
             "batch_id": batch_response.id
         }
+    
     except OpenAIError as e:
+        print(f"OpenAI API error: {str(e)}")
         return error_response(
             message=f"OpenAI API error: {str(e)}",
             code=400
         )
     except Exception as e:
+        print(f"Error updating vector store files: {str(e)}")
         return error_response(
             message=f"Error updating vector store files: {str(e)}",
             code=400

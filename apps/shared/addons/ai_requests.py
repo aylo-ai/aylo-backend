@@ -5,7 +5,7 @@ from django.utils.translation import gettext_lazy as _
 from shared.addons.payloads import create_assistant_payload
 from shared.addons.validations import raise_validation_error
 from config.settings import OPENAI_API_KEY
-from shared.addons.utils import delete_assistant_by_id
+from shared.addons.utils import delete_assistant_by_id, delete_vector_store_by_id
 from shared.ai_service.helper import create_prompt, create_vector_store, update_vector_store_files_ai
 from shared.addons.utils import create_assistant
 from shared.addons.payloads import valid_intents
@@ -57,6 +57,19 @@ def delete_assitant(assistant_id):
         }, 200
     except Exception as e:
         raise_validation_error(f"Failed to delete assistant: {e}")
+
+def delete_vector_store(vector_store_id):
+    if not vector_store_id:
+        raise_validation_error("vector_store_id is required.")
+
+    try:
+        deleted_response = delete_vector_store_by_id(vector_store_id)
+        return {
+            "message": "Vector store deleted successfully.",
+            "data": deleted_response
+        }, 200
+    except Exception as e:
+        raise_validation_error(f"Failed to delete vector store: {e}")
 
 def update_vector_store_files(vector_store_id, new_file_urls):
     updated_assistant = update_vector_store_files_ai(vector_store_id, new_file_urls)

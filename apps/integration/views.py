@@ -210,7 +210,7 @@ class InstagramCallbackView(APIView):
         user_profile = get_user_profile(access_token)
         if user_profile:
             print(f"User Profile: {user_profile}")
-            integration, _ = Integration.objects.update_or_create(
+            integration, created = Integration.objects.get_or_create(
                 assistant_id=assistant_id,
                 integration_type=IntegrationTypes.INSTAGRAM.value,
                 defaults={
@@ -221,6 +221,8 @@ class InstagramCallbackView(APIView):
                     "instagram_username": user_profile.get("instagram_username"),
                 }
             )
+            if not created:
+                return error_response(message=("Instagram integratsiyasi sizda mavjud"), code=200)
             print(f"Integration is successfully created: {integration}")
         else:
             return error_response(message=("Foydalanuvchi profili topilmadi"), code=400)
@@ -300,7 +302,13 @@ class InstagramDeauthorizeView(APIView):
                 print(f"Deauthorize Integration: {integration}")
                 if integration:
                     # Delete the integration
-                    integration.delete()
+                    comment_response = InstagramCommentResponse.objects.filter(integration=integration)
+                    for response in comment_response:
+                        integration.delete()
+                        if response:
+                            old_media = list(response.instagram_media.all())
+                            for media in old_media:
+                                media.delete()
                     print(f"User {user_id} deauthorized the app and their integration was removed.")
                 else:
                     print(f"User {user_id} deauthorized the app but no integration was found.")

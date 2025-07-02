@@ -45,6 +45,12 @@ class IntegrationCreateSerializer(serializers.ModelSerializer, SubscriptionValid
         self.validate_intergation_count(user, assistant_id)
 
         if integration_type == IntegrationTypes.TELEGRAM.value and api_token:
+            try:
+                integration = Integration.objects.get(api_token=api_token, integration_type=IntegrationTypes.TELEGRAM.value)
+                if integration:
+                    raise_validation_error(message=_("Telegram bot integratsiyasi mavjud"))
+            except Integration.DoesNotExist:
+                pass
             success, code = telegram_get_me(api_token)
             if not success or code == 401:
                 raise_validation_error(message=_("Telegram API token yaroqli emas"))
