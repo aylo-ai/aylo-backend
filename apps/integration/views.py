@@ -195,6 +195,8 @@ class InstagramCallbackView(APIView):
         print(f"Data: {data}")
 
         response = requests.post(token_url, data=data)
+        if response.status_code == 400:
+            return error_response(message=response.json().get("error_message"), code=400)
         print(f"Response: {response.text}")
         if response.status_code == 200:
             token_data = response.json()
