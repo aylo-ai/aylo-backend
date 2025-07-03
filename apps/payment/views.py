@@ -133,8 +133,8 @@ class SetDefaultCard(APIView):
     serializer_class = None
     permission_classes = (permissions.IsAuthenticated,)
 
-    def post(self, request):
-        card_id = request.data.get("card_id", None)
+    def post(self, request, *args, **kwargs):
+        card_id = self.kwargs.get("pk", None)
         user = self.request.user
         if card_id is None:
             return error_response(message=_("Karta ID kiritilmagan"))

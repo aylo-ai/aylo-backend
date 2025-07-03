@@ -18,7 +18,7 @@ SUPPORTED_MIME_TYPES = {
     "text/html", "application/vnd.openxmlformats-officedocument.wordprocessingml.document", "text/css",
     "text/x-csharp", "text/markdown", "application/xml", "text/x-c++", "text/xml", "application/json",
     "image/jpeg", "text/x-sh", "text/x-java", "text/x-tex", "application/msword", "image/webp", "text/x-ruby",
-    "text/x-typescript"
+    "text/x-typescript", "application/msword"
 }
 
 
@@ -218,7 +218,7 @@ def update_vector_store_files_ai(vector_store_id: str, new_file_urls: List[str])
         )
         # Wait for batch completion
         while True:
-            batch_status = client.beta.vector_stores.file_batches.retrieve(
+            batch_status = client.vector_stores.file_batches.retrieve(
                 vector_store_id=vector_store_id,
                 batch_id=batch_response.id
             )

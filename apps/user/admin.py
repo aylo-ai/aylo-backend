@@ -4,7 +4,7 @@ from apps.user.models import User, PrivacyPolicy, UserAgreement, Notification
 
 @admin.register(User)
 class UserAdmin(admin.ModelAdmin):
-    list_display = ("username", "first_name", "last_name", "email", "phone_number", "user_role")
+    list_display = ("username", "first_name", "last_name", "email", "phone_number", "user_role", "date_joined")
     search_fields = ("username", "first_name", "last_name", "email", "phone_number")
     list_filter = ("user_role",)
     fieldsets = (

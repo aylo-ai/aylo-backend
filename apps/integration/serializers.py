@@ -275,28 +275,36 @@ class InstagramCommentResponseSerializer(serializers.ModelSerializer):
                 trigger_word_objs.append(obj)
             instance.trigger_words.add(*trigger_word_objs)
         
-        old_media = list(instance.instagram_media.all())  # save to delete after disconnection
-        instance.instagram_media.clear()  # remove M2M relations first
+        if instagram_media_list is not None:
+            current_media_ids = set(instance.instagram_media.values_list('media_id', flat=True))
+            new_media_ids = set(media.get('media_id') or media.get('id') for media in instagram_media_list)
 
-        for media in old_media:
-            media.delete()  # now safe to delete, no relation exists
+            # Delete removed media
+            for media in instance.instagram_media.filter(media_id__in=current_media_ids - new_media_ids):
+                media.delete()
 
-        if instagram_media_list:
-            new_media_objs = []
+            # Update existing and add new
             for media_data in instagram_media_list:
-                obj = InstagramMedia.objects.create(
-                    media_id=media_data.get('media_id'),
-                    media_type=media_data.get('media_type'),
-                    media_url=media_data.get('media_url'),
-                    username=media_data.get('username'),
-                    timestamp=media_data.get('timestamp'),
-                    caption=media_data.get('caption'),
-                    comments_count=media_data.get('comments_count'),
-                    like_count=media_data.get('like_count'),
-                    children=media_data.get('children')
-                )
-                new_media_objs.append(obj)
-
-            instance.instagram_media.add(*new_media_objs)
+                media_id = media_data.get('media_id')
+                if media_id in current_media_ids:
+                    # Update existing
+                    media_obj = instance.instagram_media.get(media_id=media_id)
+                    for field, value in media_data.items():
+                        setattr(media_obj, field, value)
+                    media_obj.save()
+                else:
+                    # Create new
+                    obj = InstagramMedia.objects.create(
+                        media_id=media_data.get('media_id') or media_data.get('id'),
+                        media_type=media_data.get('media_type'),
+                        media_url=media_data.get('media_url'),
+                        username=media_data.get('username'),
+                        caption=media_data.get('caption'),
+                        timestamp=media_data.get('timestamp'),
+                        comments_count=media_data.get('comments_count'),
+                        like_count=media_data.get('like_count'),
+                        children=media_data.get('children')
+                    )
+                    instance.instagram_media.add(obj)
         return instance
 

@@ -2,6 +2,7 @@ from datetime import timedelta
 
 from django.utils import timezone
 from rest_framework import serializers
+from django.db import transaction
 
 from apps.payment.models import Feature, PricingPackage, Card, Transaction, Subscription, RetryPayment, Balance
 from shared.addons.enums import TransactionTypes, PaymentStatuses, SubscriptionStatuses
@@ -252,73 +253,74 @@ class PayWithCardSerializer(serializers.Serializer):
         payment_method = validated_data.get("payment_method")
         is_withdrawal = self.context.get("is_withdrawal", False)
 
-        # Step 1: Create a Payme receipt
-        success, message, receipt_id = create_payme_receipt(amount)
-        success = True
-        if not success:
-            raise_validation_error(message=_("To'lov chekini yaratishda tizim bilan bog'liq"
-                                                " muammo yuz berdi: {}").format(message))
-        transaction_type = TransactionTypes.WITHDRAW.value if is_withdrawal else TransactionTypes.DEPOSIT.value
-
-        # Step 2: Log the transaction with DRAFT status
-        transaction = Transaction.objects.create(
-            user=user,
-            amount=amount,
-            payment_method=payment_method,
-            currency="UZS",
-            transaction_type=transaction_type,
-            status=PaymentStatuses.DRAFT.value,
-        )
-
         try:
-            # Step 3: Commit the Payme receipt
-            success, message, receipt_id = commit_payme_receipt(card_token, receipt_id)
-            if not success:
-                transaction.error_message = message
-                transaction.save()
-                raise_validation_error(message=_("To'lov tizimi bilan bog'liq muammo yuz berdi: {}").format(message))
+            with transaction.atomic():
+                # Step 1: Create a Payme receipt
+                success, message, receipt_id = create_payme_receipt(amount)
+                success = True
+                if not success:
+                    raise_validation_error(message=_("To'lov chekini yaratishda tizim bilan bog'liq muammo yuz berdi: {}").format(message))
+                transaction_type = TransactionTypes.WITHDRAW.value if is_withdrawal else TransactionTypes.DEPOSIT.value
 
-            # Step 4: Update transaction status to COMMITTED
-            transaction.status = PaymentStatuses.SUCCESS.value
-            transaction.transaction_id = receipt_id
-            transaction.save()
+                # Step 2: Log the transaction with DRAFT status
+                transaction_obj = Transaction.objects.create(
+                    user=user,
+                    amount=amount,
+                    payment_method=payment_method,
+                    currency="UZS",
+                    transaction_type=transaction_type,
+                    status=PaymentStatuses.DRAFT.value,
+                )
 
-            # Step 5: Update user balance
-            if not is_withdrawal:
-                update_user_balance(user, amount)
+                # Step 3: Commit the Payme receipt
+                success, message, receipt_id = commit_payme_receipt(card_token, receipt_id)
+                if not success:
+                    transaction_obj.error_message = message
+                    transaction_obj.save()
+                    raise_validation_error(message=_("To'lov tizimi bilan bog'liq muammo yuz berdi: {}").format(message))
 
+                # Step 4: Update transaction status to COMMITTED
+                transaction_obj.status = PaymentStatuses.SUCCESS.value
+                transaction_obj.transaction_id = receipt_id
+                transaction_obj.save()
 
-            # Try to get existing subscription or create new one
-            print(f"user.subscription: {user.subscription}")
-            subscription = Subscription.objects.get(id=user.subscription.id)
-            subscription.start_date = timezone.now().date()
-            subscription.end_date = timezone.now().date() + timedelta(days=subscription.pricing_package.duration_days)
-            subscription.status = SubscriptionStatuses.ACTIVE.value
-            subscription.retry_count = 0
-            subscription.auto_renew = True
-            subscription.last_payment_date = timezone.now().date()
-            subscription.save()
+                # Step 5: Update user balance
+                if not is_withdrawal:
+                    update_user_balance(user, amount)
 
-            # Return the transaction for further processing if needed
-            return {
-                "amount": transaction.amount,
-                "status": transaction.status,
-                "subscription": {
-                    "id": subscription.id,
-                    "start_date": subscription.start_date,
-                    "end_date": subscription.end_date,
-                    "is_active": subscription.status
+                # Step 6: Update subscription
+                subscription = Subscription.objects.get(id=user.subscription.id)
+                subscription.start_date = timezone.now().date()
+                subscription.end_date = timezone.now().date() + timedelta(days=subscription.pricing_package.duration_days)
+                subscription.status = SubscriptionStatuses.ACTIVE.value
+                subscription.retry_count = 0
+                subscription.auto_renew = True
+                subscription.last_payment_date = timezone.now().date()
+                subscription.save()
+
+                return {
+                    "amount": transaction_obj.amount,
+                    "status": transaction_obj.status,
+                    "subscription": {
+                        "id": subscription.id,
+                        "start_date": subscription.start_date,
+                        "end_date": subscription.end_date,
+                        "is_active": subscription.status
+                    }
                 }
-            }
-
         except Exception as e:
             # If anything fails, update transaction status and raise error
-            transaction.status = PaymentStatuses.FAILED.value
-            transaction.error_message = str(e)
-            transaction.save()
-            # Update subscription status to INACTIVE
-            subscription.status = SubscriptionStatuses.INACTIVE.value
-            subscription.save()
+            try:
+                transaction_obj.status = PaymentStatuses.FAILED.value
+                transaction_obj.error_message = str(e)
+                transaction_obj.save()
+            except Exception:
+                pass
+            try:
+                subscription.status = SubscriptionStatuses.INACTIVE.value
+                subscription.save()
+            except Exception:
+                pass
             raise_validation_error(message=_("To'lov jarayonida xatolik yuz berdi: {}").format(str(e)))
 
 

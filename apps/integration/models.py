@@ -42,7 +42,7 @@ class TelegramGroupIntegration(BaseModel):
 class InstagramMedia(BaseModel):
     media_id = models.CharField(max_length=255, null=True, blank=True, unique=True)
     media_type = models.CharField(max_length=600, null=True, blank=True)
-    media_url = models.CharField(max_length=600, null=True, blank=True)
+    media_url = models.CharField(max_length=1500, null=True, blank=True)
     username = models.CharField(max_length=255, null=True, blank=True)
     timestamp = models.DateTimeField(null=True, blank=True)
     caption = models.TextField(null=True, blank=True)

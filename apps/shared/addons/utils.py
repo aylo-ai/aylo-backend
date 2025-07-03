@@ -280,31 +280,6 @@ def create_assistant(instructions, name, vector_store_id):
         print(f"Error creating assistant: {e}")
         raise Exception(f"Error creating assistant: {e}")
     
-def create_vector_store(file_urls):
-    file_ids = []
-
-    # Upload each file and collect valid file IDs
-    for file_url in file_urls:
-        file_id = upload_knowledge_base_file(file_url)
-        if file_id:
-            file_ids.append(file_id)
-
-    # Ensure there are valid files for vector store creation
-    if not file_ids:
-        print("No valid files available for vector store creation.")
-        return None
-
-    try:
-        # Create a vector store from collected file IDs
-        vector_store = client.beta.vector_stores.create(
-            file_ids=file_ids
-        )
-        print(f"Vector store created with ID: {vector_store.id}")
-        return vector_store.id
-
-    except Exception as e:
-        print(f"Error creating vector store: {e}")
-        return None
     
 def get_assistant_response_ai(message, assistant_id, thread_id):
     print(f"Getting assistant response from AI: {message}, {assistant_id}, {thread_id}")
