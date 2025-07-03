@@ -214,7 +214,7 @@ class MessageSerializer(serializers.ModelSerializer, SubscriptionValidationMixin
         if audio_file:
             print("[MessageSerializer] Audio file received.")
             audio_bytes = audio_file.read()
-            transcribed_text = speech_to_text(audio_bytes, language=assistant.language or "uz")
+            transcribed_text, input_tokens, output_tokens = speech_to_text(audio_bytes, language=assistant.language or "uz")
             print(f"time after transcribe: {time.time()}")
             validated_data["message_content"] = transcribed_text
             validated_data["message_type"] = MessageTypes.AUDIO.value

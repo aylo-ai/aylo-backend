@@ -13,7 +13,7 @@ from shared.addons.redis import publish_message_to_ws, redis_client
 WAIT_SECONDS = 5
 
 @shared_task
-def process_message_task(chat_id, user_message, bot_token, chat_username=None, username=None, audio_file=None):
+def process_message_task(chat_id, user_message, bot_token, chat_username=None, username=None, audio_file=None, input_tokens=None, output_tokens=None):
     print(f"celery task is started with chat_id: {chat_id}, user_message: {user_message}, bot_token: {bot_token}")
     assistant = Assistant.objects.filter(integrations__api_token=bot_token).first()
     print(f"Assistant: {assistant}")
@@ -31,7 +31,8 @@ def process_message_task(chat_id, user_message, bot_token, chat_username=None, u
     conversation = get_or_create_conversation(chat_id, assistant, token=bot_token,chat_username=chat_username)
     print(f"Conversation: {conversation}")
     if conversation.status == ConversationStatuses.ESCALATED.value or not assistant.is_active:
-        data = create_message(conversation, 'user', user_message, audio_file)
+        data = create_message(conversation=conversation, sender=SenderTypes.USER.value, content=user_message, 
+                              audio_file=audio_file, input_tokens=input_tokens, output_tokens=output_tokens)
         publish_message_to_ws(conversation.id, user_message, sender="user", data=data, assistant_id=assistant.id)
         print(f"Message created for user: {user_message}")
         return
@@ -41,7 +42,7 @@ def process_message_task(chat_id, user_message, bot_token, chat_username=None, u
     #send typing action
     send_telegram_action(chat_id, bot_token)
 
-    data = create_message(conversation, 'user', user_message, audio_file)
+    data = create_message(conversation=conversation, sender=SenderTypes.USER.value, content=user_message, audio_file=audio_file, input_tokens=input_tokens, output_tokens=output_tokens)
     publish_message_to_ws(conversation_id=conversation.id, message=user_message, sender='user', data=data, assistant_id=assistant.id)
     if assistant.ai_enabled:
         response_message, run_status, response_data = get_assistant_response_ai(user_message, assistant.assistant_id, conversation.thread_id)
@@ -92,7 +93,7 @@ def process_instagram_message(account_id, combined_message, user_message, audio_
     if not sender_id:
         return
     if audio_file:
-        combined_message = process_instagram_audio(audio_file, assistant.language)
+        combined_message,input_tokens,output_tokens = process_instagram_audio(audio_file, assistant.language)
     print(f"Message text: {combined_message}")
     if not combined_message:
         return
@@ -102,12 +103,14 @@ def process_instagram_message(account_id, combined_message, user_message, audio_
         conversation.save()
     print(f"Conversation: {conversation}, thread_id: {conversation.thread_id}")
     if conversation.status == ConversationStatuses.ESCALATED.value or not assistant.is_active:
-        data = create_message(conversation, 'user', combined_message, audio_file)
+        data = create_message(conversation=conversation, sender=SenderTypes.USER.value, content=combined_message, 
+                              audio_file=audio_file, input_tokens=input_tokens, output_tokens=output_tokens)
         print("publish message to web socket")
         publish_message_to_ws(conversation.id, combined_message, sender="user", data=data, assistant_id=assistant.id)
         return
     print("Sending message to web socket")
-    data = create_message(conversation, 'user', combined_message, audio_file)
+    data = create_message(conversation=conversation, sender=SenderTypes.USER.value, content=combined_message, 
+                          audio_file=audio_file, input_tokens=input_tokens, output_tokens=output_tokens)
     publish_message_to_ws(conversation.id, combined_message, sender="user", data=data, assistant_id=assistant.id)
 
     response_message, run_status, response_data = get_assistant_response_ai(combined_message, assistant.assistant_id, conversation.thread_id)
@@ -165,12 +168,12 @@ def process_voice_task(chat_id, voice_file_id, bot_token):
     # Step 3: Use Gemini API (or any speech_to_text service)
     language_code = assistant.language or "uz"  # fallback
     print(f"Language code: {language_code}")
-    transcribed_text = speech_to_text(audio_bytes_mp3, language=language_code)
+    transcribed_text, input_tokens, output_tokens = speech_to_text(audio_bytes_mp3, language=language_code)
     print(f"transcribed_text: {transcribed_text}")
     print(f"Transcribed text: {transcribed_text}")
 
     # Step 4: Trigger the regular message processor
-    process_message_task.delay(chat_id=chat_id, user_message=transcribed_text, bot_token=bot_token, audio_file=audio_bytes_mp3)
+    process_message_task.delay(chat_id=chat_id, user_message=transcribed_text, bot_token=bot_token, audio_file=audio_bytes_mp3, input_tokens=input_tokens, output_tokens=output_tokens)
 
 @shared_task
 def process_instagram_comment(account_id, comment_data):

@@ -24,15 +24,19 @@ from shared.ai_service.helper import create_prompt
 from shared.addons.payloads import valid_intents
 from shared.addons.redis import publish_message_to_ws_assistant
 
-def create_message(conversation, sender, content, audio_file=None, run_status=None):
+def create_message(conversation, sender, content, audio_file=None, run_status=None, input_tokens=None, output_tokens=None):
     message_type = 'audio' if audio_file else 'text'
     print(f"Creating message: {conversation}, {sender}, {content}, {audio_file}")
     if isinstance(audio_file, str) and audio_file.startswith("https://"):
         audio_file = get_audio_from_url(audio_file)
     
     # Extract token usage from run_status if available
-    input_tokens = run_status.usage.prompt_tokens if run_status and hasattr(run_status, 'usage') else 0
-    output_tokens = run_status.usage.completion_tokens if run_status and hasattr(run_status, 'usage') else 0
+    if audio_file:
+        input_tokens = input_tokens
+        output_tokens = output_tokens
+    else:
+        input_tokens = run_status.usage.prompt_tokens if run_status and hasattr(run_status, 'usage') else 0
+        output_tokens = run_status.usage.completion_tokens if run_status and hasattr(run_status, 'usage') else 0
     
     message = Message.objects.create(
         conversation=conversation,
@@ -346,6 +350,7 @@ def get_assistant_response_ai(message, assistant_id, thread_id):
                         None
                     )
                 response_data = create_lead(
+                    assistant=assistant,
                     full_name=name,
                     phone_number=phone_number,
                     email=entities.get('email', None),
@@ -462,17 +467,19 @@ def speech_to_text(audio_bytes: bytes, language: str = "uz") -> str:
                 ),
             ),
         )
-        
+        input_tokens = response.usage_metadata.prompt_token_count
+        output_tokens = response.usage_metadata.candidates_token_count
+
         print(f"[speech_to_text] Response received: {response}")
         result = response.text.strip()
         print(f"[speech_to_text] Final result: {result}")
-        return result
+        return result, input_tokens, output_tokens
     except Exception as e:
         print(f"[speech_to_text] Error: {str(e)}")
         print(f"[speech_to_text] Error type: {type(e)}")
         import traceback
         print(f"[speech_to_text] Traceback: {traceback.format_exc()}")
-        return "Sorry, I couldn't understand the audio."
+        return "Sorry, I couldn't understand the audio.", None, None
     
 def create_lead(full_name, phone_number, email, product, metadata=None):  
     try:
@@ -529,9 +536,9 @@ def process_instagram_audio(audio_url: str, language: str = "uz") -> str:
         
         # Convert to text using speech_to_text
         print(f"[process_instagram_audio] Attempting to convert audio to text with language: {language}")
-        data = speech_to_text(audio_bytes, language)
+        data, input_tokens, output_tokens = speech_to_text(audio_bytes, language)
         print(f"[process_instagram_audio] Speech to text result: {data}")
-        return data
+        return data, input_tokens, output_tokens
     except Exception as e:
         print(f"[process_instagram_audio] Error: {str(e)}")
         print(f"[process_instagram_audio] Error type: {type(e)}")
