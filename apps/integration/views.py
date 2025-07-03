@@ -422,7 +422,8 @@ class TelegramWebhookView(APIView):
             return success_response(message=_("Voice message muvaffaqiyatli olindi"), code=200)
 
         user_message = data.get('text', None)
-        if user_message:
+        chat_group_id = data.get('chat', {}).get('id', None)
+        if user_message or chat_group_id:
             print(f"Chat ID: {chat_id}, Message: {user_message}")
             if chat_type in ['group', 'supergroup']:
                 # if "reply_to_message" in data and data["reply_to_message"]["from"]["is_bot"]:

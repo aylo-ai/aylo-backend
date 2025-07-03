@@ -236,6 +236,7 @@ def create_assistant(instructions, name, vector_store_id):
         my_assistant = client.beta.assistants.create(
             instructions=instructions,
             name=name,
+            temperature=0.7,
             tools=tools,
             tool_resources=tool_resources,
             model=default_model,
