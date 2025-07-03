@@ -3,6 +3,8 @@ from datetime import timedelta
 from django.utils import timezone
 from rest_framework import serializers
 from django.db import transaction
+from rest_framework.views import APIView
+from rest_framework import permissions
 
 from apps.payment.models import Feature, PricingPackage, Card, Transaction, Subscription, RetryPayment, Balance
 from shared.addons.enums import TransactionTypes, PaymentStatuses, SubscriptionStatuses
@@ -479,37 +481,54 @@ class SubscriptionUpdateSerializer(serializers.Serializer):
         attrs["pricing_package"] = pricing_package
         return attrs
     
-    def update(self, validated_data):
+    def create(self, validated_data):
         user = self.context.get("request").user
         card = validated_data.get("card")
         pricing_package = validated_data.get("pricing_package")
         amount = int(pricing_package.discount_price)
-        try:
-            success, message, receipt_id = create_payme_receipt(amount)
-            if not success:
-                raise_validation_error(message=_("To'lov chekini yaratishda tizim bilan bog'liq"
-                                                " muammo yuz berdi: {}").format(message))
-
-            transaction = Transaction.objects.create(
+        subscription = user.subscription
+        with transaction.atomic():
+             # 1. Create transaction with DRAFT status
+            transaction1 = Transaction.objects.create(
                 user=user,
                 amount=amount,
                 currency="UZS",
                 transaction_type=TransactionTypes.WITHDRAW.value,
                 status=PaymentStatuses.DRAFT.value,
             )
-        
-            success, message, receipt_id = commit_payme_receipt(card.card_token, receipt_id)
+
+            # 2. Try to create payment receipt
+            success, message, receipt_id = create_payme_receipt(amount)
+            print(f"success: {success}")
             if not success:
-                raise_validation_error(message=_("To'lov tizimi bilan bog'liq muammo yuz berdi: {}").format(message))
-            
-            transaction.status = PaymentStatuses.SUCCESS.value
-            transaction.transaction_id = receipt_id
-            transaction.save()
+                transaction1.status = PaymentStatuses.FAILED.value
+                transaction1.error_message = message
+                transaction1.save()
+                subscription.status = SubscriptionStatuses.INACTIVE.value
+                subscription.save()
+                raise_validation_error(data=message)
+
+            # 3. Try to commit payment
+            success, message, receipt_id = commit_payme_receipt(card.card_token, receipt_id)
+            print(f"success: {success}")
+            if not success:
+                transaction1.status = PaymentStatuses.FAILED.value
+                transaction1.error_message = message
+                transaction1.save()
+                subscription.status = SubscriptionStatuses.INACTIVE.value
+                subscription.save()
+
+                print(f"transaction1: {transaction1.status}")
+                print(f"subscription: {subscription.status}")
+                raise_validation_error(data=message)
+
+            # 4. If successful, update transaction and subscription
+            transaction1.status = PaymentStatuses.SUCCESS.value
+            transaction1.transaction_id = receipt_id
+            transaction1.save()
 
             update_user_balance(user, amount)
 
-            #Update subscription
-            subscription = user.subscription
             subscription.next_payment_date = timezone.now().date() + timedelta(days=pricing_package.duration_days)
             subscription.auto_renew = True
             subscription.retry_count = 0
@@ -517,12 +536,12 @@ class SubscriptionUpdateSerializer(serializers.Serializer):
             subscription.grace_period_days = 0
             subscription.status = SubscriptionStatuses.ACTIVE.value 
             subscription.pricing_package = pricing_package
-            subscription.remained_request_count += pricing_package.request_count
+            subscription.remained_request_count = pricing_package.request_count
             subscription.save()
 
             return {
-                "amount": transaction.amount,
-                "status": transaction.status,
+                "amount": transaction1.amount,
+                "status": transaction1.status,
                 "subscription": {
                     "id": subscription.id,
                     "start_date": subscription.start_date,
@@ -531,10 +550,4 @@ class SubscriptionUpdateSerializer(serializers.Serializer):
                 }
             }
             
-        except Exception as e:
-            transaction.status = PaymentStatuses.FAILED.value
-            transaction.error_message = str(e)
-            transaction.save()
-            subscription.status = SubscriptionStatuses.INACTIVE.value
-            subscription.save()
-            raise_validation_error(message=_("To'lov jarayonida xatolik yuz berdi: {}").format(str(e)))
+            

@@ -32,6 +32,7 @@ def create_payload_and_assistant(assistant, request=None):
     ]
 
     instruction = create_prompt(
+        assistant.name,
         assistant.company_name,
         assistant.description,
         assistant.role,

@@ -293,15 +293,15 @@ class SubscriptionCreateView(generics.CreateAPIView):
         return success_response(message=_("Obuna muvaffaqiyatli yaratildi"), data=serializer.data)
     
 
-class SubscriptionUpdateView(APIView):
+class SubscriptionUpdateView(generics.CreateAPIView):
     serializer_class = serializers.SubscriptionUpdateSerializer
     permission_classes = (permissions.IsAuthenticated,)
 
-    def post(self, request, *args, **kwargs):
-        serializer = self.serializer_class(data=request.data, context={"request": request})
+    def create(self, request, *args, **kwargs):
+        serializer = self.get_serializer(data=request.data, context={"request": request})
         serializer.is_valid(raise_exception=True)
-        subscription = serializer.update(serializer.validated_data)
-        return success_response(message=_("Obuna muvaffaqiyatli tahrirlandi"), data=subscription)
+        data = serializer.save()
+        return success_response(message=_("Obuna muvaffaqiyatli tahrirlandi"), data=data)
 
 class SubscriptionCancellationView(APIView):
     permission_classes = [permissions.IsAuthenticated]

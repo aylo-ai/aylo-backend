@@ -43,19 +43,19 @@ def create_file_urls(assistant, request=None):
     return file_urls
 
 valid_intents = {
-    "greeting": "Foydalanuvchi salomlashmoqda yoki muloyimlik bildirayapti",
-    "get_price": "Foydalanuvchi mahsulot yoki xizmat narxini so‘raydi",
-    "create_order": "Foydalanuvchi buyurtma bermoqchi",
-    "cancel_order": "Foydalanuvchi buyurtmani bekor qilmoqchi",
-    "get_description": "Foydalanuvchi mahsulot haqida ma'lumot so'raydi",
-    "collect_order_info": "Foydalanuvchi buyurtma ma'lumotlarini to'plash",
-    "order_confirmation": "Foydalanuvchi buyurtmani tasdiqlashmoqda",
-    "get_contact_info": "Foydalanuvchi telefon raqami yoki manzil so‘raydi",
-    "get_payment_methods": "Foydalanuvchi to'lov usullarini so'raydi",
-    "recommend_product": "Foydalanuvchi mahsulot taklifini so'raydi",
-    "register_user": "Foydalanuvchi ro‘yxatdan o‘tmoqchi",
-    "track_order": "Foydalanuvchi buyurtma holatini bilmoqchi",
-    "contact_support": "Foydalanuvchi yordamchi xodim bilan bog‘lanmoqchi",
-    "faq_question": "Foydalanuvchi umumiy savol bermoqda (xizmatlar, ish vaqti)",
-    "unknown": "Niyat aniq emas yoki hech biri bilan mos kelmaydi"
+    "greeting": "The user is greeting or being polite",
+    "get_price": "The user is asking for the price of a product or service",
+    "create_order": "The user wants to place an order",
+    "cancel_order": "The user wants to cancel an order",
+    "get_description": "The user is asking for information about a product",
+    "collect_order_info": "The user is providing or being asked for order details",
+    "order_confirmation": "The user is confirming an order",
+    "get_contact_info": "The user is asking for a phone number or address",
+    "get_payment_methods": "The user is asking about payment methods",
+    "recommend_product": "The user is asking for a product recommendation",
+    "register_user": "The user wants to register",
+    "track_order": "The user wants to know the status of an order",
+    "contact_support": "The user wants to contact a support agent",
+    "faq_question": "The user is asking a general question (services, working hours, etc.)",
+    "unknown": "The intent is unclear or does not match any of the above"
 }

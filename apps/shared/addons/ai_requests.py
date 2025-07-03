@@ -23,6 +23,7 @@ def create_assistant_and_vector_id(assistant, request=None):
 
     try:
         instruction = create_prompt(
+            assistant.name,
             assistant.company_name,
             assistant.description,
             assistant.role,

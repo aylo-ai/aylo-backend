@@ -167,6 +167,7 @@ def update_assistant(assistant_id, name,  assistant):
     print(f"Updating assistant with instructions")
     try:
         instruction = create_prompt(
+            assistant.name,
             assistant.company_name,
             assistant.description,
             assistant.role,
