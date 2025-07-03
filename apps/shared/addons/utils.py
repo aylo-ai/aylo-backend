@@ -178,6 +178,7 @@ def update_assistant(assistant_id, name,  assistant):
         assistant = client.beta.assistants.update(
             assistant_id=assistant_id,
             name=name,
+            temperature=0.7,
             instructions=instruction,
             tools=[{"type": "file_search"}],
             tool_resources={"file_search": {"vector_store_ids": [assistant.vector_id]}},

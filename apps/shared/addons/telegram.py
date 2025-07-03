@@ -1,7 +1,7 @@
 import re
 from bs4 import BeautifulSoup
 import json
-
+from django.utils.translation import gettext_lazy as _
 import requests
 from datetime import datetime
 from apps.integration.models import Integration, TelegramGroupIntegration
