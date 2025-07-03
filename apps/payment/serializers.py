@@ -430,13 +430,10 @@ class SubscriptionSerializer(serializers.ModelSerializer):
 
         return subscription
     
-class SubscriptionUpdateAutoRenewSerializer(serializers.Serializer):
-    auto_renew = serializers.BooleanField()
-
-    def update(self, instance, validated_data):
-        instance.auto_renew = validated_data.get("auto_renew")
-        instance.save()
-        return instance
+class SubscriptionUpdateAutoRenewSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Subscription
+        fields = ["auto_renew"]
    
 class RetryPaymentSerializer(serializers.ModelSerializer):
     class Meta:

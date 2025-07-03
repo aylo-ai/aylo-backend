@@ -349,21 +349,14 @@ class RetryPaymentListView(generics.ListAPIView):
         subscription_id = self.kwargs.get('pk')
         return RetryPayment.objects.filter(subscription_id=subscription_id)
     
-class SubscriptionUpdateAutoRenewView(APIView):
+class SubscriptionUpdateAutoRenewView(generics.UpdateAPIView):
     serializer_class = serializers.SubscriptionUpdateAutoRenewSerializer
     permission_classes = (permissions.IsAuthenticated,)
     queryset = Subscription.objects.all()
     
-    def get_object(self):
-        subscription_id = self.kwargs.get('pk')
-        return Subscription.objects.filter(id=subscription_id).first()
-
-    def patch(self, request, *args, **kwargs):
+    def update(self, request, *args, **kwargs):
         instance = self.get_object()
-        if not instance:
-            return error_response(message=_("Obuna topilmadi"), code=404)
-        serializer = self.serializer_class(data=request.data, context={"request": request})
+        serializer = self.get_serializer(instance, data=request.data, partial=True) 
         serializer.is_valid(raise_exception=True)
-        serializer.update(validated_data=serializer.validated_data, instance=instance)
+        serializer.save()
         return success_response(message=_("Obuna muvaffaqiyatli tahrirlandi"), data=serializer.data)
-    

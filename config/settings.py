@@ -233,6 +233,7 @@ LANGUAGES = [
     ('ru', _('Russian')),
     ('uz', _('Uzbek')),
     ('kn', _('Korean')),
+    ('ar', _('Arabic')),
 ]
 
 # Directory to store language files (translations)
