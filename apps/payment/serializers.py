@@ -530,6 +530,7 @@ class SubscriptionUpdateSerializer(serializers.Serializer):
             update_user_balance(user, amount)
 
             subscription.next_payment_date = timezone.now().date() + timedelta(days=pricing_package.duration_days)
+            subscription.end_date = timezone.now().date() + timedelta(days=pricing_package.duration_days)
             subscription.auto_renew = True
             subscription.retry_count = 0
             subscription.last_payment_date = timezone.now().date()
