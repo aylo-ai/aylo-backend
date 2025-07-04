@@ -3,13 +3,12 @@ from datetime import timedelta
 from django.utils import timezone
 from rest_framework import serializers
 from django.db import transaction
-from rest_framework.views import APIView
-from rest_framework import permissions
+
 
 from apps.payment.models import Feature, PricingPackage, Card, Transaction, Subscription, RetryPayment, Balance
 from shared.addons.enums import TransactionTypes, PaymentStatuses, SubscriptionStatuses
 from shared.addons.payment import check_payme_card_token, create_payme_receipt, commit_payme_receipt, \
-    update_user_balance, send_create_card_request, send_verify_code_request, verify_payme_card_token
+    update_user_balance, send_create_card_request, send_verify_code_request, verify_payme_card_token, create_notification
 from shared.addons.validations import raise_validation_error
 from user.serializers import UserSerializer
 from shared.addons.enums import PricingPackageType
@@ -277,6 +276,7 @@ class PayWithCardSerializer(serializers.Serializer):
                 # Step 3: Commit the Payme receipt
                 success, message, receipt_id = commit_payme_receipt(card_token, receipt_id)
                 if not success:
+                    create_notification(user, message)
                     transaction_obj.error_message = message
                     transaction_obj.save()
                     raise_validation_error(message=_("To'lov tizimi bilan bog'liq muammo yuz berdi: {}").format(message))
@@ -512,6 +512,7 @@ class SubscriptionUpdateSerializer(serializers.Serializer):
             success, message, receipt_id = commit_payme_receipt(card.card_token, receipt_id)
             print(f"success: {success}")
             if not success:
+                create_notification(user, message)
                 transaction1.status = PaymentStatuses.FAILED.value
                 transaction1.error_message = message
                 transaction1.save()

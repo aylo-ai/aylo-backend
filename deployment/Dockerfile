@@ -10,6 +10,7 @@ RUN apt-get update && apt-get install -y \
     ffmpeg \
     gettext \
     libavcodec-extra \
+    ca-certificates \
     gcc \
     && rm -rf /var/lib/apt/lists/*
 
@@ -30,6 +31,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     gettext \
     ffmpeg \
     libavcodec-extra \
+    ca-certificates \
     && rm -rf /var/lib/apt/lists/*
 
 COPY --from=builder /usr/src/app/wheels /wheels
