@@ -19,4 +19,6 @@ urlpatterns = [
     path("subscription/<uuid:pk>/retry-payments/", views.DashboardRetryPaymentList.as_view()),
     path("assistant/<uuid:pk>/file-uploads/", views.DashboardAssistantFileUploadList.as_view()),
     path("user/<uuid:pk>/cards/", views.DashboardCardList.as_view()),
+    path("send-otp/login/", views.DashboardSendOtpLoginView.as_view()),
+    path("verify-otp/login/", views.DashboardVerifyOtpLoginView.as_view()),
 ]

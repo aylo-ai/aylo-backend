@@ -1,7 +1,9 @@
 from rest_framework import serializers
 
 from apps.assistant.models import Conversation
-from apps.shared.addons.enums import SenderTypes
+from apps.shared.addons.enums import SenderTypes, UserRoles
+from apps.user.models import User
+
 
 class DashboardConversationSerializer(serializers.ModelSerializer):
     message_price = serializers.SerializerMethodField(method_name="get_message_price")
@@ -34,3 +36,43 @@ class DashboardConversationSerializer(serializers.ModelSerializer):
         }
 
     
+class DashboardSendOtpLoginSerializer(serializers.Serializer):
+    phone_number = serializers.CharField(required=True)
+
+    def validate(self, attrs):
+        phone_number = attrs.get("phone_number")
+        if not phone_number:
+            raise serializers.ValidationError("Telefon raqam kiritilmagan")
+        return attrs
+    
+class DashboardVerifyOtpLoginSerializer(serializers.Serializer):
+    phone_number = serializers.CharField(required=True)
+    code = serializers.CharField(required=True)
+    
+    def validate(self, attrs):
+        phone_number = attrs.get("phone_number")
+        code = attrs.get("code")
+        user = User.objects.filter(phone_number=phone_number).first()
+        if not user:
+            raise serializers.ValidationError("Bizda bunday foydalanuvchi topilmadi")
+        if user.user_role != UserRoles.ADMIN.value:
+            raise serializers.ValidationError("Telefon raqam bilan login qiling")
+
+        if not phone_number:
+            raise serializers.ValidationError("Telefon raqam kiritilmagan")
+        if not code:
+            raise serializers.ValidationError("Code kiritilmagan")
+        return attrs
+
+    def get_tokens(self): # noqa
+        phone_number = self.validated_data.get('phone_number', None)
+        if phone_number:
+            user = User.objects.filter(phone_number=phone_number).first()
+        if user:
+            return user.tokens()
+        return None
+    
+    def to_representation(self, instance):
+        data = super().to_representation(instance)
+        data['tokens'] = self.get_tokens()
+        return data
