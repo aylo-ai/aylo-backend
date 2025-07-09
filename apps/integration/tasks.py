@@ -92,6 +92,8 @@ def process_instagram_message(account_id, combined_message, user_message, audio_
     print(f"Sender ID: {sender_id}")
     if not sender_id:
         return
+    input_tokens = 0
+    output_tokens = 0
     if audio_file:
         combined_message,input_tokens,output_tokens = process_instagram_audio(audio_file, assistant.language)
     print(f"Message text: {combined_message}")

@@ -135,6 +135,7 @@ class DashboardSubscriptionList(generics.ListAPIView):
     queryset = Subscription.objects.all()
     serializer_class = SubscriptionSerializer
     permission_classes = [IsAdmin, IsAuthenticated]
+    pagination_class = StandardResultsSetPagination
     
 
 class DashboardSubscriptionDetail(generics.RetrieveAPIView):
