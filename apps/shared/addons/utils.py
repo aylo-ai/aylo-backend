@@ -484,13 +484,14 @@ def speech_to_text(audio_bytes: bytes, language: str = "uz") -> str:
         print(f"[speech_to_text] Traceback: {traceback.format_exc()}")
         return "Sorry, I couldn't understand the audio.", None, None
     
-def create_lead(full_name, phone_number, email, product, metadata=None):  
+def create_lead(full_name, phone_number, email, product, assistant, metadata=None):  
     try:
         lead = Lead.objects.create(
             full_name=full_name,
             phone_number=phone_number,
             email=email,
             product=product,
+            assistant=assistant,
             metadata=metadata
         )
         return lead
