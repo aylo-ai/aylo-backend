@@ -71,7 +71,12 @@ class IntegrationRetrieveUpdateDestroyView(generics.RetrieveUpdateDestroyAPIView
 
     def update(self, request, *args, **kwargs):
         instance = self.get_object()
-        serializer = self.get_serializer(instance, data=request.data, partial=True)
+        base_url = f"{request.scheme}://{request.get_host()}"
+        context_data = {
+            "base_url": base_url,
+            "request": request
+        }
+        serializer = self.get_serializer(instance, data=request.data, context=context_data, partial=True)
         serializer.is_valid(raise_exception=True)
         serializer.save()
         return success_response(message=_("Integration muvaffaqiyatli o'zgartirildi"), data=serializer.data, code=200)
