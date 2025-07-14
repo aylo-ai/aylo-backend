@@ -1,7 +1,9 @@
 from rest_framework import serializers
+from django.db.models import Sum
 
-from apps.assistant.models import Conversation
-from apps.shared.addons.enums import SenderTypes, UserRoles
+from apps.assistant.models import Conversation, Assistant, Message
+from apps.payment.models import Transaction
+from apps.shared.addons.enums import SenderTypes, UserRoles, ConversationStatuses, PaymentStatuses, MessageTypes
 from apps.user.models import User
 
 
@@ -76,3 +78,50 @@ class DashboardVerifyOtpLoginSerializer(serializers.Serializer):
         data = super().to_representation(instance)
         data['tokens'] = self.get_tokens()
         return data
+    
+class DashboardSerializer(serializers.Serializer):
+    assistants_count = serializers.SerializerMethodField(method_name="get_assistants_count")
+    users_count = serializers.SerializerMethodField(method_name="get_users_count")
+    conversations_count = serializers.SerializerMethodField(method_name="get_conversations_count")
+    transactions_price = serializers.SerializerMethodField(method_name="get_transactions_price")
+    ai_token_price = serializers.SerializerMethodField(method_name="get_ai_token_price")
+
+    class Meta:
+        fields = [
+            "assistants_count",
+            "users_count",
+            "conversations_count",
+            "transactions_price",
+            "ai_token_price",
+        ]
+    def get_assistants_count(self, obj):
+        return Assistant.objects.filter(is_active=True).count()
+    
+    def get_users_count(self, obj):
+        return User.objects.filter(is_active=True).count()
+    
+    def get_conversations_count(self, obj):
+        return Conversation.objects.count()
+    
+    def get_transactions_price(self, obj):
+        return Transaction.objects.filter(status=PaymentStatuses.SUCCESS.value).aggregate(total_price=Sum('amount'))['total_price'] or 0
+    
+    def get_ai_token_price(self, obj):
+        open_ai_pirce = 0
+        gemini_ai_pirce = 0
+        input_token = (Message.objects.filter(message_type=MessageTypes.TEXT.value, sender=SenderTypes.ASSISTANT.value)
+            .aggregate(total_input_token=Sum('input_tokens'))['total_input_token'] or 0)
+        output_token = (Message.objects.filter(message_type=MessageTypes.TEXT.value, sender=SenderTypes.ASSISTANT.value)
+            .aggregate(total_output_token=Sum('output_tokens'))['total_output_token'] or 0)
+        audio_input_token = (Message.objects.filter(message_type=MessageTypes.AUDIO.value, sender=SenderTypes.ASSISTANT.value)
+            .aggregate(total_input_token=Sum('input_tokens'))['total_input_token'] or 0)
+        audio_output_token = (Message.objects.filter(message_type=MessageTypes.AUDIO.value, sender=SenderTypes.ASSISTANT.value)
+            .aggregate(total_output_token=Sum('output_tokens'))['total_output_token'] or 0)
+        open_ai_pirce = (input_token/1000000 * 2.5) + (output_token/1000000 * 10)
+        gemini_ai_pirce = (audio_input_token/1000000 * 0.5) + (audio_output_token/1000000 * 0.6)
+
+        response = {
+            "open_ai_pirce": f"${open_ai_pirce:.2f}",
+            "gemini_ai_pirce": f"${gemini_ai_pirce:.2f}",
+        }
+        return response

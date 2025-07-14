@@ -232,13 +232,16 @@ class MessageSerializer(serializers.ModelSerializer, SubscriptionValidationMixin
             thread_id=conversation.thread_id
         )
         if response_data:
-            response_text= f"""
-                New lead created:
-                Full name: {response_data.full_name}
-                Phone number: {response_data.phone_number}
-                Email: {response_data.email}
-                Product: {response_data.product}
-            """
+            # Build response_text conditionally
+            response_lines = [
+                "🎉 *New Lead Created!*\n",
+                f"👤 *Full Name:* {response_data.full_name}  " if getattr(response_data, 'full_name', None) else None,
+                f"📞 *Phone Number:* {response_data.phone_number}  " if getattr(response_data, 'phone_number', None) not in [None, ""] else None,
+                f"📧 *Email:* {response_data.email}  " if getattr(response_data, 'email', None) not in [None, ""] else None,
+                f"📦 *Interested Product:* {response_data.product}\n" if getattr(response_data, 'product', None) else None,
+                "\n✅ Please follow up accordingly."
+            ]
+            response_text = "\n".join([line for line in response_lines if line])
             telegram_integration = assistant.integrations.filter(integration_type="telegram").first()
             telegram_groups = TelegramGroupIntegration.objects.filter(
                 integration=telegram_integration

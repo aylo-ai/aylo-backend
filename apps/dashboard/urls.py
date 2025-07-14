@@ -2,7 +2,7 @@ from django.urls import path
 from apps.dashboard import views
 
 urlpatterns = [
-    # path("dashboard/", views.DashboardView.as_view()),
+    path("dashboard/", views.DashboardView.as_view()),
     path("users/", views.DashboardUserList.as_view()),
     path("users/<uuid:pk>/assistants/", views.DashboardAssistantList.as_view()),
     path("assistant/<uuid:pk>/conversations/", views.DashboardConversationList.as_view()),

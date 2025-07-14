@@ -46,22 +46,21 @@ def process_message_task(chat_id, user_message, bot_token, chat_username=None, u
     publish_message_to_ws(conversation_id=conversation.id, message=user_message, sender='user', data=data, assistant_id=assistant.id)
     if assistant.ai_enabled:
         response_message, run_status, response_data = get_assistant_response_ai(user_message, assistant.assistant_id, conversation.thread_id)
-
+        response_lines = [
+                "🎉 *New Lead Created!*\n",
+                f"👤 *Full Name:* {response_data.full_name}  " if getattr(response_data, 'full_name', None) else None,
+                f"📞 *Phone Number:* {response_data.phone_number}  " if getattr(response_data, 'phone_number', None) not in [None, ""] else None,
+                f"📧 *Email:* {response_data.email}  " if getattr(response_data, 'email', None) not in [None, ""] else None,
+                f"📦 *Interested Product:* {response_data.product}\n" if getattr(response_data, 'product', None) else None,
+                "\n✅ Please follow up accordingly."
+            ]
+        response_text = "\n".join([line for line in response_lines if line])
     print(f"Response message: {response_message}")
 
     # Send response to user
     print(f"Response data: {response_data}")
     if response_data:
-        response_text = f"""
-🎉 *New Lead Created!*
-
-👤 *Full Name:* {response_data.full_name}  
-📞 *Phone Number:* {response_data.phone_number}  
-📧 *Email:* {response_data.email}  
-📦 *Interested Product:* {response_data.product}
-
-✅ Please follow up accordingly.
-            """
+        
         telegram_integration = assistant.integrations.filter(integration_type="telegram").first()
         telegram_groups = TelegramGroupIntegration.objects.filter(
             integration=telegram_integration
@@ -119,13 +118,15 @@ def process_instagram_message(account_id, combined_message, user_message, audio_
     print(f"Assistant response in Instagram: {response_message}")
     # Handle lead creation if response_data exists
     if response_data:
-        response_text = f"""
-            New lead created:
-            Full name: {response_data.full_name}
-            Phone number: {response_data.phone_number}
-            Email: {response_data.email}
-            Product: {response_data.product}
-        """
+        response_lines = [
+                "🎉 *New Lead Created!*\n",
+                f"👤 *Full Name:* {response_data.full_name}  " if getattr(response_data, 'full_name', None) else None,
+                f"📞 *Phone Number:* {response_data.phone_number}  " if getattr(response_data, 'phone_number', None) not in [None, ""] else None,
+                f"📧 *Email:* {response_data.email}  " if getattr(response_data, 'email', None) not in [None, ""] else None,
+                f"📦 *Interested Product:* {response_data.product}\n" if getattr(response_data, 'product', None) else None,
+                "\n✅ Please follow up accordingly."
+            ]
+        response_text = "\n".join([line for line in response_lines if line])
         # Send lead notification to Telegram groups if configured
         telegram_integration = assistant.integrations.filter(integration_type="telegram").first()
         telegram_groups = TelegramGroupIntegration.objects.filter(

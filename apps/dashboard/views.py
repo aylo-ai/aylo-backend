@@ -13,7 +13,12 @@ from apps.user.serializers import NotificationSerializer
 from apps.shared.permissions import IsAdmin, IsAuthenticated
 from apps.shared.addons.enums import UserRoles
 from apps.shared.pagination import StandardResultsSetPagination
-from apps.dashboard.serializers import DashboardConversationSerializer, DashboardSendOtpLoginSerializer, DashboardVerifyOtpLoginSerializer
+from apps.dashboard.serializers import (
+    DashboardConversationSerializer, 
+    DashboardSendOtpLoginSerializer, 
+    DashboardVerifyOtpLoginSerializer,
+    DashboardSerializer)
+
 from apps.shared.addons.validations import success_response, error_response
 from apps.shared.addons.verification import send_code, verify_code_cache
 from apps.shared.addons.enums import UserRoles
@@ -220,3 +225,13 @@ class DashboardVerifyOtpLoginView(APIView):
         if success:
             return success_response(data=serializer.data, message=message, code=200)
         return error_response(message=message, code=400)
+    
+
+class DashboardView(APIView):
+    serializer_class = DashboardSerializer
+    permission_classes = [IsAdmin, IsAuthenticated]
+
+    def get(self, request, *args, **kwargs):
+        serializer = self.serializer_class(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        return success_response(data=serializer.data, message="Dashboard data retrieved successfully", code=200)
