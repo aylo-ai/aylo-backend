@@ -32,9 +32,9 @@ class IntegrationCreateSerializer(serializers.ModelSerializer, SubscriptionValid
         api_token = attrs.get("api_token", None)
         user = self.context.get("request").user
         base_url = self.context.get("base_url")
-        assistant_id = self.context.get("assistant")
+        assistant_id = attrs.get("assistant").id
         try:
-            assistant = Assistant.objects.get(id=assistant_id)
+            assistant = Assistant.objects.filter(id=assistant_id).first()
             if not assistant.vector_id or not assistant.assistant_id:
                 raise_validation_error(message=_("Assistant faol emas, zarur fayl yuklash"))
         except Assistant.DoesNotExist:
@@ -48,7 +48,13 @@ class IntegrationCreateSerializer(serializers.ModelSerializer, SubscriptionValid
             try:
                 integration = Integration.objects.get(api_token=api_token, integration_type=IntegrationTypes.TELEGRAM.value)
                 if integration:
-                    raise_validation_error(message=_("Telegram bot integratsiyasi mavjud"))
+                    success, code = telegram_get_me(api_token)
+                    if not success or code == 401:
+                        raise_validation_error(message=_("Telegram API token yaroqli emas"))
+                    set_telegram_webhook(api_token, f"{base_url}/api/v1/integration/telegram/webhook/{api_token}/")
+                    code = get_webhook_info(api_token)
+                    if code == 400:
+                        raise_validation_error(message=_("Telegram webhook topilmadi"))
             except Integration.DoesNotExist:
                 pass
             success, code = telegram_get_me(api_token)
