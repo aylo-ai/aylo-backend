@@ -366,12 +366,12 @@ class MessageBulkReadView(generics.UpdateAPIView):
             code=200
         )
 
-class AssistantFileGoogleDocView(generics.CreateAPIView):
-    serializer_class = AssistantFileGoogleDocSerializer
-    permission_classes = [permissions.IsAuthenticated]
+# class AssistantFileGoogleDocView(generics.CreateAPIView):
+#     serializer_class = AssistantFileGoogleDocSerializer
+#     permission_classes = [permissions.IsAuthenticated]
 
-    def create(self, request, *args, **kwargs):
-        serializer = self.get_serializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
-        serializer.save()
-        return success_response(message=_("Assistant google sheet muvaffaqiyatli yaratildi"), data=serializer.data, code=201)
+#     def create(self, request, *args, **kwargs):
+#         serializer = self.get_serializer(data=request.data)
+#         serializer.is_valid(raise_exception=True)
+#         serializer.save()
+#         return success_response(message=_("Assistant google sheet muvaffaqiyatli yaratildi"), data=serializer.data, code=201)
