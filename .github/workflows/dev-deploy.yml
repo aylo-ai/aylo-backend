@@ -3,7 +3,7 @@ name: Deployment
 on:
   push:
     branches:
-      - main
+      - dev
 
     paths-ignore:
       - "README.md"
@@ -12,7 +12,7 @@ jobs:
   deploy:
     name: Deploy
 
-    runs-on: [self-hosted, repli-runner]
+    runs-on: [self-hosted, dev-runner]
 
     defaults:
       run:
@@ -24,7 +24,7 @@ jobs:
 
       - name: Deploy using docker compose
         run: |
-            cp /home/mukhammad/.secrets/.env .
+            cp /home/shahzod/.secrets/.env .
             docker compose down
             docker compose up --build -d
             yes | docker image prune
