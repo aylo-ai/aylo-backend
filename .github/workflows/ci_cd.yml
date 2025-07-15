@@ -4,15 +4,17 @@ on:
   push:
     branches:
       - main
+      - dev
 
     paths-ignore:
       - "README.md"
 
 jobs:
-  deploy:
+  deploy-prod:
+    if: github.ref == 'refs/heads/main' 
     name: Deploy
 
-    runs-on: self-hosted
+    runs-on: [self-hosted, repli-runner]
 
     defaults:
       run:
@@ -28,3 +30,18 @@ jobs:
             docker compose down
             docker compose up --build -d
             yes | docker image prune
+
+  deploy-dev:
+    if: github.ref == 'refs/heads/dev'
+    name: Deploy to Development
+    runs-on: [self-hosted, dev-runner]  # label for Server B
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Deploy with Docker Compose
+        run: |
+          cp /home/shahzod/.secrets/.env .
+          docker compose down
+          docker compose up --build -d
+          yes | docker image prune
