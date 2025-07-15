@@ -23,9 +23,6 @@ jobs:
       - name: Checkout the repo
         uses: actions/checkout@v4
 
-      - name: Print github.ref
-        run: echo 'github.ref is: ${{ github.ref }}'
-
       - name: Deploy using docker compose
         run: |
             cp /home/mukhammad/.secrets/.env .
@@ -40,9 +37,6 @@ jobs:
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
-      
-      - name: Print github.ref
-        run: echo 'github.ref is: ${{ github.ref }}'
 
       - name: Deploy with Docker Compose
         run: |
