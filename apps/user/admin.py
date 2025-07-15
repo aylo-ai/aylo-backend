@@ -4,7 +4,7 @@ from apps.user.models import User, PrivacyPolicy, UserAgreement, Notification
 
 @admin.register(User)
 class UserAdmin(admin.ModelAdmin):
-    list_display = ("username", "first_name", "last_name", "email", "phone_number", "user_role")
+    list_display = ("username", "first_name", "last_name", "email", "phone_number", "user_role", "date_joined")
     search_fields = ("username", "first_name", "last_name", "email", "phone_number")
     list_filter = ("user_role",)
     fieldsets = (
@@ -57,6 +57,7 @@ class NotificationAdmin(admin.ModelAdmin):
     list_display = ("user__username", "title", "type", "is_read")
     search_fields = ("user__username", "title", "type")
     list_filter = ("type", "is_read")
+    readonly_fields = ("created_time", "updated_time")
     fieldsets = (
         (None, {"fields": ("user", "title", "content", "type", "is_read",)}),
         ("Settings", {"fields": ("created_time", "updated_time")}),

@@ -1,0 +1,30 @@
+name: Deployment
+
+on:
+  push:
+    branches:
+      - dev
+
+    paths-ignore:
+      - "README.md"
+
+jobs:
+  deploy:
+    name: Deploy
+
+    runs-on: [self-hosted, dev-runner]
+
+    defaults:
+      run:
+        working-directory: ${{ github.workspace }}
+
+    steps:
+      - name: Checkout the repo
+        uses: actions/checkout@v4
+
+      - name: Deploy using docker compose
+        run: |
+            cp /home/shahzod/.secrets/.env .
+            docker compose down
+            docker compose up --build -d
+            yes | docker image prune

@@ -186,6 +186,7 @@ class AssistantFileUpload(BaseModel):
         super(AssistantFileUpload, self).delete(*args, **kwargs)
 
 class Lead(BaseModel):
+    assistant = models.ForeignKey(Assistant, on_delete=models.CASCADE, related_name="leads", null=True, blank=True)
     full_name = models.CharField(max_length=255, null=True, blank=True)
     phone_number = models.CharField(max_length=255, null=True, blank=True)
     email = models.EmailField(max_length=255, null=True, blank=True)

@@ -133,8 +133,8 @@ class SetDefaultCard(APIView):
     serializer_class = None
     permission_classes = (permissions.IsAuthenticated,)
 
-    def post(self, request):
-        card_id = request.data.get("card_id", None)
+    def post(self, request, *args, **kwargs):
+        card_id = self.kwargs.get("pk", None)
         user = self.request.user
         if card_id is None:
             return error_response(message=_("Karta ID kiritilmagan"))
@@ -293,15 +293,15 @@ class SubscriptionCreateView(generics.CreateAPIView):
         return success_response(message=_("Obuna muvaffaqiyatli yaratildi"), data=serializer.data)
     
 
-class SubscriptionUpdateView(APIView):
+class SubscriptionUpdateView(generics.CreateAPIView):
     serializer_class = serializers.SubscriptionUpdateSerializer
     permission_classes = (permissions.IsAuthenticated,)
 
-    def post(self, request, *args, **kwargs):
-        serializer = self.serializer_class(data=request.data, context={"request": request})
+    def create(self, request, *args, **kwargs):
+        serializer = self.get_serializer(data=request.data, context={"request": request})
         serializer.is_valid(raise_exception=True)
-        subscription = serializer.update(serializer.validated_data)
-        return success_response(message=_("Obuna muvaffaqiyatli tahrirlandi"), data=subscription)
+        data = serializer.save()
+        return success_response(message=_("Obuna muvaffaqiyatli tahrirlandi"), data=data)
 
 class SubscriptionCancellationView(APIView):
     permission_classes = [permissions.IsAuthenticated]
@@ -349,3 +349,14 @@ class RetryPaymentListView(generics.ListAPIView):
         subscription_id = self.kwargs.get('pk')
         return RetryPayment.objects.filter(subscription_id=subscription_id)
     
+class SubscriptionUpdateAutoRenewView(generics.UpdateAPIView):
+    serializer_class = serializers.SubscriptionUpdateAutoRenewSerializer
+    permission_classes = (permissions.IsAuthenticated,)
+    queryset = Subscription.objects.all()
+    
+    def update(self, request, *args, **kwargs):
+        instance = self.get_object()
+        serializer = self.get_serializer(instance, data=request.data, partial=True) 
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+        return success_response(message=_("Obuna muvaffaqiyatli tahrirlandi"), data=serializer.data)

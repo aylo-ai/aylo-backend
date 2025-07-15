@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="uz">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ogohlantirish</title>
+    <style>
+        body {
+            background: #f4f6fb;
+            font-family: 'Segoe UI', Arial, sans-serif;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+        }
+        .card {
+            background: #fff;
+            border-radius: 12px;
+            box-shadow: 0 4px 24px rgba(0,0,0,0.07);
+            padding: 32px 24px;
+            max-width: 370px;
+            width: 100%;
+            text-align: center;
+        }
+        .icon {
+            background: #ffe5e5;
+            border-radius: 50%;
+            width: 56px;
+            height: 56px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin: 0 auto 18px;
+        }
+        .icon svg {
+            width: 32px;
+            height: 32px;
+            fill: #ff4d4f;
+        }
+        h2 {
+            font-size: 22px;
+            color: #22223b;
+            margin-bottom: 12px;
+        }
+        p {
+            color: #4a4e69;
+            font-size: 15px;
+            margin-bottom: 24px;
+        }
+        .btn {
+            display: inline-block;
+            background: #4f8cff;
+            color: #fff;
+            padding: 12px 32px;
+            border-radius: 6px;
+            text-decoration: none;
+            font-weight: 600;
+            font-size: 15px;
+            transition: background 0.2s;
+        }
+        .btn:hover {
+            background: #2563eb;
+        }
+        @media (max-width: 480px) {
+            .card { padding: 20px 8px; }
+        }
+    </style>
+</head>
+<body>
+    <div class="card">
+        <div class="icon">
+            <!-- Warning icon -->
+            <svg viewBox="0 0 24 24"><path d="M12 2L2 22h20L12 2zm0 16h-1v-2h2v2h-1zm0-4h-1v-4h2v4h-1z"/></svg>
+        </div>
+        <h2>Diqqat! Tokenlar soni kam</h2>
+        <p>Hurmatli {{ user.first_name }}, sizning repli.uz platformasidagi so‘rov tokenlaringiz soni minimal darajadan pastga tushdi. Xizmatlarimizdan uzluksiz foydalanish uchun obunangizni yangilang.</p>
+        <a href="https://repli.uz/payments" class="btn">Obunani yangilash</a>
+    </div>
+</body>
+</html>

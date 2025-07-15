@@ -23,7 +23,7 @@ def get_redis_connection() -> Redis:
 
     return redis_connection
 
-
+redis_client = get_redis_connection()
 
 def add_to_redis_cache(key: str, value: str, exp_time: Optional[int] = None) -> None:
     """Add key-value pair to Redis cache."""
@@ -89,5 +89,7 @@ def publish_message_to_ws_assistant(conversation):
         "updated_time": str(conversation.updated_time),
         "last_message": last_message.message_content if last_message else None,
         "last_message_time": last_message_time if last_message_time else None,
+        "client_full_name": conversation.client_full_name,
+        "client_phone_email": conversation.client_phone_email
     }
     redis.publish("assistant-conversations", json.dumps(payload))

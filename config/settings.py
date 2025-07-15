@@ -233,6 +233,7 @@ LANGUAGES = [
     ('ru', _('Russian')),
     ('uz', _('Uzbek')),
     ('kn', _('Korean')),
+    ('ar', _('Arabic')),
 ]
 
 # Directory to store language files (translations)
@@ -486,15 +487,16 @@ CELERY_BEAT_SCHEDULE = {
 }
 
 # Modeltranslation settings
-MODELTRANSLATION_DEFAULT_LANGUAGE = 'en'
+MODELTRANSLATION_DEFAULT_LANGUAGE = 'uz'
 
 LANGUAGES = (
     ('en', 'English'),
     ('uz', 'Uzbek'),
     ('ru', 'Russian'),
     ('kk', 'Kazakh'),
+    ('ar', 'Arabic'),
 )
-MODELTRANSLATION_LANGUAGES = ('en', 'uz', 'ru', 'kk')
+MODELTRANSLATION_LANGUAGES = ('en', 'uz', 'ru', 'kk', 'ar')
 
 
 import sentry_sdk

@@ -2,6 +2,7 @@ import requests
 import base64
 import hashlib
 import hmac
+import time
 import json
 
 from django.http import HttpResponse
@@ -15,10 +16,13 @@ from shared.addons.instagram import get_long_lived_access_token, get_user_profil
 from shared.addons.telegram import handle_bot_added_to_group, handle_bot_removed_from_group
 from shared.addons.validations import success_response, error_response
 from shared.permissions import IsCustomer
-from .models import Integration, TelegramGroupIntegration
+from .models import Integration, TelegramGroupIntegration, InstagramMedia, CommentTriggerWord, InstagramCommentResponse
 from .serializers import IntegrationCreateSerializer, IntegrationSerializer, SendUserMessageSerializer, \
-    TelegramGroupSerializer
-from .tasks import process_message_task, process_instagram_message, process_voice_task, process_instagram_comment
+    TelegramGroupSerializer, InstagramMediaSerializer, CommentTriggerWordSerializer, InstagramCommentResponseSerializer
+from .tasks import process_message_task, process_instagram_message, process_voice_task, \
+                                process_instagram_comment, WAIT_SECONDS, process_collected_messages, send_telegram_message
+
+from shared.addons.redis import redis_client
 
 class IntegrationListCreateView(generics.ListCreateAPIView):
     queryset = Integration.objects.all()
@@ -67,7 +71,12 @@ class IntegrationRetrieveUpdateDestroyView(generics.RetrieveUpdateDestroyAPIView
 
     def update(self, request, *args, **kwargs):
         instance = self.get_object()
-        serializer = self.get_serializer(instance, data=request.data, partial=True)
+        base_url = f"{request.scheme}://{request.get_host()}"
+        context_data = {
+            "base_url": base_url,
+            "request": request
+        }
+        serializer = self.get_serializer(instance, data=request.data, context=context_data, partial=True)
         serializer.is_valid(raise_exception=True)
         serializer.save()
         return success_response(message=_("Integration muvaffaqiyatli o'zgartirildi"), data=serializer.data, code=200)
@@ -124,7 +133,7 @@ class InstagramWebhookView(APIView):
                     comment_data = change.get("value", {})
                     if comment_data:
                         print(f"Comment data: {comment_data}, Account ID: {account_id}")
-                        # process_instagram_comment.delay(account_id, comment_data)
+                        process_instagram_comment.delay(account_id, comment_data)
                         return success_response(message=_("Comment webhook ma'lumotlar muvaffaqiyatli olindi"), code=200)
 
         # Handle messages
@@ -132,6 +141,10 @@ class InstagramWebhookView(APIView):
         if messaging:
             audio_file = None
             is_echo = messaging[0].get("message", {}).get("is_echo")
+            reaction = messaging[0].get("reaction", {}).get("action", None)
+            if reaction:
+                print(f"Reaction received: {reaction}")
+                return success_response(message=_("Reaction muvaffaqiyatli olindi"), code=200)
             if messaging[0].get("message", {}).get("attachments",[{}])[0].get('type') == 'audio':
                 audio_file = messaging[0].get("message", {}).get("attachments", [{}])[0].get("payload", {}).get("url", None)
             elif messaging[0].get("message", {}).get("attachments",[{}])[0].get('type') in ['ig_reel', 'unsupported_type']:
@@ -145,7 +158,17 @@ class InstagramWebhookView(APIView):
                 print(f"Integration not found for account ID: {account_id}")
                 return error_response(message="Integration not found", code=404)
             # Start celery task to process the incoming message
-            process_instagram_message.delay(account_id, messaging, audio_file)
+            if audio_file:
+                process_instagram_message.delay(account_id, None, messaging,audio_file)
+            else:
+                message = messaging[0].get("message", {}).get("text",None)
+                if message is not None:  # Only push if message is not None
+                    redis_client.rpush(f"messages:{account_id}", message)
+                    redis_client.set(f"last_seen:{account_id}", time.time())
+
+                    # Schedule collector task only if not already scheduled
+                    redis_client.setex(f"collecting:{account_id}", WAIT_SECONDS + 1, "1")  # Prevent overlap
+                    process_collected_messages.apply_async((account_id, None, messaging), countdown=WAIT_SECONDS)
             return success_response(message=_("Xabar webhook ma'lumotlar muvaffaqiyatli olindi"), code=200)
 
         return success_response(message=_("Webhook ma'lumotlar muvaffaqiyatli olindi"), code=200)
@@ -161,9 +184,9 @@ class InstagramCallbackView(APIView):
         code = request.query_params.get("code")
         assistant_id = request.query_params.get("assistant_id")
         if not assistant_id:
-            return error_response(message=_("Assistant ID topilmadi"), code=400)
+            return error_response(message=("Assistant ID topilmadi"), code=400)
         if not code:
-            return error_response(message=_("Authorization code topilmadi"), code=400)
+            return error_response(message=("Authorization code topilmadi"), code=400)
 
         # Exchange the authorization code for an access token
         token_url = "https://api.instagram.com/oauth/access_token"
@@ -177,6 +200,8 @@ class InstagramCallbackView(APIView):
         print(f"Data: {data}")
 
         response = requests.post(token_url, data=data)
+        if response.status_code == 400:
+            return error_response(message=response.json().get("error_message"), code=400)
         print(f"Response: {response.text}")
         if response.status_code == 200:
             token_data = response.json()
@@ -187,12 +212,15 @@ class InstagramCallbackView(APIView):
             access_token = get_long_lived_access_token(short_lived_access_token)
             print(f"Long lived Access Token: {access_token}")
         else:
-            return error_response(message=_("Access token topilmadi"), code=400)
+            return error_response(message=("Access token topilmadi"), code=400)
         # get instagram user profile
         user_profile = get_user_profile(access_token)
         if user_profile:
             print(f"User Profile: {user_profile}")
-            integration, _ = Integration.objects.update_or_create(
+            if Integration.objects.filter(instagram_account_id=user_profile.get("instagram_account_id")).exists():
+                print("Sizda instagram integratsiyasi mavjud")
+                return error_response(message=("Instagram integratsiyasi sizda mavjud"), code=400)
+            integration, created = Integration.objects.get_or_create(
                 assistant_id=assistant_id,
                 integration_type=IntegrationTypes.INSTAGRAM.value,
                 defaults={
@@ -203,20 +231,20 @@ class InstagramCallbackView(APIView):
                     "instagram_username": user_profile.get("instagram_username"),
                 }
             )
+            if not created:
+                return error_response(message=("Instagram integratsiyasi sizda mavjud"), code=200)
             print(f"Integration is successfully created: {integration}")
         else:
-            return error_response(message=_("Foydalanuvchi profili topilmadi"), code=400)
+            return error_response(message=("Foydalanuvchi profili topilmadi"), code=400)
         
         # enable webhook for the integration
         url = f"https://graph.instagram.com/v22.0/me/subscribed_apps?access_token={access_token}&subscribed_fields=messages,comments"
         response = requests.post(url)
         print(f"Response: {response.text}")
         if response.status_code == 200:
-            return success_response(message=_("Integration muvaffaqiyatli yaratildi"), code=200,)
+            return success_response(message=("Integration muvaffaqiyatli yaratildi"), code=200)
         else:
-            return error_response(message=_("Webhook topilmadi"), code=400)
-
-
+            return error_response(message=("Webhook topilmadi"), code=400)
 
 class InstagramDeauthorizeView(APIView):
     def post(self, request, *args, **kwargs): # noqa
@@ -283,12 +311,19 @@ class InstagramDeauthorizeView(APIView):
                 ).first()
                 print(f"Deauthorize Integration: {integration}")
                 if integration:
-                    # Delete the integration
+                    # Delete all related InstagramCommentResponse and their InstagramMedia
+                    comment_responses = InstagramCommentResponse.objects.filter(integration=integration)
+                    for response in comment_responses:
+                        old_media = list(response.instagram_media.all())
+                        print(f"Old media: {old_media}")
+                        for media in old_media:
+                            media.delete()
+                        response.delete()
+                    # Delete the integration itself
                     integration.delete()
-                    print(f"User {user_id} deauthorized the app and their integration was removed.")
+                    print(f"User {user_id} deauthorized the app and their integration and related data were removed.")
                 else:
                     print(f"User {user_id} deauthorized the app but no integration was found.")
-                
                 return success_response(message=_("Foydalanuvchi appni deauthorized qildi"), code=200)
             except Exception as e:
                 print(f"Error during deauthorization: {str(e)}")
@@ -369,6 +404,21 @@ class TelegramWebhookView(APIView):
         chat_id = data.get("chat", {}).get("id", None)
         chat_title = data.get('chat', {}).get('title', 'Private Chat')
         chat_type = data.get("chat", {}).get("type", None)
+        #handling username
+        first_name = data.get("chat", {}).get("first_name", None)
+        last_name = data.get("chat", {}).get("last_name", None)
+        username = data.get("chat", {}).get("username", None)
+        chat_username = None
+        if first_name and last_name:
+            chat_username = f"{first_name} {last_name}"
+        elif first_name:
+            chat_username = first_name
+        else:
+            chat_username = f"@{username}_{chat_id}"
+
+        if "sticker" in data:
+            print("[-] Cannot handle sticker messages")
+            return success_response(message=_("Sticker message muvaffaqiyatli olindi"), code=200)
 
             # Voice message handling
         if "voice" in data:
@@ -376,20 +426,30 @@ class TelegramWebhookView(APIView):
             process_voice_task.delay(chat_id, voice_file_id, bot_token)
             return success_response(message=_("Voice message muvaffaqiyatli olindi"), code=200)
 
-        user_message = data.get('text')
-        print(f"Chat ID: {chat_id}, Message: {user_message}")
-        if chat_type in ['group', 'supergroup']:
-            # if "reply_to_message" in data and data["reply_to_message"]["from"]["is_bot"]:
-            print("Ignoring group messages and replies to the bot.")
-            
-            if data.get('new_chat_member', {}).get('is_bot'):
-                handle_bot_added_to_group(chat_id, chat_title, bot_token)
-            elif data.get('left_chat_member', {}).get('is_bot'):
-                handle_bot_removed_from_group(chat_id, chat_title)
-        else:
-            # Start the Celery task
-            process_message_task.delay(chat_id, user_message, bot_token)
-            print("celery task started")
+        user_message = data.get('text', None)
+        chat_group_id = data.get('chat', {}).get('id', None)
+        if user_message or chat_group_id:
+            print(f"Chat ID: {chat_id}, Message: {user_message}")
+            if chat_type in ['group', 'supergroup']:
+                # if "reply_to_message" in data and data["reply_to_message"]["from"]["is_bot"]:
+                print("Ignoring group messages and replies to the bot.")
+                
+                if data.get('new_chat_member', {}).get('is_bot'):
+                    handle_bot_added_to_group(chat_id, chat_title, bot_token)
+                elif data.get('left_chat_member', {}).get('is_bot'):
+                    handle_bot_removed_from_group(chat_id, chat_title)
+            else:
+                # --- Redis Message Queuing ---
+                redis_client.rpush(f"messages:{chat_id}", user_message)
+                redis_client.set(f"last_seen:{chat_id}", time.time())
+
+                # Schedule collector task only if not already scheduled
+                print(f"chat_username: {chat_username}")
+                print(f"contact username: {username}")
+                redis_client.setex(f"collecting:{chat_id}", WAIT_SECONDS + 1, "1")  # Prevent overlap
+                process_collected_messages.apply_async((chat_id, bot_token, None, chat_username, username), countdown=WAIT_SECONDS)
+                # Start the Celery task
+                print("celery task started")
         return success_response(message=_("Xabar muvaffaqiyatli olindi"), code=200)
 
 
@@ -402,10 +462,135 @@ class TelegramGroupListView(generics.ListAPIView):
         integration_id = self.kwargs.get('pk')
         return self.queryset.filter(integration_id=integration_id)
     
-# class GoogleDriveWebhookView(APIView):
-#     def post(self, request, *args, **kwargs):
-#         data = request.data
-#         headers = request.headers
-#         print(f"Google Drive webhook data: {data}")
-#         print(f"Google Drive webhook headers: {headers}")
-#         return success_response(message=_("Google Drive webhook muvaffaqiyatli olindi"), code=200)
+class InstagramPostListView(APIView):
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get(self, request, *args, **kwargs):
+        integration_id = self.kwargs.get('pk')
+        integration = Integration.objects.filter(id=integration_id, integration_type=IntegrationTypes.INSTAGRAM.value).first()
+        if not integration:
+            return error_response(message=_("Integration topilmadi"), code=400)
+        access_token = integration.api_token
+        url = f"https://graph.instagram.com/v23.0/me/media"
+        params = {
+            "access_token": access_token,
+            "fields": "id,media_type,media_url,username,timestamp,caption,comments_count,like_count,permalink,thumbnail_url,children{media_type,media_url}"
+        }
+        response = requests.get(url, params=params)
+        if response.status_code == 200:
+            data = []
+            for item in response.json()["data"]:
+                if not InstagramMedia.objects.filter(media_id=item.get("id")).exists():
+                    data.append(item)
+            return success_response(message=_("Instagram post muvaffaqiyatli olindi"), code=200, data=data)
+        else:
+            return error_response(message=_("Instagram post topilmadi"), code=400)
+        
+
+class CommentTriggerWordListCreateView(generics.CreateAPIView):
+    queryset = CommentTriggerWord.objects.all()
+    serializer_class = CommentTriggerWordSerializer
+    permission_classes = [permissions.IsAuthenticated]
+
+    def create(self, request, *args, **kwargs):
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+        return success_response(message=_("Trigger word muvaffaqiyatli yaratildi"), data=serializer.data, code=201)
+
+
+class CommentTriggerWordRetrieveView(generics.RetrieveUpdateDestroyAPIView):
+
+    queryset = CommentTriggerWord.objects.all()
+    serializer_class = CommentTriggerWordSerializer
+    permission_classes = [permissions.IsAuthenticated]
+
+    def retrieve(self, request, *args, **kwargs):
+        instance = self.get_object()
+        serializer = self.get_serializer(instance)
+        return success_response(message=_("Trigger word muvaffaqiyatli olindi"), data=serializer.data, code=200)
+
+    def update(self, request, *args, **kwargs):
+        instance = self.get_object()
+        serializer = self.get_serializer(instance, data=request.data, partial=True)
+        serializer.is_valid(raise_exception=True)
+        self.perform_update(serializer)
+        return success_response(message=_("Trigger word muvaffaqiyatli o'zgartirildi"), data=serializer.data, code=200)
+
+    def destroy(self, request, *args, **kwargs):
+        instance = self.get_object()
+        self.perform_destroy(instance)
+        return success_response(message=_("Trigger word muvaffaqiyatli o'chirildi"), code=204)
+
+
+class InstagramCommentResponseListCreateView(generics.ListCreateAPIView):
+    queryset = InstagramCommentResponse.objects.all()
+    serializer_class = InstagramCommentResponseSerializer
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get_queryset(self):
+        assistant_id = self.kwargs.get('pk')
+        integration_id = Integration.objects.filter(assistant_id = assistant_id, integration_type=IntegrationTypes.INSTAGRAM.value).first()
+        return self.queryset.filter(integration_id=integration_id)
+
+    def list(self, request, *args, **kwargs):
+        queryset = self.filter_queryset(self.get_queryset())
+        serializer = self.get_serializer(queryset, many=True)
+        return success_response(message=_("Comment responses muvaffaqiyatli olindi"), data=serializer.data, code=200)
+
+    def create(self, request, *args, **kwargs):
+        assistant_id = self.kwargs.get('pk')
+        try:
+            integration = Integration.objects.get(assistant_id=assistant_id, integration_type=IntegrationTypes.INSTAGRAM.value)
+        except Integration.DoesNotExist:
+            return error_response(message=_("Integration topilmadi"), code=404)
+        
+        serializer = self.get_serializer(data=request.data, context={"integration": integration})
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+        return success_response(message=_("Comment response muvaffaqiyatli yaratildi"), data=serializer.data, code=201)
+
+
+class InstagramCommentResponseRetrieveView(generics.RetrieveUpdateDestroyAPIView):
+    queryset = InstagramCommentResponse.objects.all()
+    serializer_class = InstagramCommentResponseSerializer
+    permission_classes = [permissions.IsAuthenticated]
+
+    def retrieve(self, request, *args, **kwargs):
+        instance = self.get_object()
+        serializer = self.get_serializer(instance)
+        return success_response(message=_("Comment response muvaffaqiyatli olindi"), data=serializer.data, code=200)
+
+    def update(self, request, *args, **kwargs):
+        instance = self.get_object()
+        serializer = self.get_serializer(instance, data=request.data, partial=True)
+        serializer.is_valid(raise_exception=True)
+        self.perform_update(serializer)
+        return success_response(message=_("Comment response muvaffaqiyatli o'zgartirildi"), data=serializer.data, code=200)
+
+    def destroy(self, request, *args, **kwargs):
+        instance = self.get_object()
+        self.perform_destroy(instance)
+        return success_response(message=_("Comment response muvaffaqiyatli o'chirildi"), code=204)
+
+class InstagramMediaRetrieveView(generics.RetrieveUpdateDestroyAPIView):
+    queryset = InstagramMedia.objects.all()
+    serializer_class = InstagramMediaSerializer
+    permission_classes = [permissions.IsAuthenticated]
+
+    def retrieve(self, request, *args, **kwargs):
+        instance = self.get_object()
+        serializer = self.get_serializer(instance)
+        return success_response(message=_("Instagram media muvaffaqiyatli olindi"), data=serializer.data, code=200)
+
+    def update(self, request, *args, **kwargs):
+        instance = self.get_object()
+        serializer = self.get_serializer(instance, data=request.data, partial=True)
+        serializer.is_valid(raise_exception=True)
+        self.perform_update(serializer)
+        return success_response(message=_("Instagram media muvaffaqiyatli o'zgartirildi"), data=serializer.data, code=200)
+
+    def destroy(self, request, *args, **kwargs):
+        instance = self.get_object()
+        self.perform_destroy(instance)
+        return success_response(message=_("Instagram media muvaffaqiyatli o'chirildi"), code=204)

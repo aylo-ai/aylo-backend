@@ -16,7 +16,7 @@ from config.settings import redis_connection, GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SE
 import user.serializers as serializers
 from shared.addons.validations import error_response, success_response
 from shared.addons.verification import send_code
-from apps.user.models import User, PrivacyPolicy, UserAgreement
+from apps.user.models import User, PrivacyPolicy, UserAgreement, Notification
 from shared.addons.verification import send_email_code, verify_email_code, verify_code_cache
 from shared.permissions import IsAdmin, IsSuperAdmin, IsCustomer
 import jwt
@@ -315,13 +315,13 @@ class GoogleAuthCallbackView(APIView):
             print(f"user: {user}")
             if not user:
                 # create user
-                full_name = user_info.get("given_name").split(" ")
+                full_name = user_info.get("name").split(" ")
                 if len(full_name) > 1:
                     first_name = full_name[0]
                     last_name = full_name[1]
                 else:
                     first_name = user_info.get("given_name", "")
-                    last_name = user_info.get("name", "")
+                    last_name = user_info.get("family_name", "")
                 user = User.objects.create(
                     sub=sub,
                     email=user_info.get("email", ""),
@@ -352,5 +352,27 @@ class AddStaffView(generics.CreateAPIView):
             code=status.HTTP_201_CREATED
         )
         
-        
+
+class NotificationListView(generics.ListAPIView):
+    queryset = Notification.objects.all()
+    serializer_class = serializers.NotificationSerializer
+    permission_classes = [IsCustomer]
     
+    def get_queryset(self):
+        return self.queryset.filter(user=self.request.user)
+    
+
+class NotificationUpdateView(generics.UpdateAPIView):
+    queryset = Notification.objects.all()
+    serializer_class = serializers.NotificationSerializer
+    permission_classes = [IsCustomer]
+    
+    def get_object(self):
+        return self.queryset.filter(id=self.kwargs.get("pk")).first()
+    
+    def update(self, request, *args, **kwargs):
+        instance = self.get_object()
+        serializer = self.get_serializer(instance, data=request.data, partial=True)
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+        return success_response(message=_("Notification muvaffaqiyatli yangilandi"), data=serializer.data, code=status.HTTP_200_OK)

@@ -23,6 +23,7 @@ def generate_code():
 
 
 def send_playmobile_sms(phone_number, message):
+    # Send SMS
     message_id = f"repliuz_{randint(100000, 999999)}"
     payload = get_playmobile_payload(phone_number, message_id, originator, message)
     try:

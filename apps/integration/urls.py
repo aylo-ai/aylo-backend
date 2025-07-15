@@ -12,7 +12,17 @@ urlpatterns = [
     path('instagram/deauthorize/', views.InstagramDeauthorizeView.as_view()),
     path('instagram/data-deletion/', views.InstagramDataDeletionView.as_view()),
 
+    path("integration/<uuid:pk>/instagram/posts/", views.InstagramPostListView.as_view()),
+    
+    # Trigger words endpoints
+    path("trigger-words/", views.CommentTriggerWordListCreateView.as_view()),
+    path("trigger-words/<uuid:pk>/", views.CommentTriggerWordRetrieveView.as_view()),
+    path("intagram-media/<uuid:pk>/", views.InstagramMediaRetrieveView.as_view()),
+    
+    # Comment responses endpoints
+    path("assistant/<uuid:pk>/instagram/comment-responses/", views.InstagramCommentResponseListCreateView.as_view()),
+    path("instagram/comment-responses/<uuid:pk>/", views.InstagramCommentResponseRetrieveView.as_view()),
+
     path("send-telegram-message/", views.SendUserMessageView.as_view()),
 
-    # path("google-drive/webhook/", views.GoogleDriveWebhookView.as_view()),
 ]

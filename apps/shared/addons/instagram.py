@@ -104,3 +104,16 @@ def send_instagram_private_reply(access_token, account_id, comment_id, message):
         success = False
 
     return success
+
+def send_instagram_comment_reply(access_token, comment_id, message):
+    """Send comment reply to an Instagram comment"""
+    url = f"https://graph.instagram.com/v23.0/{comment_id}/replies"
+    headers = {
+        "Content-Type": "application/json",
+        "Authorization": f"Bearer {access_token}",
+    }
+    payload = {
+        "message": message
+    }
+    response = requests.post(url, json=payload, headers=headers)
+    print(f"send_instagram_comment_reply response: {response.text}")

@@ -1,14 +1,13 @@
 from rest_framework import serializers
 from django.utils.translation import gettext_lazy as _
 
-from .models import Integration, TelegramGroupIntegration
-from apps.assistant.models import Conversation
-from apps.assistant.models import Assistant, Conversation
+from .models import Integration, TelegramGroupIntegration, InstagramMedia, CommentTriggerWord, InstagramCommentResponse
+from apps.assistant.models import Conversation, Assistant
 
 from shared.addons.enums import IntegrationTypes, ConversationPlatforms, ConversationStatuses
 from shared.addons.telegram import telegram_get_me, set_telegram_webhook, get_webhook_info, send_telegram_message
 from shared.addons.utils import create_message
-from shared.addons.validations import raise_validation_error, success_response
+from shared.addons.validations import raise_validation_error, success_response, error_response
 from shared.mixins import SubscriptionValidationMixin
 
 
@@ -33,11 +32,11 @@ class IntegrationCreateSerializer(serializers.ModelSerializer, SubscriptionValid
         api_token = attrs.get("api_token", None)
         user = self.context.get("request").user
         base_url = self.context.get("base_url")
-        assistant_id = self.context.get("assistant_id")
+        assistant_id = attrs.get("assistant").id
         try:
-            assistant = Assistant.objects.get(id=assistant_id)
-            if not assistant.ai_enabled or integration_type == IntegrationTypes.WEBSITE.value:
-                raise_validation_error(message=_("Assistant AI sizda yoqilmagan"))
+            assistant = Assistant.objects.filter(id=assistant_id).first()
+            if not assistant.vector_id or not assistant.assistant_id:
+                raise_validation_error(message=_("Assistant faol emas, zarur fayl yuklash"))
         except Assistant.DoesNotExist:
             raise_validation_error(message=_("Assistant topilmadi"))
         # Use the mixin's validation method
@@ -46,6 +45,18 @@ class IntegrationCreateSerializer(serializers.ModelSerializer, SubscriptionValid
         self.validate_intergation_count(user, assistant_id)
 
         if integration_type == IntegrationTypes.TELEGRAM.value and api_token:
+            try:
+                integration = Integration.objects.get(api_token=api_token, integration_type=IntegrationTypes.TELEGRAM.value)
+                if integration:
+                    success, code = telegram_get_me(api_token)
+                    if not success or code == 401:
+                        raise_validation_error(message=_("Telegram API token yaroqli emas"))
+                    set_telegram_webhook(api_token, f"{base_url}/api/v1/integration/telegram/webhook/{api_token}/")
+                    code = get_webhook_info(api_token)
+                    if code == 400:
+                        raise_validation_error(message=_("Telegram webhook topilmadi"))
+            except Integration.DoesNotExist:
+                pass
             success, code = telegram_get_me(api_token)
             if not success or code == 401:
                 raise_validation_error(message=_("Telegram API token yaroqli emas"))
@@ -150,4 +161,156 @@ class SendUserMessageSerializer(serializers.Serializer, SubscriptionValidationMi
 
         return success_response(message=_("Xabar muvaffaqiyatli yuborildi"), code=200)
 
+
+class InstagramMediaSerializer(serializers.ModelSerializer):
+    children = serializers.JSONField(required=False)
+
+    class Meta:
+        model = InstagramMedia
+        fields = [
+            "id",
+            "media_id",
+            "media_type",
+            "media_url",
+            "username",
+            "timestamp",
+            "caption",
+            "comments_count",
+            "like_count",
+            'children'
+        ]
+
+
+class CommentTriggerWordSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = CommentTriggerWord
+        fields = [
+            'id',
+            'trigger_word'
+        ]
+
+    def validate_trigger_word(self, value):
+        if not value or not value.strip():
+            raise serializers.ValidationError(_("Trigger word bo'sh bo'lishi mumkin emas"))
+        
+        return value.strip()
+
+
+class InstagramCommentResponseSerializer(serializers.ModelSerializer):
+    trigger_words = CommentTriggerWordSerializer(many=True, read_only=True)
+    instagram_medias = InstagramMediaSerializer(source='instagram_media', many=True, read_only=True)
+
+    trigger_words_list = serializers.ListField(
+        child=serializers.CharField(), write_only=True, required=False
+    )
+    instagram_media_list = serializers.ListField(
+        child=serializers.JSONField(), write_only=True, required=False
+    )
+
+    class Meta:
+        model = InstagramCommentResponse
+        fields = [
+            'id',
+            'comment_message_template',
+            'private_message_template',
+            'trigger_words',
+            'instagram_medias',
+            'trigger_words_list',
+            'instagram_media_list',
+            'is_respond_to_all_comments'
+        ]
+
+    def validate(self, attrs):
+        if not attrs.get('comment_message_template', '').strip() and not attrs.get('private_message_template', '').strip():
+            raise serializers.ValidationError(_("Kamida bitta xabar shabloni kiritilishi kerak"))
+        return attrs
+
+    def create(self, validated_data):
+        integration = self.context.get('integration')
+        trigger_words_list = validated_data.pop('trigger_words_list', [])
+        instagram_media_list = validated_data.pop('instagram_media_list', [])
+
+        if len(trigger_words_list) == 0:
+            validated_data['is_respond_to_all_comments'] = True
+        else:
+            validated_data['is_respond_to_all_comments'] = False
+
+        instance = InstagramCommentResponse.objects.create(**validated_data, integration=integration)
+
+        # Create or get trigger words
+        for word in trigger_words_list:
+            if word.strip():
+                trigger_word, _ = CommentTriggerWord.objects.get_or_create(trigger_word=word.strip())
+                instance.trigger_words.add(trigger_word)
+
+        # Create or get Instagram media
+        instagram_media_objs = []
+        for media_data in instagram_media_list:
+            media = InstagramMedia.objects.create(
+                media_id=media_data.get('id'),
+                media_type=media_data.get('media_type', None),
+                media_url=media_data.get('media_url', None),
+                username=media_data.get('username', None),
+                timestamp=media_data.get('timestamp', None),
+                caption=media_data.get('caption', None),
+                comments_count=media_data.get('comments_count', None),
+                like_count=media_data.get('like_count', None),
+                children=media_data.get('children', None)
+                )
+            instagram_media_objs.append(media)
+        
+        # Add all media at once to prevent duplicates
+        if instagram_media_objs:
+            instance.instagram_media.add(*instagram_media_objs)
+
+        instance.save()
+        return instance
+    
+    def update(self, instance, validated_data):
+        print(f"Instance: {instance}")
+        trigger_words_list = validated_data.pop('trigger_words_list', [])
+        instagram_media_list = validated_data.pop('instagram_media_list', [])
+        instance = super().update(instance, validated_data)
+        instance.trigger_words.clear()
+        instance.instagram_media.all().delete()
+
+        if trigger_words_list:
+            trigger_word_objs = []
+            for word in trigger_words_list:
+                obj, _ = CommentTriggerWord.objects.get_or_create(trigger_word=word)
+                trigger_word_objs.append(obj)
+            instance.trigger_words.add(*trigger_word_objs)
+        
+        if instagram_media_list is not None:
+            current_media_ids = set(instance.instagram_media.values_list('media_id', flat=True))
+            new_media_ids = set(media.get('media_id') or media.get('id') for media in instagram_media_list)
+
+            # Delete removed media
+            for media in instance.instagram_media.filter(media_id__in=current_media_ids - new_media_ids):
+                media.delete()
+
+            # Update existing and add new
+            for media_data in instagram_media_list:
+                media_id = media_data.get('media_id')
+                if media_id in current_media_ids:
+                    # Update existing
+                    media_obj = instance.instagram_media.get(media_id=media_id)
+                    for field, value in media_data.items():
+                        setattr(media_obj, field, value)
+                    media_obj.save()
+                else:
+                    # Create new
+                    obj = InstagramMedia.objects.create(
+                        media_id=media_data.get('media_id') or media_data.get('id'),
+                        media_type=media_data.get('media_type'),
+                        media_url=media_data.get('media_url'),
+                        username=media_data.get('username'),
+                        caption=media_data.get('caption'),
+                        timestamp=media_data.get('timestamp'),
+                        comments_count=media_data.get('comments_count'),
+                        like_count=media_data.get('like_count'),
+                        children=media_data.get('children')
+                    )
+                    instance.instagram_media.add(obj)
+        return instance
 

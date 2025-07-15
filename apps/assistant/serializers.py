@@ -215,7 +215,7 @@ class MessageSerializer(serializers.ModelSerializer, SubscriptionValidationMixin
         if audio_file:
             print("[MessageSerializer] Audio file received.")
             audio_bytes = audio_file.read()
-            transcribed_text = speech_to_text(audio_bytes, language=assistant.language or "uz")
+            transcribed_text, input_tokens, output_tokens = speech_to_text(audio_bytes, language=assistant.language or "uz")
             print(f"time after transcribe: {time.time()}")
             validated_data["message_content"] = transcribed_text
             validated_data["message_type"] = MessageTypes.AUDIO.value
@@ -233,13 +233,16 @@ class MessageSerializer(serializers.ModelSerializer, SubscriptionValidationMixin
             thread_id=conversation.thread_id
         )
         if response_data:
-            response_text= f"""
-                New lead created:
-                Full name: {response_data.full_name}
-                Phone number: {response_data.phone_number}
-                Email: {response_data.email}
-                Product: {response_data.product}
-            """
+            # Build response_text conditionally
+            response_lines = [
+                "🎉 *New Lead Created!*\n",
+                f"👤 *Full Name:* {response_data.full_name}  " if getattr(response_data, 'full_name', None) else None,
+                f"📞 *Phone Number:* {response_data.phone_number}  " if getattr(response_data, 'phone_number', None) not in [None, ""] else None,
+                f"📧 *Email:* {response_data.email}  " if getattr(response_data, 'email', None) not in [None, ""] else None,
+                f"📦 *Interested Product:* {response_data.product}\n" if getattr(response_data, 'product', None) else None,
+                "\n✅ Please follow up accordingly."
+            ]
+            response_text = "\n".join([line for line in response_lines if line])
             telegram_integration = assistant.integrations.filter(integration_type="telegram").first()
             telegram_groups = TelegramGroupIntegration.objects.filter(
                 integration=telegram_integration
@@ -296,21 +299,16 @@ class AssistantFileUploadSerializer(serializers.ModelSerializer, SubscriptionVal
 
     def validate(self, attrs):
         files = self.context.get("files")
-        website_url = attrs.get("website_url")
         assistant = self.context.get("assistant")
+        print(f"validate: assistant: {assistant}")
         # Use the mixin's validation method
         self.validate_subscription(assistant.user.subscription)
         if not assistant.ai_enabled:
             raise_validation_error(message=_("Assistant AI sizda yoqilmagan"))
-        # Validate website URL if provided
-        if website_url:
-            if not website_url.startswith(('http://', 'https://')):
-                raise_validation_error(message="Invalid website URL. Must start with http:// or https://")
-            return attrs
 
         # Validate files if no website URL
         if not files:
-            raise_validation_error(message="Either files or website_url must be provided.")
+            raise_validation_error(message=_("Fayl yuklanmadi"))
 
         if not isinstance(files, (list, tuple)):
             files = [files]

@@ -9,13 +9,13 @@ from io import BytesIO
 
 from django.utils.translation import gettext_lazy as _
 from django.conf import settings
-
+from django.core.mail import send_mail
 from apps.assistant.models import Message, Conversation, Lead, Assistant
 from config.settings import client
 from shared.addons.enums import SubscriptionStatuses, NotificationTypes
 from shared.addons.telegram import send_telegram_message
 from shared.addons.validations import success_response, raise_validation_error, error_response
-from shared.addons.verification import send_sms_text
+from shared.addons.verification import send_playmobile_sms
 from shared.ai_service.helper import upload_knowledge_base_file
 from shared.ai_service.assistant import check_response
 from shared.ai_service.thread import wait_on_run
@@ -24,15 +24,19 @@ from shared.ai_service.helper import create_prompt
 from shared.addons.payloads import valid_intents
 from shared.addons.redis import publish_message_to_ws_assistant
 
-def create_message(conversation, sender, content, audio_file=None, run_status=None):
+def create_message(conversation, sender, content, audio_file=None, run_status=None, input_tokens=None, output_tokens=None):
     message_type = 'audio' if audio_file else 'text'
     print(f"Creating message: {conversation}, {sender}, {content}, {audio_file}")
     if isinstance(audio_file, str) and audio_file.startswith("https://"):
         audio_file = get_audio_from_url(audio_file)
     
     # Extract token usage from run_status if available
-    input_tokens = run_status.usage.prompt_tokens if run_status and hasattr(run_status, 'usage') else 0
-    output_tokens = run_status.usage.completion_tokens if run_status and hasattr(run_status, 'usage') else 0
+    if audio_file:
+        input_tokens = input_tokens
+        output_tokens = output_tokens
+    else:
+        input_tokens = run_status.usage.prompt_tokens if run_status and hasattr(run_status, 'usage') else 0
+        output_tokens = run_status.usage.completion_tokens if run_status and hasattr(run_status, 'usage') else 0
     
     message = Message.objects.create(
         conversation=conversation,
@@ -54,7 +58,7 @@ def create_message(conversation, sender, content, audio_file=None, run_status=No
         message.save()
         return {
             "id": message.id,
-            "audio_file": message.audio_file
+            "audio_file": message.audio_file.url
         }
     else:
         return {
@@ -63,28 +67,33 @@ def create_message(conversation, sender, content, audio_file=None, run_status=No
         }
     
 
-def get_or_create_conversation(user_id, assistant, reset=False, token=None, platform='telegram'):
+def get_or_create_conversation(user_id, assistant, reset=False, token=None, platform='telegram', chat_username=None, username=None):
     conversation = Conversation.objects.filter(
         assistant=assistant,
         user_id=user_id,
         token=token).first()
+    thread_id = None
     print(f"Conversation: {conversation}")
     if conversation is None:
-        thread_id = get_thread_id(str(assistant.assistant_id), str(assistant.vector_id))
-        print(f"conversation is None, creating new conversation with thread_id: {thread_id}")
+        if assistant.ai_enabled:
+            thread_id = get_thread_id(str(assistant.assistant_id), str(assistant.vector_id))
+            print(f"conversation is None, creating new conversation with thread_id: {thread_id}")
         conversation = Conversation.objects.create(
             assistant=assistant,
             user_id=user_id,
             thread_id=thread_id,
             status='open',
             token=token,
-            platform=platform
+            platform=platform,
+            client_full_name=chat_username,
+            client_phone_email=f"@{username}" if username else None
         )
         publish_message_to_ws_assistant(conversation)
         print(f"Conversation created: {conversation}")
 
     elif reset and conversation is not None:
-        conversation.thread_id = get_thread_id(str(assistant.assistant_id), str(assistant.vector_id))
+        if assistant.ai_enabled:
+            conversation.thread_id = get_thread_id(str(assistant.assistant_id), str(assistant.vector_id))
         conversation.status = 'open'
         print(f"Resetting conversation with new thread_id: {conversation.thread_id}")
         conversation.save()
@@ -93,24 +102,58 @@ def get_or_create_conversation(user_id, assistant, reset=False, token=None, plat
     return conversation
 
 
-def handle_start_command(chat_id, assistant, bot_token):
+def handle_start_command(chat_id, assistant, bot_token, chat_username, username):
     print(f"Handling start command for chat_id: {chat_id}, assistant: {assistant}, bot_token: {bot_token}")
     greeting_message = assistant.greeting_message
     print(f"Greeting message: {greeting_message}")
     send_telegram_message(chat_id, greeting_message, bot_token)
 
     # Start a new or reopen an existing conversation
-    conversation = get_or_create_conversation(chat_id, assistant, reset=True, token=bot_token)
+    conversation = get_or_create_conversation(chat_id, assistant, reset=True, token=bot_token,chat_username=chat_username, username=username)
     print(f"Conversation get_create: {conversation}")
     return success_response(message=_("Salomlashish va yangi chat muvaffaqiyatli bajarildi"), code=200)
 
 
 def notify_user_about_failed_payment(user):
     """Notify the user about payment failure."""
-    message = _("Hurmatli {user.first_name}, sizning repli.uz dagi obuna to'lovingiz muvaffaqiyatsiz amalga oshirildi. "
-                "Iltimos, platformaga kirib, to'lovni qayta amalga oshiring.")
-    response = send_sms_text(user.phone_number, message)
-    print(f"Payment failure notification response: {response.text}")
+    message = f"Hurmatli {user.first_name}, sizning repli.uz dagi obuna tugadi. Iltimos, platformaga kirib, to'lovni qayta amalga oshiring." 
+    print(f"Payment failure notification message: {user.phone_number} or {user.email}, {message}")
+    
+    if user.phone_number:
+        response = send_playmobile_sms(user.phone_number, message)
+        print(f"Sms response: {response}")
+    elif user.email:
+        response = send_email_message(user.email, user)
+        print(f"Email response: {response}")
+
+def send_email_message(email, user):
+    try:
+        print(f"Sending email message to: {email}")
+        subject = _("Warning: Your subscription has expired")
+        message = _("Hurmatli {user.first_name}, sizning repli.uz dagi obuna to'lovingiz muvaffaqiyatsiz amalga oshirildi. Iltimos, platformaga kirib, to'lovni qayta amalga oshiring.").format(user=user)
+        from_email = settings.EMAIL_HOST_USER
+        print(f"from_email: {from_email}")
+        from django.template.loader import render_to_string
+
+        html_message = render_to_string(
+            'warning_notification.html',
+            {'user': user}
+        )
+        print(f"html_message: {html_message}")
+        
+        send_mail(
+            subject=subject,
+            message=message,
+            from_email=from_email,
+            recipient_list=[email],
+            html_message=html_message,
+            fail_silently=False,
+        )
+        
+        return True, _("Warning message sent to your email")
+        
+    except Exception as e:
+        return False, _("Failed to send warning message: {}").format(str(e))
 
 
 def restrict_user_account(user):
@@ -119,15 +162,12 @@ def restrict_user_account(user):
     subscription.status = SubscriptionStatuses.INACTIVE.value
     subscription.save()
 
-    # Send restriction notification
-    message = _("Hurmatli {user.username}, sizning repli.uz dagi to'lovlaringiz bir necha marta muvaffaqiyatsiz "
-                "amalga oshirilgani uchun sizning platformadagi obunangiz cheklab qo'yildi.")
-    send_sms_text(user.phone_number, message)
 
 def update_assistant(assistant_id, name,  assistant):
     print(f"Updating assistant with instructions")
     try:
         instruction = create_prompt(
+            assistant.name,
             assistant.company_name,
             assistant.description,
             assistant.role,
@@ -139,6 +179,7 @@ def update_assistant(assistant_id, name,  assistant):
         assistant = client.beta.assistants.update(
             assistant_id=assistant_id,
             name=name,
+            temperature=0.7,
             instructions=instruction,
             tools=[{"type": "file_search"}],
             tool_resources={"file_search": {"vector_store_ids": [assistant.vector_id]}},
@@ -197,6 +238,7 @@ def create_assistant(instructions, name, vector_store_id):
         my_assistant = client.beta.assistants.create(
             instructions=instructions,
             name=name,
+            temperature=0.7,
             tools=tools,
             tool_resources=tool_resources,
             model=default_model,
@@ -245,37 +287,14 @@ def create_assistant(instructions, name, vector_store_id):
         print(f"Error creating assistant: {e}")
         raise Exception(f"Error creating assistant: {e}")
     
-def create_vector_store(file_urls):
-    file_ids = []
-
-    # Upload each file and collect valid file IDs
-    for file_url in file_urls:
-        file_id = upload_knowledge_base_file(file_url)
-        if file_id:
-            file_ids.append(file_id)
-
-    # Ensure there are valid files for vector store creation
-    if not file_ids:
-        print("No valid files available for vector store creation.")
-        return None
-
-    try:
-        # Create a vector store from collected file IDs
-        vector_store = client.beta.vector_stores.create(
-            file_ids=file_ids
-        )
-        print(f"Vector store created with ID: {vector_store.id}")
-        return vector_store.id
-
-    except Exception as e:
-        print(f"Error creating vector store: {e}")
-        return None
     
 def get_assistant_response_ai(message, assistant_id, thread_id):
     print(f"Getting assistant response from AI: {message}, {assistant_id}, {thread_id}")
     assistant = Assistant.objects.get(assistant_id=assistant_id)
+    if assistant.user.subscription is None:
+        return error_response(message=_("Sizning obunangiz tugadi. Iltimos, platformaga kirib, to'lovni qayta amalga oshiring."), code=400)
     subscription = assistant.user.subscription
-    if subscription.remained_request_count <= 0:
+    if subscription.remained_request_count <= 0 or subscription.status == SubscriptionStatuses.INACTIVE.value:
         return assistant.fallback_message, None, None
     else:
         if thread_id is None:
@@ -334,6 +353,7 @@ def get_assistant_response_ai(message, assistant_id, thread_id):
                         None
                     )
                 response_data = create_lead(
+                    assistant=assistant,
                     full_name=name,
                     phone_number=phone_number,
                     email=entities.get('email', None),
@@ -352,10 +372,10 @@ def get_assistant_response_ai(message, assistant_id, thread_id):
                 if messages.data:
                     assistant_response_str = messages.data[0].content[0].text.value
                     assistant_response = json.loads(assistant_response_str)
-                    return assistant_response.get("reply", "Sorry, there was an error processing your request."), None, None
+                    return assistant_response.get("reply", "We already know the problem and we are working on it."), None, None
             except:
                 pass
-            return "Sorry, there was an error processing your request.", None, None
+            return "We already know the problem and we are working on it.", None, None
 
 def create_and_run_thread(assistant_id, vector_store_id):
     try:
@@ -400,10 +420,25 @@ def delete_assistant_by_id(assistant_id):
             message=f"Failed to delete assistant: {response.text}",
         )
 
+def delete_vector_store_by_id(vector_store_id):
+    BASE_URL = "https://api.openai.com/v1/vector_stores"
+    headers = {
+        "Authorization": f"Bearer {OPENAI_API_KEY}",
+        "Content-Type": "application/json",
+        "OpenAI-Beta": "vector_stores=v1",
+    }
+    url = f"{BASE_URL}/{vector_store_id}"
+    response = requests.delete(url, headers=headers)
+    print(f"Delete vector store response: {response.text}")
+    if response.status_code == 200:
+        return response.json()
+    elif response.status_code == 404:
+        raise_validation_error(message="Vector store not found.")
+
 
 def convert_ogg_to_mp3(audio_bytes: bytes) -> bytes:
     AudioSegment.converter = which("ffmpeg")    # mp3 konvertatsiyasi uchun
-    AudioSegment.ffprobe = which("ffprobe")     # fayl formatini o‘qish uchun
+    AudioSegment.ffprobe = which("ffprobe")     # fayl formatini o'qish uchun
     audio = AudioSegment.from_file(io.BytesIO(audio_bytes), format="ogg")
     print(f"Audio: {audio}")
     mp3_io = io.BytesIO()
@@ -435,25 +470,28 @@ def speech_to_text(audio_bytes: bytes, language: str = "uz") -> str:
                 ),
             ),
         )
-        
+        input_tokens = response.usage_metadata.prompt_token_count
+        output_tokens = response.usage_metadata.candidates_token_count
+
         print(f"[speech_to_text] Response received: {response}")
         result = response.text.strip()
         print(f"[speech_to_text] Final result: {result}")
-        return result
+        return result, input_tokens, output_tokens
     except Exception as e:
         print(f"[speech_to_text] Error: {str(e)}")
         print(f"[speech_to_text] Error type: {type(e)}")
         import traceback
         print(f"[speech_to_text] Traceback: {traceback.format_exc()}")
-        return "Sorry, I couldn't understand the audio."
+        return "Sorry, I couldn't understand the audio.", None, None
     
-def create_lead(full_name, phone_number, email, product, metadata=None):  
+def create_lead(full_name, phone_number, email, product, assistant, metadata=None):  
     try:
         lead = Lead.objects.create(
             full_name=full_name,
             phone_number=phone_number,
             email=email,
             product=product,
+            assistant=assistant,
             metadata=metadata
         )
         return lead
@@ -502,9 +540,9 @@ def process_instagram_audio(audio_url: str, language: str = "uz") -> str:
         
         # Convert to text using speech_to_text
         print(f"[process_instagram_audio] Attempting to convert audio to text with language: {language}")
-        data = speech_to_text(audio_bytes, language)
+        data, input_tokens, output_tokens = speech_to_text(audio_bytes, language)
         print(f"[process_instagram_audio] Speech to text result: {data}")
-        return data
+        return data, input_tokens, output_tokens
     except Exception as e:
         print(f"[process_instagram_audio] Error: {str(e)}")
         print(f"[process_instagram_audio] Error type: {type(e)}")

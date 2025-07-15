@@ -1,20 +1,31 @@
 from django.contrib import admin
-from apps.assistant.models import Assistant, Message, Conversation, AssistantFileUpload, Lead
+from apps.assistant.models import Assistant, Message, Conversation, AssistantFileUpload, Lead, Integration
 
+
+
+class IntegrationInline(admin.TabularInline):
+    model = Integration
+    extra = 0
+    readonly_fields = ("name", "created_time", "is_active", "integration_type")
+    fields = ("name", "integration_type", "is_active", "created_time")
+    can_delete = False
+    show_change_link = True
 
 @admin.register(Assistant)
 class AssistantAdmin(admin.ModelAdmin):
     list_display = ('id', 'name', 'user', 'language', 'personality_style', 'is_active')
     list_filter = ('language', 'personality_style', 'is_active')
     search_fields = ('name', )
-    ordering = ('name', )
+    ordering = ('name', 'created_time')
+    readonly_fields = ('created_time', 'updated_time')
     fieldsets = (
         (None, {
             'fields': ('name', 'description', 'user', 'company_name', 'role', 'language', 'created_by',
                        'personality_style', 'greeting_message', 'fallback_message', 'wait_message',
-                       'assistant_id', 'is_active', "vector_id")
+                       'assistant_id', 'is_active', "vector_id", "created_time", "updated_time")
         }),
     )
+    inlines = [IntegrationInline]
 
 @admin.register(Lead)
 class LeadAdmin(admin.ModelAdmin):

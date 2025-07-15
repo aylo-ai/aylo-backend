@@ -2,11 +2,11 @@ import random
 from datetime import timedelta, datetime
 
 import requests
-from django.template.defaulttags import now
 
 from apps.payment.models import Balance, Transaction
+from apps.user.models import Notification
 from config import settings
-from shared.addons.enums import TransactionTypes, PaymentStatuses, SubscriptionStatuses
+from shared.addons.enums import TransactionTypes, PaymentStatuses, SubscriptionStatuses, NotificationTypes
 
 
 def check_payme_card_token(token):
@@ -139,7 +139,7 @@ def process_subscription_payment(user):
     if not pricing_package:
         return False, "No pricing package assigned."
 
-    card = user.cards.filter(is_verified=True).first()
+    card = user.cards.filter(is_verified=True, is_default=True).first()
     if not card:
         return False, "No valid card available for payment."
 
@@ -174,3 +174,14 @@ def process_subscription_payment(user):
     subscription.save()
 
     return True, "Payment successful."
+
+
+
+def create_notification(user, message):
+    """Create a notification for the user."""
+    Notification.objects.create(
+        user=user,
+        title="Obuna tarifingiz tugadi. Iltimos, platformaga kirib, to'lovni qo'lda kiriting.",
+        content=message,
+        type=NotificationTypes.WARNING.value
+    )
