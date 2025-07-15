@@ -1,4 +1,4 @@
-FROM python:3.11.4-slim-buster AS builder
+FROM python:3.11.4-slim-bullseye AS builder
 
 WORKDIR /usr/src/app
 
@@ -21,7 +21,7 @@ RUN pip wheel --no-cache-dir --no-deps --wheel-dir /usr/src/app/wheels -r requir
 
 # =======================
 
-FROM python:3.11.4-slim-buster AS final
+FROM python:3.11.4-slim-bullseye AS final
 
 WORKDIR /app
 
