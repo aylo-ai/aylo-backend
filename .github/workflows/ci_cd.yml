@@ -11,14 +11,13 @@ on:
 
 jobs:
   deploy-prod:
+    defaults:
+        run:
+          working-directory: ${{ github.workspace }}
     if: github.ref == 'refs/heads/main'
     name: Deploy
 
     runs-on: [self-hosted, repli-runner]
-
-    defaults:
-      run:
-        working-directory: ${{ github.workspace }}
 
     steps:
       - name: Checkout the repo
@@ -44,7 +43,7 @@ jobs:
       
       - name: Print github.ref
         run: echo "github.ref is: ${{ github.ref }}"
-        
+
       - name: Deploy with Docker Compose
         run: |
           cp /home/shahzod/.secrets/.env .
