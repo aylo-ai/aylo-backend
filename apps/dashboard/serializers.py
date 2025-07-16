@@ -1,7 +1,7 @@
 from rest_framework import serializers
 from django.db.models import Sum
 
-from apps.assistant.models import Conversation, Assistant, Message
+from apps.assistant.models import Conversation, Assistant, Message, AssistantFileUpload
 from apps.payment.models import Transaction
 from apps.shared.addons.enums import SenderTypes, UserRoles, ConversationStatuses, PaymentStatuses, MessageTypes
 from apps.user.models import User
