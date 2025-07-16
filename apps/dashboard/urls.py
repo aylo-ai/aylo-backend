@@ -29,4 +29,7 @@ urlpatterns = [
     #user login dashboard
     path("send-otp/login/", views.DashboardSendOtpLoginView.as_view()),
     path("verify-otp/login/", views.DashboardVerifyOtpLoginView.as_view()),
+
+    #dashboard statistics
+    path("statistics/", views.DashboardStatisticsView.as_view()),
 ]

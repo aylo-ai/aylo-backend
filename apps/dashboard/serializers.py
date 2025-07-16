@@ -1,5 +1,9 @@
 from rest_framework import serializers
 from django.db.models import Sum
+from django.db.models import Count
+from django.utils import timezone
+from django.db.models.functions import TruncDay
+
 
 from apps.assistant.models import Conversation, Assistant, Message
 from apps.assistant.serializers import AssistantSerializer
@@ -214,3 +218,34 @@ class DashboardUserSerializer(serializers.ModelSerializer):
     def get_transactions(self, obj): # noqa
         transactions = obj.transactions.all()
         return DashboardTransactionSerializer(transactions, many=True).data
+
+
+class DashboardStatisticsSerializer(serializers.Serializer):
+    start_date = serializers.DateField(required=False, default=timezone.now().date())
+    end_date = serializers.DateField(required=False, default=timezone.now().date())
+    user_date_count = serializers.SerializerMethodField()
+    transaction_date_count = serializers.SerializerMethodField()
+
+    class Meta:
+        fields = [
+            "start_date",
+            "end_date",
+            "user_date_count",
+            "transaction_date_count",
+        ]
+
+    def get_user_date_count(self, obj):
+        start_date = self.validated_data.get("start_date")
+        end_date = self.validated_data.get("end_date")
+        qs = User.objects.filter(created_time__range=(start_date, end_date))
+        qs = qs.annotate(day=TruncDay('created_time')).values('day').annotate(count=Count('id')).order_by('day')
+        return qs
+
+    def get_transaction_date_count(self, obj):
+        start_date = self.validated_data.get("start_date")
+        end_date = self.validated_data.get("end_date")
+        qs = Transaction.objects.filter(created_time__range=(start_date, end_date))
+        qs = qs.annotate(day=TruncDay('created_time')).values('day').annotate(count=Count('id')).order_by('day')
+        return qs
+    
+    

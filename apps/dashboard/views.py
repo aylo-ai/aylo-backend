@@ -1,5 +1,7 @@
 from rest_framework import generics, filters
 from rest_framework.views import APIView
+
+from apps.dashboard.filters import UserFilter
 from apps.user.models import User
 from apps.user.serializers import UserSerializer
 from apps.assistant.serializers import AssistantSerializer, ConversationSerializer, MessageSerializer, AssistantFileUploadSerializer
@@ -18,7 +20,8 @@ from apps.dashboard.serializers import (
     DashboardSendOtpLoginSerializer, 
     DashboardVerifyOtpLoginSerializer,
     DashboardSerializer,
-    DashboardUserSerializer
+    DashboardUserSerializer,
+    DashboardStatisticsSerializer
 )
 
 from apps.shared.addons.validations import success_response, error_response
@@ -101,7 +104,7 @@ class DashboardConversationList(generics.ListAPIView):
     pagination_class = StandardResultsSetPagination
 
     def list(self, request, *args, **kwargs):
-        serializer = self.get_serializer(self.queryset, many=True)
+        serializer = self.get_serializer(self.get_queryset(), many=True)
         return success_response(data=serializer.data, message="Conversations retrieved successfully", code=200)
     
 
@@ -134,7 +137,7 @@ class DashboardMessageList(generics.ListAPIView):
 
     
     def list(self, request, *args, **kwargs):
-        serializer = self.get_serializer(self.queryset, many=True)
+        serializer = self.get_serializer(self.get_queryset(), many=True)
         return success_response(data=serializer.data, message="Messages retrieved successfully", code=200)
     
     
@@ -146,7 +149,7 @@ class DashboardCommentResponseList(generics.ListAPIView):
     pagination_class = StandardResultsSetPagination
 
     def list(self, request, *args, **kwargs):
-        serializer = self.get_serializer(self.queryset, many=True)
+        serializer = self.get_serializer(self.get_queryset(), many=True)
         return success_response(data=serializer.data, message="Comment responses retrieved successfully", code=200)
     
    
@@ -158,7 +161,7 @@ class DashboardIntegrationList(generics.ListAPIView):
     pagination_class = StandardResultsSetPagination
 
     def list(self, request, *args, **kwargs):
-        serializer = self.get_serializer(self.queryset, many=True)
+        serializer = self.get_serializer(self.get_queryset(), many=True)
         return success_response(data=serializer.data, message="Integrations retrieved successfully", code=200)
     
 class DashboardIntegrationDetail(generics.RetrieveUpdateDestroyAPIView):
@@ -194,7 +197,7 @@ class DashboardNotificationList(generics.ListAPIView):
 
 
     def list(self, request, *args, **kwargs):
-        serializer = self.get_serializer(self.queryset, many=True)
+        serializer = self.get_serializer(self.get_queryset(), many=True)
         return success_response(data=serializer.data, message="Notifications retrieved successfully", code=200)
     
 
@@ -207,7 +210,7 @@ class DashboardTransactionList(generics.ListAPIView):
 
 
     def list(self, request, *args, **kwargs):
-        serializer = self.get_serializer(self.queryset, many=True)
+        serializer = self.get_serializer(self.get_queryset(), many=True)
         return success_response(data=serializer.data, message="Transactions retrieved successfully", code=200)
     
 
@@ -242,7 +245,7 @@ class DashboardSubscriptionList(generics.ListAPIView):
     pagination_class = StandardResultsSetPagination
 
     def list(self, request, *args, **kwargs):
-        serializer = self.get_serializer(self.queryset, many=True)
+        serializer = self.get_serializer(self.get_queryset(), many=True)
         return success_response(data=serializer.data, message="Subscriptions retrieved successfully", code=200)
     
 
@@ -278,7 +281,7 @@ class DashboardBalanceList(generics.ListAPIView):
     pagination_class = StandardResultsSetPagination
 
     def list(self, request, *args, **kwargs):
-        serializer = self.get_serializer(self.queryset, many=True)
+        serializer = self.get_serializer(self.get_queryset(), many=True)
         return success_response(data=serializer.data, message="Balances retrieved successfully", code=200)
     
     
@@ -289,7 +292,7 @@ class DashboardAssistantFileUploadList(generics.ListAPIView):
     pagination_class = StandardResultsSetPagination
     
     def list(self, request, *args, **kwargs):
-        serializer = self.get_serializer(self.queryset, many=True)
+        serializer = self.get_serializer(self.get_queryset(), many=True)
         return success_response(data=serializer.data, message="Assistant file uploads retrieved successfully", code=200)
     
 class DashboardAssistantFileUploadDetail(generics.RetrieveUpdateDestroyAPIView):
@@ -460,3 +463,14 @@ class DashboardView(APIView):
         serializer = self.serializer_class(data=request.data)
         serializer.is_valid(raise_exception=True)
         return success_response(data=serializer.data, message="Dashboard data retrieved successfully", code=200)
+    
+
+class DashboardStatisticsView(APIView):
+    serializer_class = DashboardStatisticsSerializer
+    permission_classes = [IsAdmin, IsAuthenticated]
+
+    def get(self, request, *args, **kwargs):
+        serializer = self.serializer_class(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        return success_response(data=serializer.data, message="Dashboard statistics retrieved successfully", code=200)
+
