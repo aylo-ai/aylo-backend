@@ -1,9 +1,12 @@
 from rest_framework import serializers
 from django.db.models import Sum
 
-from apps.assistant.models import Conversation, Assistant, Message, AssistantFileUpload
+from apps.assistant.models import Conversation, Assistant, Message
+from apps.assistant.serializers import AssistantSerializer
+from apps.integration.serializers import IntegrationSerializer
 from apps.payment.models import Transaction
-from apps.shared.addons.enums import SenderTypes, UserRoles, ConversationStatuses, PaymentStatuses, MessageTypes
+from apps.payment.serializers import TransactionSerializer
+from apps.shared.addons.enums import SenderTypes, UserRoles, PaymentStatuses, MessageTypes
 from apps.user.models import User
 
 
@@ -125,3 +128,89 @@ class DashboardSerializer(serializers.Serializer):
             "gemini_ai_pirce": f"${gemini_ai_pirce:.2f}",
         }
         return response
+
+class DashboardTransactionSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Transaction
+        fields = [
+            'id',
+            'user',
+            'amount',
+            'status',
+            'currency',
+            'transaction_type',
+            'payment_method',
+            'payment_details',
+            'error_message',
+            'refund_amount',
+            'refund_date',
+            'created_time',
+            'updated_time',
+        ]
+
+class DashboardUserSerializer(serializers.ModelSerializer):
+    subscription = serializers.SerializerMethodField(method_name="get_subscription")
+    assistants = serializers.SerializerMethodField(method_name="get_assistants")
+    integrations = serializers.SerializerMethodField(method_name="get_integrations")
+    transactions = serializers.SerializerMethodField(method_name="get_transactions")
+
+    class Meta:
+        model = User
+        fields = [
+            'id',
+            'first_name',
+            'last_name',
+            'phone_number',
+            'email',
+            'user_role',
+            'is_active',
+            'subscription',
+            'assistants',
+            'integrations',
+            'transactions',
+            'created_time',
+            'updated_time',
+        ]
+        read_only_fields = ['created_time', 'updated_time']
+
+    def get_subscription(self, obj): # noqa
+        subscription = obj.subscription
+        if subscription:
+            return {
+                "id": subscription.id,
+                "pricing_package": {
+                    "id": subscription.pricing_package.id,
+                    "name": subscription.pricing_package.name,
+                    "type": subscription.pricing_package.type,
+                    "price": subscription.pricing_package.price,
+                    "request_count": subscription.pricing_package.request_count,
+                    "duration_days": subscription.pricing_package.duration_days,
+                    "discount_price": subscription.pricing_package.discount_price,
+                    "currency": subscription.pricing_package.currency,
+                },
+                "start_date": subscription.start_date,
+                "end_date": subscription.end_date,
+                "status": subscription.status,
+                "remained_request_count": subscription.remained_request_count,
+                "next_payment_date": subscription.next_payment_date,
+                "auto_renew": subscription.auto_renew,
+                "cancellation_reason": subscription.cancellation_reason,
+                "last_payment_date": subscription.last_payment_date,
+                "grace_period_days": subscription.grace_period_days,
+            }
+        return None
+    
+    def get_assistants(self, obj): # noqa
+        assistants = obj.assistants.all()
+        return AssistantSerializer(assistants, many=True).data
+    
+    def get_integrations(self, obj): # noqa
+        assistants = obj.assistants.all()
+        integrations = []
+        for assistant in assistants:
+            integrations.extend(assistant.integrations.all())
+        return IntegrationSerializer(integrations, many=True).data
+    
+    def get_transactions(self, obj): # noqa
+        transactions = obj.transactions.all()
+        return DashboardTransactionSerializer(transactions, many=True).data

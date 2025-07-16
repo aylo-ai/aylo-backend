@@ -14,6 +14,7 @@ urlpatterns = [
     path("features/", views.DashboardFeatureList.as_view()),
     path("pricingpackages/", views.DashboardPricingPackageList.as_view()),
     path("notifications/", views.DashboardNotificationList.as_view()),
+    
     #detail of models
     path("users/<uuid:pk>/", views.DashboardUserDetail.as_view()),
     path("assistants/<uuid:pk>/", views.DashboardAssistantDetail.as_view()),

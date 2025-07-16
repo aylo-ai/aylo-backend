@@ -17,7 +17,9 @@ from apps.dashboard.serializers import (
     DashboardConversationSerializer, 
     DashboardSendOtpLoginSerializer, 
     DashboardVerifyOtpLoginSerializer,
-    DashboardSerializer)
+    DashboardSerializer,
+    DashboardUserSerializer
+)
 
 from apps.shared.addons.validations import success_response, error_response
 from apps.shared.addons.verification import send_code, verify_code_cache
@@ -34,17 +36,17 @@ class DashboardUserList(generics.ListAPIView):
 
     
     def list(self, request, *args, **kwargs):
-        serializer = self.get_serializer(self.queryset, many=True)
+        serializer = self.get_serializer(self.get_queryset(), many=True)
         return success_response(data=serializer.data, message="Users retrieved successfully", code=200)
     
 class DashboardUserDetail(generics.RetrieveUpdateDestroyAPIView):
     queryset = User.objects.all()
-    serializer_class = UserSerializer
+    serializer_class = DashboardUserSerializer
     permission_classes = [IsAdmin, IsAuthenticated]
     
     def get_queryset(self):
         pk = self.kwargs.get("pk")
-        return User.objects.filter(id=pk)
+        return User.objects.get(id=pk)
     
     def retrieve(self, request, *args, **kwargs):
         serializer = self.get_serializer(self.get_queryset())
