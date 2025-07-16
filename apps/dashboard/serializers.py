@@ -110,8 +110,8 @@ class DashboardSerializer(serializers.Serializer):
         return Transaction.objects.filter(status=PaymentStatuses.SUCCESS.value).aggregate(total_price=Sum('amount'))['total_price'] or 0
     
     def get_ai_token_price(self, obj):
-        open_ai_pirce = 0
-        gemini_ai_pirce = 0
+        open_ai_price = 0
+        gemini_ai_price = 0
         input_token = (Message.objects.filter(message_type=MessageTypes.TEXT.value, sender=SenderTypes.ASSISTANT.value)
             .aggregate(total_input_token=Sum('input_tokens'))['total_input_token'] or 0)
         output_token = (Message.objects.filter(message_type=MessageTypes.TEXT.value, sender=SenderTypes.ASSISTANT.value)
@@ -120,12 +120,12 @@ class DashboardSerializer(serializers.Serializer):
             .aggregate(total_input_token=Sum('input_tokens'))['total_input_token'] or 0)
         audio_output_token = (Message.objects.filter(message_type=MessageTypes.AUDIO.value, sender=SenderTypes.ASSISTANT.value)
             .aggregate(total_output_token=Sum('output_tokens'))['total_output_token'] or 0)
-        open_ai_pirce = (input_token/1000000 * 2.5) + (output_token/1000000 * 10)
-        gemini_ai_pirce = (audio_input_token/1000000 * 0.5) + (audio_output_token/1000000 * 0.6)
+        open_ai_price = (input_token/1000000 * 2.5) + (output_token/1000000 * 10)
+        gemini_ai_price = (audio_input_token/1000000 * 0.5) + (audio_output_token/1000000 * 0.6)
 
         response = {
-            "open_ai_pirce": f"${open_ai_pirce:.2f}",
-            "gemini_ai_pirce": f"${gemini_ai_pirce:.2f}",
+            "open_ai_price": f"${open_ai_price:.2f}",
+            "gemini_ai_price": f"${gemini_ai_price:.2f}",
         }
         return response
 
