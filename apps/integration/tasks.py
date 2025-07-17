@@ -45,7 +45,11 @@ def process_message_task(chat_id, user_message, bot_token, chat_username=None, u
     data = create_message(conversation=conversation, sender=SenderTypes.USER.value, content=user_message, audio_file=audio_file, input_tokens=input_tokens, output_tokens=output_tokens)
     publish_message_to_ws(conversation_id=conversation.id, message=user_message, sender='user', data=data, assistant_id=assistant.id)
     if assistant.ai_enabled:
-        response_message, run_status, response_data = get_assistant_response_ai(user_message, assistant.assistant_id, conversation.thread_id)
+        response_message, run_status, response_data = get_assistant_response_ai(user_message, 
+                                                                                assistant.assistant_id, 
+                                                                                conversation.thread_id,
+                                                                                conversation=conversation
+                                                                                )
         response_lines = [
                 "🎉 *New Lead Created!*\n",
                 f"👤 *Full Name:* {response_data.full_name}  " if getattr(response_data, 'full_name', None) else None,
@@ -114,7 +118,7 @@ def process_instagram_message(account_id, combined_message, user_message, audio_
                           audio_file=audio_file, input_tokens=input_tokens, output_tokens=output_tokens)
     publish_message_to_ws(conversation.id, combined_message, sender="user", data=data, assistant_id=assistant.id)
 
-    response_message, run_status, response_data = get_assistant_response_ai(combined_message, assistant.assistant_id, conversation.thread_id)
+    response_message, run_status, response_data = get_assistant_response_ai(combined_message, assistant.assistant_id, conversation.thread_id, conversation=conversation)
     print(f"Assistant response in Instagram: {response_message}")
     # Handle lead creation if response_data exists
     if response_data:
@@ -218,8 +222,8 @@ def process_instagram_comment(account_id, comment_data):
 
             else:
                 print(f"[✓] Media-specific: Respond to all comments (is_respond_to_all_comments=False)")
-                trigger_words = [tw.trigger_word for tw in response.trigger_words.all()]
-                if comment_text.strip() in trigger_words:
+                trigger_words = [tw.trigger_word.lower() for tw in response.trigger_words.all()]
+                if comment_text.strip().lower() in trigger_words:
                     print(f"[✓] Media-specific trigger match: {trigger_words}")
                     if response.comment_message_template:
                         send_instagram_comment_reply(integration.api_token, comment_id, response.comment_message_template)

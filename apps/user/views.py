@@ -356,7 +356,7 @@ class AddStaffView(generics.CreateAPIView):
 class NotificationListView(generics.ListAPIView):
     queryset = Notification.objects.all()
     serializer_class = serializers.NotificationSerializer
-    permission_classes = [IsCustomer]
+    permission_classes = [permissions.IsAuthenticated]
     
     def get_queryset(self):
         return self.queryset.filter(user=self.request.user)
@@ -365,7 +365,7 @@ class NotificationListView(generics.ListAPIView):
 class NotificationUpdateView(generics.UpdateAPIView):
     queryset = Notification.objects.all()
     serializer_class = serializers.NotificationSerializer
-    permission_classes = [IsCustomer]
+    permission_classes = [permissions.IsAuthenticated]
     
     def get_object(self):
         return self.queryset.filter(id=self.kwargs.get("pk")).first()

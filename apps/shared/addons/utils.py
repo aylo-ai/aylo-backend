@@ -10,13 +10,14 @@ from io import BytesIO
 from django.utils.translation import gettext_lazy as _
 from django.conf import settings
 from django.core.mail import send_mail
+
+from apps.integration.models import Integration, TelegramGroupIntegration
 from apps.assistant.models import Message, Conversation, Lead, Assistant
 from config.settings import client
-from shared.addons.enums import SubscriptionStatuses, NotificationTypes
+from shared.addons.enums import SubscriptionStatuses, NotificationTypes, IntegrationTypes
 from shared.addons.telegram import send_telegram_message
 from shared.addons.validations import success_response, raise_validation_error, error_response
 from shared.addons.verification import send_playmobile_sms
-from shared.ai_service.helper import upload_knowledge_base_file
 from shared.ai_service.assistant import check_response
 from shared.ai_service.thread import wait_on_run
 from config.settings import OPENAI_API_KEY
@@ -288,8 +289,8 @@ def create_assistant(instructions, name, vector_store_id):
         raise Exception(f"Error creating assistant: {e}")
     
     
-def get_assistant_response_ai(message, assistant_id, thread_id):
-    print(f"Getting assistant response from AI: {message}, {assistant_id}, {thread_id}")
+def get_assistant_response_ai(user_message_, assistant_id, thread_id, conversation):
+    print(f"Getting assistant response from AI: {user_message_}, {assistant_id}, {thread_id}")
     assistant = Assistant.objects.get(assistant_id=assistant_id)
     if assistant.user.subscription is None:
         return error_response(message=_("Sizning obunangiz tugadi. Iltimos, platformaga kirib, to'lovni qayta amalga oshiring."), code=400)
@@ -313,7 +314,7 @@ def get_assistant_response_ai(message, assistant_id, thread_id):
             user_message = client.beta.threads.messages.create(
                 thread_id=thread_id,
                 role="user",
-                content=f"User: {message}",
+                content=f"User: {user_message_}",
             )
             print(f"User message: {user_message}")
 
@@ -337,7 +338,9 @@ def get_assistant_response_ai(message, assistant_id, thread_id):
             message = assistant_response.get("reply", None)
             entities = assistant_response.get("entities", None)
             clean_response = check_response(message)
-
+            print(f"Intent: {intent}, Message: {message}, Entities: {entities}")
+            handle_unknown_intent(intent, user_message_, assistant, conversation)
+                    
             response_data = None
             if intent == "create_order":
                 name = (
@@ -362,6 +365,7 @@ def get_assistant_response_ai(message, assistant_id, thread_id):
                 )
                 print("✅ Lead created from Telegram message")
             return clean_response, run_status, response_data
+        
         except Exception as e:
             print(f"Error in get_assistant_response_ai: {str(e)}")
             # If there's an error, wait a bit and try to get the latest response
@@ -550,3 +554,26 @@ def process_instagram_audio(audio_url: str, language: str = "uz") -> str:
         print(f"[process_instagram_audio] Traceback: {traceback.format_exc()}")
         return "Sorry, I couldn't process the audio."
     
+def handle_unknown_intent(intent, user_message, assistant, conversation):
+    print("Hello my friend")
+    if intent == "unknown":
+        telegram_intergration = Integration.objects.filter(assistant=assistant, integration_type=IntegrationTypes.TELEGRAM.value).first()
+        print(f"Telegram intergration: {telegram_intergration}")
+        telegram_group = TelegramGroupIntegration.objects.filter(integration=telegram_intergration).first()
+        print(f"Telegram group: {telegram_group}")
+        if telegram_group:
+            message = f"""
+📩 Yangi So'rov!!!
+
+👤 Foydalanuvchi: {conversation.client_phone_email if conversation.client_phone_email else conversation.client_full_name}  
+💬 Xabar: `{user_message}`  
+📱 Platforma: {conversation.platform}
+
+❗ Assistant xabarni tushunolmadi.
+
+🛠 Iltimos, foydalanuvchiga o'zingiz bog'laning.
+"""
+            send_telegram_message(telegram_group.group_id, message, telegram_intergration.api_token)
+            print(f"Assistantga tushunmadi oziz jovob berdi: {telegram_group.group_id}")
+    else:
+        pass

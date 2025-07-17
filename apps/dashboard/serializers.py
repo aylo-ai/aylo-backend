@@ -12,10 +12,11 @@ from apps.payment.models import Transaction
 from apps.shared.addons.enums import SenderTypes, UserRoles, PaymentStatuses, MessageTypes
 from apps.user.models import User
 from apps.shared.addons.validations import raise_validation_error
-
+from apps.assistant.serializers import MessageSerializer
 
 class DashboardConversationSerializer(serializers.ModelSerializer):
     message_price = serializers.SerializerMethodField(method_name="get_message_price")
+    messages = serializers.SerializerMethodField(method_name="get_messages")
     
     class Meta:
         model = Conversation
@@ -27,6 +28,7 @@ class DashboardConversationSerializer(serializers.ModelSerializer):
             'platform',
             'start_time',
             'end_time',
+            'messages',
             'created_time',
             'updated_time',
             "message_price",
@@ -44,6 +46,8 @@ class DashboardConversationSerializer(serializers.ModelSerializer):
             "message_count": message_count,
         }
 
+    def get_messages(self, obj):
+        return MessageSerializer(obj.messages, many=True).data
     
 class DashboardSendOtpLoginSerializer(serializers.Serializer):
     phone_number = serializers.CharField(required=True)

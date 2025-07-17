@@ -230,7 +230,8 @@ class MessageSerializer(serializers.ModelSerializer, SubscriptionValidationMixin
         response, run_status, response_data = get_assistant_response_ai(
             message=transcribed_text,
             assistant_id=assistant.assistant_id,
-            thread_id=conversation.thread_id
+            thread_id=conversation.thread_id,
+            conversation=conversation
         )
         if response_data:
             # Build response_text conditionally
