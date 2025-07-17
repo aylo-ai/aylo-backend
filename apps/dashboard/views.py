@@ -1,7 +1,6 @@
 from rest_framework import generics, filters
 from rest_framework.views import APIView
 
-from apps.dashboard.filters import UserFilter
 from apps.user.models import User
 from apps.user.serializers import UserSerializer
 from apps.assistant.serializers import AssistantSerializer, ConversationSerializer, MessageSerializer, AssistantFileUploadSerializer
@@ -37,9 +36,13 @@ class DashboardUserList(generics.ListAPIView):
     filter_backends = [filters.SearchFilter, filters.OrderingFilter]
     pagination_class = StandardResultsSetPagination
 
-    
     def list(self, request, *args, **kwargs):
-        serializer = self.get_serializer(self.get_queryset(), many=True)
+        queryset = self.filter_queryset(self.get_queryset())
+        page = self.paginate_queryset(queryset)
+        if page is not None:
+            serializer = self.get_serializer(page, many=True)
+            return self.get_paginated_response(serializer.data)
+        serializer = self.get_serializer(queryset, many=True)
         return success_response(data=serializer.data, message="Users retrieved successfully", code=200)
     
 class DashboardUserDetail(generics.RetrieveUpdateDestroyAPIView):
@@ -72,8 +75,13 @@ class DashboardAssistantList(generics.ListAPIView):
     permission_classes = [IsAdmin, IsAuthenticated]
     filter_backends = [filters.SearchFilter, filters.OrderingFilter]
 
-    def list(self, request, *args, **kwargs):
-        serializer = self.get_serializer(self.queryset, many=True)
+    def list(self, request, *args, **kwargs):   
+        queryset = self.filter_queryset(self.get_queryset())
+        page = self.paginate_queryset(queryset)
+        if page is not None:
+            serializer = self.get_serializer(page, many=True)
+            return self.get_paginated_response(serializer.data)
+        serializer = self.get_serializer(queryset, many=True)
         return success_response(data=serializer.data, message="Assistants retrieved successfully", code=200)
     
 class DashboardAssistantDetail(generics.RetrieveUpdateDestroyAPIView):
@@ -104,7 +112,12 @@ class DashboardConversationList(generics.ListAPIView):
     pagination_class = StandardResultsSetPagination
 
     def list(self, request, *args, **kwargs):
-        serializer = self.get_serializer(self.get_queryset(), many=True)
+        queryset = self.filter_queryset(self.get_queryset())
+        page = self.paginate_queryset(queryset)
+        if page is not None:
+            serializer = self.get_serializer(page, many=True)
+            return self.get_paginated_response(serializer.data)
+        serializer = self.get_serializer(queryset, many=True)
         return success_response(data=serializer.data, message="Conversations retrieved successfully", code=200)
     
 
@@ -137,7 +150,12 @@ class DashboardMessageList(generics.ListAPIView):
 
     
     def list(self, request, *args, **kwargs):
-        serializer = self.get_serializer(self.get_queryset(), many=True)
+        queryset = self.filter_queryset(self.get_queryset())
+        page = self.paginate_queryset(queryset)
+        if page is not None:
+            serializer = self.get_serializer(page, many=True)
+            return self.get_paginated_response(serializer.data)
+        serializer = self.get_serializer(queryset, many=True)
         return success_response(data=serializer.data, message="Messages retrieved successfully", code=200)
     
     
@@ -161,7 +179,12 @@ class DashboardIntegrationList(generics.ListAPIView):
     pagination_class = StandardResultsSetPagination
 
     def list(self, request, *args, **kwargs):
-        serializer = self.get_serializer(self.get_queryset(), many=True)
+        queryset = self.filter_queryset(self.get_queryset())
+        page = self.paginate_queryset(queryset)
+        if page is not None:
+            serializer = self.get_serializer(page, many=True)
+            return self.get_paginated_response(serializer.data)
+        serializer = self.get_serializer(queryset, many=True)
         return success_response(data=serializer.data, message="Integrations retrieved successfully", code=200)
     
 class DashboardIntegrationDetail(generics.RetrieveUpdateDestroyAPIView):
@@ -197,7 +220,12 @@ class DashboardNotificationList(generics.ListAPIView):
 
 
     def list(self, request, *args, **kwargs):
-        serializer = self.get_serializer(self.get_queryset(), many=True)
+        queryset = self.filter_queryset(self.get_queryset())
+        page = self.paginate_queryset(queryset)
+        if page is not None:
+            serializer = self.get_serializer(page, many=True)
+            return self.get_paginated_response(serializer.data)
+        serializer = self.get_serializer(queryset, many=True)
         return success_response(data=serializer.data, message="Notifications retrieved successfully", code=200)
     
 
@@ -210,7 +238,12 @@ class DashboardTransactionList(generics.ListAPIView):
 
 
     def list(self, request, *args, **kwargs):
-        serializer = self.get_serializer(self.get_queryset(), many=True)
+        queryset = self.filter_queryset(self.get_queryset())
+        page = self.paginate_queryset(queryset)
+        if page is not None:
+            serializer = self.get_serializer(page, many=True)
+            return self.get_paginated_response(serializer.data)
+        serializer = self.get_serializer(queryset, many=True)
         return success_response(data=serializer.data, message="Transactions retrieved successfully", code=200)
     
 
@@ -245,7 +278,12 @@ class DashboardSubscriptionList(generics.ListAPIView):
     pagination_class = StandardResultsSetPagination
 
     def list(self, request, *args, **kwargs):
-        serializer = self.get_serializer(self.get_queryset(), many=True)
+        queryset = self.filter_queryset(self.get_queryset())
+        page = self.paginate_queryset(queryset)
+        if page is not None:
+            serializer = self.get_serializer(page, many=True)
+            return self.get_paginated_response(serializer.data)
+        serializer = self.get_serializer(queryset, many=True)
         return success_response(data=serializer.data, message="Subscriptions retrieved successfully", code=200)
     
 
@@ -281,7 +319,12 @@ class DashboardBalanceList(generics.ListAPIView):
     pagination_class = StandardResultsSetPagination
 
     def list(self, request, *args, **kwargs):
-        serializer = self.get_serializer(self.get_queryset(), many=True)
+        queryset = self.filter_queryset(self.get_queryset())
+        page = self.paginate_queryset(queryset)
+        if page is not None:
+            serializer = self.get_serializer(page, many=True)
+            return self.get_paginated_response(serializer.data)
+        serializer = self.get_serializer(queryset, many=True)
         return success_response(data=serializer.data, message="Balances retrieved successfully", code=200)
     
     
@@ -292,7 +335,12 @@ class DashboardAssistantFileUploadList(generics.ListAPIView):
     pagination_class = StandardResultsSetPagination
     
     def list(self, request, *args, **kwargs):
-        serializer = self.get_serializer(self.get_queryset(), many=True)
+        queryset = self.filter_queryset(self.get_queryset())
+        page = self.paginate_queryset(queryset)
+        if page is not None:
+            serializer = self.get_serializer(page, many=True)
+            return self.get_paginated_response(serializer.data)
+        serializer = self.get_serializer(queryset, many=True)
         return success_response(data=serializer.data, message="Assistant file uploads retrieved successfully", code=200)
     
 class DashboardAssistantFileUploadDetail(generics.RetrieveUpdateDestroyAPIView):
@@ -326,7 +374,12 @@ class DashboardCardList(generics.ListAPIView):
     pagination_class = StandardResultsSetPagination
     
     def list(self, request, *args, **kwargs):
-        serializer = self.get_serializer(self.queryset, many=True)
+        queryset = self.filter_queryset(self.get_queryset())
+        page = self.paginate_queryset(queryset)
+        if page is not None:
+            serializer = self.get_serializer(page, many=True)
+            return self.get_paginated_response(serializer.data)
+        serializer = self.get_serializer(queryset, many=True)
         return success_response(data=serializer.data, message="Cards retrieved successfully", code=200)
     
 
@@ -337,7 +390,12 @@ class DashboardFeatureList(generics.ListAPIView):
     pagination_class = StandardResultsSetPagination
 
     def list(self, request, *args, **kwargs):
-        serializer = self.get_serializer(self.queryset, many=True)
+        queryset = self.filter_queryset(self.get_queryset())
+        page = self.paginate_queryset(queryset)
+        if page is not None:
+            serializer = self.get_serializer(page, many=True)
+            return self.get_paginated_response(serializer.data)
+        serializer = self.get_serializer(queryset, many=True)
         return success_response(data=serializer.data, message="Features retrieved successfully", code=200)
     
     
@@ -376,19 +434,14 @@ class DashboardPricingPackageList(generics.ListAPIView):
         return PricingPackage.objects.filter(id=pk)
 
     
-    def retrieve(self, request, *args, **kwargs):
-        serializer = self.get_serializer(self.get_queryset())
-        return success_response(data=serializer.data, message="Pricing package retrieved successfully", code=200)
-    
-    def update(self, request, *args, **kwargs):
-        serializer = self.get_serializer(self.get_queryset(), data=request.data)
-        serializer.is_valid(raise_exception=True)
-        serializer.save()
-        return success_response(data=serializer.data, message="Pricing package updated successfully", code=200)
-    
-    def destroy(self, request, *args, **kwargs):
-        self.get_queryset().delete()
-        return success_response(message="Pricing package deleted successfully", code=200)
+    def list(self, request, *args, **kwargs):
+        queryset = self.filter_queryset(self.get_queryset())
+        page = self.paginate_queryset(queryset)
+        if page is not None:
+            serializer = self.get_serializer(page, many=True)
+            return self.get_paginated_response(serializer.data)
+        serializer = self.get_serializer(queryset, many=True)
+        return success_response(data=serializer.data, message="Pricing packages retrieved successfully", code=200)
     
 class DashboardPricingPackageDetail(generics.RetrieveUpdateDestroyAPIView):
     queryset = PricingPackage.objects.all()
@@ -470,7 +523,9 @@ class DashboardStatisticsView(APIView):
     permission_classes = [IsAdmin, IsAuthenticated]
 
     def get(self, request, *args, **kwargs):
-        serializer = self.serializer_class(data=request.data)
+        date_filter = request.query_params.get("date_filter")
+        type_filter = request.query_params.get("type_filter")
+        serializer = self.serializer_class(data=request.data, context={"date_filter": date_filter, "type_filter": type_filter})
         serializer.is_valid(raise_exception=True)
         return success_response(data=serializer.data, message="Dashboard statistics retrieved successfully", code=200)
 

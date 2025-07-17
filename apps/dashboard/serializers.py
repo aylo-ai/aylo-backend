@@ -2,16 +2,16 @@ from rest_framework import serializers
 from django.db.models import Sum
 from django.db.models import Count
 from django.utils import timezone
-from django.db.models.functions import TruncDay
-
+from django.db.models.functions import TruncDay, TruncMonth
+from django.db.models import Min
 
 from apps.assistant.models import Conversation, Assistant, Message
 from apps.assistant.serializers import AssistantSerializer
 from apps.integration.serializers import IntegrationSerializer
 from apps.payment.models import Transaction
-from apps.payment.serializers import TransactionSerializer
 from apps.shared.addons.enums import SenderTypes, UserRoles, PaymentStatuses, MessageTypes
 from apps.user.models import User
+from apps.shared.addons.validations import raise_validation_error
 
 
 class DashboardConversationSerializer(serializers.ModelSerializer):
@@ -221,31 +221,87 @@ class DashboardUserSerializer(serializers.ModelSerializer):
 
 
 class DashboardStatisticsSerializer(serializers.Serializer):
-    start_date = serializers.DateField(required=False, default=timezone.now().date())
-    end_date = serializers.DateField(required=False, default=timezone.now().date())
-    user_date_count = serializers.SerializerMethodField()
-    transaction_date_count = serializers.SerializerMethodField()
+    type_filter = serializers.CharField(required=False)
+    date_filter = serializers.CharField(required=False)
+    statistics = serializers.SerializerMethodField()
 
-    class Meta:
-        fields = [
-            "start_date",
-            "end_date",
-            "user_date_count",
-            "transaction_date_count",
-        ]
+    def get_statistics(self, obj):
+        type_filter = self.context.get("type_filter", None)
+        date_filter = self.context.get("date_filter", None)
+        print(type_filter, date_filter)
+        if type_filter == "transaction":
+            return self.get_transaction_date_count(date_filter)
+        # Default to user
+        return self.get_user_date_count(date_filter)
 
-    def get_user_date_count(self, obj):
-        start_date = self.validated_data.get("start_date")
-        end_date = self.validated_data.get("end_date")
-        qs = User.objects.filter(created_time__range=(start_date, end_date))
-        qs = qs.annotate(day=TruncDay('created_time')).values('day').annotate(count=Count('id')).order_by('day')
-        return qs
+    def get_user_date_count(self, date_filter):
+        if date_filter == '30d' or date_filter is None:
+            start_date = timezone.now().date() - timezone.timedelta(days=30)
+            end_date = timezone.now().date()
 
-    def get_transaction_date_count(self, obj):
-        start_date = self.validated_data.get("start_date")
-        end_date = self.validated_data.get("end_date")
-        qs = Transaction.objects.filter(created_time__range=(start_date, end_date))
-        qs = qs.annotate(day=TruncDay('created_time')).values('day').annotate(count=Count('id')).order_by('day')
-        return qs
+            qs = User.objects.filter(created_time__range=(start_date, end_date))
+            qs = qs.annotate(day=TruncDay('created_time')).values('day').annotate(count=Count('id')).order_by('day')
+            return qs
+        elif date_filter == '6m':
+            start_date = timezone.now().date() - timezone.timedelta(days=180)
+            end_date = timezone.now().date()
+            
+            qs = User.objects.filter(created_time__range=(start_date, end_date))
+            qs = qs.annotate(month=TruncMonth('created_time')).values('month').annotate(count=Count('id')).order_by('month')
+            return qs
+        elif date_filter == '1y':
+            start_date = timezone.now().date() - timezone.timedelta(days=365)
+            end_date = timezone.now().date()
+            
+            qs = User.objects.filter(created_time__range=(start_date, end_date))
+            qs = qs.annotate(month=TruncMonth('created_time')).values('month').annotate(count=Count('id')).order_by('month')
+            return qs
+        elif date_filter == "all":
+            first_user = User.objects.aggregate(first_joined=Min('created_time'))['first_joined']
+            if first_user:
+                start_date = first_user.date()
+                end_date = timezone.now().date()
+            else:
+                start_date = timezone.now().date()
+                end_date = timezone.now().date()
+            qs = User.objects.filter(created_time__range=(start_date, end_date))
+            qs = qs.annotate(month=TruncMonth('created_time')).values('month').annotate(count=Count('id')).order_by('month')
+            return qs
+        return raise_validation_error("Invalid date filter", code=400)
+
+    def get_transaction_date_count(self, date_filter):
+        if date_filter == '30d' or date_filter is None:
+            start_date = timezone.now().date() - timezone.timedelta(days=30)
+            end_date = timezone.now().date()
+            
+            qs = Transaction.objects.filter(created_time__range=(start_date, end_date))
+            qs = qs.annotate(day=TruncDay('created_time')).values('day').annotate(count=Count('id')).order_by('day')
+            return qs
+        elif date_filter == '6m':
+            start_date = timezone.now().date() - timezone.timedelta(days=180)
+            end_date = timezone.now().date()
+            
+            qs = Transaction.objects.filter(created_time__range=(start_date, end_date))
+            qs = qs.annotate(month=TruncMonth('created_time')).values('month').annotate(count=Count('id')).order_by('month')
+            return qs   
+        elif date_filter == '1y':
+            start_date = timezone.now().date() - timezone.timedelta(days=365)
+            end_date = timezone.now().date()
+            
+            qs = Transaction.objects.filter(created_time__range=(start_date, end_date))
+            qs = qs.annotate(month=TruncMonth('created_time')).values('month').annotate(count=Count('id')).order_by('month')
+            return qs
+        elif date_filter == "all":
+            first_transaction = Transaction.objects.aggregate(first_transaction=Min('created_time'))['first_transaction']
+            if first_transaction:
+                start_date = first_transaction.date()
+                end_date = timezone.now().date()
+            else:
+                start_date = timezone.now().date()
+                end_date = timezone.now().date()
+            qs = Transaction.objects.filter(created_time__range=(start_date, end_date))
+            qs = qs.annotate(month=TruncMonth('created_time')).values('month').annotate(count=Count('id')).order_by('month')
+            return qs
+        return raise_validation_error("Invalid date filter", code=400)
     
     
