@@ -4,8 +4,6 @@ from apps.shared.models import BaseModel
 from shared.addons.enums import PaymentMethods, PaymentStatuses, CurrencyType, \
                                     TransactionTypes, PricingPackageType, SubscriptionStatuses
 
-
-
 class Feature(BaseModel):
     name = models.CharField(max_length=100)
     icon = models.CharField(max_length=50, null=True, blank=True)

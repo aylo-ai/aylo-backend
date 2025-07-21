@@ -340,7 +340,9 @@ class DashboardSubscriptionSerializer(serializers.ModelSerializer):
             "price": obj.pricing_package.price,
         }
     def get_user(self, obj):
-        return {
-            "id": obj.users.first().id,
-            "username": obj.users.first().username,
-        }
+        if obj.users.count() > 0:
+            return {
+                "id": obj.users.first().id,
+                "username": obj.users.first().username,
+            }
+        return None
