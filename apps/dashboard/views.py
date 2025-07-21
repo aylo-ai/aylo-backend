@@ -35,7 +35,7 @@ class DashboardUserList(generics.ListAPIView):
     serializer_class = UserSerializer
     permission_classes = [IsAdmin, IsAuthenticated]
     filter_backends = [filters.SearchFilter, filters.OrderingFilter]
-    search_fields = ["name", "email", "phone_number", 'first_name', 'last_name']
+    search_fields = ["username", "email", "phone_number", 'first_name', 'last_name']
     pagination_class = StandardResultsSetPagination
 
     def list(self, request, *args, **kwargs):

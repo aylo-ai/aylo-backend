@@ -32,7 +32,7 @@ class IntegrationCreateSerializer(serializers.ModelSerializer, SubscriptionValid
         api_token = attrs.get("api_token", None)
         user = self.context.get("request").user
         base_url = self.context.get("base_url")
-        assistant_id = attrs.get("assistant").id
+        assistant_id = self.context.get("assistant_id")
         try:
             assistant = Assistant.objects.filter(id=assistant_id).first()
             if not assistant.vector_id or not assistant.assistant_id:
