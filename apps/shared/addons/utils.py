@@ -463,7 +463,7 @@ def speech_to_text(audio_bytes: bytes, language: str = "uz") -> str:
             """
         print(f"Prompt: {prompt}")
         response = client.models.generate_content(
-            model="gemini-2.5-flash-preview-04-17",
+            model="gemini-2.5-flash",
             contents=[
                 prompt,
                 types.Part.from_bytes(data=audio_bytes, mime_type="audio/mp3")
@@ -486,7 +486,7 @@ def speech_to_text(audio_bytes: bytes, language: str = "uz") -> str:
         print(f"[speech_to_text] Error type: {type(e)}")
         import traceback
         print(f"[speech_to_text] Traceback: {traceback.format_exc()}")
-        return "Sorry, I couldn't understand the audio.", None, None
+        return "Sorry, I couldn't understand the audio.", 0, 0
     
 def create_lead(full_name, phone_number, email, product, assistant, metadata=None):  
     try:
