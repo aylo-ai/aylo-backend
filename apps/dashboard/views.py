@@ -20,7 +20,8 @@ from apps.dashboard.serializers import (
     DashboardVerifyOtpLoginSerializer,
     DashboardSerializer,
     DashboardUserSerializer,
-    DashboardStatisticsSerializer
+    DashboardStatisticsSerializer,
+    DashboardSubscriptionSerializer
 )
 
 from apps.shared.addons.validations import success_response, error_response
@@ -34,6 +35,7 @@ class DashboardUserList(generics.ListAPIView):
     serializer_class = UserSerializer
     permission_classes = [IsAdmin, IsAuthenticated]
     filter_backends = [filters.SearchFilter, filters.OrderingFilter]
+    search_fields = ["name", "email", "phone_number", 'first_name', 'last_name']
     pagination_class = StandardResultsSetPagination
 
     def list(self, request, *args, **kwargs):
@@ -73,7 +75,8 @@ class DashboardAssistantList(generics.ListAPIView):
     queryset = Assistant.objects.all()
     serializer_class = AssistantSerializer
     permission_classes = [IsAdmin, IsAuthenticated]
-    filter_backends = [filters.SearchFilter, filters.OrderingFilter]
+    filter_backends = [filters.SearchFilter]
+    search_fields = ["name", "user__username", "company_name"]
 
     def list(self, request, *args, **kwargs):   
         queryset = self.filter_queryset(self.get_queryset())
@@ -177,6 +180,7 @@ class DashboardIntegrationList(generics.ListAPIView):
     permission_classes = [IsAdmin, IsAuthenticated]
     filter_backends = [filters.SearchFilter, filters.OrderingFilter]
     pagination_class = StandardResultsSetPagination
+    search_fields = ["name", "assistant__name", "assistant__user__username", "assistant__company_name", "integration_type"]
 
     def list(self, request, *args, **kwargs):
         queryset = self.filter_queryset(self.get_queryset())
@@ -273,7 +277,7 @@ class DashboardTransactionDetail(generics.RetrieveUpdateDestroyAPIView):
 
 class DashboardSubscriptionList(generics.ListAPIView):
     queryset = Subscription.objects.all()
-    serializer_class = SubscriptionSerializer
+    serializer_class = DashboardSubscriptionSerializer
     permission_classes = [IsAdmin, IsAuthenticated]
     pagination_class = StandardResultsSetPagination
 
@@ -286,10 +290,9 @@ class DashboardSubscriptionList(generics.ListAPIView):
         serializer = self.get_serializer(queryset, many=True)
         return success_response(data=serializer.data, message="Subscriptions retrieved successfully", code=200)
     
-
 class DashboardSubscriptionDetail(generics.RetrieveUpdateDestroyAPIView):
     queryset = Subscription.objects.all()
-    serializer_class = SubscriptionSerializer
+    serializer_class = DashboardSubscriptionSerializer
     permission_classes = [IsAdmin, IsAuthenticated]
     
     def get_queryset(self):
@@ -297,17 +300,17 @@ class DashboardSubscriptionDetail(generics.RetrieveUpdateDestroyAPIView):
         return Subscription.objects.filter(id=pk)
     
     def retrieve(self, request, *args, **kwargs):
-        serializer = self.get_serializer(self.get_queryset())
+        serializer = self.get_serializer(self.get_object())
         return success_response(data=serializer.data, message="Subscription retrieved successfully", code=200)
     
     def update(self, request, *args, **kwargs):
-        serializer = self.get_serializer(self.get_queryset(), data=request.data)
+        serializer = self.get_serializer(self.get_object(), data=request.data)
         serializer.is_valid(raise_exception=True)
         serializer.save()
         return success_response(data=serializer.data, message="Subscription updated successfully", code=200)
     
     def destroy(self, request, *args, **kwargs):
-        self.get_queryset().delete()
+        self.get_object().delete()
         return success_response(message="Subscription deleted successfully", code=200)
     
     

@@ -19,8 +19,6 @@ from shared.addons.verification import send_code
 from apps.user.models import User, PrivacyPolicy, UserAgreement, Notification
 from shared.addons.verification import send_email_code, verify_email_code, verify_code_cache
 from shared.permissions import IsAdmin, IsSuperAdmin, IsCustomer
-import jwt
-from jwt import ExpiredSignatureError, InvalidTokenError
 
 class SendCodeView(generics.GenericAPIView):
     serializer_class = serializers.SendCodeSerializer
@@ -62,8 +60,8 @@ class VerifyCodeView(generics.GenericAPIView):
         if phone_number:
             success, message = verify_code_cache(phone_number, code)
         elif email:
-            # success, message = verify_email_code(email, code)
-            success, message = True, "Code verified successfully"
+            success, message = verify_email_code(email, code)
+            # success, message = True, "Code verified successfully"
         else:
             return error_response(message=_("Telefon raqam yoki email kiritilmagan"), code=status.HTTP_400_BAD_REQUEST)
         if success:

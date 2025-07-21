@@ -8,7 +8,7 @@ from django.db.models import Min
 from apps.assistant.models import Conversation, Assistant, Message
 from apps.assistant.serializers import AssistantSerializer
 from apps.integration.serializers import IntegrationSerializer
-from apps.payment.models import Transaction
+from apps.payment.models import Transaction, Subscription   
 from apps.shared.addons.enums import SenderTypes, UserRoles, PaymentStatuses, MessageTypes
 from apps.user.models import User
 from apps.shared.addons.validations import raise_validation_error
@@ -309,3 +309,38 @@ class DashboardStatisticsSerializer(serializers.Serializer):
         return raise_validation_error("Invalid date filter", code=400)
     
     
+class DashboardSubscriptionSerializer(serializers.ModelSerializer):
+    pricing_package = serializers.SerializerMethodField(method_name="get_pricing_package")
+    user = serializers.SerializerMethodField(method_name="get_user")
+
+    class Meta:
+        model = Subscription
+        fields = [
+            'id',
+            'user',
+            'pricing_package',
+            'start_date',
+            'end_date',
+            'status',
+            'remained_request_count',
+            'next_payment_date',
+            'auto_renew',
+            'cancellation_reason',
+            'last_payment_date',
+            'grace_period_days',
+            'created_time',
+            'updated_time',
+        ]
+        read_only_fields = ['created_time', 'updated_time']
+
+    def get_pricing_package(self, obj):
+        return {
+            "id": obj.pricing_package.id,
+            "name": obj.pricing_package.name,
+            "price": obj.pricing_package.price,
+        }
+    def get_user(self, obj):
+        return {
+            "id": obj.users.first().id,
+            "username": obj.users.first().username,
+        }

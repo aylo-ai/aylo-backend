@@ -366,6 +366,8 @@ class SubscriptionSerializer(serializers.ModelSerializer):
             "cancellation_reason",
             "last_payment_date",
             "grace_period_days",
+            "created_time",
+            "updated_time",
         ]
         read_only_fields = [
             "user",
