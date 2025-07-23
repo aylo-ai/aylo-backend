@@ -22,7 +22,7 @@ class AssistantAdmin(admin.ModelAdmin):
         (None, {
             'fields': ('name', 'description', 'user', 'company_name', 'role', 'language', 'created_by',
                        'personality_style', 'greeting_message', 'fallback_message', 'wait_message',
-                       'assistant_id', 'is_active', "vector_id", "created_time", "updated_time")
+                       'assistant_id','ai_enabled', 'is_active', "vector_id", "created_time", "updated_time")
         }),
     )
     inlines = [IntegrationInline]
