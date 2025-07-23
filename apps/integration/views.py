@@ -74,7 +74,8 @@ class IntegrationRetrieveUpdateDestroyView(generics.RetrieveUpdateDestroyAPIView
         base_url = f"{request.scheme}://{request.get_host()}"
         context_data = {
             "base_url": base_url,
-            "request": request
+            "request": request,
+            "assistant_id": instance.assistant_id
         }
         serializer = self.get_serializer(instance, data=request.data, context=context_data, partial=True)
         serializer.is_valid(raise_exception=True)
@@ -154,22 +155,27 @@ class InstagramWebhookView(APIView):
                 print(f"Echo message received")
                 return success_response(message=_("Echo xabar muvaffaqiyatli olindi"), code=200)
             print(f"Messaging: {messaging}")
-            if not Integration.objects.filter(instagram_account_id=account_id).exists():
-                print(f"Integration not found for account ID: {account_id}")
-                return error_response(message="Integration not found", code=404)
-            # Start celery task to process the incoming message
-            if audio_file:
-                process_instagram_message.delay(account_id, None, messaging,audio_file)
-            else:
-                message = messaging[0].get("message", {}).get("text",None)
-                if message is not None:  # Only push if message is not None
-                    redis_client.rpush(f"messages:{account_id}", message)
-                    redis_client.set(f"last_seen:{account_id}", time.time())
+            sender_id = messaging[0].get("sender_id", None)
+            if not Integration.objects.filter(instagram_account_id=sender_id).exists():
+                if not Integration.objects.filter(instagram_account_id=account_id).exists():
+                    print(f"Integration not found for account ID: {account_id}")
+                    return error_response(message="Integration not found", code=404)
+                # Start celery task to process the incoming message
+                if audio_file:
+                    process_instagram_message.delay(account_id, None, messaging,audio_file)
+                else:
+                    message = messaging[0].get("message", {}).get("text",None)
+                    if message is not None:  # Only push if message is not None
+                        redis_client.rpush(f"messages:{account_id}", message)
+                        redis_client.set(f"last_seen:{account_id}", time.time())
 
-                    # Schedule collector task only if not already scheduled
-                    redis_client.setex(f"collecting:{account_id}", WAIT_SECONDS + 1, "1")  # Prevent overlap
-                    process_collected_messages.apply_async((account_id, None, messaging), countdown=WAIT_SECONDS)
-            return success_response(message=_("Xabar webhook ma'lumotlar muvaffaqiyatli olindi"), code=200)
+                        # Schedule collector task only if not already scheduled
+                        redis_client.setex(f"collecting:{account_id}", WAIT_SECONDS + 1, "1")  # Prevent overlap
+                        process_collected_messages.apply_async((account_id, None, messaging), countdown=WAIT_SECONDS)
+                return success_response(message=_("Xabar webhook ma'lumotlar muvaffaqiyatli olindi"), code=200)
+            else:
+                print(f"Integration same found with the integration: {account_id}")
+                return success_response(message=_("Integratsiya boshqa foydalanuvchida ham topildi"), code=400)
 
         return success_response(message=_("Webhook ma'lumotlar muvaffaqiyatli olindi"), code=200)
 

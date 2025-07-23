@@ -175,6 +175,7 @@ class UserSerializer(serializers.ModelSerializer):
             'first_name',
             'last_name',
             'phone_number',
+            'username',
             'email',
             'user_role',
             'total_used_token_count',
@@ -213,7 +214,6 @@ class UserSerializer(serializers.ModelSerializer):
                 "grace_period_days": subscription.grace_period_days,
             }
         return None
-
 
 class UserShortSerializer(serializers.ModelSerializer):
     class Meta:

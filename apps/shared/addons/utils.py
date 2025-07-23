@@ -368,18 +368,7 @@ def get_assistant_response_ai(user_message_, assistant_id, thread_id, conversati
         
         except Exception as e:
             print(f"Error in get_assistant_response_ai: {str(e)}")
-            # If there's an error, wait a bit and try to get the latest response
-            try:
-                messages = client.beta.threads.messages.list(
-                    thread_id=thread_id, order="desc", limit=1
-                )
-                if messages.data:
-                    assistant_response_str = messages.data[0].content[0].text.value
-                    assistant_response = json.loads(assistant_response_str)
-                    return assistant_response.get("reply", "We already know the problem and we are working on it."), None, None
-            except:
-                pass
-            return "We already know the problem and we are working on it.", None, None
+            return "", None, None
 
 def create_and_run_thread(assistant_id, vector_store_id):
     try:
