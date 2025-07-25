@@ -91,6 +91,7 @@ class DashboardAssistantList(generics.ListAPIView):
     queryset = Assistant.objects.all()
     serializer_class = AssistantSerializer
     permission_classes = [IsAdmin, IsAuthenticated]
+    pagination_class = StandardResultsSetPagination
     filter_backends = [filters.SearchFilter]
     search_fields = ["name", "user__username", "company_name"]
 
