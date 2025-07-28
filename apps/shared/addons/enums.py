@@ -161,3 +161,10 @@ class NotificationTypes(EnumBaseModel):
 class FileTypes(EnumBaseModel):
     GOOGLE_SPREADSHEET = 'google_spreadsheet'
     GOOGLE_DOCUMENT = 'google_document'
+
+class LeadStatuses(EnumBaseModel):
+    NEW = 'new'
+    CONTACTED = 'contacted'
+    SUCCESS = 'success'
+    REJECTED = 'rejected'
+    UNREACHABLE = 'unreachable'

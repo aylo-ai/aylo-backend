@@ -4,7 +4,7 @@ from django.db import models, transaction
 from django.utils import timezone
 from django.utils.timezone import now
 from shared.addons.enums import AssistantLanguages, PersonalityStyles, SenderTypes, MessageStatuses, \
-    ConversationStatuses, MessageTypes, ConversationPlatforms, FileTypes
+    ConversationStatuses, MessageTypes, ConversationPlatforms, FileTypes, LeadStatuses
 from shared.models import BaseModel
 from apps.integration.models import Integration
 
@@ -192,6 +192,7 @@ class Lead(BaseModel):
     email = models.EmailField(max_length=255, null=True, blank=True)
     product = models.CharField(max_length=255, null=True, blank=True)
     metadata = models.JSONField(blank=True, null=True) 
+    status = models.CharField(max_length=255, choices=LeadStatuses.choices(), default=LeadStatuses.NEW.value)
     contacted = models.BooleanField(default=False)
     
     class Meta:
