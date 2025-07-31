@@ -245,7 +245,7 @@ class InstagramCallbackView(APIView):
             return error_response(message=("Foydalanuvchi profili topilmadi"), code=400)
         
         # enable webhook for the integration
-        url = f"https://graph.instagram.com/v22.0/me/subscribed_apps?access_token={access_token}&subscribed_fields=messages,comments,posts"
+        url = f"https://graph.instagram.com/v22.0/me/subscribed_apps?access_token={access_token}&subscribed_fields=messages,comments"
         response = requests.post(url)
         print(f"Response: {response.text}")
         if response.status_code == 200:
