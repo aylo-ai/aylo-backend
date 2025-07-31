@@ -49,6 +49,7 @@ INTERNAL_APPS = [
     "payment",
     "shared",
     "user",
+    "mcpdatabase",
 ]
 
 INSTALLED_APPS = DEFAULT_APPS + PACKAGES + INTERNAL_APPS

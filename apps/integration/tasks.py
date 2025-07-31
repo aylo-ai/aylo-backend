@@ -1,12 +1,15 @@
 import requests, time
 from celery import shared_task
+from asgiref.sync import async_to_sync
 
 from apps.shared.addons.enums import SenderTypes, ConversationStatuses
 from shared.addons.instagram import send_instagram_message, send_instagram_private_reply,send_instagram_comment_reply
 from shared.addons.telegram import send_telegram_message, check_register_info, delete_telegram_message, send_telegram_action
 from shared.addons.utils import get_assistant_response_ai, handle_start_command, get_or_create_conversation, create_message, \
     speech_to_text, convert_ogg_to_mp3, process_instagram_audio
+from apps.mcpdatabase.models import DatabaseConnection
 from apps.assistant.models import Assistant
+from shared.ai_service.ai_tool import assistant_response_mcp
 from .models import TelegramGroupIntegration, Integration, InstagramMedia, InstagramCommentResponse
 from shared.addons.redis import publish_message_to_ws, redis_client
 
@@ -45,7 +48,12 @@ def process_message_task(chat_id, user_message, bot_token, chat_username=None, u
     data = create_message(conversation=conversation, sender=SenderTypes.USER.value, content=user_message, audio_file=audio_file, input_tokens=input_tokens, output_tokens=output_tokens)
     publish_message_to_ws(conversation_id=conversation.id, message=user_message, sender='user', data=data, assistant_id=assistant.id)
     if assistant.ai_enabled:
-        response_message, run_status, response_data = get_assistant_response_ai(user_message, 
+        mcd_database = DatabaseConnection.objects.filter(assistant=assistant).first()
+        if mcd_database:
+            project_database_url = f"postgresql://{mcd_database.database_username}:{mcd_database.password_encrypted}@{mcd_database.host}:{mcd_database.port}/{mcd_database.database_name}"
+            response_message, run_status, response_data =  async_to_sync(assistant_response_mcp)(project_database_url, conversation.thread_id, user_message, assistant.assistant_id)
+        else:
+            response_message, run_status, response_data = get_assistant_response_ai(user_message, 
                                                                                 assistant.assistant_id, 
                                                                                 conversation.thread_id,
                                                                                 conversation=conversation
@@ -118,38 +126,46 @@ def process_instagram_message(account_id, combined_message, user_message, audio_
                           audio_file=audio_file, input_tokens=input_tokens, output_tokens=output_tokens)
     publish_message_to_ws(conversation.id, combined_message, sender="user", data=data, assistant_id=assistant.id)
 
-    response_message, run_status, response_data = get_assistant_response_ai(combined_message, assistant.assistant_id, conversation.thread_id, conversation=conversation)
-    print(f"Assistant response in Instagram: {response_message}")
-    # Handle lead creation if response_data exists
-    if response_data:
-        response_lines = [
-                "🎉 *New Lead Created!*\n",
-                f"👤 *Full Name:* {response_data.full_name}  " if getattr(response_data, 'full_name', None) else None,
-                f"📞 *Phone Number:* {response_data.phone_number}  " if getattr(response_data, 'phone_number', None) not in [None, ""] else None,
-                f"📧 *Email:* {response_data.email}  " if getattr(response_data, 'email', None) not in [None, ""] else None,
-                f"📦 *Interested Product:* {response_data.product}\n" if getattr(response_data, 'product', None) else None,
-                "\n✅ Please follow up accordingly."
-            ]
-        response_text = "\n".join([line for line in response_lines if line])
-        # Send lead notification to Telegram groups if configured
-        telegram_integration = assistant.integrations.filter(integration_type="telegram").first()
-        telegram_groups = TelegramGroupIntegration.objects.filter(
-            integration=telegram_integration
-        ).all()
-        for telegram_group in telegram_groups:
-            send_telegram_message(telegram_group.group_id, response_text, telegram_integration.api_token)
-            telegram_group.lead_count += 1
-            telegram_group.save()
-            print(f"Lead sent to telegram group: {telegram_group.group_id}")
+    if assistant.ai_enabled:
+        mcd_database = DatabaseConnection.objects.filter(assistant=assistant).first()
+        if mcd_database:
+            project_database_url = f"postgresql://{mcd_database.database_username}:{mcd_database.password_encrypted}@{mcd_database.host}:{mcd_database.port}/{mcd_database.database_name}"
+            response_message, run_status, response_data =  async_to_sync(assistant_response_mcp)(project_database_url, conversation.thread_id, user_message, assistant.assistant_id)
+        else:
+            response_message, run_status, response_data = get_assistant_response_ai(combined_message, assistant.assistant_id, conversation.thread_id, conversation=conversation)
+            print(f"Assistant response in Instagram: {response_message}")
+        # Handle lead creation if response_data exists
+        if response_data:
+            response_lines = [
+                    "🎉 *New Lead Created!*\n",
+                    f"👤 *Full Name:* {response_data.full_name}  " if getattr(response_data, 'full_name', None) else None,
+                    f"📞 *Phone Number:* {response_data.phone_number}  " if getattr(response_data, 'phone_number', None) not in [None, ""] else None,
+                    f"📧 *Email:* {response_data.email}  " if getattr(response_data, 'email', None) not in [None, ""] else None,
+                    f"📦 *Interested Product:* {response_data.product}\n" if getattr(response_data, 'product', None) else None,
+                    "\n✅ Please follow up accordingly."
+                ]
+            response_text = "\n".join([line for line in response_lines if line])
+            # Send lead notification to Telegram groups if configured
+            telegram_integration = assistant.integrations.filter(integration_type="telegram").first()
+            telegram_groups = TelegramGroupIntegration.objects.filter(
+                integration=telegram_integration
+            ).all()
+            for telegram_group in telegram_groups:
+                send_telegram_message(telegram_group.group_id, response_text, telegram_integration.api_token)
+                telegram_group.lead_count += 1
+                telegram_group.save()
+                print(f"Lead sent to telegram group: {telegram_group.group_id}")
     # handling wait message
     
     # send response to user
-    send_instagram_message(account_id, integration.api_token, sender_id, response_message)
-    print(f"starting to create message: {response_message}, conversation: {conversation}")
-    data = create_message(conversation=conversation, sender=SenderTypes.ASSISTANT.value, content=response_message, run_status=run_status)
-    print(f"Sent message to Instagram user: {sender_id} with message: {response_message}")
-    publish_message_to_ws(conversation.id, response_message, sender="assistant", assistant_id=assistant.id, data=data)
-    print("Sent message to web socket")
+        send_instagram_message(account_id, integration.api_token, sender_id, response_message)
+        print(f"starting to create message: {response_message}, conversation: {conversation}")
+        data = create_message(conversation=conversation, sender=SenderTypes.ASSISTANT.value, content=response_message, run_status=run_status)
+        print(f"Sent message to Instagram user: {sender_id} with message: {response_message}")
+        publish_message_to_ws(conversation.id, response_message, sender="assistant", assistant_id=assistant.id, data=data)
+        print("Sent message to web socket")
+    else:
+        pass
 
 @shared_task
 def process_voice_task(chat_id, voice_file_id, bot_token):

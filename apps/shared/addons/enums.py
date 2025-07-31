@@ -161,3 +161,10 @@ class NotificationTypes(EnumBaseModel):
 class FileTypes(EnumBaseModel):
     GOOGLE_SPREADSHEET = 'google_spreadsheet'
     GOOGLE_DOCUMENT = 'google_document'
+
+class DatabaseTypes(EnumBaseModel):
+    MYSQL = 'mysql'
+    POSTGRESQL = 'postgresql'
+    SQLITE = 'sqlite'
+    MSSQL = 'mssql'
+    ORACLE = 'oracle'

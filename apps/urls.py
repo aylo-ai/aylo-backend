@@ -6,4 +6,5 @@ urlpatterns = [
     path("integration/", include(("integration.urls", "integration"), namespace="integration")),
     path("chat/", include(("assistant.urls", "assistant"), namespace="assistant")),
     path("dashboard/", include(("dashboard.urls", 'dashboard'), namespace="dashboard")),
+    path("mcp-database/", include(("mcpdatabase.urls", "mcpdatabase"), namespace="mcpdatabase")),
 ]

@@ -24,6 +24,7 @@ from config.settings import OPENAI_API_KEY
 from shared.ai_service.helper import create_prompt
 from shared.addons.payloads import valid_intents
 from shared.addons.redis import publish_message_to_ws_assistant
+from shared.ai_service.ai_tool import tools
 
 def create_message(conversation, sender, content, audio_file=None, run_status=None, input_tokens=None, output_tokens=None):
     message_type = 'audio' if audio_file else 'text'
@@ -182,7 +183,7 @@ def update_assistant(assistant_id, name,  assistant):
             name=name,
             temperature=0.7,
             instructions=instruction,
-            tools=[{"type": "file_search"}],
+            tools=tools,
             tool_resources={"file_search": {"vector_store_ids": [assistant.vector_id]}},
             model="gpt-4o",
             response_format = {
@@ -231,7 +232,7 @@ def update_assistant(assistant_id, name,  assistant):
 
 def create_assistant(instructions, name, vector_store_id):
     print("Creating assistant with instructions")
-    tools = [{"type": "file_search"}]
+    tools = tools
     tool_resources = {"file_search": {"vector_store_ids": [vector_store_id]}}
     default_model = "gpt-4o"
 
