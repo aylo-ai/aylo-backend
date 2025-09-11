@@ -40,12 +40,12 @@ class IntegrationListCreateView(generics.ListCreateAPIView):
 
     def create(self, request, *args, **kwargs):
         base_url = f"{request.scheme}://{request.get_host()}"
+        assistant_id = self.kwargs.get('pk', None)
         context_data = {
             "base_url": base_url,
-            "assistant_id": self.kwargs.get('pk'),
+            "assistant_id": assistant_id,
             "request": request
         }
-        assistant_id = self.kwargs.get('pk')
         serializer = self.get_serializer(data=request.data, context=context_data)
         serializer.is_valid(raise_exception=True)
         serializer.save(assistant_id=assistant_id)
@@ -189,8 +189,9 @@ class InstagramCallbackView(APIView):
     def get(self, request, *args, **kwargs):
         # Get the authorization code from the query parameters
         code = request.query_params.get("code")
-        assistant_id = request.query_params.get("assistant_id")
-        if not assistant_id:
+        assistant_id = request.query_params.get("assistant_id", None)
+        is_automation_only = request.query_params.get("is_global", "false")
+        if not assistant_id and is_automation_only == "false":
             return error_response(message=("Assistant ID topilmadi"), code=400)
         if not code:
             return error_response(message=("Authorization code topilmadi"), code=400)

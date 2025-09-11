@@ -5,7 +5,12 @@ from shared.models import BaseModel
 
 
 class Integration(BaseModel):
-    assistant = models.ForeignKey('assistant.Assistant', on_delete=models.CASCADE, related_name='integrations')
+    assistant = models.ForeignKey(
+        'assistant.Assistant', 
+        on_delete=models.CASCADE, 
+        related_name='integrations',
+        null=True, blank=True
+    )
     name = models.CharField(max_length=255)
     description = models.TextField(null=True, blank=True)
     is_active = models.BooleanField(default=True)
