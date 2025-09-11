@@ -13,7 +13,9 @@ class Integration(admin.ModelAdmin):
     )
 
     def get_asssitant_name(self, obj): # noqa
-        return obj.assistant.name
+        if obj.assistant:
+            return obj.assistant.name
+        return obj.user.first_name if obj.user else None
 
 class InstagramCommentResponseInline(admin.TabularInline):
     model = InstagramCommentResponse.instagram_media.through
