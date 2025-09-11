@@ -232,7 +232,7 @@ class InstagramCallbackView(APIView):
                 assistant_id=assistant_id,
                 integration_type=IntegrationTypes.INSTAGRAM.value,
                 defaults={
-                    "name": "Instagram integration",
+                    "name": user_profile.get("instagram_username"),
                     "api_token": access_token,
                     "instagram_user_id": user_profile.get("instagram_user_id"),
                     "instagram_account_id": user_profile.get("instagram_account_id"),
