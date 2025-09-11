@@ -9,6 +9,7 @@ from django.http import HttpResponse
 from rest_framework.views import APIView
 from rest_framework import generics, permissions
 from django.utils.translation import gettext_lazy as _
+from django.db.models import Q
 
 from config.settings import INSTAGRAM_CLIENT_ID, INSTAGRAM_CLIENT_SECRET, INSTAGRAM_REDIRECT_URI
 from shared.addons.enums import IntegrationTypes
@@ -23,6 +24,24 @@ from .tasks import process_message_task, process_instagram_message, process_voic
                                 process_instagram_comment, WAIT_SECONDS, process_collected_messages, send_telegram_message
 
 from shared.addons.redis import redis_client
+
+
+class IntegrationListView(generics.ListAPIView):
+    queryset = Integration.objects.all()
+    serializer_class = IntegrationSerializer
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get_queryset(self):
+        user = self.request.user
+        return Integration.objects.filter(
+            Q(user=user) | Q(assistant__user=user)
+        ).distinct()
+    
+    def list(self, request, *args, **kwargs):
+        queryset = self.get_queryset()
+        serializer = self.get_serializer(queryset, many=True)
+        return success_response(data=serializer.data, message="Integrations retrieved successfully", code=200)
+
 
 class IntegrationListCreateView(generics.ListCreateAPIView):
     queryset = Integration.objects.all()
