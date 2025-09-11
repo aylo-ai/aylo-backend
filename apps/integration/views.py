@@ -191,6 +191,7 @@ class InstagramCallbackView(APIView):
         user = request.user if request.user.is_authenticated else None
         code = request.query_params.get("code")
         assistant_id = request.query_params.get("assistant_id", None)
+        is_automation_only = request.query_params.get("is_automation_only", "false")
         if not assistant_id and is_automation_only == "false":
             return error_response(message=("Assistant ID topilmadi"), code=400)
         if not code:
