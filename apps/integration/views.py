@@ -60,8 +60,12 @@ class IntegrationRetrieveUpdateDestroyView(generics.RetrieveUpdateDestroyAPIView
     def get_object(self):
         # check if the integration belongs to the assistant
         obj = super().get_object()
-        if obj.assistant.user != self.request.user:
-            return error_response(message=_("Integration topilmadi"))
+        if obj.assistant:
+            if obj.assistant.user != self.request.user:
+                return error_response(message=_("Integration topilmadi"))
+        else:
+            if obj.user != self.request.user:
+                return error_response(message=_("Integration topilmadi"))
         return obj
 
     def retrieve(self, request, *args, **kwargs):
