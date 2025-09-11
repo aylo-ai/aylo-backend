@@ -181,6 +181,7 @@ class UserSerializer(serializers.ModelSerializer):
             'user_role',
             'total_used_token_count',
             'subscription',
+            "integrations",
         ]
     
     def get_integrations(self, obj): # noqa
