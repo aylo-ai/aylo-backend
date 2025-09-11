@@ -564,11 +564,6 @@ class InstagramCommentResponseListCreateView(generics.ListCreateAPIView):
         integration_id = self.kwargs.get('integration_id')
         integration_id = Integration.objects.filter(id = integration_id, integration_type=IntegrationTypes.INSTAGRAM.value).first()
         return self.queryset.filter(integration_id=integration_id)
-    
-    def get_serializer_context(self):
-        data =  super().get_serializer_context()
-        data['request'] = self.request
-        return data
 
     def list(self, request, *args, **kwargs):
         queryset = self.filter_queryset(self.get_queryset())
@@ -614,6 +609,15 @@ class InstagramMediaRetrieveView(generics.RetrieveUpdateDestroyAPIView):
     queryset = InstagramMedia.objects.all()
     serializer_class = InstagramMediaSerializer
     permission_classes = [permissions.IsAuthenticated]
+
+    def get_serializer_context(self):
+        context = super().get_serializer_context()
+        # Add custom things here
+        context["integration"] = Integration.objects.filter(
+            user=self.request.user,
+            integration_type=IntegrationTypes.INSTAGRAM.value
+        ).first()
+        return context
 
     def retrieve(self, request, *args, **kwargs):
         instance = self.get_object()

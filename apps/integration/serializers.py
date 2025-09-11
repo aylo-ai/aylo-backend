@@ -166,6 +166,7 @@ class SendUserMessageSerializer(serializers.Serializer, SubscriptionValidationMi
 
 class InstagramMediaSerializer(serializers.ModelSerializer):
     children = serializers.JSONField(required=False)
+    media_url = serializers.SerializerMethodField(method_name='media_url')
 
     class Meta:
         model = InstagramMedia
@@ -182,30 +183,25 @@ class InstagramMediaSerializer(serializers.ModelSerializer):
             'children'
         ]
 
-    # def to_representation(self, instance):
-    #     representation = super().to_representation(instance)
-
-    #     integration = Integration.objects.filter(
-    #         user=self.context["request"].user,
-    #         integration_type=IntegrationTypes.INSTAGRAM.value
-    #     ).first()
-    #     print(f"Instagram integration {integration}")
-
-    #     if integration and instance.media_id:
-    #         url = f"https://graph.instagram.com/v23.0/{instance.media_id}"
-    #         params = {
-    #             "access_token": integration.api_token,
-    #             "fields": "id,media_type,media_url,username,timestamp,caption,comments_count,like_count,permalink,thumbnail_url,children{media_type,media_url}"
-    #         }
-    #         response = requests.get(url, params=params)
-    #         print(response)
-    #         if response.status_code == 200:
-    #             data = response.json()
-    #             representation["media_url"] = data.get("media_url",None)
-    #             print(representation)
-
-    #     return representation
-
+    def get_media_url(self, obj):
+        instagram = self.context.get("integration",None)
+        if instagram:
+            print("Intagram not provided in conxtext")
+            return 
+        if instagram and instagram.media_id:
+            url = f"https://graph.instagram.com/v23.0/{instagram.media_id}"
+            params = {
+                "access_token": instagram.api_token,
+                "fields": "id,media_type,media_url,username,timestamp,caption,comments_count,like_count,permalink,thumbnail_url,children{media_type,media_url}"
+            }
+            response = requests.get(url, params=params)
+            print(response)
+            if response.status_code == 200:
+                data = response.json()
+                print(data)
+                return data.get("media_url",None)
+        return instagram.media_url
+                
 
 class CommentTriggerWordSerializer(serializers.ModelSerializer):
     class Meta:
