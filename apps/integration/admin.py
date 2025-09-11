@@ -7,7 +7,7 @@ class Integration(admin.ModelAdmin):
     list_display = ["get_asssitant_name", "name", "integration_type", "is_active", "created_time"]
     search_fields = ["name"]
     fieldsets = (
-        (None, {"fields": ("assistant", "name", "description", "is_active", "api_token",
+        (None, {"fields": ("assistant", "user", "name", "description", "is_active", "api_token",
                            "refresh_token", "integration_type")}),
         ("Instagram", {"fields": ("instagram_user_id", "instagram_account_id", "instagram_username")}),
     )
