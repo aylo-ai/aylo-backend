@@ -185,7 +185,7 @@ class UserSerializer(serializers.ModelSerializer):
         ]
     
     def get_integrations(self, obj): # noqa
-        integrations = obj.integrations.all()
+        integrations = obj.integrations.filter(assistant__isnull=True)
         integrations_data = []
         for integration in integrations:
             integrations_data.append({
