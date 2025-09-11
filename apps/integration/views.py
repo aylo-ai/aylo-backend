@@ -507,7 +507,6 @@ class CommentTriggerWordListCreateView(generics.CreateAPIView):
 
 
 class CommentTriggerWordRetrieveView(generics.RetrieveUpdateDestroyAPIView):
-
     queryset = CommentTriggerWord.objects.all()
     serializer_class = CommentTriggerWordSerializer
     permission_classes = [permissions.IsAuthenticated]
@@ -539,6 +538,11 @@ class InstagramCommentResponseListCreateView(generics.ListCreateAPIView):
         assistant_id = self.kwargs.get('pk')
         integration_id = Integration.objects.filter(assistant_id = assistant_id, integration_type=IntegrationTypes.INSTAGRAM.value).first()
         return self.queryset.filter(integration_id=integration_id)
+    
+    def get_serializer_context(self):
+        data =  super().get_serializer_context()
+        data['request'] = self.request
+        return data
 
     def list(self, request, *args, **kwargs):
         queryset = self.filter_queryset(self.get_queryset())

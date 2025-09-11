@@ -1,3 +1,5 @@
+import requests
+
 from rest_framework import serializers
 from django.utils.translation import gettext_lazy as _
 
@@ -179,6 +181,27 @@ class InstagramMediaSerializer(serializers.ModelSerializer):
             "like_count",
             'children'
         ]
+
+    def to_representation(self, instance):
+        representation = super().to_representation(instance)
+
+        integration = Integration.objects.filter(
+            user=self.context["request"].user,
+            integration_type=IntegrationTypes.INSTAGRAM.value
+        ).first()
+
+        if integration and instance.media_id:
+            url = f"https://graph.instagram.com/v23.0/{instance.media_id}"
+            params = {
+                "access_token": integration.api_token,
+                "fields": "id,media_type,media_url,username,timestamp,caption,comments_count,like_count,permalink,thumbnail_url,children{media_type,media_url}"
+            }
+            response = requests.get(url, params=params)
+            if response.status_code == 200:
+                data = response.json()
+                representation["media_url"] = data.get("media_url",None)
+
+        return representation
 
 
 class CommentTriggerWordSerializer(serializers.ModelSerializer):

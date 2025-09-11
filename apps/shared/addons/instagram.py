@@ -16,7 +16,6 @@ def get_long_lived_access_token(short_lived_access_token):
         return access_token
     return None
 
-
 def instagram_refresh_token(access_token):
     grant_type = "ig_refresh_token"
     url = f"https://graph.instagram.com/refresh_access_token?grant_type={grant_type}&access_token={access_token}"
@@ -26,7 +25,6 @@ def instagram_refresh_token(access_token):
         access_token = response.json().get("access_token")
         return access_token
     return None
-
 
 def get_user_profile(access_token):
     """Get user profile from access token"""
@@ -44,7 +42,6 @@ def get_user_profile(access_token):
         }
         return user_data
     return None
-
 
 def send_instagram_message(account_id, access_token, recipient_id, message):
     """Send message to Instagram user, splitting if message is over 1000 characters"""
@@ -77,7 +74,6 @@ def send_instagram_message(account_id, access_token, recipient_id, message):
             success = False  # agar bitta qismi yuborilmasa, false qaytaramiz
 
     return success
-
 
 def send_instagram_private_reply(access_token, account_id, comment_id, message):
     """Send private reply to an Instagram comment"""
