@@ -9,6 +9,7 @@ from django.http import HttpResponse
 from rest_framework.views import APIView
 from rest_framework import generics, permissions
 from django.utils.translation import gettext_lazy as _
+from django.db.models import Q
 
 from config.settings import INSTAGRAM_CLIENT_ID, INSTAGRAM_CLIENT_SECRET, INSTAGRAM_REDIRECT_URI
 from shared.addons.enums import IntegrationTypes
@@ -23,6 +24,24 @@ from .tasks import process_message_task, process_instagram_message, process_voic
                                 process_instagram_comment, WAIT_SECONDS, process_collected_messages, send_telegram_message
 
 from shared.addons.redis import redis_client
+
+
+class IntegrationListView(generics.ListAPIView):
+    queryset = Integration.objects.all()
+    serializer_class = IntegrationSerializer
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get_queryset(self):
+        user = self.request.user
+        return Integration.objects.filter(
+            Q(user=user) | Q(assistant__user=user)
+        ).distinct()
+    
+    def list(self, request, *args, **kwargs):
+        queryset = self.get_queryset()
+        serializer = self.get_serializer(queryset, many=True)
+        return success_response(data=serializer.data, message="Integrations retrieved successfully", code=200)
+
 
 class IntegrationListCreateView(generics.ListCreateAPIView):
     queryset = Integration.objects.all()
@@ -40,12 +59,12 @@ class IntegrationListCreateView(generics.ListCreateAPIView):
 
     def create(self, request, *args, **kwargs):
         base_url = f"{request.scheme}://{request.get_host()}"
+        assistant_id = self.kwargs.get('pk', None)
         context_data = {
             "base_url": base_url,
-            "assistant_id": self.kwargs.get('pk'),
+            "assistant_id": assistant_id,
             "request": request
         }
-        assistant_id = self.kwargs.get('pk')
         serializer = self.get_serializer(data=request.data, context=context_data)
         serializer.is_valid(raise_exception=True)
         serializer.save(assistant_id=assistant_id)
@@ -60,8 +79,12 @@ class IntegrationRetrieveUpdateDestroyView(generics.RetrieveUpdateDestroyAPIView
     def get_object(self):
         # check if the integration belongs to the assistant
         obj = super().get_object()
-        if obj.assistant.user != self.request.user:
-            return error_response(message=_("Integration topilmadi"))
+        if obj.assistant:
+            if obj.assistant.user != self.request.user:
+                return error_response(message=_("Integration topilmadi"))
+        else:
+            if obj.user != self.request.user:
+                return error_response(message=_("Integration topilmadi"))
         return obj
 
     def retrieve(self, request, *args, **kwargs):
@@ -188,9 +211,11 @@ class InstagramCallbackView(APIView):
 
     def get(self, request, *args, **kwargs):
         # Get the authorization code from the query parameters
+        user = request.user if request.user.is_authenticated else None
         code = request.query_params.get("code")
-        assistant_id = request.query_params.get("assistant_id")
-        if not assistant_id:
+        assistant_id = request.query_params.get("assistant_id", None)
+        is_automation_only = request.query_params.get("is_automation_only", "false")
+        if not assistant_id and is_automation_only == "false":
             return error_response(message=("Assistant ID topilmadi"), code=400)
         if not code:
             return error_response(message=("Authorization code topilmadi"), code=400)
@@ -229,9 +254,10 @@ class InstagramCallbackView(APIView):
                 return error_response(message=("Instagram integratsiyasi sizda mavjud"), code=400)
             integration, created = Integration.objects.get_or_create(
                 assistant_id=assistant_id,
+                user=user,
                 integration_type=IntegrationTypes.INSTAGRAM.value,
                 defaults={
-                    "name": "Instagram integration",
+                    "name": user_profile.get("instagram_username"),
                     "api_token": access_token,
                     "instagram_user_id": user_profile.get("instagram_user_id"),
                     "instagram_account_id": user_profile.get("instagram_account_id"),
@@ -535,8 +561,8 @@ class InstagramCommentResponseListCreateView(generics.ListCreateAPIView):
     permission_classes = [permissions.IsAuthenticated]
 
     def get_queryset(self):
-        assistant_id = self.kwargs.get('pk')
-        integration_id = Integration.objects.filter(assistant_id = assistant_id, integration_type=IntegrationTypes.INSTAGRAM.value).first()
+        integration_id = self.kwargs.get('integration_id')
+        integration_id = Integration.objects.filter(id = integration_id, integration_type=IntegrationTypes.INSTAGRAM.value).first()
         return self.queryset.filter(integration_id=integration_id)
     
     def get_serializer_context(self):
@@ -550,9 +576,9 @@ class InstagramCommentResponseListCreateView(generics.ListCreateAPIView):
         return success_response(message=_("Comment responses muvaffaqiyatli olindi"), data=serializer.data, code=200)
 
     def create(self, request, *args, **kwargs):
-        assistant_id = self.kwargs.get('pk')
+        integration_id = self.kwargs.get('integration_id')
         try:
-            integration = Integration.objects.get(assistant_id=assistant_id, integration_type=IntegrationTypes.INSTAGRAM.value)
+            integration = Integration.objects.get(id=integration_id, integration_type=IntegrationTypes.INSTAGRAM.value)
         except Integration.DoesNotExist:
             return error_response(message=_("Integration topilmadi"), code=404)
         

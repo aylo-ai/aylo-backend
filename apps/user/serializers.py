@@ -167,6 +167,7 @@ class LoginRefreshSerializer(serializers.Serializer):  # noqa
 class UserSerializer(serializers.ModelSerializer):
     total_used_token_count = serializers.SerializerMethodField()
     subscription = serializers.SerializerMethodField(method_name="get_subscription")
+    integrations = serializers.SerializerMethodField(method_name="get_integrations")
 
     class Meta:
         model = User
@@ -180,7 +181,21 @@ class UserSerializer(serializers.ModelSerializer):
             'user_role',
             'total_used_token_count',
             'subscription',
+            "integrations",
         ]
+    
+    def get_integrations(self, obj): # noqa
+        integrations = obj.integrations.filter(assistant__isnull=True)
+        integrations_data = []
+        for integration in integrations:
+            integrations_data.append({
+                "id": integration.id,
+                "name": integration.name,
+                "integration_type": integration.integration_type,
+                "is_active": integration.is_active,
+            })
+        return integrations_data
+
 
     def get_total_used_token_count(self, obj): # noqa
         subscription = obj.subscription

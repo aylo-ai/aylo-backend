@@ -3,6 +3,7 @@ import apps.integration.views as views
 
 urlpatterns = [
     path("assistant/<uuid:pk>/integration/", views.IntegrationListCreateView.as_view()),
+    path("integration-list/", views.IntegrationListView.as_view()),
     path("integration/<uuid:pk>/", views.IntegrationRetrieveUpdateDestroyView.as_view()),
     path("integration/<uuid:pk>/telegram-group/", views.TelegramGroupListView.as_view()),
     path('telegram/webhook/<str:bot_token>/', views.TelegramWebhookView.as_view()),
@@ -20,7 +21,7 @@ urlpatterns = [
     path("intagram-media/<uuid:pk>/", views.InstagramMediaRetrieveView.as_view()),
     
     # Comment responses endpoints
-    path("assistant/<uuid:pk>/instagram/comment-responses/", views.InstagramCommentResponseListCreateView.as_view()),
+    path("<uuid:integration_id>/instagram/comment-responses/", views.InstagramCommentResponseListCreateView.as_view()),
     path("instagram/comment-responses/<uuid:pk>/", views.InstagramCommentResponseRetrieveView.as_view()),
 
     path("send-telegram-message/", views.SendUserMessageView.as_view()),
