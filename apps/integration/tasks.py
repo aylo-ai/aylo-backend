@@ -1,6 +1,6 @@
 import requests, time
 from celery import shared_task
-import datetime
+from datetime import datetime
 import pytz
 
 from apps.shared.addons.enums import SenderTypes, ConversationStatuses
