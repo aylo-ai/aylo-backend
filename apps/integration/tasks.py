@@ -241,13 +241,16 @@ def process_instagram_comment(account_id, comment_data):
                     "fields": "id,media_type,media_url,username,timestamp,caption,comments_count,like_count,permalink,thumbnail_url,children{media_type,media_url}"
                 }
                 response = requests.get(url, params=params)
+                print(response)
                 if response.status_code == 200:
                     media_first = response.json()['data'][0]
                     media_ts_str = media_first["timestamp"]  # "2025-09-14T05:07:15+0000"
                     media_ts = datetime.strptime(media_ts_str, "%Y-%m-%dT%H:%M:%S%z")
                     # Convert to Asia/Tashkent timezone
                     media_ts_tashkent = media_ts.astimezone(pytz.timezone("Asia/Tashkent"))
+                    print(f"Time {media_ts_tashkent} and {latest_response.created_time}")
                     if media_ts_tashkent > latest_response.created_time:
+                        print("are good for it")
                         media_data = InstagramMedia.objects.create(
                             media_id=media_first.get('id'),
                             media_type=media_first.get('media_type', None),
@@ -260,6 +263,7 @@ def process_instagram_comment(account_id, comment_data):
                             children=media_first.get('children', None)
                         )
                         latest_response.instagram_media.add(media_data)
+                        print("created successfully")
 
             print(f"[!] No matching response found for this comment.")
     else:
