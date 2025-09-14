@@ -232,7 +232,7 @@ def process_instagram_comment(account_id, comment_data):
                     if response.private_message_template:
                         send_instagram_private_reply(integration.api_token, account_id, comment_id, response.private_message_template)
         else:
-            latest_response = InstagramCommentResponse.objects.filter(integration=integration).order_by("-created_at").first()
+            latest_response = InstagramCommentResponse.objects.filter(integration=integration).order_by("-created_time").first()
             if latest_response and latest_response.instagram_media is None:
                 access_token = integration.api_token
                 url = f"https://graph.instagram.com/v23.0/me/media"
