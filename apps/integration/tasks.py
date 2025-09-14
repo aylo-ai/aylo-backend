@@ -1,7 +1,7 @@
 import requests, time
 from celery import shared_task
 import datetime
-import zoneinfo
+import pytz
 
 from apps.shared.addons.enums import SenderTypes, ConversationStatuses
 from shared.addons.instagram import send_instagram_message, send_instagram_private_reply,send_instagram_comment_reply
@@ -232,7 +232,35 @@ def process_instagram_comment(account_id, comment_data):
                     if response.private_message_template:
                         send_instagram_private_reply(integration.api_token, account_id, comment_id, response.private_message_template)
         else:
-            # comment_response = InstagramCommentResponse.objects.filter(integration=integration)
+            latest_response = InstagramCommentResponse.objects.filter(integration=integration).order_by("-created_at").first()
+            if latest_response and latest_response.instagram_media is None:
+                access_token = integration.api_token
+                url = f"https://graph.instagram.com/v23.0/me/media"
+                params = {
+                    "access_token": access_token,
+                    "fields": "id,media_type,media_url,username,timestamp,caption,comments_count,like_count,permalink,thumbnail_url,children{media_type,media_url}"
+                }
+                response = requests.get(url, params=params)
+                if response.status_code == 200:
+                    media_first = response.json()['data'][0]
+                    media_ts_str = media_first["timestamp"]  # "2025-09-14T05:07:15+0000"
+                    media_ts = datetime.strptime(media_ts_str, "%Y-%m-%dT%H:%M:%S%z")
+                    # Convert to Asia/Tashkent timezone
+                    media_ts_tashkent = media_ts.astimezone(pytz.timezone("Asia/Tashkent"))
+                    if media_ts_tashkent > latest_response.created_time:
+                        media_data = InstagramMedia.objects.create(
+                            media_id=media_first.get('id'),
+                            media_type=media_first.get('media_type', None),
+                            media_url=media_first.get('media_url', None),
+                            username=media_first.get('username', None),
+                            timestamp=media_first.get('timestamp', None),
+                            caption=media_first.get('caption', None),
+                            comments_count=media_first.get('comments_count', None),
+                            like_count=media_first.get('like_count', None),
+                            children=media_first.get('children', None)
+                        )
+                        latest_response.instagram_media.add(media_data)
+
             print(f"[!] No matching response found for this comment.")
     else:
         print(f"[+] Media {media_id} has parent_id: {parent_id}")
