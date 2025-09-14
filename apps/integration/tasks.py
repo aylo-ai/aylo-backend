@@ -252,6 +252,23 @@ def process_instagram_comment(account_id, comment_data):
                     print(f"Time {media_ts_tashkent} and {latest_response.created_time}")
                     if media_ts_tashkent > latest_response.created_time:
                         print("are good for it")
+                        if latest_response.is_respond_to_all_comments:
+                            print(f"[✓] Media-specific: Respond to all comments (is_respond_to_all_comments=True)")
+                            if latest_response.comment_message_template:
+                                    send_instagram_comment_reply(integration.api_token, comment_id, latest_response.comment_message_template)
+                            if latest_response.private_message_template:
+                                    send_instagram_private_reply(integration.api_token, account_id, comment_id, latest_response.private_message_template)
+
+
+                        else:
+                            print(f"[✓] Media-specific: Respond to all comments (is_respond_to_all_comments=False)")
+                            trigger_words = [tw.trigger_word.lower() for tw in latest_response.trigger_words.all()]
+                            if comment_text.strip().lower() in trigger_words:
+                                print(f"[✓] Media-specific trigger match: {trigger_words}")
+                                if latest_response.comment_message_template:
+                                    send_instagram_comment_reply(integration.api_token, comment_id, latest_response.comment_message_template)
+                                if latest_response.private_message_template:
+                                    send_instagram_private_reply(integration.api_token, account_id, comment_id, latest_response.private_message_template)
                         media_data = InstagramMedia.objects.create(
                             media_id=media_first.get('id'),
                             media_type=media_first.get('media_type', None),
