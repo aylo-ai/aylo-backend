@@ -193,7 +193,7 @@ class InstagramWebhookView(APIView):
                             conversation = Conversation.objects.filter(assistant=integration_account_id.assistant, user_id=sender_id)
                             if not conversation.exists():
                                 send_instagram_message(
-                                    instagram_user_id=account_id,
+                                    account_id=account_id,
                                     access_token=integration_account_id.api_token,
                                     recipient_id=sender_id,
                                     message=greeting
