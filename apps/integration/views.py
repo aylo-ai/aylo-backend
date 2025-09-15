@@ -187,16 +187,17 @@ class InstagramWebhookView(APIView):
                     print(f"Integration not found for account ID: {account_id}")
                     return error_response(message="Integration not found", code=404)
                 try:
-                    greeting = (getattr(integration.first().assistant, "greeting_message", None) or "Salom! Xabaringiz qabul qilindi ✔️")
+                    integration_account_id = Integration.objects.filter(integration_type="instagram",instagram_account_id=account_id).first()
+                    greeting = (getattr(integration_account_id.assistant, "greeting_message", None) or "Salom! Xabaringiz qabul qilindi ✔️")
                     try:
-                        conversation = Conversation.objects.filter(assistant=integration.first().assistant, user_id=sender_id)
-                        if not conversation.exists():
-                            send_instagram_message(
-                                instagram_user_id=account_id,
-                                access_token=integration.first().api_token,
-                                recipient_id=sender_id,
-                                message=greeting
-                            )
+                            conversation = Conversation.objects.filter(assistant=integration_account_id.assistant, user_id=sender_id)
+                            if not conversation.exists():
+                                send_instagram_message(
+                                    instagram_user_id=account_id,
+                                    access_token=integration_account_id.api_token,
+                                    recipient_id=sender_id,
+                                    message=greeting
+                                )
                             print(f"Auto-ack sent to {sender_id}")
                     except Exception as e:
                         # Agar yuborish muvaffaqiyatsiz bo'lsa, keyni o'chirmaymiz: qayta yuborish cheklovini saqlab qolish shart emas
