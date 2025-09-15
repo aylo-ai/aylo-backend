@@ -418,6 +418,7 @@ class UpdateFileUploadSerializer(serializers.ModelSerializer, SubscriptionValida
     def validate(self, attrs):
         request = self.context.get("request")
         assistant = self.context.get("assistant")
+        files = self.context.get('files')
         if not assistant.ai_enabled:
             raise_validation_error(message=_("Assistant AI sizda yoqilmagan"))
         if not request:

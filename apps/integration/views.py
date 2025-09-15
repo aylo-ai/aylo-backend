@@ -12,15 +12,16 @@ from django.utils.translation import gettext_lazy as _
 from django.db.models import Q
 
 from config.settings import INSTAGRAM_CLIENT_ID, INSTAGRAM_CLIENT_SECRET, INSTAGRAM_REDIRECT_URI
+from apps.assistant.models import Conversation
 from shared.addons.enums import IntegrationTypes
-from shared.addons.instagram import get_long_lived_access_token, get_user_profile
+from shared.addons.instagram import get_long_lived_access_token, get_user_profile, send_instagram_message
 from shared.addons.telegram import handle_bot_added_to_group, handle_bot_removed_from_group
 from shared.addons.validations import success_response, error_response
 from shared.permissions import IsCustomer
 from .models import Integration, TelegramGroupIntegration, InstagramMedia, CommentTriggerWord, InstagramCommentResponse
 from .serializers import IntegrationCreateSerializer, IntegrationSerializer, SendUserMessageSerializer, \
     TelegramGroupSerializer, InstagramMediaSerializer, CommentTriggerWordSerializer, InstagramCommentResponseSerializer
-from .tasks import process_message_task, process_instagram_message, process_voice_task, \
+from .tasks import  process_instagram_message, process_voice_task, \
                                 process_instagram_comment, WAIT_SECONDS, process_collected_messages, send_telegram_message
 
 from shared.addons.redis import redis_client
@@ -180,10 +181,28 @@ class InstagramWebhookView(APIView):
             print(f"Messaging: {messaging}")
             sender_id = messaging[0].get("sender", {}).get("id", None)
             print(f"Sender ID: {sender_id}")
-            if not Integration.objects.filter(instagram_account_id=sender_id).exists():
-                if not Integration.objects.filter(instagram_account_id=account_id).exists():
+            integration = Integration.objects.filter(integration_type="instagram",instagram_account_id=sender_id)
+            if not integration.exists():
+                if not Integration.objects.filter(integration_type="instagram",instagram_account_id=account_id).exists():
                     print(f"Integration not found for account ID: {account_id}")
                     return error_response(message="Integration not found", code=404)
+                try:
+                    greeting = (getattr(integration.first().assistant, "greeting_message", None) or "Salom! Xabaringiz qabul qilindi ✔️")
+                    try:
+                        conversation = Conversation.objects.filter(assistant=integration.first().assistant, user_id=sender_id)
+                        if not conversation.exists():
+                            send_instagram_message(
+                                instagram_user_id=account_id,
+                                access_token=integration.first().api_token,
+                                recipient_id=sender_id,
+                                message=greeting
+                            )
+                            print(f"Auto-ack sent to {sender_id}")
+                    except Exception as e:
+                        # Agar yuborish muvaffaqiyatsiz bo'lsa, keyni o'chirmaymiz: qayta yuborish cheklovini saqlab qolish shart emas
+                        print(f"Auto-ack failed: {e}")
+                except Exception as e:
+                    print(f"Auto-ack redis error: {e}")
                 # Start celery task to process the incoming message
                 if audio_file:
                     process_instagram_message.delay(account_id, None, messaging,audio_file)
@@ -504,7 +523,7 @@ class InstagramPostListView(APIView):
         if not integration:
             return error_response(message=_("Integration topilmadi"), code=400)
         access_token = integration.api_token
-        url = f"https://graph.instagram.com/v23.0/me/media"
+        url = "https://graph.instagram.com/v23.0/me/media"
         params = {
             "access_token": access_token,
             "fields": "id,media_type,media_url,username,timestamp,caption,comments_count,like_count,permalink,thumbnail_url,children{media_type,media_url}"
