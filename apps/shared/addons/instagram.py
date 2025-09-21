@@ -1,5 +1,9 @@
 import requests
+import time
 from config.settings import INSTAGRAM_CLIENT_ID
+
+from apps.integration.models import InstagramCommentResponse, Flow, InstagramUserState, Step
+from shared.addons.enums import ActionType
 
 def get_long_lived_access_token(short_lived_access_token):
     """Get long-lived access token from short-lived access token"""
@@ -113,3 +117,68 @@ def send_instagram_comment_reply(access_token, comment_id, message):
     }
     response = requests.post(url, json=payload, headers=headers)
     print(f"send_instagram_comment_reply response: {response.text}")
+
+def build_button_payload(btn):
+    """
+    btn: CommentResponseButton instance or dict with keys text, url, id, type
+    returns dict suitable for the IG template buttons
+    """
+    if getattr(btn, "type", None) == "web_url" or (isinstance(btn, dict) and btn.get("type") == "web_url"):
+        return {
+            "type": "web_url",
+            "url": btn.url if hasattr(btn, "url") else btn.get("url"),
+            "title": btn.text if hasattr(btn, "text") else btn.get("text"),
+        }
+    # default is postback (inline)
+    btn_id = btn.id if hasattr(btn, "id") else btn.get("id")
+    return {
+        "type": "postback",
+        "title": btn.text if hasattr(btn, "text") else btn.get("text"),
+        "payload": f"inline_button:{btn_id}"
+    }
+
+
+
+def send_instagram_postback(account_id: str, access_token: str, recipient_comment_id: str, data: Flow):
+    url = f"https://graph.instagram.com/v23.0/{account_id}/messages"  # keep version consistent with your integration
+    headers = {
+        "Content-Type": "application/json",
+        "Authorization": f"Bearer {access_token}",
+    }
+    first_step = Step.objects.filter(flow=data, action=ActionType.CONDITION.value, start_point=True).first()
+    # Build buttons list
+    if first_step:
+        btns_payload = []
+        for b in first_step.extra_button.all():
+            btns_payload.append(build_button_payload(b))
+
+
+        event = {
+            "recipient": {
+                "comment_id": recipient_comment_id
+            },
+            "message": {
+                "attachment": {
+                    "type": "template",
+                    "payload": {
+                        "template_type": "generic",
+                        "elements": [
+                            {
+                                "title": first_step.message_content,
+                                "imege_url": first_step.message_image.url,
+                                "buttons": btns_payload
+                            },
+                        ]
+                                }
+                            }
+                        }
+                }
+
+        try:
+            resp = requests.post(url, json=event, headers=headers, timeout=10)
+            resp.raise_for_status()
+            return resp
+        except requests.RequestException as exc:
+            print("Failed to send IG message: %s", exc)
+            # Return the response object when available for inspection, else raise or return None
+            return getattr(exc, "response", None)

@@ -12,17 +12,17 @@ from django.utils.translation import gettext_lazy as _
 from django.db.models import Q
 
 from config.settings import INSTAGRAM_CLIENT_ID, INSTAGRAM_CLIENT_SECRET, INSTAGRAM_REDIRECT_URI
-from apps.assistant.models import Conversation
 from shared.addons.enums import IntegrationTypes
-from shared.addons.instagram import get_long_lived_access_token, get_user_profile, send_instagram_message
+from shared.addons.instagram import get_long_lived_access_token, get_user_profile
 from shared.addons.telegram import handle_bot_added_to_group, handle_bot_removed_from_group
 from shared.addons.validations import success_response, error_response
 from shared.permissions import IsCustomer
-from .models import Integration, TelegramGroupIntegration, InstagramMedia, CommentTriggerWord, InstagramCommentResponse
+from .models import Integration, TelegramGroupIntegration, InstagramMedia, CommentTriggerWord, InstagramCommentResponse, Flow, Transition
 from .serializers import IntegrationCreateSerializer, IntegrationSerializer, SendUserMessageSerializer, \
-    TelegramGroupSerializer, InstagramMediaSerializer, CommentTriggerWordSerializer, InstagramCommentResponseSerializer
+    TelegramGroupSerializer, InstagramMediaSerializer, CommentTriggerWordSerializer, InstagramCommentResponseSerializer, InstagramCommentResponseFlowSerializer, TransitionSerializer
 from .tasks import  process_instagram_message, process_voice_task, \
-                                process_instagram_comment, WAIT_SECONDS, process_collected_messages, send_telegram_message
+                                process_instagram_comment, WAIT_SECONDS, process_collected_messages, \
+                                handle_comment_event_task, handle_postback_event_task
 
 from shared.addons.redis import redis_client
 
@@ -158,12 +158,22 @@ class InstagramWebhookView(APIView):
                     comment_data = change.get("value", {})
                     if comment_data:
                         print(f"Comment data: {comment_data}, Account ID: {account_id}")
-                        process_instagram_comment.delay(account_id, comment_data)
-                        return success_response(message=_("Comment webhook ma'lumotlar muvaffaqiyatli olindi"), code=200)
+                        # Get access token from integration
+                        integration = Integration.objects.filter(instagram_account_id=account_id).first()
+                        if integration and integration.api_token:
+                            process_instagram_comment.delay(account_id, comment_data)
+                            return success_response(message=_("Comment webhook ma'lumotlar muvaffaqiyatli olindi"), code=200)
 
         # Handle messages
         messaging = entry.get("messaging")
         if messaging:
+            # Handle postback events (button clicks)
+            if "postback" in messaging[0]:
+                integration = Integration.objects.filter(instagram_account_id=account_id).first()
+                if integration and integration.api_token:
+                    handle_postback_event_task.delay(messaging[0], integration.api_token)
+                return success_response(message=_("Postback muvaffaqiyatli olindi"), code=200)
+            
             audio_file = None
             is_echo = messaging[0].get("message", {}).get("is_echo")
             reaction = messaging[0].get("reaction", {}).get("action", None)
@@ -176,7 +186,7 @@ class InstagramWebhookView(APIView):
                 return success_response(message=_("Reel yoki qo'shimcha turdagi xabar muvaffaqiyatli olindi"), code=200)
             print(f"Is echo: {is_echo}, Audio file: {audio_file}")
             if is_echo:
-                print(f"Echo message received")
+                print("Echo message received")
                 return success_response(message=_("Echo xabar muvaffaqiyatli olindi"), code=200)
             print(f"Messaging: {messaging}")
             sender_id = messaging[0].get("sender", {}).get("id", None)
@@ -199,7 +209,7 @@ class InstagramWebhookView(APIView):
                         process_collected_messages.apply_async((account_id, None, messaging), countdown=WAIT_SECONDS)
                 return success_response(message=_("Xabar webhook ma'lumotlar muvaffaqiyatli olindi"), code=200)
             else:
-                print(f"Integration same found with the integration: {account_id}")
+                print("Integration same found with the integration:", account_id)
                 return success_response(message=_("Integratsiya boshqa foydalanuvchida ham topildi"), code=400)
 
         return success_response(message=_("Webhook ma'lumotlar muvaffaqiyatli olindi"), code=200)
@@ -636,3 +646,34 @@ class InstagramMediaRetrieveView(generics.RetrieveUpdateDestroyAPIView):
         instance = self.get_object()
         self.perform_destroy(instance)
         return success_response(message=_("Instagram media muvaffaqiyatli o'chirildi"), code=204)
+    
+
+class InstagramCommentResponseFlowListCreateView(generics.ListCreateAPIView):
+    queryset = Flow.objects.all()
+    serializer_class = InstagramCommentResponseFlowSerializer
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get_queryset(self):
+        id = self.kwargs.get('pk')
+        return self.queryset.filter(comment_response_id=id)
+    
+    def get_serializer_context(self):
+        """Pass pk to serializer context for linking"""
+        context = super().get_serializer_context()
+        context["comment_response_id"] = self.kwargs.get("pk")
+        return context
+    
+
+class InstagramFlowTransitionListCreateView(generics.ListCreateAPIView):
+    queryset = Transition.objects.all()
+    serializer_class = TransitionSerializer
+
+    def create(self, request, *args, **kwargs):
+        if isinstance(request.data, list):  # multiple
+            serializer = self.get_serializer(data=request.data, many=True)
+            serializer.is_valid(raise_exception=True)
+            self.perform_create(serializer)
+            return success_response(data = serializer.data)
+        else:  # single transition
+            return success_response(data = serializer.data)
+

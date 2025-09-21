@@ -1,15 +1,14 @@
-import requests
-
 from rest_framework import serializers
 from django.utils.translation import gettext_lazy as _
+from django.shortcuts import get_object_or_404
 
-from .models import Integration, TelegramGroupIntegration, InstagramMedia, CommentTriggerWord, InstagramCommentResponse
+from .models import Integration, TelegramGroupIntegration, InstagramMedia, CommentTriggerWord, InstagramCommentResponse, CommentResponseButton, Step, Transition, Flow, InstagramUserState
 from apps.assistant.models import Conversation, Assistant
 
 from shared.addons.enums import IntegrationTypes, ConversationPlatforms, ConversationStatuses
 from shared.addons.telegram import telegram_get_me, set_telegram_webhook, get_webhook_info, send_telegram_message
 from shared.addons.utils import create_message
-from shared.addons.validations import raise_validation_error, success_response, error_response
+from shared.addons.validations import raise_validation_error, success_response
 from shared.mixins import SubscriptionValidationMixin
 
 
@@ -197,6 +196,15 @@ class CommentTriggerWordSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError(_("Trigger word bo'sh bo'lishi mumkin emas"))
         
         return value.strip()
+    
+class CommentResponseButtonSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = CommentResponseButton
+        fields = (
+            "id",
+            "text",
+            "url"
+        )
 
 
 class InstagramCommentResponseSerializer(serializers.ModelSerializer):
@@ -316,4 +324,105 @@ class InstagramCommentResponseSerializer(serializers.ModelSerializer):
                     )
                     instance.instagram_media.add(obj)
         return instance
+    
+class TransitionListSerializer(serializers.ListSerializer):
+    def create(self, validated_data):
+        # bulk create transitions
+        transitions = [Transition(**item) for item in validated_data]
+        return Transition.objects.bulk_create(transitions)
+    
+class TransitionSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Transition
+        fields = ["id", "from_to", "to_step", "button_text"]
+        list_serializer_class = TransitionListSerializer
 
+
+class StepSerializer(serializers.ModelSerializer):
+    extra_buttons = serializers.ListSerializer(
+        child = serializers.DictField(
+            child=serializers.CharField()
+        ), write_only=True, required=False
+    )
+    extra_button = CommentResponseButtonSerializer(many=True, read_only=True)
+    transitions = TransitionSerializer(many=True, source="transitions_from", read_only=True)
+
+    class Meta:
+        model = Step
+        fields = ["id", "action", "extra_button", "start_point", "extra_buttons", "message_image","message_content","condition_type","transitions"]
+
+    
+class CommentResponseButtonSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = CommentResponseButton
+        fields = ["id", "text", "url", "type"]
+
+
+class InstagramCommentResponseFlowSerializer(serializers.ModelSerializer):
+    steps = StepSerializer(many=True, write_only=True)
+    step = StepSerializer(many=True, read_only=True)
+
+    class Meta:
+        model = Flow
+        fields = [
+            "id",
+            "title",
+            "flow_type",
+            "is_active",
+            "comment_response",
+            "step",
+            "steps",
+        ]
+        extra_kwargs = {
+            "comment_response": {"required": False},  # we attach manually in view
+        }
+
+    def create(self, validated_data):
+        steps_data = validated_data.pop("steps", [])
+        comment_response_id = self.context.get("comment_response_id")
+
+        if not steps_data:
+            raise serializers.ValidationError(
+                {"steps": "Qadamlar yaratilmagan, avval yarating"}
+            )
+
+        # ensure comment_response exists
+        comment_response = get_object_or_404(
+            InstagramCommentResponse, id=comment_response_id
+        )
+
+        # create flow
+        flow = Flow.objects.create(
+            comment_response=comment_response, **validated_data
+        )
+
+        # create steps + buttons
+        for step_data in steps_data:
+            extra_buttons_data = step_data.pop("extra_buttons", [])
+            step = Step.objects.create(flow=flow, **step_data)
+
+            for btn_data in extra_buttons_data:
+                btn = CommentResponseButton.objects.create(**btn_data)
+                step.extra_button.add(btn)
+
+        return flow
+    def to_representation(self, instance):
+        data = super().to_representation(instance)
+        data["steps"] = StepSerializer(instance.steps.all(), many=True).data
+
+        return data
+
+class InstagramUserStateSerializer(serializers.ModelSerializer):
+    current_step = StepSerializer(read_only=True)
+    
+    class Meta:
+        model = InstagramUserState
+        fields = [
+            "id",
+            "account_id", 
+            "user_id", 
+            "current_step", 
+            "created_time", 
+            "updated_time"
+        ]
+    

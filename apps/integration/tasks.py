@@ -1,15 +1,16 @@
-import requests, time
+import requests
+import time
 from celery import shared_task
 from datetime import datetime
 import pytz
 
 from apps.shared.addons.enums import SenderTypes, ConversationStatuses
-from shared.addons.instagram import send_instagram_message, send_instagram_private_reply,send_instagram_comment_reply
-from shared.addons.telegram import send_telegram_message, check_register_info, delete_telegram_message, send_telegram_action
+from shared.addons.instagram import send_instagram_message, send_instagram_private_reply, send_instagram_comment_reply, send_instagram_postback
+from shared.addons.telegram import send_telegram_message, send_telegram_action
 from shared.addons.utils import get_assistant_response_ai, handle_start_command, get_or_create_conversation, create_message, \
     speech_to_text, convert_ogg_to_mp3, process_instagram_audio
 from apps.assistant.models import Assistant
-from .models import TelegramGroupIntegration, Integration, InstagramMedia, InstagramCommentResponse
+from .models import TelegramGroupIntegration, Integration, InstagramMedia, InstagramCommentResponse, Flow, CommentResponseButton, Step, Transition, InstagramUserState
 from shared.addons.redis import publish_message_to_ws, redis_client
 
 WAIT_SECONDS = 5
@@ -215,15 +216,19 @@ def process_instagram_comment(account_id, comment_data):
             # 1a. Respond to all comments if flag is set
             response = InstagramCommentResponse.objects.filter(instagram_media=media).first()
             if response.is_respond_to_all_comments:
-                print(f"[✓] Media-specific: Respond to all comments (is_respond_to_all_comments=True)")
+                print("[✓] Media-specific: Respond to all comments (is_respond_to_all_comments=True)")
                 if response.comment_message_template:
                         send_instagram_comment_reply(integration.api_token, comment_id, response.comment_message_template)
                 if response.private_message_template:
-                        send_instagram_private_reply(integration.api_token, account_id, comment_id, response.private_message_template)
+                        send_instagram_private_reply(integration.api_token, account_id, comment_id, response.private_message_template, response)
+                flow = Flow.objects.filter(comment_response=response)
+                if flow.exists():
+                    if integration.instagram_account_id == '17841461784331766':
+                        send_instagram_postback(account_id=account_id, access_token=integration.api_token, recipient_id=commenter_id, data=flow.first())
 
 
             else:
-                print(f"[✓] Media-specific: Respond to all comments (is_respond_to_all_comments=False)")
+                print("[✓] Media-specific: Respond to all comments (is_respond_to_all_comments=False)")
                 trigger_words = [tw.trigger_word.lower() for tw in response.trigger_words.all()]
                 if comment_text.strip().lower() in trigger_words:
                     print(f"[✓] Media-specific trigger match: {trigger_words}")
@@ -236,7 +241,7 @@ def process_instagram_comment(account_id, comment_data):
             print(latest_response)
             if latest_response and not latest_response.instagram_media.exists():
                 access_token = integration.api_token
-                url = f"https://graph.instagram.com/v23.0/me/media"
+                url = "https://graph.instagram.com/v23.0/me/media"
                 params = {
                     "access_token": access_token,
                     "fields": "id,media_type,media_url,username,timestamp,caption,comments_count,like_count,permalink,thumbnail_url,children{media_type,media_url}"
@@ -253,7 +258,7 @@ def process_instagram_comment(account_id, comment_data):
                     if media_ts_tashkent > latest_response.created_time:
                         print("are good for it")
                         if latest_response.is_respond_to_all_comments:
-                            print(f"[✓] Media-specific: Respond to all comments (is_respond_to_all_comments=True)")
+                            print("[✓] Media-specific: Respond to all comments (is_respond_to_all_comments=True)")
                             if latest_response.comment_message_template:
                                     send_instagram_comment_reply(integration.api_token, comment_id, latest_response.comment_message_template)
                             if latest_response.private_message_template:
@@ -261,7 +266,7 @@ def process_instagram_comment(account_id, comment_data):
 
 
                         else:
-                            print(f"[✓] Media-specific: Respond to all comments (is_respond_to_all_comments=False)")
+                            print("[✓] Media-specific: Respond to all comments (is_respond_to_all_comments=False)")
                             trigger_words = [tw.trigger_word.lower() for tw in latest_response.trigger_words.all()]
                             if comment_text.strip().lower() in trigger_words:
                                 print(f"[✓] Media-specific trigger match: {trigger_words}")
@@ -283,7 +288,7 @@ def process_instagram_comment(account_id, comment_data):
                         latest_response.instagram_media.add(media_data)
                         print("created successfully")
 
-            print(f"[!] No matching response found for this comment.")
+            print("[!] No matching response found for this comment.")
     else:
         print(f"[+] Media {media_id} has parent_id: {parent_id}")
 
@@ -329,3 +334,220 @@ def get_user_info(access_token, user_id):
     }
     response = requests.get(url, params=params)
     return response.json()
+
+
+@shared_task
+def handle_comment_event_task(entry, value, access_token):
+    """
+    Handle comment events and trigger flows
+    """
+    comment_id = value.get("id") or value.get("comment_id")
+    sender = value.get("from", {})
+    sender_id = sender.get("id")
+    account_id = entry.get("id") or entry.get("account_id")
+    comment_text = value.get("text", "").strip()
+
+    print(f"[+] Handling comment event: {comment_text} from user: {sender_id}")
+
+    # Find integration for this account
+    integration = Integration.objects.filter(instagram_account_id=account_id).first()
+    if not integration:
+        print(f"[-] No integration found for account: {account_id}")
+        return
+
+    # Find comment response for this integration
+    comment_response = InstagramCommentResponse.objects.filter(integration=integration).first()
+    if not comment_response:
+        print(f"[-] No comment response found for integration: {integration.id}")
+        return
+
+    # Check if comment should trigger a flow
+    should_trigger_flow = False
+    
+    # Check trigger words
+    if comment_response.is_respond_to_all_comments:
+        should_trigger_flow = True
+    else:
+        trigger_words = [tw.trigger_word.lower() for tw in comment_response.trigger_words.all()]
+        if any(word in comment_text.lower() for word in trigger_words):
+            should_trigger_flow = True
+
+    if should_trigger_flow:
+        # Find flow for this comment response
+        flow = Flow.objects.filter(comment_response=comment_response, is_active=True).first()
+        if flow:
+            print(f"[+] Triggering flow: {flow.title}")
+            execute_flow_step_task.delay(flow.id, sender_id, account_id, comment_id, access_token)
+        else:
+            print(f"[-] No active flow found for comment response: {comment_response.id}")
+    else:
+        print(f"[-] Comment does not match trigger words: {comment_text}")
+
+
+@shared_task
+def execute_flow_step_task(flow_id, sender_id, account_id, comment_id, access_token):
+    """Execute a flow step for a user"""
+    try:
+        flow = Flow.objects.get(id=flow_id)
+    except Flow.DoesNotExist:
+        print(f"[-] Flow {flow_id} not found")
+        return
+
+    # Get or create user state
+    user_state, created = InstagramUserState.objects.get_or_create(
+        account_id=str(account_id),
+        user_id=str(sender_id),
+        defaults={"current_step": None}
+    )
+
+    # Get current step or first step
+    current_step = user_state.current_step
+    if not current_step:
+        current_step = flow.steps.order_by("id").first()
+        if not current_step:
+            print(f"[-] No steps found for flow: {flow.id}")
+            return
+        user_state.current_step = current_step
+        user_state.save()
+
+    print(f"[+] Executing step: {current_step.message_content}")
+
+    # Get buttons for this step
+    buttons = list(current_step.extra_button.all())
+
+    # Get image URL if exists
+    image_url = None
+    if current_step.message_image:
+        try:
+            image_url = current_step.message_image.url
+        except Exception:
+            image_url = None
+
+    # Send message with or without buttons
+    try:
+        if buttons:
+            # Use postback for messages with buttons
+            resp = send_instagram_postback(
+                account_id=account_id,
+                access_token=access_token,
+                recipient_comment_id=comment_id,
+                title=current_step.message_content,
+                image_url=image_url,
+                buttons=buttons
+            )
+        else:
+            # Use regular message for text-only messages
+            resp = send_instagram_message(
+                account_id=account_id,
+                access_token=access_token,
+                recipient_id=comment_id,
+                message=current_step.message_content
+            )
+        print(f"[+] Sent step message: {current_step.message_content}, status: {getattr(resp, 'status_code', None)}")
+    except Exception as e:
+        print(f"[-] Error sending message: {e}")
+
+
+@shared_task
+def handle_postback_event_task(msg, access_token):
+    """
+    Handle postback events (button clicks) and advance flow
+    """
+    sender_id = msg.get("sender", {}).get("id")
+    account_id = msg.get("recipient", {}).get("id")
+    postback = msg.get("postback", {}) or {}
+    payload = postback.get("payload") or postback.get("data") or ""
+
+    print(f"[+] Handling postback event: {payload} from user: {sender_id}")
+
+    if not payload or not sender_id:
+        print("[-] Missing payload or sender_id")
+        return
+
+    # Parse payload "inline_button:{id}"
+    if payload.startswith("inline_button:"):
+        btn_id = payload.split("inline_button:")[1]
+        try:
+            btn_obj = CommentResponseButton.objects.get(id=btn_id)
+            print(f"[+] Found button: {btn_obj.text}")
+        except CommentResponseButton.DoesNotExist:
+            print(f"[-] Button {btn_id} not found")
+            return
+
+        # Find user state
+        try:
+            user_state = InstagramUserState.objects.get(account_id=str(account_id), user_id=str(sender_id))
+            print(f"[+] Found user state for {sender_id}")
+        except InstagramUserState.DoesNotExist:
+            print(f"[-] User state not found for {account_id}:{sender_id}")
+            return
+
+        # Find transition for this button from current step
+        transition = Transition.objects.filter(
+            from_to=user_state.current_step, 
+            button_text=btn_obj
+        ).first()
+
+        if not transition:
+            print(f"[-] No transition found for button {btn_obj.text} from step {user_state.current_step.id}")
+            return
+
+        # Move to next step
+        next_step = transition.to_step
+        if next_step:
+            print(f"[+] Moving to next step: {next_step.message_content}")
+            
+            # Update user state
+            user_state.current_step = next_step
+            user_state.save()
+
+            # Send next step message
+            send_step_message_task.delay(next_step.id, account_id, sender_id, access_token)
+        else:
+            # End of flow
+            print(f"[+] User {sender_id} reached end of flow")
+            user_state.current_step = None
+            user_state.save()
+
+
+@shared_task
+def send_step_message_task(step_id, account_id, recipient_id, access_token):
+    """Send a step message with buttons"""
+    try:
+        step = Step.objects.get(id=step_id)
+    except Step.DoesNotExist:
+        print(f"[-] Step {step_id} not found")
+        return
+
+    buttons = list(step.extra_button.all())
+    
+    # Get image URL if exists
+    image_url = None
+    if step.message_image:
+        try:
+            image_url = step.message_image.url
+        except Exception:
+            image_url = None
+
+    try:
+        if buttons:
+            # Use postback for messages with buttons
+            resp = send_instagram_postback(
+                account_id=account_id,
+                access_token=access_token,
+                recipient_comment_id=recipient_id,
+                title=step.message_content,
+                image_url=image_url,
+                buttons=buttons
+            )
+        else:
+            # Use regular message for text-only messages
+            resp = send_instagram_message(
+                account_id=account_id,
+                access_token=access_token,
+                recipient_id=recipient_id,
+                message=step.message_content
+            )
+        print(f"[+] Sent step message: {step.message_content}, status: {getattr(resp, 'status_code', None)}")
+    except Exception as e:
+        print(f"[-] Error sending step message: {e}")

@@ -22,6 +22,8 @@ urlpatterns = [
     
     # Comment responses endpoints
     path("<uuid:integration_id>/instagram/comment-responses/", views.InstagramCommentResponseListCreateView.as_view()),
+    path("comment-responses/<uuid:pk>/flow/", views.InstagramCommentResponseFlowListCreateView.as_view()),
+    path("comment-response/flow/<uuid:pk>/transition/", views.InstagramFlowTransitionListCreateView.as_view()),
     path("instagram/comment-responses/<uuid:pk>/", views.InstagramCommentResponseRetrieveView.as_view()),
 
     path("send-telegram-message/", views.SendUserMessageView.as_view()),

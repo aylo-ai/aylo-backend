@@ -1,5 +1,5 @@
 from django.contrib import admin
-from .models import Integration, TelegramGroupIntegration, InstagramMedia, InstagramCommentResponse, CommentTriggerWord
+from .models import Integration, TelegramGroupIntegration, InstagramMedia, InstagramCommentResponse, CommentTriggerWord, CommentResponseButton
 
 
 @admin.register(Integration)
@@ -94,4 +94,12 @@ class TelegramGroupIntegrationAdmin(admin.ModelAdmin):
         (None, {"fields": ("group_id", "group_title", "lead_count")}),
         ("Integration", {"fields": ("integration",)}),
     )
+
+@admin.register(CommentResponseButton)
+class CommentResponseButtonAdmin(admin.ModelAdmin):
+    list_display = ('text','url')
+    fieldsets = (
+        (None, {'fields':('text', 'url')}),
+    )
+
     

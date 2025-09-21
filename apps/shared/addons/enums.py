@@ -168,3 +168,18 @@ class LeadStatuses(EnumBaseModel):
     SUCCESS = 'success'
     REJECTED = 'rejected'
     UNREACHABLE = 'unreachable'
+
+class ActionType(EnumBaseModel):
+    CONDITION = 'condition'
+    MESSAGE = 'message'
+
+class ButtonType(EnumBaseModel):
+    WEBURL = 'web_url'
+    POSTBACK = 'postback'
+
+class ConditionType(EnumBaseModel):
+    SUBSCRIBED = 'subscribed'
+
+class FlowType(EnumBaseModel):
+    COMMENT_RESPONSE = 'comment_response'
+
