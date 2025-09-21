@@ -260,7 +260,13 @@ def process_instagram_comment(account_id, comment_data):
                         send_instagram_comment_reply(integration.api_token, comment_id, response.comment_message_template)
                     if response.private_message_template:
                         send_instagram_private_reply(integration.api_token, account_id, comment_id, response.private_message_template)
-        else:
+                    flow = Flow.objects.filter(comment_response=response)
+                    if flow.exists():
+                        print("[+] Actual flow exists in that way")
+                        if integration.instagram_account_id == '17841461784331766':
+                            print("[+] Actual flow exists in that way and integartion is found")
+                            send_instagram_postback(account_id=account_id, access_token=integration.api_token, recipient_id=commenter_id, data=flow.first())
+        else:       
             latest_response = InstagramCommentResponse.objects.filter(integration=integration).order_by("-created_time").first()
             print(latest_response)
             if latest_response and not latest_response.instagram_media.exists():
