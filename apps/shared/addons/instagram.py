@@ -165,7 +165,7 @@ def send_instagram_postback(account_id: str, access_token: str, recipient_commen
                         "elements": [
                             {
                                 "title": first_step.message_content,
-                                "imege_url": first_step.message_image.url,
+                                "imege_url": first_step.message_image,
                                 "buttons": btns_payload
                             },
                         ]

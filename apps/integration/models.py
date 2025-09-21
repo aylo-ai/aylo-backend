@@ -69,7 +69,7 @@ class InstagramMedia(BaseModel):
         ordering = ['-created_time']
 
 def comment_response_image_path(instance, filename):
-    return f"integrtion/{instance.integration.id}/image/{filename}"
+    return f"integrtion/{instance.id}/image/{filename}"
 
 class InstagramCommentResponse(BaseModel):
     integration = models.ForeignKey(Integration, on_delete=models.CASCADE, related_name='instagram_comment_responses', blank=True, null=True)
