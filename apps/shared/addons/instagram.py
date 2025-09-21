@@ -168,7 +168,7 @@ def send_instagram_postback(account_id: str, access_token: str, recipient_commen
                         "elements": [
                             {
                                 "title": first_step.message_content,
-                                "imege_url": image_url,
+                                "image_url": image_url,
                                 "buttons": btns_payload
                             },
                         ]
@@ -178,7 +178,6 @@ def send_instagram_postback(account_id: str, access_token: str, recipient_commen
                 }
 
         resp = requests.post(url, json=event, headers=headers)
-        print(resp)
-        resp.raise_for_status()
+        print(resp.json())
         print("[+] handling instagram message for postback")
         print(resp)
