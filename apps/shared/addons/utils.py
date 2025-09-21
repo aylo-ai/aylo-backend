@@ -491,7 +491,6 @@ def create_lead(full_name, phone_number, email, product, assistant, platform, us
             platform=platform,
             username=username,
             metadata=metadata,
-            status=LeadStatuses.NEW.value
         )
         return lead
     except Exception as e:
