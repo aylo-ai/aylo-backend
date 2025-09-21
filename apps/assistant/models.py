@@ -192,7 +192,16 @@ class Lead(BaseModel):
     email = models.EmailField(max_length=255, null=True, blank=True)
     product = models.CharField(max_length=255, null=True, blank=True)
     metadata = models.JSONField(blank=True, null=True) 
-    status = models.CharField(max_length=255, choices=LeadStatuses.choices(), default=LeadStatuses.NEW.value)
+    status = models.CharField(
+        max_length=255, 
+        choices=LeadStatuses.choices(), 
+        default=LeadStatuses.NEW.value
+        )
+    platform = models.CharField(
+        max_length=255, 
+        choices=ConversationPlatforms.choices(), 
+        default=ConversationPlatforms.TELEGRAM.value
+        )
     contacted = models.BooleanField(default=False)
     
     class Meta:

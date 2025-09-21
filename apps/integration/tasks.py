@@ -54,10 +54,10 @@ def process_message_task(chat_id, user_message, bot_token, chat_username=None, u
                                                                                 )
         response_lines = [
                 "🎉 *New Lead Created!*\n",
-                f"👤 *Full Name:* {response_data.full_name}  " if getattr(response_data, 'full_name', None) else None,
-                f"📞 *Phone Number:* {response_data.phone_number}  " if getattr(response_data, 'phone_number', None) not in [None, ""] else None,
-                f"📧 *Email:* {response_data.email}  " if getattr(response_data, 'email', None) not in [None, ""] else None,
-                f"📦 *Interested Product:* {response_data.product}\n" if getattr(response_data, 'product', None) else None,
+                f"👤 *Full Name: {response_data.full_name}  " if getattr(response_data, 'full_name', None) else None,
+                f"📞 *Phone Number: {response_data.phone_number}  " if getattr(response_data, 'phone_number', None) not in [None, ""] else None,
+                f"📧 *Email: {response_data.email}  " if getattr(response_data, 'email', None) not in [None, ""] else None,
+                f"📦 *Interested Product: {response_data.product}\n" if getattr(response_data, 'product', None) else None,
                 "\n✅ Please follow up accordingly."
             ]
         response_text = "\n".join([line for line in response_lines if line])
