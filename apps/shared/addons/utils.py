@@ -342,7 +342,7 @@ def get_assistant_response_ai(user_message_, assistant_id, thread_id, conversati
             handle_unknown_intent(intent, user_message_, assistant, conversation)
                     
             response_data = None
-            if intent == "create_order":
+            if intent == "order_confirmation":
                 name = (
                         entities.get('name') or 
                         entities.get('full_name') or 
