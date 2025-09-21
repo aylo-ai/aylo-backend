@@ -140,19 +140,19 @@ def process_instagram_message(account_id, combined_message, user_message, audio_
     username_link = None
     if username:
         if platform and platform.lower() == "telegram":
-            username_link = f"https://t.me/{username}"
+            username_link = f"@{username}"
         elif platform and platform.lower() == "instagram":
             username_link = f"https://www.instagram.com/{username}"
 
     if response_data:
         response_lines = [
                 "🎉 *New Lead Created!*\n",
-                f"👤 *Full Name:* {response_data.full_name}  " if getattr(response_data, 'full_name', None) else None,
-                f"📞 *Phone Number:* {response_data.phone_number}  " if getattr(response_data, 'phone_number', None) not in [None, ""] else None,
-                f"📧 *Email:* {response_data.email}  " if getattr(response_data, 'email', None) not in [None, ""] else None,
-                f"📦 *Interested Product:* {response_data.product}\n" if getattr(response_data, 'product', None) else None,
-                f"📱 *Platform:* {platform}\n" if platform else None,
-                f"🔗 *Username:* {username_link}\n" if username_link else None,
+                f"👤 *Full Name: {response_data.full_name}  " if getattr(response_data, 'full_name', None) else None,
+                f"📞 *Phone Number: {response_data.phone_number}  " if getattr(response_data, 'phone_number', None) not in [None, ""] else None,
+                f"📧 *Email: {response_data.email}  " if getattr(response_data, 'email', None) not in [None, ""] else None,
+                f"📦 *Interested Product: {response_data.product}  " if getattr(response_data, 'product', None) else None,
+                f"📱 *Platform: {platform}  " if platform else None,
+                f"🔗 *Username: {username_link}\n" if username_link else None,
                 "\n✅ Please follow up accordingly."
             ]
         response_text = "\n".join([line for line in response_lines if line])
