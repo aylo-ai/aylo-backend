@@ -356,11 +356,18 @@ def get_assistant_response_ai(user_message_, assistant_id, thread_id, conversati
                         entities.get('contact_number') or 
                         None
                     )
+                platform = conversation.platform if conversation.platform else None
+                platform_map = {
+                    ConversationPlatforms.INSTAGRAM.value: conversation.client_full_name,
+                    ConversationPlatforms.TELEGRAM.value: conversation.username,
+                }
+
+                username = platform_map.get(conversation.platform) or None
                 response_data = create_lead(
                     assistant=assistant,
                     full_name=name,
-                    username=conversation.username if conversation.username else None,
-                    platform=conversation.platform if conversation.platform else None,
+                    username=username,
+                    platform=platform,
                     phone_number=phone_number,
                     email=entities.get('email', None),
                     product=entities.get('product', None),
