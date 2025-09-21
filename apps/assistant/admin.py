@@ -29,17 +29,17 @@ class AssistantAdmin(admin.ModelAdmin):
 
 @admin.register(Lead)
 class LeadAdmin(admin.ModelAdmin):
-    list_display = ('id', 'full_name', 'phone_number', 'email', 'product', 'created_time')
-    list_filter = ('product', 'created_time')
-    search_fields = ('full_name', 'phone_number', 'email')
+    list_display = ('id', 'full_name', 'phone_number', 'platform', 'product', 'created_time')
+    list_filter = ('product', 'created_time', 'platform')
+    search_fields = ('full_name', 'phone_number', 'platform')
     ordering = ('created_time', )
     readonly_fields = ('created_time', 'updated_time')
     fieldsets = (
         (None, {
-            'fields': ('full_name', 'phone_number', 'email', 'product', 'metadata','assistant','status','contacted')
+            'fields': ('full_name', 'phone_number', 'email', 'product', 'metadata','assistant','status','contacted', 'platform')
         }),
     )
-    
+        
 
 class MessageInline(admin.TabularInline):
     model = Message
@@ -48,13 +48,17 @@ class MessageInline(admin.TabularInline):
     can_delete = False
     show_change_link = True
 
+    def get_queryset(self, request):
+        qs = super().get_queryset(request)
+        return qs.order_by("created_time")  # eng boshidan boshlab ketadi
+
 
 @admin.register(Conversation)
 class ConversationAdmin(admin.ModelAdmin):
-    list_display = ('id', 'assistant', 'status', 'thread_id', 'platform', 'start_time', 'end_time')
-    list_filter = ('assistant', 'status')
+    list_display = ('id', 'assistant', 'status', 'platform', 'start_time', 'end_time')
+    list_filter = ('assistant', 'status', 'platform')
     search_fields = ('assistant__name', 'thread_id')
-    ordering = ('assistant', 'start_time')
+    ordering = ('assistant', 'start_time', 'platform', "created_time")
     list_per_page = 20
     list_max_show_all = 100
     save_as = True
@@ -67,7 +71,8 @@ class ConversationAdmin(admin.ModelAdmin):
 
     fieldsets = (
         (None, {
-            'fields': ('assistant', 'status', 'thread_id', 'user_id', 'token','client_full_name','client_phone_email')
+            'fields': ('assistant', 'status', 'thread_id', 'user_id', 
+            'username', 'token','client_full_name','client_phone_email', 'platform')
         }),
         ('System', {
             'fields': ('start_time', 'end_time'),

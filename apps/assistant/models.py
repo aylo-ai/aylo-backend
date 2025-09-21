@@ -78,6 +78,7 @@ class Conversation(BaseModel):
         default=ConversationPlatforms.TELEGRAM.value
     )
     user_id = models.CharField(max_length=255, null=True, blank=True)
+    username = models.CharField(max_length=255, null=True, blank=True)
     token = models.CharField(max_length=255, null=True, blank=True)
     thread_id = models.CharField(max_length=255, null=True, blank=True)
     start_time = models.DateTimeField(default=timezone.now)
@@ -192,7 +193,17 @@ class Lead(BaseModel):
     email = models.EmailField(max_length=255, null=True, blank=True)
     product = models.CharField(max_length=255, null=True, blank=True)
     metadata = models.JSONField(blank=True, null=True) 
-    status = models.CharField(max_length=255, choices=LeadStatuses.choices(), default=LeadStatuses.NEW.value)
+    status = models.CharField(
+        max_length=255, 
+        choices=LeadStatuses.choices(), 
+        default=LeadStatuses.NEW.value
+        )
+    platform = models.CharField(
+        max_length=255, 
+        choices=ConversationPlatforms.choices(), 
+        default=ConversationPlatforms.TELEGRAM.value
+        )
+    username = models.CharField(max_length=255, null=True, blank=True)
     contacted = models.BooleanField(default=False)
     
     class Meta:

@@ -148,7 +148,7 @@ class InstagramWebhookView(APIView):
         
         entry = data.get("entry")[0]
         print(f"Entry: {entry}")
-        account_id = entry.get("id")
+        account_id = entry.get("id") # IG Professional Account ID (instagram_user_id)
         print(f"Account ID: {account_id}")
 
         # Handle comments
@@ -264,13 +264,13 @@ class InstagramCallbackView(APIView):
                 print("Sizda instagram integratsiyasi mavjud")
                 return error_response(message=("Instagram integratsiyasi sizda mavjud"), code=400)
             integration, created = Integration.objects.get_or_create(
-                assistant_id=assistant_id,
+                instagram_user_id=user_profile.get("instagram_user_id"),
                 user=user,
                 integration_type=IntegrationTypes.INSTAGRAM.value,
                 defaults={
+                    "assistant_id": assistant_id,
                     "name": user_profile.get("instagram_username"),
                     "api_token": access_token,
-                    "instagram_user_id": user_profile.get("instagram_user_id"),
                     "instagram_account_id": user_profile.get("instagram_account_id"),
                     "instagram_username": user_profile.get("instagram_username"),
                 }
