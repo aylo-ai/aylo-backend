@@ -58,7 +58,7 @@ def process_message_task(chat_id, user_message, bot_token, chat_username=None, u
         username_link = None
         if username:
             if platform and platform.lower() == "telegram":
-                username_link = f"https://t.me/{username}"
+                username_link = f"@{username}"
             elif platform and platform.lower() == "instagram":
                 username_link = f"https://www.instagram.com/{username}"
 
