@@ -78,6 +78,7 @@ class Conversation(BaseModel):
         default=ConversationPlatforms.TELEGRAM.value
     )
     user_id = models.CharField(max_length=255, null=True, blank=True)
+    username = models.CharField(max_length=255, null=True, blank=True)
     token = models.CharField(max_length=255, null=True, blank=True)
     thread_id = models.CharField(max_length=255, null=True, blank=True)
     start_time = models.DateTimeField(default=timezone.now)

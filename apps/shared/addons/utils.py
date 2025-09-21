@@ -86,6 +86,7 @@ def get_or_create_conversation(user_id, assistant, reset=False, token=None, plat
             status='open',
             token=token,
             platform=platform,
+            username=username if username else None,
             client_full_name=chat_username,
             client_phone_email=f"@{username}" if username else None
         )
@@ -110,7 +111,7 @@ def handle_start_command(chat_id, assistant, bot_token, chat_username, username)
     send_telegram_message(chat_id, greeting_message, bot_token)
 
     # Start a new or reopen an existing conversation
-    conversation = get_or_create_conversation(chat_id, assistant, reset=True, token=bot_token,chat_username=chat_username, username=username)
+    conversation = get_or_create_conversation(chat_id, assistant, reset=True, token=bot_token, chat_username=chat_username, username=username)
     print(f"Conversation get_create: {conversation}")
     return success_response(message=_("Salomlashish va yangi chat muvaffaqiyatli bajarildi"), code=200)
 
@@ -358,6 +359,8 @@ def get_assistant_response_ai(user_message_, assistant_id, thread_id, conversati
                 response_data = create_lead(
                     assistant=assistant,
                     full_name=name,
+                    username=conversation.username if conversation.username else None,
+                    platform=conversation.platform if conversation.platform else None,
                     phone_number=phone_number,
                     email=entities.get('email', None),
                     product=entities.get('product', None),
