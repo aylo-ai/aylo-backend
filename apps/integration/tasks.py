@@ -225,7 +225,9 @@ def process_instagram_comment(account_id, comment_data):
                         send_instagram_private_reply(integration.api_token, account_id, comment_id, response.private_message_template, response)
                 flow = Flow.objects.filter(comment_response=response)
                 if flow.exists():
+                    print("[+] Actual flow exists in that way")
                     if integration.instagram_account_id == '17841461784331766':
+                        print("[+] Actual flow exists in that way and integartion is found")
                         send_instagram_postback(account_id=account_id, access_token=integration.api_token, recipient_id=commenter_id, data=flow.first())
 
 

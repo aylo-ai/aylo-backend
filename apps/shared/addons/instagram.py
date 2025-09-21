@@ -152,7 +152,7 @@ def send_instagram_postback(account_id: str, access_token: str, recipient_commen
         for b in first_step.extra_button.all():
             btns_payload.append(build_button_payload(b))
 
-
+        print(f"All buttons are ready{btns_payload}")
         event = {
             "recipient": {
                 "comment_id": recipient_comment_id
@@ -177,7 +177,8 @@ def send_instagram_postback(account_id: str, access_token: str, recipient_commen
         try:
             resp = requests.post(url, json=event, headers=headers, timeout=10)
             resp.raise_for_status()
-            return resp
+            print("[+] handling instagram message for postback")
+            print(resp)
         except requests.RequestException as exc:
             print("Failed to send IG message: %s", exc)
             # Return the response object when available for inspection, else raise or return None
