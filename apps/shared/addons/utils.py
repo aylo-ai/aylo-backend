@@ -480,7 +480,7 @@ def speech_to_text(audio_bytes: bytes, language: str = "uz") -> str:
         print(f"[speech_to_text] Traceback: {traceback.format_exc()}")
         return "Sorry, I couldn't understand the audio.", 0, 0
     
-def create_lead(full_name, phone_number, email, product, assistant, metadata=None):  
+def create_lead(full_name, phone_number, email, product, assistant, platform, username, metadata=None):  
     try:
         lead = Lead.objects.create(
             full_name=full_name,
@@ -488,7 +488,10 @@ def create_lead(full_name, phone_number, email, product, assistant, metadata=Non
             email=email,
             product=product,
             assistant=assistant,
-            metadata=metadata
+            platform=platform,
+            username=username,
+            metadata=metadata,
+            status=LeadStatuses.NEW.value
         )
         return lead
     except Exception as e:

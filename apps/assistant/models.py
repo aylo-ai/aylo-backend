@@ -203,6 +203,7 @@ class Lead(BaseModel):
         choices=ConversationPlatforms.choices(), 
         default=ConversationPlatforms.TELEGRAM.value
         )
+    username = models.CharField(max_length=255, null=True, blank=True)
     contacted = models.BooleanField(default=False)
     
     class Meta:
