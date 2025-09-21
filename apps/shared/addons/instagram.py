@@ -153,6 +153,9 @@ def send_instagram_postback(account_id: str, access_token: str, recipient_commen
             btns_payload.append(build_button_payload(b))
 
         print(f"All buttons are ready{btns_payload}")
+        image_url = None
+        if first_step.message_image:
+            image_url = first_step.message_image.url
         event = {
             "recipient": {
                 "comment_id": recipient_comment_id
@@ -165,7 +168,7 @@ def send_instagram_postback(account_id: str, access_token: str, recipient_commen
                         "elements": [
                             {
                                 "title": first_step.message_content,
-                                "imege_url": first_step.message_image,
+                                "imege_url": image_url,
                                 "buttons": btns_payload
                             },
                         ]
