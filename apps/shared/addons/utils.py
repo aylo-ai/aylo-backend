@@ -556,7 +556,6 @@ def process_instagram_audio(audio_url: str, language: str = "uz") -> str:
         return "Sorry, I couldn't process the audio."
     
 def handle_unknown_intent(intent, user_message, assistant, conversation):
-    print("Hello my friend")
     if intent == "unknown":
         telegram_intergration = Integration.objects.filter(assistant=assistant, integration_type=IntegrationTypes.TELEGRAM.value).first()
         print(f"Telegram intergration: {telegram_intergration}")

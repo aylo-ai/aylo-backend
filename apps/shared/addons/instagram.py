@@ -145,7 +145,7 @@ def send_instagram_postback(account_id: str, access_token: str, recipient_commen
         "Content-Type": "application/json",
         "Authorization": f"Bearer {access_token}",
     }
-    first_step = Step.objects.filter(flow=data, action=ActionType.CONDITION.value, start_point=True).first()
+    first_step = Step.objects.filter(flow=data, action=ActionType.MESSAGE.value, start_point=True).first()
     # Build buttons list
     if first_step:
         btns_payload = []
