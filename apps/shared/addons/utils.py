@@ -14,7 +14,7 @@ from django.core.mail import send_mail
 from apps.integration.models import Integration, TelegramGroupIntegration
 from apps.assistant.models import Message, Conversation, Lead, Assistant
 from config.settings import client
-from shared.addons.enums import SubscriptionStatuses, NotificationTypes, IntegrationTypes
+from shared.addons.enums import SubscriptionStatuses, NotificationTypes, IntegrationTypes, ConversationPlatforms
 from shared.addons.telegram import send_telegram_message
 from shared.addons.validations import success_response, raise_validation_error, error_response
 from shared.addons.verification import send_playmobile_sms
