@@ -58,7 +58,7 @@ def send_instagram_postback(account_id: str, access_token:str, recipient_id: str
 
 
 response = send_instagram_postback(access_token="IGAARTl03yXtZABZAFBJU2F0TDJfYktBa2hvaW5ZAX2VYZADVjdm1yZAnZAUVEdEWWtGaFRtb1ZAweGUycDZAIR1QwdmVqZAlhoNHVmbWFVd0lxWldHWFB0aHk2b3BMTF9NajBfX2lIVWtpclAtRy1Rb3RXcm1aRktn",
-                        account_id="17841461784331766", recipient_id="17841461784331766")
+                        account_id="17841461784331766", recipient_id="759230513109491")
 
 print(response)
 

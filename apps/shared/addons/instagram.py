@@ -158,7 +158,7 @@ def send_instagram_postback(account_id: str, access_token: str, recipient_commen
             image_url = first_step.message_image.url
         event = {
             "recipient": {
-                "comment_id": recipient_comment_id
+                "id": recipient_comment_id
             },
             "message": {
                 "attachment": {
