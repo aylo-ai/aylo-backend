@@ -248,7 +248,7 @@ def process_instagram_comment(account_id, comment_data):
                     print("[+] Actual flow exists in that way")
                     if integration.instagram_account_id == '17841461784331766':
                         print("[+] Actual flow exists in that way and integartion is found")
-                        send_instagram_postback(account_id=account_id, access_token=integration.api_token, recipient_id=commenter_id, data=flow.first())
+                        send_instagram_postback(account_id=account_id, access_token=integration.api_token, recipient_id=comment_id, data=flow.first())
 
 
             else:
@@ -265,7 +265,7 @@ def process_instagram_comment(account_id, comment_data):
                         print("[+] Actual flow exists in that way")
                         if integration.instagram_account_id == '17841461784331766':
                             print("[+] Actual flow exists in that way and integartion is found")
-                            send_instagram_postback(account_id=account_id, access_token=integration.api_token, recipient_comment_id=commenter_id, data=flow.first())
+                            send_instagram_postback(account_id=account_id, access_token=integration.api_token, recipient_comment_id=comment_id, data=flow.first())
         else:       
             latest_response = InstagramCommentResponse.objects.filter(integration=integration).order_by("-created_time").first()
             print(latest_response)
@@ -461,8 +461,7 @@ def send_instagram_postback_next(account_id: str, access_token: str, recipient_c
                         ]
                                 }
                             }
-                        },
-                        "tag": "HUMAN_AGENT"
+                        }
                 }
 
         resp = requests.post(url, json=event, headers=headers)

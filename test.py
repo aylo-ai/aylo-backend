@@ -24,7 +24,7 @@ def send_instagram_postback(account_id: str, access_token:str, recipient_id: str
 
     event = {
   "recipient": {
-    "id": recipient_id
+    "comment_id": '17925857409136728'
   },
   "message": {
     "attachment": {
@@ -46,8 +46,8 @@ def send_instagram_postback(account_id: str, access_token:str, recipient_id: str
         ]
       }
     }
-  },
-  "tag": "HUMAN_AGENT"
+    
+  }
 }
 
     response = requests.post(url, json=event, headers=headers)
@@ -55,7 +55,7 @@ def send_instagram_postback(account_id: str, access_token:str, recipient_id: str
 
 
 response = send_instagram_postback(access_token="IGAARTl03yXtZABZAFBJU2F0TDJfYktBa2hvaW5ZAX2VYZADVjdm1yZAnZAUVEdEWWtGaFRtb1ZAweGUycDZAIR1QwdmVqZAlhoNHVmbWFVd0lxWldHWFB0aHk2b3BMTF9NajBfX2lIVWtpclAtRy1Rb3RXcm1aRktn",
-                        account_id="17841461784331766", recipient_id="1740693189861942")
+                        account_id="17841461784331766", recipient_id="1968400874008971")
 
 print(response)
 
