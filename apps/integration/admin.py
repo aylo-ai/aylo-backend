@@ -1,5 +1,5 @@
 from django.contrib import admin
-from .models import Integration, TelegramGroupIntegration, InstagramMedia, InstagramCommentResponse, CommentTriggerWord, CommentResponseButton, Step, Transition, Flow
+from .models import Integration, TelegramGroupIntegration, InstagramMedia, InstagramCommentResponse, CommentTriggerWord, CommentResponseButton, Step, Transition, Flow,InstagramUserState
 
 
 @admin.register(Integration)
@@ -104,5 +104,6 @@ class CommentResponseButtonAdmin(admin.ModelAdmin):
 
 admin.site.register(Step)
 admin.site.register(Flow)
+admin.site.register(InstagramUserState)
 admin.site.register(Transition)
     

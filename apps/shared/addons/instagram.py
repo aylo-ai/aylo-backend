@@ -179,7 +179,11 @@ def send_instagram_postback(account_id: str, access_token: str, recipient_commen
 
         resp = requests.post(url, json=event, headers=headers)
         if resp.status_code == 200:
-            InstagramUserState.objects.get_or_create(account_id=account_id, user_id=recipient_comment_id, current_step=first_step)
+            obj, created = InstagramUserState.objects.update_or_create(
+                                                        account_id=account_id,
+                                                        user_id=recipient_comment_id,
+                                                        defaults={"current_step": first_step}
+                                                    )
         print(resp.json())
         print("[+] handling instagram message for postback")
         print(resp)
