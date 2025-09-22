@@ -140,7 +140,7 @@ def build_button_payload(btn):
 
 
 def send_instagram_postback(account_id: str, access_token: str, recipient_comment_id: str, data: Flow):
-    url = f"https://graph.instagram.com/v23.0/{account_id}/messages"  # keep version consistent with your integration
+    url = "https://graph.instagram.com/v23.0/me/messages"  # keep version consistent with your integration
     headers = {
         "Content-Type": "application/json",
         "Authorization": f"Bearer {access_token}",
@@ -174,7 +174,8 @@ def send_instagram_postback(account_id: str, access_token: str, recipient_commen
                         ]
                                 }
                             }
-                        }
+                        },
+                        "tag": "HUMAN_AGENT"
                 }
 
         resp = requests.post(url, json=event, headers=headers)

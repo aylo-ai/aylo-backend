@@ -427,7 +427,7 @@ def send_step_message_task(step_id, account_id, recipient_id, access_token):
         print(f"[-] Error sending step message: {e}")
 
 def send_instagram_postback_next(account_id: str, access_token: str, recipient_comment_id: str, step_id: int):
-    url = f"https://graph.instagram.com/v23.0/{account_id}/messages"  # keep version consistent with your integration
+    url = "https://graph.instagram.com/v23.0/me/messages"  # keep version consistent with your integration
     headers = {
         "Content-Type": "application/json",
         "Authorization": f"Bearer {access_token}",
@@ -461,7 +461,8 @@ def send_instagram_postback_next(account_id: str, access_token: str, recipient_c
                         ]
                                 }
                             }
-                        }
+                        },
+                        "tag": "HUMAN_AGENT"
                 }
 
         resp = requests.post(url, json=event, headers=headers)
