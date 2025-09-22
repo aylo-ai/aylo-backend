@@ -502,7 +502,7 @@ MODELTRANSLATION_LANGUAGES = ('en', 'uz', 'ru', 'kk', 'ar')
 import sentry_sdk
 
 sentry_sdk.init(
-    dsn="https://e5f0b0b48f7ce4c4fc79cba7ddd3f29f@o4509438806589440.ingest.us.sentry.io/4509438808686592",
+    dsn="https://cb6c7ba11d9da224011674295fef19a0@o4506302611980288.ingest.us.sentry.io/4510062349189120",
     # Add data like request headers and IP for users,
     # see https://docs.sentry.io/platforms/python/data-management/data-collected/ for more info
     send_default_pii=True,
