@@ -22,7 +22,7 @@ from .serializers import IntegrationCreateSerializer, IntegrationSerializer, Sen
     TelegramGroupSerializer, InstagramMediaSerializer, CommentTriggerWordSerializer, InstagramCommentResponseSerializer, InstagramCommentResponseFlowSerializer, TransitionSerializer
 from .tasks import  process_instagram_message, process_voice_task, \
                                 process_instagram_comment, WAIT_SECONDS, process_collected_messages, \
-                                handle_comment_event_task, handle_postback_event_task
+                                handle_postback_event_task
 
 from shared.addons.redis import redis_client
 

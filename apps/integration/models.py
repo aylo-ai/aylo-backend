@@ -144,6 +144,7 @@ class Transition(BaseModel):
     from_to = models.ForeignKey(Step, on_delete=models.CASCADE, related_name='transitions_from')
     to_step = models.ForeignKey(Step, on_delete=models.CASCADE, related_name='transitions_to', null=True, blank=True)
     button_text = models.ForeignKey(CommentResponseButton, on_delete=models.CASCADE, related_name='transitions', null=True, blank=True)
+    action_subscription = models.BooleanField(default=False)
 
     class Meta:
         db_table = 'transition'

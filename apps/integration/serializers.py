@@ -334,7 +334,7 @@ class TransitionListSerializer(serializers.ListSerializer):
 class TransitionSerializer(serializers.ModelSerializer):
     class Meta:
         model = Transition
-        fields = ["id", "from_to", "to_step", "button_text"]
+        fields = ["id", "from_to", "to_step", "button_text",'action_subscription']
         list_serializer_class = TransitionListSerializer
 
 

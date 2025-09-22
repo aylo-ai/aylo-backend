@@ -178,6 +178,18 @@ def send_instagram_postback(account_id: str, access_token: str, recipient_commen
                 }
 
         resp = requests.post(url, json=event, headers=headers)
+        if resp.status_code == 200:
+            InstagramUserState.objects.get_or_create(account_id=account_id, user_id=recipient_comment_id, current_step=first_step)
         print(resp.json())
         print("[+] handling instagram message for postback")
         print(resp)
+
+def checking_instagram_followers(access_token:str, recicipient_id:str):
+    url = f"https://graph.instagram.com/v23.0/{recicipient_id}?fields=name,username,is_user_follow_business"
+    headers = {
+        "Content-Type": "application/json",
+        "Authorization": f"Bearer {access_token}",
+    }
+    response = requests.get(url, headers=headers)
+    return response.json()
+

@@ -2,65 +2,70 @@ import requests
 import time
 
 
-
-# def checking_instagram_followers(account_id: str, access_token:str):
-#     url = f"https://graph.instagram.com/v23.0/{account_id}?fields=name,username,is_user_follow_business"
-#     headers = {
-#         "Content-Type": "application/json",
-#         "Authorization": f"Bearer {access_token}",
-#     }
-#     response = requests.get(url, headers=headers)
-#     return response.json()
-
-# print(checking_instagram_followers("1968400874008971","IGAARTl03yXtZABZAFBJU2F0TDJfYktBa2hvaW5ZAX2VYZADVjdm1yZAnZAUVEdEWWtGaFRtb1ZAweGUycDZAIR1QwdmVqZAlhoNHVmbWFVd0lxWldHWFB0aHk2b3BMTF9NajBfX2lIVWtpclAtRy1Rb3RXcm1aRktn"))
-
-def send_instagram_postback(account_id: str, access_token:str, recipient_id: str):
-    
-    url = f"https://graph.instagram.com/v23.0/{account_id}/messages"
+def checking_instagram_followers(access_token:str, recicipient_id:str):
+    url = f"https://graph.instagram.com/v23.0/{recicipient_id}?fields=name,username,is_user_follow_business"
     headers = {
         "Content-Type": "application/json",
         "Authorization": f"Bearer {access_token}",
     }
-
-    event = {
-    "recipient":{
-        "id":recipient_id
-    },
-    "message":{
-        "attachment":{
-        "type":"template",
-        "payload":{
-            "template_type":"generic",
-            "elements":[
-            {
-                "title":"Soqqa qilamiz",
-                "image_url":"https://repli.uz/meta.svg",
-                "subtitle":"Bu yerda faqat soqqa qilmay qolganlar shilamiz tezroq hoyhatdan otib joyizni maxkamlang",
-                "buttons":[
-                {
-                    "type":"web_url",
-                    "url":"https://repli.uz",
-                    "title":"View Website"
-                },{
-                    "type":"postback",
-                    "title":"Start soqqa qilish",
-                    "payload":"KATTA_PUL_QLISH"
-                }              
-                ]      
-            }
-            ]
-        }
-        }
-    }
-}
-    response = requests.post(url, json=event, headers=headers)
+    response = requests.get(url, headers=headers)
     return response.json()
 
+print(checking_instagram_followers(recicipient_id="1968400874008971",access_token="IGAARTl03yXtZABZAFBJU2F0TDJfYktBa2hvaW5ZAX2VYZADVjdm1yZAnZAUVEdEWWtGaFRtb1ZAweGUycDZAIR1QwdmVqZAlhoNHVmbWFVd0lxWldHWFB0aHk2b3BMTF9NajBfX2lIVWtpclAtRy1Rb3RXcm1aRktn"))
 
-response = send_instagram_postback(access_token="IGAARTl03yXtZABZAFBJU2F0TDJfYktBa2hvaW5ZAX2VYZADVjdm1yZAnZAUVEdEWWtGaFRtb1ZAweGUycDZAIR1QwdmVqZAlhoNHVmbWFVd0lxWldHWFB0aHk2b3BMTF9NajBfX2lIVWtpclAtRy1Rb3RXcm1aRktn",
-                        account_id="17841461784331766", recipient_id="759230513109491")
 
-print(response)
+# def send_instagram_postback(account_id: str, access_token:str, recipient_id: str):
+    
+#     url = f"https://graph.instagram.com/v22.0/{account_id}/messages"
+#     headers = {
+#         "Content-Type": "application/json",
+#         "Authorization": f"Bearer {access_token}",
+#     }
+#     message = 'slaom'
+#     MAX_LENGTH = 1000
+#     message_parts = [message[i:i + MAX_LENGTH] for i in range(0, len(message), MAX_LENGTH)]
+#     for part in message_parts:
+#         event = {
+#             "recipient":{
+#                 "id":recipient_id
+#             },
+#             "message": {
+#                 "text":"salom"
+#         }
+  
+#     # "recipient":{
+#     #     "id":recipient_id
+#     # },
+#     # "message":{
+#     #     "attachment":{
+#     #     "type":"template",
+#     #     "payload":{
+#     #         "template_type":"button",
+            
+#     #         "text":"Soqqa qilamiz",
+#     #         "buttons":[
+#     #         {
+#     #             "type":"web_url",
+#     #             "url":"https://repli.uz",
+#     #             "title":"View Website"
+#     #         },{
+#     #             "type":"postback",
+#     #             "title":"Start soqqa qilish",
+#     #             "payload":"KATTA_PUL_QLISH"
+#     #         }              
+#     #         ]      
+#     #     }
+#     #     }
+#     # }
+# }
+#     response = requests.post(url, json=event, headers=headers)
+#     return response.json()
+
+
+# response = send_instagram_postback(access_token="IGAARTl03yXtZABZAFBJU2F0TDJfYktBa2hvaW5ZAX2VYZADVjdm1yZAnZAUVEdEWWtGaFRtb1ZAweGUycDZAIR1QwdmVqZAlhoNHVmbWFVd0lxWldHWFB0aHk2b3BMTF9NajBfX2lIVWtpclAtRy1Rb3RXcm1aRktn",
+#                         account_id="17841461784331766", recipient_id="1968400874008971")
+
+# print(response)
 
 # def get_media_id_from_comment(access_token, comment_id):
 #     """Get media (post) ID from a comment"""
