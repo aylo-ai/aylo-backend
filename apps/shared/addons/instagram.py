@@ -139,7 +139,7 @@ def build_button_payload(btn):
 
 
 
-def send_instagram_postback(account_id: str, access_token: str, recipient_comment_id: str, data: Flow):
+def send_instagram_postback(account_id: str, access_token: str, recipient_comment_id: str, data: Flow,commenter_id:str):
     url = "https://graph.instagram.com/v23.0/me/messages"  # keep version consistent with your integration
     headers = {
         "Content-Type": "application/json",
@@ -182,7 +182,7 @@ def send_instagram_postback(account_id: str, access_token: str, recipient_commen
         if resp.status_code == 200:
             obj, created = InstagramUserState.objects.update_or_create(
                                                         account_id=account_id,
-                                                        user_id=recipient_comment_id,
+                                                        user_id=commenter_id,
                                                         defaults={"current_step": first_step}
                                                     )
         print(resp.json())
