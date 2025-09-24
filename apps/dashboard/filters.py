@@ -9,7 +9,7 @@ class UserFilter(filters.FilterSet):
 
     class Meta:
         model = User
-        fields = ['created_time']
+        fields =  ['created_time']
 
 class SubscriptionFilter(filters.FilterSet):
     status = filters.ChoiceFilter(choices=SubscriptionStatuses.choices())
