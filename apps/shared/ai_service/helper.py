@@ -29,7 +29,8 @@ def extract_text_from_txt_files(txt_file_path):
     return text[:2000]  # Limit text to the first 2000 characters
 
 
-def create_prompt(assistant_name, company_name, company_description, assistant_role, conversation_style, assistant_language, valid_intents, fallback_message):
+def create_prompt(assistant_name, company_name, company_description, assistant_role, 
+                  conversation_style, assistant_language, valid_intents, fallback_message, steps):
     """
     Generate a structured prompt for an AI assistant, including intent classification, reply format, and flow guidelines.
     """
@@ -86,11 +87,9 @@ def create_prompt(assistant_name, company_name, company_description, assistant_r
             {intent_section}
 
             # 🔄 Smart Flow for Order Collection
-            If the user expresses interest in purchasing:
-            1. Use `"intent": "ask_to_register"` — Ask for name and phone number
-            2. Then, `"intent": "collect_order_info"` — Ask for what they want
-            3. Then, `"intent": "order_confirmation"` — Confirm order details
-            4. Finally, `"intent": "create_order"` — Create/forward the lead
+            Follow this step-by-step flow:
+
+            {steps} based on this step use available intents
 
             # ⛔️ Prohibited Behaviors
             - DO NOT guess or infer anything not in the uploaded files

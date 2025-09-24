@@ -363,7 +363,7 @@ def get_assistant_response_ai(user_message_, assistant_id, thread_id, conversati
                 }
 
                 username = platform_map.get(conversation.platform) or None
-                response_data = create_lead(
+                response_data = create_update_lead(
                     assistant=assistant,
                     full_name=name,
                     username=username,
@@ -487,9 +487,9 @@ def speech_to_text(audio_bytes: bytes, language: str = "uz") -> str:
         print(f"[speech_to_text] Traceback: {traceback.format_exc()}")
         return "Sorry, I couldn't understand the audio.", 0, 0
     
-def create_lead(full_name, phone_number, email, product, assistant, platform, username, metadata=None):  
+def create_update_lead(full_name, phone_number, email, product, assistant, platform, username, metadata=None):  
     try:
-        lead = Lead.objects.create(
+        lead = Lead.objects.update_or_create(
             full_name=full_name,
             phone_number=phone_number,
             email=email,

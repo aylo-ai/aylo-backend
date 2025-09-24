@@ -293,6 +293,12 @@ def process_instagram_comment(account_id, comment_data):
                                     send_instagram_comment_reply(integration.api_token, comment_id, latest_response.comment_message_template)
                             if latest_response.private_message_template:
                                     send_instagram_private_reply(integration.api_token, account_id, comment_id, latest_response.private_message_template)
+                            flow = Flow.objects.filter(comment_response=response)
+                            if flow.exists():
+                                print("[+] Actual flow exists in that way")
+                                if integration.instagram_account_id == '17841461784331766':
+                                    print("[+] Actual flow exists in that way and integartion is found")
+                                    send_instagram_postback(account_id=account_id, access_token=integration.api_token, recipient_id=comment_id, data=flow.first(),commenter_id=commenter_id)
 
 
                         else:
@@ -304,6 +310,12 @@ def process_instagram_comment(account_id, comment_data):
                                     send_instagram_comment_reply(integration.api_token, comment_id, latest_response.comment_message_template)
                                 if latest_response.private_message_template:
                                     send_instagram_private_reply(integration.api_token, account_id, comment_id, latest_response.private_message_template)
+                                flow = Flow.objects.filter(comment_response=response)
+                                if flow.exists():
+                                    print("[+] Actual flow exists in that way")
+                                    if integration.instagram_account_id == '17841461784331766':
+                                        print("[+] Actual flow exists in that way and integartion is found")
+                                        send_instagram_postback(account_id=account_id, access_token=integration.api_token, recipient_id=comment_id, data=flow.first(),commenter_id=commenter_id)
                         media_data = InstagramMedia.objects.create(
                             media_id=media_first.get('id'),
                             media_type=media_first.get('media_type', None),
@@ -384,11 +396,17 @@ def handle_postback_event_task(msg, access_token):
     inline_button_id = payload.split(":")[1]
     print(f"[+] incomming inline_button {inline_button_id}")
     user_state = InstagramUserState.objects.filter(account_id=account_id, user_id=sender_id).first()
+    if user_state is None:
+        print(f"[-] User state was not initialized yet {user_state}")
+        return 
+    
     #checking user that he subscribed or not
     status_subscription = checking_instagram_followers(access_token=access_token, recicipient_id=sender_id)
     #based on the subscrition send another way
     transition = Transition.objects.filter(from_to=user_state.current_step, action_subscription=status_subscription['is_user_follow_business'], 
                                            button_text__id=inline_button_id).first()
+    if transition is None:
+        print(f"[-] Transicition was not create or not found for this step {transition}")
 
     send_step_message_task.delay(transition.to_step.id, account_id, sender_id, access_token)
 

@@ -164,8 +164,9 @@ class FileTypes(EnumBaseModel):
 
 class LeadStatuses(EnumBaseModel):
     NEW = 'new'
-    CONTACTED = 'contacted'
-    SUCCESS = 'success'
+    ENGAGED = 'engaged'
+    PARTIAL_INFO = 'partial_info'
+    QUALIFIED = 'qualified'
     REJECTED = 'rejected'
     UNREACHABLE = 'unreachable'
 

@@ -15,6 +15,8 @@ from django.utils.translation import gettext_lazy as _
 from shared.addons.utils import update_assistant
 from shared.addons.redis import publish_new_message_to_ws
 from apps.assistant.filters import LeadFilter
+
+
 class AssistantListCreateView(generics.ListCreateAPIView):
     queryset = Assistant.objects.all()
     serializer_class = AssistantSerializer
