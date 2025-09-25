@@ -35,8 +35,8 @@ services:
       - /var/www/media:/app/media
 
   postgres:
-    ports:
-      - "127.0.0.1:5432:5432"
+    # ports:
+      # - "127.0.0.1:5432:5432"
     image: postgres:latest
     env_file: .env
     volumes:
@@ -47,8 +47,8 @@ services:
       POSTGRES_PASSWORD: ${DB_PASSWORD}
 
   redis:
-    ports:
-      - "127.0.0.1:6379:6379"
+    # ports:
+      # - "127.0.0.1:6379:6379"
     image: redis:latest
     volumes:
       - redis-data:/data
