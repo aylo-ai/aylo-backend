@@ -1,13 +1,16 @@
 import time
 import os
+import json
 
 from rest_framework import serializers
 from django.utils.translation import gettext_lazy as _
 from django.utils.timezone import localtime
 from django.core.files import File
+from openpyxl import Workbook
+from datetime import datetime
 
 from shared.addons.google_integrations import process_google_doc
-from apps.assistant.models import Assistant, Conversation, Message, Settings, AssistantFileUpload
+from apps.assistant.models import Assistant, Conversation, Message, Settings, AssistantFileUpload, Lead
 from apps.integration.models import TelegramGroupIntegration
 from shared.addons.ai_requests import update_vector_store_files
 from shared.addons.utils import get_assistant_response_ai, get_thread_id, speech_to_text, send_telegram_message
@@ -34,6 +37,7 @@ class AssistantSerializer(serializers.ModelSerializer,
             "company_name",
             "role",
             "language",
+            "steps",
             "personality_style",
             "greeting_message",
             "fallback_message",
@@ -415,6 +419,7 @@ class UpdateFileUploadSerializer(serializers.ModelSerializer, SubscriptionValida
     def validate(self, attrs):
         request = self.context.get("request")
         assistant = self.context.get("assistant")
+        files = self.context.get('files')
         if not assistant.ai_enabled:
             raise_validation_error(message=_("Assistant AI sizda yoqilmagan"))
         if not request:
@@ -517,3 +522,49 @@ class AssistantFileGoogleDocSerializer(serializers.Serializer):
         validated_data["file_type"] = response.get("file_type")
         print(f"validated_data: {validated_data}")
         return validated_data
+
+
+class LeadSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Lead
+        fields = [
+            "id",
+            "assistant",
+            "full_name",
+            "phone_number",
+            "email",
+            "product",
+            "status",
+            "metadata",
+            "contacted",
+            "created_time",
+            "updated_time",
+        ]   
+        read_only_fields = ["created_time", "updated_time"]
+
+    
+class LeadExportSerializer(serializers.Serializer):
+    def export_leads(self, assistant_id):
+        leads = Lead.objects.filter(assistant_id=assistant_id).select_related('assistant').only(
+            'full_name', 'phone_number', 'email', 'product', 'status', 'contacted', 'created_time', 'assistant__name', 'metadata'
+        ).iterator(chunk_size=1000)
+
+        wb = Workbook()
+        ws = wb.active
+        ws.append(["Ism familiya", "Email", "Telefon raqam", "Maxsulot", "Status", "Yaratilgan vaqt", "Assistant nomi", "Qoshimcha ma'lumotlar"])
+
+        for lead in leads:
+            ws.append([
+                lead.full_name,
+                lead.email,
+                lead.phone_number,
+                lead.product,
+                lead.status,
+                lead.created_time.strftime("%Y-%m-%d %H:%M:%S") if lead.created_time else "",
+                lead.assistant.name,
+                json.dumps(lead.metadata) if lead.metadata else ""
+            ])
+
+        file_path = f"leads_export_{datetime.now().strftime('%Y-%m-%d')}.xlsx"
+        wb.save(file_path)
+        return file_path

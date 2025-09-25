@@ -9,6 +9,7 @@ from django.http import HttpResponse
 from rest_framework.views import APIView
 from rest_framework import generics, permissions
 from django.utils.translation import gettext_lazy as _
+from django.db.models import Q
 
 from config.settings import INSTAGRAM_CLIENT_ID, INSTAGRAM_CLIENT_SECRET, INSTAGRAM_REDIRECT_URI
 from shared.addons.enums import IntegrationTypes
@@ -16,13 +17,32 @@ from shared.addons.instagram import get_long_lived_access_token, get_user_profil
 from shared.addons.telegram import handle_bot_added_to_group, handle_bot_removed_from_group
 from shared.addons.validations import success_response, error_response
 from shared.permissions import IsCustomer
-from .models import Integration, TelegramGroupIntegration, InstagramMedia, CommentTriggerWord, InstagramCommentResponse
+from .models import Integration, TelegramGroupIntegration, InstagramMedia, CommentTriggerWord, InstagramCommentResponse, Flow, Transition, Step, CommentResponseButton, InstagramUserState
 from .serializers import IntegrationCreateSerializer, IntegrationSerializer, SendUserMessageSerializer, \
-    TelegramGroupSerializer, InstagramMediaSerializer, CommentTriggerWordSerializer, InstagramCommentResponseSerializer
-from .tasks import process_message_task, process_instagram_message, process_voice_task, \
-                                process_instagram_comment, WAIT_SECONDS, process_collected_messages, send_telegram_message
+    TelegramGroupSerializer, InstagramMediaSerializer, CommentTriggerWordSerializer, InstagramCommentResponseSerializer, InstagramCommentResponseFlowSerializer, TransitionSerializer, StepSerializer, CommentResponseButtonSerializer, InstagramUserStateSerializer
+from .tasks import  process_instagram_message, process_voice_task, \
+                                process_instagram_comment, WAIT_SECONDS, process_collected_messages, \
+                                handle_postback_event_task
 
 from shared.addons.redis import redis_client
+
+
+class IntegrationListView(generics.ListAPIView):
+    queryset = Integration.objects.all()
+    serializer_class = IntegrationSerializer
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get_queryset(self):
+        user = self.request.user
+        return Integration.objects.filter(
+            Q(user=user) | Q(assistant__user=user)
+        ).distinct()
+    
+    def list(self, request, *args, **kwargs):
+        queryset = self.get_queryset()
+        serializer = self.get_serializer(queryset, many=True)
+        return success_response(data=serializer.data, message="Integrations retrieved successfully", code=200)
+
 
 class IntegrationListCreateView(generics.ListCreateAPIView):
     queryset = Integration.objects.all()
@@ -40,12 +60,12 @@ class IntegrationListCreateView(generics.ListCreateAPIView):
 
     def create(self, request, *args, **kwargs):
         base_url = f"{request.scheme}://{request.get_host()}"
+        assistant_id = self.kwargs.get('pk', None)
         context_data = {
             "base_url": base_url,
-            "assistant_id": self.kwargs.get('pk'),
+            "assistant_id": assistant_id,
             "request": request
         }
-        assistant_id = self.kwargs.get('pk')
         serializer = self.get_serializer(data=request.data, context=context_data)
         serializer.is_valid(raise_exception=True)
         serializer.save(assistant_id=assistant_id)
@@ -60,8 +80,12 @@ class IntegrationRetrieveUpdateDestroyView(generics.RetrieveUpdateDestroyAPIView
     def get_object(self):
         # check if the integration belongs to the assistant
         obj = super().get_object()
-        if obj.assistant.user != self.request.user:
-            return error_response(message=_("Integration topilmadi"))
+        if obj.assistant:
+            if obj.assistant.user != self.request.user:
+                return error_response(message=_("Integration topilmadi"))
+        else:
+            if obj.user != self.request.user:
+                return error_response(message=_("Integration topilmadi"))
         return obj
 
     def retrieve(self, request, *args, **kwargs):
@@ -74,7 +98,8 @@ class IntegrationRetrieveUpdateDestroyView(generics.RetrieveUpdateDestroyAPIView
         base_url = f"{request.scheme}://{request.get_host()}"
         context_data = {
             "base_url": base_url,
-            "request": request
+            "request": request,
+            "assistant_id": instance.assistant_id
         }
         serializer = self.get_serializer(instance, data=request.data, context=context_data, partial=True)
         serializer.is_valid(raise_exception=True)
@@ -123,7 +148,7 @@ class InstagramWebhookView(APIView):
         
         entry = data.get("entry")[0]
         print(f"Entry: {entry}")
-        account_id = entry.get("id")
+        account_id = entry.get("id") # IG Professional Account ID (instagram_user_id)
         print(f"Account ID: {account_id}")
 
         # Handle comments
@@ -133,12 +158,22 @@ class InstagramWebhookView(APIView):
                     comment_data = change.get("value", {})
                     if comment_data:
                         print(f"Comment data: {comment_data}, Account ID: {account_id}")
-                        process_instagram_comment.delay(account_id, comment_data)
-                        return success_response(message=_("Comment webhook ma'lumotlar muvaffaqiyatli olindi"), code=200)
+                        # Get access token from integration
+                        integration = Integration.objects.filter(instagram_account_id=account_id).first()
+                        if integration and integration.api_token:
+                            process_instagram_comment.delay(account_id, comment_data)
+                            return success_response(message=_("Comment webhook ma'lumotlar muvaffaqiyatli olindi"), code=200)
 
         # Handle messages
         messaging = entry.get("messaging")
         if messaging:
+            # Handle postback events (button clicks)
+            if "postback" in messaging[0]:
+                integration = Integration.objects.filter(instagram_account_id=account_id).first()
+                if integration and integration.api_token:
+                    handle_postback_event_task.delay(messaging[0], integration.api_token)
+                return success_response(message=_("Postback muvaffaqiyatli olindi"), code=200)
+            
             audio_file = None
             is_echo = messaging[0].get("message", {}).get("is_echo")
             reaction = messaging[0].get("reaction", {}).get("action", None)
@@ -151,25 +186,31 @@ class InstagramWebhookView(APIView):
                 return success_response(message=_("Reel yoki qo'shimcha turdagi xabar muvaffaqiyatli olindi"), code=200)
             print(f"Is echo: {is_echo}, Audio file: {audio_file}")
             if is_echo:
-                print(f"Echo message received")
+                print("Echo message received")
                 return success_response(message=_("Echo xabar muvaffaqiyatli olindi"), code=200)
             print(f"Messaging: {messaging}")
-            if not Integration.objects.filter(instagram_account_id=account_id).exists():
-                print(f"Integration not found for account ID: {account_id}")
-                return error_response(message="Integration not found", code=404)
-            # Start celery task to process the incoming message
-            if audio_file:
-                process_instagram_message.delay(account_id, None, messaging,audio_file)
-            else:
-                message = messaging[0].get("message", {}).get("text",None)
-                if message is not None:  # Only push if message is not None
-                    redis_client.rpush(f"messages:{account_id}", message)
-                    redis_client.set(f"last_seen:{account_id}", time.time())
+            sender_id = messaging[0].get("sender", {}).get("id", None)
+            print(f"Sender ID: {sender_id}")
+            if not Integration.objects.filter(instagram_account_id=sender_id).exists():
+                if not Integration.objects.filter(instagram_account_id=account_id).exists():
+                    print(f"Integration not found for account ID: {account_id}")
+                    return error_response(message="Integration not found", code=404)
+                # Start celery task to process the incoming message
+                if audio_file:
+                    process_instagram_message.delay(account_id, None, messaging,audio_file)
+                else:
+                    message = messaging[0].get("message", {}).get("text",None)
+                    if message is not None:  # Only push if message is not None
+                        redis_client.rpush(f"messages:{account_id}", message)
+                        redis_client.set(f"last_seen:{account_id}", time.time())
 
-                    # Schedule collector task only if not already scheduled
-                    redis_client.setex(f"collecting:{account_id}", WAIT_SECONDS + 1, "1")  # Prevent overlap
-                    process_collected_messages.apply_async((account_id, None, messaging), countdown=WAIT_SECONDS)
-            return success_response(message=_("Xabar webhook ma'lumotlar muvaffaqiyatli olindi"), code=200)
+                        # Schedule collector task only if not already scheduled
+                        redis_client.setex(f"collecting:{account_id}", WAIT_SECONDS + 1, "1")  # Prevent overlap
+                        process_collected_messages.apply_async((account_id, None, messaging), countdown=WAIT_SECONDS)
+                return success_response(message=_("Xabar webhook ma'lumotlar muvaffaqiyatli olindi"), code=200)
+            else:
+                print("Integration same found with the integration:", account_id)
+                return success_response(message=_("Integratsiya boshqa foydalanuvchida ham topildi"), code=400)
 
         return success_response(message=_("Webhook ma'lumotlar muvaffaqiyatli olindi"), code=200)
 
@@ -181,9 +222,11 @@ class InstagramCallbackView(APIView):
 
     def get(self, request, *args, **kwargs):
         # Get the authorization code from the query parameters
+        user = request.user if request.user.is_authenticated else None
         code = request.query_params.get("code")
-        assistant_id = request.query_params.get("assistant_id")
-        if not assistant_id:
+        assistant_id = request.query_params.get("assistant_id", None)
+        is_automation_only = request.query_params.get("is_automation_only", "false")
+        if not assistant_id and is_automation_only == "false":
             return error_response(message=("Assistant ID topilmadi"), code=400)
         if not code:
             return error_response(message=("Authorization code topilmadi"), code=400)
@@ -221,12 +264,13 @@ class InstagramCallbackView(APIView):
                 print("Sizda instagram integratsiyasi mavjud")
                 return error_response(message=("Instagram integratsiyasi sizda mavjud"), code=400)
             integration, created = Integration.objects.get_or_create(
-                assistant_id=assistant_id,
+                instagram_user_id=user_profile.get("instagram_user_id"),
+                user=user,
                 integration_type=IntegrationTypes.INSTAGRAM.value,
                 defaults={
-                    "name": "Instagram integration",
+                    "assistant_id": assistant_id,
+                    "name": user_profile.get("instagram_username"),
                     "api_token": access_token,
-                    "instagram_user_id": user_profile.get("instagram_user_id"),
                     "instagram_account_id": user_profile.get("instagram_account_id"),
                     "instagram_username": user_profile.get("instagram_username"),
                 }
@@ -471,7 +515,7 @@ class InstagramPostListView(APIView):
         if not integration:
             return error_response(message=_("Integration topilmadi"), code=400)
         access_token = integration.api_token
-        url = f"https://graph.instagram.com/v23.0/me/media"
+        url = "https://graph.instagram.com/v23.0/me/media"
         params = {
             "access_token": access_token,
             "fields": "id,media_type,media_url,username,timestamp,caption,comments_count,like_count,permalink,thumbnail_url,children{media_type,media_url}"
@@ -500,7 +544,6 @@ class CommentTriggerWordListCreateView(generics.CreateAPIView):
 
 
 class CommentTriggerWordRetrieveView(generics.RetrieveUpdateDestroyAPIView):
-
     queryset = CommentTriggerWord.objects.all()
     serializer_class = CommentTriggerWordSerializer
     permission_classes = [permissions.IsAuthenticated]
@@ -529,8 +572,8 @@ class InstagramCommentResponseListCreateView(generics.ListCreateAPIView):
     permission_classes = [permissions.IsAuthenticated]
 
     def get_queryset(self):
-        assistant_id = self.kwargs.get('pk')
-        integration_id = Integration.objects.filter(assistant_id = assistant_id, integration_type=IntegrationTypes.INSTAGRAM.value).first()
+        integration_id = self.kwargs.get('integration_id')
+        integration_id = Integration.objects.filter(id = integration_id, integration_type=IntegrationTypes.INSTAGRAM.value).first()
         return self.queryset.filter(integration_id=integration_id)
 
     def list(self, request, *args, **kwargs):
@@ -539,9 +582,9 @@ class InstagramCommentResponseListCreateView(generics.ListCreateAPIView):
         return success_response(message=_("Comment responses muvaffaqiyatli olindi"), data=serializer.data, code=200)
 
     def create(self, request, *args, **kwargs):
-        assistant_id = self.kwargs.get('pk')
+        integration_id = self.kwargs.get('integration_id')
         try:
-            integration = Integration.objects.get(assistant_id=assistant_id, integration_type=IntegrationTypes.INSTAGRAM.value)
+            integration = Integration.objects.get(id=integration_id, integration_type=IntegrationTypes.INSTAGRAM.value)
         except Integration.DoesNotExist:
             return error_response(message=_("Integration topilmadi"), code=404)
         
@@ -578,6 +621,15 @@ class InstagramMediaRetrieveView(generics.RetrieveUpdateDestroyAPIView):
     serializer_class = InstagramMediaSerializer
     permission_classes = [permissions.IsAuthenticated]
 
+    def get_serializer_context(self):
+        context = super().get_serializer_context()
+        # Add custom things here
+        context["integration"] = Integration.objects.filter(
+            user=self.request.user,
+            integration_type=IntegrationTypes.INSTAGRAM.value
+        ).first()
+        return context
+
     def retrieve(self, request, *args, **kwargs):
         instance = self.get_object()
         serializer = self.get_serializer(instance)
@@ -594,3 +646,181 @@ class InstagramMediaRetrieveView(generics.RetrieveUpdateDestroyAPIView):
         instance = self.get_object()
         self.perform_destroy(instance)
         return success_response(message=_("Instagram media muvaffaqiyatli o'chirildi"), code=204)
+    
+
+class InstagramCommentResponseFlowListCreateView(generics.ListCreateAPIView):
+    queryset = Flow.objects.all()
+    serializer_class = InstagramCommentResponseFlowSerializer
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get_queryset(self):
+        id = self.kwargs.get('pk')
+        return self.queryset.filter(comment_response_id=id)
+    
+    def get_serializer_context(self):
+        """Pass pk to serializer context for linking"""
+        context = super().get_serializer_context()
+        context["comment_response_id"] = self.kwargs.get("pk")
+        return context
+    
+
+class InstagramFlowTransitionListCreateView(generics.ListCreateAPIView):
+    queryset = Transition.objects.all()
+    serializer_class = TransitionSerializer
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get_queryset(self):
+        flow_id = self.kwargs.get("pk")
+        # Return only transitions whose from_to step belongs to this flow
+        if not Flow.objects.filter(id=flow_id).exists():
+            return self.queryset.none()
+        return self.queryset.all()
+
+    def create(self, request, *args, **kwargs):
+        flow_id = self.kwargs.get("pk")
+        # Support both single object and list payloads
+        is_many = isinstance(request.data, list)
+        serializer = self.get_serializer(data=request.data, many=is_many)
+        serializer.is_valid(raise_exception=True)
+
+        # Validate that transitions belong to the provided flow
+        def _validate_transition(datum):
+            from_step = datum.get("from_to")
+            to_step = datum.get("to_step")
+            # Steps must belong to the same flow
+            if from_step:
+                if not Step.objects.filter(id=from_step, flow_id=flow_id).exists():
+                    raise ValueError("from_to step does not belong to this flow")
+            if to_step:
+                if not Step.objects.filter(id=to_step, flow_id=flow_id).exists():
+                    raise ValueError("to_step does not belong to this flow")
+
+        try:
+            if is_many:
+                for item in serializer.validated_data:
+                    _validate_transition(item)
+            else:
+                _validate_transition(serializer.validated_data)
+        except ValueError as e:
+            return error_response(message=str(e), code=400)
+
+        self.perform_create(serializer)
+        return success_response(data=serializer.data)
+
+
+class TransitionRetrieveUpdateDestroyView(generics.RetrieveUpdateDestroyAPIView):
+    queryset = Transition.objects.all()
+    serializer_class = TransitionSerializer
+    permission_classes = [permissions.IsAuthenticated]
+
+    def update(self, request, *args, **kwargs):
+        instance = self.get_object()
+        serializer = self.get_serializer(instance, data=request.data, partial=True)
+        serializer.is_valid(raise_exception=True)
+        # Optional: ensure steps remain in the same flow
+        from_to = serializer.validated_data.get("from_to") or instance.from_to
+        to_step = serializer.validated_data.get("to_step") or instance.to_step
+        if to_step and from_to.flow_id != to_step.flow_id:
+            return error_response(message=_("Steps must belong to the same flow"), code=400)
+        self.perform_update(serializer)
+        return success_response(message=_("Transition muvaffaqiyatli o'zgartirildi"), data=serializer.data, code=200)
+
+    def destroy(self, request, *args, **kwargs):
+        instance = self.get_object()
+        self.perform_destroy(instance)
+        return success_response(message=_("Transition muvaffaqiyatli o'chirildi"), code=204)
+
+
+class FlowRetrieveUpdateDestroyView(generics.RetrieveUpdateDestroyAPIView):
+    queryset = Flow.objects.all()
+    serializer_class = InstagramCommentResponseFlowSerializer
+    permission_classes = [permissions.IsAuthenticated]
+
+    def retrieve(self, request, *args, **kwargs):
+        instance = self.get_object()
+        serializer = self.get_serializer(instance)
+        return success_response(message=_("Flow muvaffaqiyatli olindi"), data=serializer.data, code=200)
+
+    def update(self, request, *args, **kwargs):
+        instance = self.get_object()
+        serializer = self.get_serializer(instance, data=request.data, partial=True)
+        serializer.is_valid(raise_exception=True)
+        self.perform_update(serializer)
+        return success_response(message=_("Flow muvaffaqiyatli o'zgartirildi"), data=serializer.data, code=200)
+
+    def destroy(self, request, *args, **kwargs):
+        instance = self.get_object()
+        self.perform_destroy(instance)
+        return success_response(message=_("Flow muvaffaqiyatli o'chirildi"), code=204)
+
+
+class StepRetrieveUpdateDestroyView(generics.RetrieveUpdateDestroyAPIView):
+    queryset = Step.objects.all()
+    serializer_class = StepSerializer
+    permission_classes = [permissions.IsAuthenticated]
+
+    def retrieve(self, request, *args, **kwargs):
+        instance = self.get_object()
+        serializer = self.get_serializer(instance)
+        return success_response(message=_("Step muvaffaqiyatli olindi"), data=serializer.data, code=200)
+
+    def update(self, request, *args, **kwargs):
+        instance = self.get_object()
+        extra_buttons = request.data.pop("extra_buttons", None)
+        serializer = self.get_serializer(instance, data=request.data, partial=True)
+        serializer.is_valid(raise_exception=True)
+        self.perform_update(serializer)
+        # Replace buttons if provided
+        if extra_buttons is not None:
+            instance.extra_button.clear()
+            for btn in extra_buttons:
+                btn_obj = CommentResponseButton.objects.create(**btn)
+                instance.extra_button.add(btn_obj)
+        return success_response(message=_("Step muvaffaqiyatli o'zgartirildi"), data=self.get_serializer(instance).data, code=200)
+
+    def destroy(self, request, *args, **kwargs):
+        instance = self.get_object()
+        self.perform_destroy(instance)
+        return success_response(message=_("Step muvaffaqiyatli o'chirildi"), code=204)
+
+
+class CommentResponseButtonListCreateView(generics.ListCreateAPIView):
+    queryset = CommentResponseButton.objects.all()
+    serializer_class = CommentResponseButtonSerializer
+    permission_classes = [permissions.IsAuthenticated]
+
+    def list(self, request, *args, **kwargs):
+        queryset = self.get_queryset()
+        serializer = self.get_serializer(queryset, many=True)
+        return success_response(message=_("Tugmalar muvaffaqiyatli olindi"), data=serializer.data, code=200)
+
+    def create(self, request, *args, **kwargs):
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        self.perform_create(serializer)
+        return success_response(message=_("Tugma muvaffaqiyatli yaratildi"), data=serializer.data, code=201)
+
+
+class CommentResponseButtonRetrieveUpdateDestroyView(generics.RetrieveUpdateDestroyAPIView):
+    queryset = CommentResponseButton.objects.all()
+    serializer_class = CommentResponseButtonSerializer
+    permission_classes = [permissions.IsAuthenticated]
+
+    def retrieve(self, request, *args, **kwargs):
+        instance = self.get_object()
+        serializer = self.get_serializer(instance)
+        return success_response(message=_("Tugma muvaffaqiyatli olindi"), data=serializer.data, code=200)
+
+    def update(self, request, *args, **kwargs):
+        instance = self.get_object()
+        serializer = self.get_serializer(instance, data=request.data, partial=True)
+        serializer.is_valid(raise_exception=True)
+        self.perform_update(serializer)
+        return success_response(message=_("Tugma muvaffaqiyatli o'zgartirildi"), data=serializer.data, code=200)
+
+    def destroy(self, request, *args, **kwargs):
+        instance = self.get_object()
+        self.perform_destroy(instance)
+        return success_response(message=_("Tugma muvaffaqiyatli o'chirildi"), code=204)
+
+

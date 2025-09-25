@@ -30,7 +30,8 @@ def create_assistant_and_vector_id(assistant, request=None):
             assistant.personality_style,
             assistant.language,
             valid_intents,
-            assistant.fallback_message
+            assistant.fallback_message,
+            assistant.steps
         )
 
         vector_store_id = create_vector_store(file_urls=file_urls)

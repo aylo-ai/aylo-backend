@@ -161,6 +161,7 @@ class DashboardUserSerializer(serializers.ModelSerializer):
     assistants = serializers.SerializerMethodField(method_name="get_assistants")
     integrations = serializers.SerializerMethodField(method_name="get_integrations")
     transactions = serializers.SerializerMethodField(method_name="get_transactions")
+    conversation_and_message = serializers.SerializerMethodField(method_name="get_conversation_and_message")
 
     class Meta:
         model = User
@@ -169,6 +170,7 @@ class DashboardUserSerializer(serializers.ModelSerializer):
             'first_name',
             'last_name',
             'phone_number',
+            'username',
             'email',
             'user_role',
             'is_active',
@@ -178,6 +180,7 @@ class DashboardUserSerializer(serializers.ModelSerializer):
             'transactions',
             'created_time',
             'updated_time',
+            "conversation_and_message",
         ]
         read_only_fields = ['created_time', 'updated_time']
 
@@ -223,6 +226,20 @@ class DashboardUserSerializer(serializers.ModelSerializer):
         transactions = obj.transactions.all()
         return DashboardTransactionSerializer(transactions, many=True).data
 
+    def get_conversation_and_message(self, obj):
+        conversations = Conversation.objects.filter(assistant__user=obj)
+        conversation_count = conversations.count()
+
+        message_count = Message.objects.filter(conversation__in=conversations).count()
+        message_output = Message.objects.filter(conversation__in=conversations, sender=SenderTypes.ASSISTANT.value)
+        message_input = sum([message.input_tokens for message in message_output])
+        message_output = sum([message.output_tokens for message in message_output])
+
+        return {
+            "message_price": f"${(message_input/1000000 * 5) + (message_output/1000000 * 20):.2f}",
+            "conversation_count": conversation_count,
+            "message_count": message_count
+        }
 
 class DashboardStatisticsSerializer(serializers.Serializer):
     type_filter = serializers.CharField(required=False)
@@ -340,7 +357,67 @@ class DashboardSubscriptionSerializer(serializers.ModelSerializer):
             "price": obj.pricing_package.price,
         }
     def get_user(self, obj):
-        return {
-            "id": obj.users.first().id,
-            "username": obj.users.first().username,
-        }
+        if obj.users.count() > 0:
+            return {
+                "id": obj.users.first().id,
+                "username": obj.users.first().username,
+            }
+        return None
+
+
+class DashboardUserListSerializer(serializers.ModelSerializer):
+    total_used_token_count = serializers.SerializerMethodField()
+    subscription = serializers.SerializerMethodField(method_name="get_subscription")
+
+    class Meta:
+        model = User
+        fields = [
+            'id',
+            'username',
+            'first_name',
+            'last_name',
+            'phone_number',
+            'email',
+            'user_role',
+            'is_active',
+            'total_used_token_count',
+            'subscription',
+            'created_time',
+            'updated_time',
+        ]
+        read_only_fields = ['created_time', 'updated_time']
+
+    def get_total_used_token_count(self, obj): # noqa
+        subscription = obj.subscription
+        if subscription:
+            return subscription.pricing_package.request_count - subscription.remained_request_count
+        return 0
+
+    
+    def get_subscription(self, obj): # noqa
+        subscription = obj.subscription
+        if subscription:
+            return {
+                "id": subscription.id,
+                "pricing_package": {
+                    "id": subscription.pricing_package.id,
+                    "name": subscription.pricing_package.name,
+                    "type": subscription.pricing_package.type,
+                    "price": subscription.pricing_package.price,
+                    "request_count": subscription.pricing_package.request_count,
+                    "duration_days": subscription.pricing_package.duration_days,
+                    "discount_price": subscription.pricing_package.discount_price,
+                    "currency": subscription.pricing_package.currency,
+                },
+                "start_date": subscription.start_date,
+                "end_date": subscription.end_date,
+                "status": subscription.status,
+                "remained_request_count": subscription.remained_request_count,
+                "next_payment_date": subscription.next_payment_date,
+                "auto_renew": subscription.auto_renew,
+                "cancellation_reason": subscription.cancellation_reason,
+                "last_payment_date": subscription.last_payment_date,
+                "grace_period_days": subscription.grace_period_days,
+            }
+        return None
+    

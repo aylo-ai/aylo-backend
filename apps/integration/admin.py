@@ -1,5 +1,5 @@
 from django.contrib import admin
-from .models import Integration, TelegramGroupIntegration, InstagramMedia, InstagramCommentResponse, CommentTriggerWord
+from .models import Integration, TelegramGroupIntegration, InstagramMedia, InstagramCommentResponse, CommentTriggerWord, CommentResponseButton, Step, Transition, Flow,InstagramUserState
 
 
 @admin.register(Integration)
@@ -7,13 +7,15 @@ class Integration(admin.ModelAdmin):
     list_display = ["get_asssitant_name", "name", "integration_type", "is_active", "created_time"]
     search_fields = ["name"]
     fieldsets = (
-        (None, {"fields": ("assistant", "name", "description", "is_active", "api_token",
+        (None, {"fields": ("assistant", "user", "name", "description", "is_active", "api_token",
                            "refresh_token", "integration_type")}),
         ("Instagram", {"fields": ("instagram_user_id", "instagram_account_id", "instagram_username")}),
     )
 
     def get_asssitant_name(self, obj): # noqa
-        return obj.assistant.name
+        if obj.assistant:
+            return obj.assistant.name
+        return obj.user.first_name if obj.user else None
 
 class InstagramCommentResponseInline(admin.TabularInline):
     model = InstagramCommentResponse.instagram_media.through
@@ -92,4 +94,16 @@ class TelegramGroupIntegrationAdmin(admin.ModelAdmin):
         (None, {"fields": ("group_id", "group_title", "lead_count")}),
         ("Integration", {"fields": ("integration",)}),
     )
+
+@admin.register(CommentResponseButton)
+class CommentResponseButtonAdmin(admin.ModelAdmin):
+    list_display = ('text','url')
+    fieldsets = (
+        (None, {'fields':('text', 'url')}),
+    )
+
+admin.site.register(Step)
+admin.site.register(Flow)
+admin.site.register(InstagramUserState)
+admin.site.register(Transition)
     

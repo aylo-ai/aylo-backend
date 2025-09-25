@@ -76,6 +76,7 @@ def verify_code_cache(phone_number, code):
     if stored_code == code:
         redis_connection.set(f"{phone_number}_verified", "True")
         redis_connection.expire(f"{phone_number}_verified", time=180)
+        redis_connection.delete(phone_number)
         return True, "Code verified successfully"
     return False, "Code is incorrect"
 

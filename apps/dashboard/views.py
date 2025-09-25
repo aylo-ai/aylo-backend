@@ -1,19 +1,19 @@
 from rest_framework import generics, filters
+from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework.views import APIView
 
-from apps.user.models import User
-from apps.user.serializers import UserSerializer
+from apps.user.models import User, Notification
+from apps.user.serializers import UserSerializer, NotificationSerializer
 from apps.assistant.serializers import AssistantSerializer, ConversationSerializer, MessageSerializer, AssistantFileUploadSerializer
 from apps.assistant.models import Assistant, Conversation, Message, AssistantFileUpload
 from apps.payment.models import Transaction, Subscription, Balance, Card, Feature, PricingPackage
-from apps.payment.serializers import TransactionSerializer, SubscriptionSerializer, BalanceSerializer, CardSerializer, FeatureSerializer, PricingPackageSerializer
+from apps.payment.serializers import TransactionSerializer, BalanceSerializer, CardSerializer, FeatureSerializer, PricingPackageSerializer
 from apps.integration.models import InstagramCommentResponse, Integration
 from apps.integration.serializers import InstagramCommentResponseSerializer, IntegrationSerializer
-from apps.user.models import Notification
-from apps.user.serializers import NotificationSerializer
 from apps.shared.permissions import IsAdmin, IsAuthenticated
 from apps.shared.addons.enums import UserRoles
 from apps.shared.pagination import StandardResultsSetPagination
+from apps.dashboard.filters import SubscriptionFilter, TransactionFilter, UserFilter
 from apps.dashboard.serializers import (
     DashboardConversationSerializer, 
     DashboardSendOtpLoginSerializer, 
@@ -21,6 +21,7 @@ from apps.dashboard.serializers import (
     DashboardSerializer,
     DashboardUserSerializer,
     DashboardStatisticsSerializer,
+    DashboardUserListSerializer,
     DashboardSubscriptionSerializer
 )
 
@@ -32,10 +33,11 @@ from rest_framework.throttling import AnonRateThrottle
 
 class DashboardUserList(generics.ListAPIView):
     queryset = User.objects.all()
-    serializer_class = UserSerializer
+    serializer_class = DashboardUserListSerializer
     permission_classes = [IsAdmin, IsAuthenticated]
-    filter_backends = [filters.SearchFilter, filters.OrderingFilter]
-    search_fields = ["name", "email", "phone_number", 'first_name', 'last_name']
+    filterset_class = UserFilter
+    filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
+    search_fields = ["username", "email", "phone_number", 'first_name', 'last_name']
     pagination_class = StandardResultsSetPagination
 
     def list(self, request, *args, **kwargs):
@@ -43,9 +45,23 @@ class DashboardUserList(generics.ListAPIView):
         page = self.paginate_queryset(queryset)
         if page is not None:
             serializer = self.get_serializer(page, many=True)
-            return self.get_paginated_response(serializer.data)
+            response = {
+                "data": serializer.data,
+                "total_users": queryset.count(),
+                "active_users": queryset.filter(is_active=True).count(),
+                "admin_users": queryset.filter(user_role=UserRoles.ADMIN.value).count(),
+                "customer_users": queryset.filter(user_role=UserRoles.CUSTOMER.value).count(),
+            }
+            return self.get_paginated_response(response)
         serializer = self.get_serializer(queryset, many=True)
-        return success_response(data=serializer.data, message="Users retrieved successfully", code=200)
+        response = {
+            "data": serializer.data,
+            "total_users": queryset.count(),
+            "active_users": queryset.filter(is_active=True).count(),
+            "admin_users": queryset.filter(user_role=UserRoles.ADMIN.value).count(),
+            "customer_users": queryset.filter(user_role=UserRoles.CUSTOMER.value).count(),
+        }
+        return success_response(data=response, message="Users retrieved successfully", code=200)
     
 class DashboardUserDetail(generics.RetrieveUpdateDestroyAPIView):
     queryset = User.objects.all()
@@ -75,6 +91,7 @@ class DashboardAssistantList(generics.ListAPIView):
     queryset = Assistant.objects.all()
     serializer_class = AssistantSerializer
     permission_classes = [IsAdmin, IsAuthenticated]
+    pagination_class = StandardResultsSetPagination
     filter_backends = [filters.SearchFilter]
     search_fields = ["name", "user__username", "company_name"]
 
@@ -237,8 +254,10 @@ class DashboardTransactionList(generics.ListAPIView):
     queryset = Transaction.objects.all()
     serializer_class = TransactionSerializer
     permission_classes = [IsAdmin, IsAuthenticated]
-    filter_backends = [filters.SearchFilter, filters.OrderingFilter]
+    filterset_class = TransactionFilter
+    filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
     pagination_class = StandardResultsSetPagination
+    search_fields = ["user__username", "user__email", "user__phone_number", "user__first_name", "user__last_name"]
 
 
     def list(self, request, *args, **kwargs):
@@ -280,6 +299,15 @@ class DashboardSubscriptionList(generics.ListAPIView):
     serializer_class = DashboardSubscriptionSerializer
     permission_classes = [IsAdmin, IsAuthenticated]
     pagination_class = StandardResultsSetPagination
+    filterset_class = SubscriptionFilter
+    filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
+
+    def get_queryset(self):
+        queryset = super().get_queryset()
+        search = self.request.query_params.get('search')
+        if search:
+            queryset = queryset.filter(users__username__icontains=search).distinct()
+        return queryset
 
     def list(self, request, *args, **kwargs):
         queryset = self.filter_queryset(self.get_queryset())

@@ -31,6 +31,10 @@ def process_monthly_subscriptions():
                     success, message = process_subscription_payment(user)
                     print(f"Success: {success}, Message: {message}")
                     if not success:
+                        if subscription.retry_count > 3:
+                            restrict_user_account(user)
+                        else:
+                            notify_user_about_failed_payment(user)
                         print("Failed to process subscription payment")
                         create_notification(user, f"Obuna tarifingiz tugadi. Sizda {message} xatolik yuz berdi.")
                         # Increment retry count and set next payment date to the next day
@@ -45,10 +49,6 @@ def process_monthly_subscriptions():
                             retry_date=timezone.now(),
                             error_message=message
                         )
-                        if subscription.retry_count > 3:
-                            restrict_user_account(user)
-                        else:
-                            notify_user_about_failed_payment(user)
                     else:
                         print("Successfully processed subscription payment")
                         create_notification(user, "Obuna tarifingiz muvaffaqiyatli amalga oshirildi.")

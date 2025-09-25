@@ -1,15 +1,21 @@
+import os
+
+from django.http import FileResponse
 from django.db.models import Q
-from rest_framework import permissions, filters, generics
-from apps.assistant.models import Assistant, AssistantFileUpload, Conversation, Message
+from rest_framework import permissions, filters, generics, views
+from django_filters.rest_framework import DjangoFilterBackend
+from apps.assistant.models import Assistant, AssistantFileUpload, Conversation, Message, Lead
 from apps.assistant.serializers import AssistantSerializer, ConversationSerializer, MessageSerializer, \
         SettingsSerializer, AssistantFileUploadSerializer, ConversationRetrieveSerializer, UpdateFileUploadSerializer, \
-             MessageBulkReadSerializer
+             MessageBulkReadSerializer, LeadSerializer, LeadExportSerializer
 from shared.addons.ai_requests import create_assistant_and_vector_id, delete_assitant, delete_vector_store
 from shared.addons.validations import success_response, error_response
 from rest_framework.exceptions import NotFound
 from django.utils.translation import gettext_lazy as _
 from shared.addons.utils import update_assistant
 from shared.addons.redis import publish_new_message_to_ws
+from apps.assistant.filters import LeadFilter
+
 
 class AssistantListCreateView(generics.ListCreateAPIView):
     queryset = Assistant.objects.all()
@@ -375,3 +381,62 @@ class MessageBulkReadView(generics.UpdateAPIView):
 #         serializer.is_valid(raise_exception=True)
 #         serializer.save()
 #         return success_response(message=_("Assistant google sheet muvaffaqiyatli yaratildi"), data=serializer.data, code=201)
+
+class LeadListCreateView(generics.ListCreateAPIView):
+    queryset = Lead.objects.all()
+    serializer_class = LeadSerializer
+    filterset_class = LeadFilter
+    filter_backends = [filters.SearchFilter, filters.OrderingFilter, DjangoFilterBackend]
+    search_fields = ['full_name', 'phone_number', 'email', 'product']
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get_queryset(self):
+        assistant_id = self.kwargs.get('pk')
+        return super().get_queryset().filter(assistant_id=assistant_id)
+    
+    def create(self, request, *args, **kwargs):
+        assistant_id = self.kwargs.get('pk')
+        serializer = self.get_serializer(data=request.data, context={'assistant_id': assistant_id, 'request': request})
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+        return success_response(message=_("Lead muvaffaqiyatli yaratildi"), data=serializer.data, code=201)
+    
+
+class LeadRetrieveView(generics.RetrieveUpdateDestroyAPIView):
+    queryset = Lead.objects.all()
+    serializer_class = LeadSerializer
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get_queryset(self):
+        lead_id = self.kwargs.get('pk')
+        return super().get_queryset().filter(id=lead_id)
+    
+    def retrieve(self, request, *args, **kwargs):
+        instance = self.get_object()
+        serializer = self.get_serializer(instance)
+        return success_response(data=serializer.data, message=_("Lead muvaffaqiyatli olindi"), code=200)
+    
+    def update(self, request, *args, **kwargs):
+        instance = self.get_object()
+        serializer = self.get_serializer(instance, data=request.data, partial=True)
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+        return success_response(message=_("Lead muvaffaqiyatli o'zgartirildi"), data=serializer.data, code=200)
+    
+    def destroy(self, request, *args, **kwargs):
+        instance = self.get_object()
+        self.perform_destroy(instance)
+        return success_response(message=_("Lead muvaffaqiyatli o'chirildi"), code=204)
+    
+
+class ExportLeadsView(views.APIView):
+    serializer_class = LeadExportSerializer
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get(self, request, *args, **kwargs):
+        assistant_id = self.kwargs.get('pk')
+        serializer = self.serializer_class(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        file_path = serializer.export_leads(assistant_id)
+        response = FileResponse(open(file_path, 'rb'), as_attachment=True, filename=os.path.basename(file_path))
+        return response

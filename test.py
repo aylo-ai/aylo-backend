@@ -1,4 +1,63 @@
 import requests
+import time
+
+
+# def checking_instagram_followers(access_token:str, recicipient_id:str):
+#     url = f"https://graph.instagram.com/v23.0/{recicipient_id}?fields=name,username,is_user_follow_business"
+#     headers = {
+#         "Content-Type": "application/json",
+#         "Authorization": f"Bearer {access_token}",
+#     }
+#     response = requests.get(url, headers=headers)
+#     return response.json()
+
+# print(checking_instagram_followers(recicipient_id="1968400874008971",access_token="IGAARTl03yXtZABZAFBJU2F0TDJfYktBa2hvaW5ZAX2VYZADVjdm1yZAnZAUVEdEWWtGaFRtb1ZAweGUycDZAIR1QwdmVqZAlhoNHVmbWFVd0lxWldHWFB0aHk2b3BMTF9NajBfX2lIVWtpclAtRy1Rb3RXcm1aRktn"))
+
+
+def send_instagram_postback(account_id: str, access_token:str, recipient_id: str):
+    
+    url = f"https://graph.instagram.com/v23.0/me/messages"
+    headers = {
+        "Content-Type": "application/json",
+        "Authorization": f"Bearer {access_token}",
+    }
+
+    event = {
+  "recipient": {
+    "comment_id": '17925857409136728'
+  },
+  "message": {
+    "attachment": {
+      "type": "template",
+      "payload": {
+        "template_type": "button",
+        "text": "Soqqa qilamiz",
+        "buttons": [
+          {
+            "type": "web_url",
+            "url": "https://repli.uz",
+            "title": "View Website"
+          },
+          {
+            "type": "postback",
+            "title": "Start soqqa qilish",
+            "payload": "KATTA_PUL_QLISH"
+          }
+        ]
+      }
+    }
+    
+  }
+}
+
+    response = requests.post(url, json=event, headers=headers)
+    return response.json()
+
+
+response = send_instagram_postback(access_token="IGAARTl03yXtZABZAFBJU2F0TDJfYktBa2hvaW5ZAX2VYZADVjdm1yZAnZAUVEdEWWtGaFRtb1ZAweGUycDZAIR1QwdmVqZAlhoNHVmbWFVd0lxWldHWFB0aHk2b3BMTF9NajBfX2lIVWtpclAtRy1Rb3RXcm1aRktn",
+                        account_id="17841461784331766", recipient_id="1968400874008971")
+
+print(response)
 
 # def get_media_id_from_comment(access_token, comment_id):
 #     """Get media (post) ID from a comment"""
@@ -128,14 +187,14 @@ import requests
 #         print("Your access token is invalid or expired. Please get a new token.")
 
 # def get_all_posts(access_token):
-#     url = f"https://graph.instagram.com/v23.0/me/media"
+#     url = f"https://graph.instagram.com/v23.0/18034220228417379"
 #     params = {
 #         "access_token": access_token,
 #         "fields": "id,media_type,media_url,username,timestamp,caption,comments_count,like_count,permalink,thumbnail_url,children{id,media_type,media_url,username,timestamp,caption,comments_count,like_count,permalink,thumbnail_url}"
 #     }
 #     response = requests.get(url, params=params)
 #     return response.json()
-# # print(get_all_posts(access_token))
+# print(get_all_posts(""))
 
 # def get_comment_from_post(access_token, post_id):
 #     url = f"https://graph.instagram.com/v23.0/{post_id}/comments"

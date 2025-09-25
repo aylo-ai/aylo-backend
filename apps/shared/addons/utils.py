@@ -14,7 +14,7 @@ from django.core.mail import send_mail
 from apps.integration.models import Integration, TelegramGroupIntegration
 from apps.assistant.models import Message, Conversation, Lead, Assistant
 from config.settings import client
-from shared.addons.enums import SubscriptionStatuses, NotificationTypes, IntegrationTypes
+from shared.addons.enums import SubscriptionStatuses, NotificationTypes, IntegrationTypes, ConversationPlatforms
 from shared.addons.telegram import send_telegram_message
 from shared.addons.validations import success_response, raise_validation_error, error_response
 from shared.addons.verification import send_playmobile_sms
@@ -87,6 +87,7 @@ def get_or_create_conversation(user_id, assistant, reset=False, token=None, plat
             status='open',
             token=token,
             platform=platform,
+            username=username if username else None,
             client_full_name=chat_username,
             client_phone_email=f"@{username}" if username else None
         )
@@ -111,7 +112,7 @@ def handle_start_command(chat_id, assistant, bot_token, chat_username, username)
     send_telegram_message(chat_id, greeting_message, bot_token)
 
     # Start a new or reopen an existing conversation
-    conversation = get_or_create_conversation(chat_id, assistant, reset=True, token=bot_token,chat_username=chat_username, username=username)
+    conversation = get_or_create_conversation(chat_id, assistant, reset=True, token=bot_token, chat_username=chat_username, username=username)
     print(f"Conversation get_create: {conversation}")
     return success_response(message=_("Salomlashish va yangi chat muvaffaqiyatli bajarildi"), code=200)
 
@@ -343,7 +344,7 @@ def get_assistant_response_ai(user_message_, assistant_id, thread_id, conversati
             handle_unknown_intent(intent, user_message_, assistant, conversation)
                     
             response_data = None
-            if intent == "create_order":
+            if intent == "order_confirmation":
                 name = (
                         entities.get('name') or 
                         entities.get('full_name') or 
@@ -356,9 +357,18 @@ def get_assistant_response_ai(user_message_, assistant_id, thread_id, conversati
                         entities.get('contact_number') or 
                         None
                     )
-                response_data = create_lead(
+                platform = conversation.platform if conversation.platform else None
+                platform_map = {
+                    ConversationPlatforms.INSTAGRAM.value: conversation.client_full_name,
+                    ConversationPlatforms.TELEGRAM.value: conversation.username,
+                }
+
+                username = platform_map.get(conversation.platform) or None
+                response_data = create_update_lead(
                     assistant=assistant,
                     full_name=name,
+                    username=username,
+                    platform=platform,
                     phone_number=phone_number,
                     email=entities.get('email', None),
                     product=entities.get('product', None),
@@ -369,18 +379,7 @@ def get_assistant_response_ai(user_message_, assistant_id, thread_id, conversati
         
         except Exception as e:
             print(f"Error in get_assistant_response_ai: {str(e)}")
-            # If there's an error, wait a bit and try to get the latest response
-            try:
-                messages = client.beta.threads.messages.list(
-                    thread_id=thread_id, order="desc", limit=1
-                )
-                if messages.data:
-                    assistant_response_str = messages.data[0].content[0].text.value
-                    assistant_response = json.loads(assistant_response_str)
-                    return assistant_response.get("reply", "We already know the problem and we are working on it."), None, None
-            except:
-                pass
-            return "We already know the problem and we are working on it.", None, None
+            return "", None, None
 
 def create_and_run_thread(assistant_id, vector_store_id):
     try:
@@ -464,7 +463,7 @@ def speech_to_text(audio_bytes: bytes, language: str = "uz") -> str:
             """
         print(f"Prompt: {prompt}")
         response = client.models.generate_content(
-            model="gemini-2.5-flash-preview-04-17",
+            model="gemini-2.5-flash",
             contents=[
                 prompt,
                 types.Part.from_bytes(data=audio_bytes, mime_type="audio/mp3")
@@ -487,9 +486,9 @@ def speech_to_text(audio_bytes: bytes, language: str = "uz") -> str:
         print(f"[speech_to_text] Error type: {type(e)}")
         import traceback
         print(f"[speech_to_text] Traceback: {traceback.format_exc()}")
-        return "Sorry, I couldn't understand the audio.", None, None
+        return "Sorry, I couldn't understand the audio.", 0, 0
     
-def create_lead(full_name, phone_number, email, product, assistant, metadata=None):  
+def create_update_lead(full_name, phone_number, email, product, assistant, platform, username, metadata=None):  
     try:
         lead = Lead.objects.create(
             full_name=full_name,
@@ -497,7 +496,9 @@ def create_lead(full_name, phone_number, email, product, assistant, metadata=Non
             email=email,
             product=product,
             assistant=assistant,
-            metadata=metadata
+            platform=platform,
+            username=username,
+            metadata=metadata,
         )
         return lead
     except Exception as e:
@@ -556,7 +557,6 @@ def process_instagram_audio(audio_url: str, language: str = "uz") -> str:
         return "Sorry, I couldn't process the audio."
     
 def handle_unknown_intent(intent, user_message, assistant, conversation):
-    print("Hello my friend")
     if intent == "unknown":
         telegram_intergration = Integration.objects.filter(assistant=assistant, integration_type=IntegrationTypes.TELEGRAM.value).first()
         print(f"Telegram intergration: {telegram_intergration}")

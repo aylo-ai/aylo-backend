@@ -162,9 +162,24 @@ class FileTypes(EnumBaseModel):
     GOOGLE_SPREADSHEET = 'google_spreadsheet'
     GOOGLE_DOCUMENT = 'google_document'
 
-class DatabaseTypes(EnumBaseModel):
-    MYSQL = 'mysql'
-    POSTGRESQL = 'postgresql'
-    SQLITE = 'sqlite'
-    MSSQL = 'mssql'
-    ORACLE = 'oracle'
+class LeadStatuses(EnumBaseModel):
+    NEW = 'new'
+    ENGAGED = 'engaged'
+    PARTIAL_INFO = 'partial_info'
+    QUALIFIED = 'qualified'
+    REJECTED = 'rejected'
+    UNREACHABLE = 'unreachable'
+
+class ActionType(EnumBaseModel):
+    CONDITION = 'condition'
+    MESSAGE = 'message'
+
+class ButtonType(EnumBaseModel):
+    WEBURL = 'web_url'
+    POSTBACK = 'postback'
+
+class ConditionType(EnumBaseModel):
+    SUBSCRIBED = 'subscribed'
+
+class FlowType(EnumBaseModel):
+    COMMENT_RESPONSE = 'comment_response'
