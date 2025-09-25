@@ -463,6 +463,10 @@ class TelegramWebhookView(APIView):
         if "sticker" in data:
             print("[-] Cannot handle sticker messages")
             return success_response(message=_("Sticker message muvaffaqiyatli olindi"), code=200)
+        
+        if "document" in data:
+            print("[-] Cannot handle documents here")
+            return success_response(message=_("Sticker message muvaffaqiyatli olindi"), code=200)
 
             # Voice message handling
         if "voice" in data:
