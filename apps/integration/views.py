@@ -460,20 +460,6 @@ class TelegramWebhookView(APIView):
         else:
             chat_username = f"@{username}_{chat_id}"
 
-        if "sticker" in data:
-            print("[-] Cannot handle sticker messages")
-            return success_response(message=_("Sticker message muvaffaqiyatli olindi"), code=200)
-        
-        if "document" in data:
-            print("[-] Cannot handle document messages")
-            return success_response(message=_("Document message muvaffaqiyatli olindi"), code=200)
-
-            # Voice message handling
-        if "voice" in data:
-            voice_file_id = data["voice"]["file_id"]
-            process_voice_task.delay(chat_id, voice_file_id, bot_token)
-            return success_response(message=_("Voice message muvaffaqiyatli olindi"), code=200)
-
         user_message = data.get('text', None)
         chat_group_id = data.get('chat', {}).get('id', None)
         if user_message or chat_group_id:
@@ -487,8 +473,22 @@ class TelegramWebhookView(APIView):
                 elif data.get('left_chat_member', {}).get('is_bot'):
                     handle_bot_removed_from_group(chat_id, chat_title)
             else:
+                if "sticker" in data:
+                    print("[-] Cannot handle sticker messages")
+                    return success_response(message=_("Sticker message muvaffaqiyatli olindi"), code=200)
+                
+                if "document" in data:
+                    print("[-] Cannot handle document messages")
+                    return success_response(message=_("Document message muvaffaqiyatli olindi"), code=200)
+
+                    # Voice message handling
+                if "voice" in data:
+                    voice_file_id = data["voice"]["file_id"]
+                    process_voice_task.delay(chat_id, voice_file_id, bot_token)
+                    return success_response(message=_("Voice message muvaffaqiyatli olindi"), code=200)
                 # --- Redis Message Queuing ---
-                redis_client.rpush(f"messages:{chat_id}", user_message)
+                if user_message:  # Only push if user_message is not None
+                    redis_client.rpush(f"messages:{chat_id}", user_message)
                 redis_client.set(f"last_seen:{chat_id}", time.time())
 
                 # Schedule collector task only if not already scheduled
