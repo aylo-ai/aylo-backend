@@ -489,7 +489,7 @@ def speech_to_text(audio_bytes: bytes, language: str = "uz") -> str:
     
 def create_update_lead(full_name, phone_number, email, product, assistant, platform, username, metadata=None):  
     try:
-        lead = Lead.objects.update_or_create(
+        lead = Lead.objects.create(
             full_name=full_name,
             phone_number=phone_number,
             email=email,
