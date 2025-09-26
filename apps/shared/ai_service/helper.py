@@ -70,9 +70,6 @@ def create_prompt(assistant_name, company_name, company_description, assistant_r
             - Extract relevant entities like product names, quantities, user contact info, etc.
             - Ask clarifying questions only when necessary.
             - If a user wants to place an order, follow the structured flow below.
-            - Given user request did not conatin in the uploaded files, then use tools to get the information from database.
-            - If database url is provied to tools, with sql query execute it and return the result based on user request.
-            - If database url is not provied no need to use tools.
 
             # 🧾 Response Format (Strict JSON Only — No Markdown, No Extra Text)
 
