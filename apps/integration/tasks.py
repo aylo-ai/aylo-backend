@@ -242,7 +242,7 @@ def process_instagram_comment(account_id, comment_data):
                 if response.comment_message_template:
                         send_instagram_comment_reply(integration.api_token, comment_id, response.comment_message_template)
                 if response.private_message_template:
-                        send_instagram_private_reply(integration.api_token, account_id, comment_id, response.private_message_template, response)
+                        send_instagram_private_reply(integration.api_token, account_id, comment_id, response.private_message_template)
                 flow = Flow.objects.filter(comment_response=response)
                 if flow.exists():
                     print("[+] Actual flow exists in that way")
@@ -335,7 +335,7 @@ def process_instagram_comment(account_id, comment_data):
         print(f"[+] Media {media_id} has parent_id: {parent_id}")
 
 @shared_task
-def process_collected_messages(chat_id, bot_token=None, messaging=None, chat_username=None, username=None):
+def process_collected_messages(chat_id, bot_token=None, messaging=None, chat_username=None, username=None, account_id=None):
     user_key = f"messages:{chat_id}"
     last_seen_key = f"last_seen:{chat_id}"
     print(f"chat_username: {chat_username}")
@@ -360,7 +360,16 @@ def process_collected_messages(chat_id, bot_token=None, messaging=None, chat_use
     if bot_token:
         process_message_task.delay(chat_id, combined_message, bot_token,chat_username, username)
     else:
-        process_instagram_message.delay(account_id = chat_id, combined_message = combined_message, user_message = messaging)
+        # Prefer provided account_id; otherwise derive from messaging recipient
+        resolved_account_id = account_id
+        try:
+            if resolved_account_id is None and messaging:
+                resolved_account_id = messaging[0].get("recipient", {}).get("id")
+        except Exception:
+            resolved_account_id = None
+        # Fallback: if still None, use chat_id (legacy behavior)
+        resolved_account_id = resolved_account_id or chat_id
+        process_instagram_message.delay(account_id=resolved_account_id, combined_message=combined_message, user_message=messaging)
 
 def response_matches_comment(response, comment_text):
     for trigger in response.trigger_words.all():
