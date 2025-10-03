@@ -42,11 +42,7 @@ services:
 
   postgres:
     # ports:
-<<<<<<< HEAD
-      # - "127.0.0.1:5432:5432"
-=======
     #   - 5432:5432
->>>>>>> cc6ab1652b55ccdbf28333f62292181b76048bd0
     image: postgres:latest
     env_file: .env
     volumes:
@@ -60,11 +56,7 @@ services:
 
   redis:
     # ports:
-<<<<<<< HEAD
-      # - "127.0.0.1:6379:6379"
-=======
     #   - 6379:6379
->>>>>>> cc6ab1652b55ccdbf28333f62292181b76048bd0
     image: redis:latest
     volumes:
       - redis-data:/data
@@ -82,8 +74,4 @@ volumes:
 
 networks:
   backend-net:
-<<<<<<< HEAD
-    external: true
-=======
     driver: bridge
->>>>>>> cc6ab1652b55ccdbf28333f62292181b76048bd0
