@@ -1,7 +1,7 @@
 import mimetypes
 import time
 from io import BytesIO
-from typing import List
+from typing import List, Optional
 
 import requests
 from openai import OpenAIError
@@ -108,40 +108,49 @@ def create_prompt(assistant_name, company_name, company_description, assistant_r
 
     return prompt_template
 
-def upload_knowledge_base_file(file_url):
+def upload_knowledge_base_file(file_url, clear_text=None):
     # Determine MIME type and check if it's supported
-    mime_type, _ = mimetypes.guess_type(file_url)
+    if file_url:
+        mime_type, _ = mimetypes.guess_type(file_url)
 
-    if mime_type not in SUPPORTED_MIME_TYPES:
-        print(f"Unsupported file format: {mime_type}. Skipping file: {file_url}")
-        return None
-
-    try:
-        # Download the file content and check that it's non-empty
-        response = requests.get(file_url)
-        response.raise_for_status()
-
-        if not response.content:
-            print(f"File at {file_url} is empty. Skipping upload.")
+        if mime_type not in SUPPORTED_MIME_TYPES:
+            print(f"Unsupported file format: {mime_type}. Skipping file: {file_url}")
             return None
 
-        # Prepare file for upload
-        file_content = BytesIO(response.content)
-        file_content.seek(0)
-        file_content.name = file_url.split("/")[-1]
+        try:
+            # Download the file content and check that it's non-empty
+            response = requests.get(file_url)
+            response.raise_for_status()
+
+            if not response.content:
+                print(f"File at {file_url} is empty. Skipping upload.")
+                return None
+
+            # Prepare file for upload
+            file_content = BytesIO(response.content)
+            file_content.seek(0)
+            file_content.name = file_url.split("/")[-1]
+            file = client.files.create(
+                file=file_content,
+                purpose="assistants"
+            )
+            print(f"Uploaded file ID: {file.id} for URL: {file_url}")
+            return file.id
+
+        except requests.exceptions.RequestException as e:
+            print(f"Connection error when downloading file from {file_url}: {e}")
+            return None
+        except Exception as e:
+            print(f"Error uploading file: {e}")
+            return None
+    elif clear_text:
         file = client.files.create(
-            file=file_content,
+            file=BytesIO(clear_text.encode("utf-8")),
             purpose="assistants"
         )
-        print(f"Uploaded file ID: {file.id} for URL: {file_url}")
+        print(f"Uploaded file ID: {file.id} for clear text")
         return file.id
 
-    except requests.exceptions.RequestException as e:
-        print(f"Connection error when downloading file from {file_url}: {e}")
-        return None
-    except Exception as e:
-        print(f"Error uploading file: {e}")
-        return None
 
 
 # Function to create a vector store for the knowledge base from multiple files
@@ -172,13 +181,54 @@ def create_vector_store(file_urls):
         return None
 
 
-def update_vector_store_files_ai(vector_store_id: str, new_file_urls: List[str]) -> dict:
+
+def distill_company_kb_from_texts(texts: List[str], company_hint: Optional[str] = None) -> str:
+    """
+    Use the chat model to distill a clean, de-duplicated company knowledge base
+    from noisy chat transcripts. Removes irrelevant chatter and outputs concise
+    sections: Company Overview, Products/Services, Policies, FAQs, Contact.
+    """
+    if not texts:
+        return ""
+
+    # Cap the total length to keep request size reasonable
+    max_chars = 150_000
+    joined = "\n".join(texts)
+    corpus = joined[:max_chars]
+
+    system = (
+        f"You are a diligent analyst. From the provided chat logs, extract ONLY relevant "
+        f"knowledge about the company. Ignore greetings, jokes, insults, and unrelated chatter. "
+        f"Output in english as clean plain text with the following headings: \n"
+        f"1) Company Overview\n2) Products and Services\n3) Policies and Terms\n4) FAQs\n5) Contact and Addresses\n\n"
+        f"Be concise, remove duplicates, keep facts only."
+    )
+    if company_hint:
+        system += f"\nCompany context: {company_hint}"
+
+    try:
+        resp = client.chat.completions.create(
+            model="gpt-4o",
+            temperature=0.6,
+            messages=[
+                {"role": "system", "content": system},
+                {"role": "user", "content": f"Chat logs (may be noisy):\n\n{corpus}"},
+            ],
+        )
+        content = resp.choices[0].message.content or ""
+        return content.strip()
+    except Exception as e:
+        print(f"Error distilling KB: {e}")
+        return ""
+
+
+def update_vector_store_files_ai(vector_store_id: str, new_file_urls: List[str], clear_text: str = None) -> dict:
 
     # Upload new files and collect their file IDs
     new_file_ids = []
     for file_url in new_file_urls:
         try:
-            file_id = upload_knowledge_base_file(file_url)
+            file_id = upload_knowledge_base_file(file_url, clear_text)
             if file_id:
                 new_file_ids.append(file_id)
             else:

@@ -4,12 +4,13 @@ from celery import shared_task
 from datetime import datetime
 import pytz
 
-from apps.shared.addons.enums import SenderTypes, ConversationStatuses
+from apps.shared.ai_service.openai_client import client
+from apps.shared.addons.enums import SenderTypes, ConversationStatuses, ConversationPlatforms
 from shared.addons.instagram import send_instagram_message, send_instagram_private_reply, send_instagram_comment_reply, send_instagram_postback, checking_instagram_followers, build_button_payload
 from shared.addons.telegram import send_telegram_message, send_telegram_action
 from shared.addons.utils import get_assistant_response_ai, handle_start_command, get_or_create_conversation, create_message, \
     speech_to_text, convert_ogg_to_mp3, process_instagram_audio
-from apps.assistant.models import Assistant
+from apps.assistant.models import Assistant,Conversation
 from .models import TelegramGroupIntegration, Integration, InstagramMedia, InstagramCommentResponse, Flow, CommentResponseButton, Step, Transition, InstagramUserState
 from shared.addons.redis import publish_message_to_ws, redis_client
 

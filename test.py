@@ -12,52 +12,104 @@ import time
 #     return response.json()
 
 # print(checking_instagram_followers(recicipient_id="1968400874008971",access_token="IGAARTl03yXtZABZAFBJU2F0TDJfYktBa2hvaW5ZAX2VYZADVjdm1yZAnZAUVEdEWWtGaFRtb1ZAweGUycDZAIR1QwdmVqZAlhoNHVmbWFVd0lxWldHWFB0aHk2b3BMTF9NajBfX2lIVWtpclAtRy1Rb3RXcm1aRktn"))
-
-
-def send_instagram_postback(account_id: str, access_token:str, recipient_id: str):
-    
-    url = f"https://graph.instagram.com/v23.0/me/messages"
+def fetch_conversation_messages(access_token: str, conversation_id: str):
+    """
+    Fetch full message objects for a single conversation, following pagination.
+    Returns list[dict] of messages: id, from, to, message, created_time, attachments.
+    """
+    messages = []
+    base = f"https://graph.instagram.com/v23.0/{conversation_id}/messages"
+    params = {
+        "fields": "id,from,to,message",
+    }
     headers = {
         "Content-Type": "application/json",
         "Authorization": f"Bearer {access_token}",
     }
 
-    event = {
-  "recipient": {
-    "comment_id": '17925857409136728'
-  },
-  "message": {
-    "attachment": {
-      "type": "template",
-      "payload": {
-        "template_type": "button",
-        "text": "Soqqa qilamiz",
-        "buttons": [
-          {
-            "type": "web_url",
-            "url": "https://repli.uz",
-            "title": "View Website"
-          },
-          {
-            "type": "postback",
-            "title": "Start soqqa qilish",
-            "payload": "KATTA_PUL_QLISH"
-          }
-        ]
-      }
+    next_url = base
+    next_params = params
+
+    while next_url:
+        resp = requests.get(next_url, headers=headers, params=next_params)
+        if resp.status_code != 200:
+            break
+        payload = resp.json() or {}
+        page_items = payload.get("data", [])
+        print(page_items, "page items messages")
+        for item in page_items:
+            if item.get("message") and item.get("message") != "": 
+              messages.append(item.get("message"))
+
+        paging = payload.get("paging", {})
+        next_url = paging.get("next")
+        next_params = None
+
+    return messages
+
+
+def fetch_all_conversations_with_messages(
+    access_token: str,
+):
+    """
+    Fetch all conversations (paginated) and, for each, fetch all messages (paginated).
+    Returns list[dict] with keys: id, participants (list[dict]), messages (list[dict]).
+    """
+    collected = []
+    conv_url = "https://graph.instagram.com/v23.0/me/conversations"
+    conv_params = {
+        "fields": "id,participants",
     }
-    
-  }
-}
+    headers = {
+        "Content-Type": "application/json",
+        "Authorization": f"Bearer {access_token}",
+    }
 
-    response = requests.post(url, json=event, headers=headers)
-    return response.json()
+    next_url = conv_url
+    next_params = conv_params
 
+    while next_url:
+        resp = requests.get(next_url, headers=headers, params=next_params)
+        if resp.status_code != 200:
+            break
+        payload = resp.json() or {}
+        print(payload, "payload coversation")
+        for conv in payload.get("data", []):
+            conv_id = conv.get("id")
+            if not conv_id:
+                continue
+            msgs = fetch_conversation_messages(
+                access_token,
+                conv_id,
+            )
+            if msgs:
+              collected.append({
+                "messages": msgs,
+            })
 
-response = send_instagram_postback(access_token="IGAARTl03yXtZABZAFBJU2F0TDJfYktBa2hvaW5ZAX2VYZADVjdm1yZAnZAUVEdEWWtGaFRtb1ZAweGUycDZAIR1QwdmVqZAlhoNHVmbWFVd0lxWldHWFB0aHk2b3BMTF9NajBfX2lIVWtpclAtRy1Rb3RXcm1aRktn",
-                        account_id="17841461784331766", recipient_id="1968400874008971")
+        paging = payload.get("paging", {})
+        next_url = paging.get("next")
+        next_params = None
+    return collected
+
+response = fetch_all_conversations_with_messages(access_token="IGAARTl03yXtZABZAFBJU2F0TDJfYktBa2hvaW5ZAX2VYZADVjdm1yZAnZAUVEdEWWtGaFRtb1ZAweGUycDZAIR1QwdmVqZAlhoNHVmbWFVd0lxWldHWFB0aHk2b3BMTF9NajBfX2lIVWtpclAtRy1Rb3RXcm1aRktn",
+)
 
 print(response)
+# def send_instagram_postback(account_id: str, access_token:str, recipient_id: str):
+#     url = "https://graph.instagram.com/v23.0/17841461784331766/conversations?fields=id,participants,messages%7Bid,from,to,message,created_time,attachments%7D&limit=25&after=ZAXlKMGFXMWxjM1JoYlhBaU9qRTNOVEE1TWpBek5qSXNJblJvY21WaFpBRjlwWkFDSTZAJak0wTURJNE1qTTJOamcwTVRjeE1ETXdNVEkwTkRJM05qSXpNamMyTlRjME5qWXdOamN6TnlKOQZDZD"
+#     headers = {
+#         "Content-Type": "application/json",
+#         "Authorization": f"Bearer {access_token}",
+#     }
+    
+#     response = requests.get(url, headers=headers)
+#     return response.json()
+
+# response = send_instagram_postback(access_token="IGAARTl03yXtZABZAFBJU2F0TDJfYktBa2hvaW5ZAX2VYZADVjdm1yZAnZAUVEdEWWtGaFRtb1ZAweGUycDZAIR1QwdmVqZAlhoNHVmbWFVd0lxWldHWFB0aHk2b3BMTF9NajBfX2lIVWtpclAtRy1Rb3RXcm1aRktn",
+#                         account_id="17841461784331766", recipient_id="1968400874008971")
+
+# print(response)
 
 # def get_media_id_from_comment(access_token, comment_id):
 #     """Get media (post) ID from a comment"""
