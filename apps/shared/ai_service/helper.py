@@ -144,8 +144,12 @@ def upload_knowledge_base_file(file_url, clear_text=None):
             print(f"Error uploading file: {e}")
             return None
     elif clear_text:
+        buffer = BytesIO(clear_text.encode("utf-8"))
+        buffer.seek(0)
+        # Assign a filename so the API recognizes a supported extension
+        buffer.name = "knowledge_base.txt"
         file = client.files.create(
-            file=BytesIO(clear_text.encode("utf-8")),
+            file=buffer,
             purpose="assistants"
         )
         print(f"Uploaded file ID: {file.id} for clear text")
