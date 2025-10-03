@@ -555,24 +555,25 @@ def process_instagram_audio(audio_url: str, language: str = "uz") -> str:
         return "Sorry, I couldn't process the audio."
     
 def handle_unknown_intent(intent, user_message, assistant, conversation):
-    if intent == "unknown":
-        telegram_intergration = Integration.objects.filter(assistant=assistant, integration_type=IntegrationTypes.TELEGRAM.value).first()
-        print(f"Telegram intergration: {telegram_intergration}")
-        telegram_group = TelegramGroupIntegration.objects.filter(integration=telegram_intergration).first()
-        print(f"Telegram group: {telegram_group}")
-        if telegram_group:
-            message = f"""
-📩 Yangi So'rov!!!
+    pass
+#     if intent == "unknown":
+#         telegram_intergration = Integration.objects.filter(assistant=assistant, integration_type=IntegrationTypes.TELEGRAM.value).first()
+#         print(f"Telegram intergration: {telegram_intergration}")
+#         telegram_group = TelegramGroupIntegration.objects.filter(integration=telegram_intergration).first()
+#         print(f"Telegram group: {telegram_group}")
+#         if telegram_group:
+#             message = f"""
+# 📩 Yangi So'rov!!!
 
-👤 Foydalanuvchi: {conversation.client_phone_email if conversation.client_phone_email else conversation.client_full_name}  
-💬 Xabar: `{user_message}`  
-📱 Platforma: {conversation.platform}
+# 👤 Foydalanuvchi: {conversation.client_phone_email if conversation.client_phone_email else conversation.client_full_name}  
+# 💬 Xabar: `{user_message}`  
+# 📱 Platforma: {conversation.platform}
 
-❗ Assistant xabarni tushunolmadi.
+# ❗ Assistant xabarni tushunolmadi.
 
-🛠 Iltimos, foydalanuvchiga o'zingiz bog'laning.
-"""
-            send_telegram_message(telegram_group.group_id, message, telegram_intergration.api_token)
-            print(f"Assistantga tushunmadi oziz jovob berdi: {telegram_group.group_id}")
-    else:
-        pass
+# 🛠 Iltimos, foydalanuvchiga o'zingiz bog'laning.
+# """
+#             send_telegram_message(telegram_group.group_id, message, telegram_intergration.api_token)
+#             print(f"Assistantga tushunmadi oziz jovob berdi: {telegram_group.group_id}")
+#     else:
+#         pass

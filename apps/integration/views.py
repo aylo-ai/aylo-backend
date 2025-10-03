@@ -201,12 +201,14 @@ class InstagramWebhookView(APIView):
                 else:
                     message = messaging[0].get("message", {}).get("text",None)
                     if message is not None:  # Only push if message is not None
-                        redis_client.rpush(f"messages:{account_id}", message)
-                        redis_client.set(f"last_seen:{account_id}", time.time())
+                        # Buffer per end-user (sender_id) to avoid mixing conversations across users
+                        redis_client.rpush(f"messages:{sender_id}", message)
+                        redis_client.set(f"last_seen:{sender_id}", time.time())
 
-                        # Schedule collector task only if not already scheduled
-                        redis_client.setex(f"collecting:{account_id}", WAIT_SECONDS + 1, "1")  # Prevent overlap
-                        process_collected_messages.apply_async((account_id, None, messaging), countdown=WAIT_SECONDS)
+                        # Schedule collector task only if not already scheduled for this sender
+                        redis_client.setex(f"collecting:{sender_id}", WAIT_SECONDS + 1, "1")  # Prevent overlap
+                        # Pass sender_id as chat_id, and include account_id for routing
+                        process_collected_messages.apply_async((sender_id, None, messaging, None, None, account_id), countdown=WAIT_SECONDS)
                 return success_response(message=_("Xabar webhook ma'lumotlar muvaffaqiyatli olindi"), code=200)
             else:
                 print("Integration same found with the integration:", account_id)
@@ -459,21 +461,6 @@ class TelegramWebhookView(APIView):
             chat_username = first_name
         else:
             chat_username = f"@{username}_{chat_id}"
-
-        if "sticker" in data:
-            print("[-] Cannot handle sticker messages")
-            return success_response(message=_("Sticker message muvaffaqiyatli olindi"), code=200)
-        
-        if "document" in data:
-            print("[-] Cannot handle documents here")
-            return success_response(message=_("Sticker message muvaffaqiyatli olindi"), code=200)
-
-            # Voice message handling
-        if "voice" in data:
-            voice_file_id = data["voice"]["file_id"]
-            process_voice_task.delay(chat_id, voice_file_id, bot_token)
-            return success_response(message=_("Voice message muvaffaqiyatli olindi"), code=200)
-
         user_message = data.get('text', None)
         chat_group_id = data.get('chat', {}).get('id', None)
         if user_message or chat_group_id:
@@ -487,8 +474,22 @@ class TelegramWebhookView(APIView):
                 elif data.get('left_chat_member', {}).get('is_bot'):
                     handle_bot_removed_from_group(chat_id, chat_title)
             else:
+                if "sticker" in data:
+                    print("[-] Cannot handle sticker messages")
+                    return success_response(message=_("Sticker message muvaffaqiyatli olindi"), code=200)
+                
+                if "document" in data:
+                    print("[-] Cannot handle document messages")
+                    return success_response(message=_("Document message muvaffaqiyatli olindi"), code=200)
+
+                    # Voice message handling
+                if "voice" in data:
+                    voice_file_id = data["voice"]["file_id"]
+                    process_voice_task.delay(chat_id, voice_file_id, bot_token)
+                    return success_response(message=_("Voice message muvaffaqiyatli olindi"), code=200)
                 # --- Redis Message Queuing ---
-                redis_client.rpush(f"messages:{chat_id}", user_message)
+                if user_message:  # Only push if user_message is not None
+                    redis_client.rpush(f"messages:{chat_id}", user_message)
                 redis_client.set(f"last_seen:{chat_id}", time.time())
 
                 # Schedule collector task only if not already scheduled

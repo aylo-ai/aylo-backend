@@ -18,7 +18,6 @@ from shared.addons.payloads import create_file_urls
 from shared.addons.validations import raise_validation_error
 from shared.addons.enums import ConversationPlatforms, ConversationStatuses
 from shared.addons.enums import MessageTypes
-from shared.addons.parsing import WebsiteScreenshot
 from shared.mixins import SubscriptionValidationMixin
 from shared.addons.redis import publish_message_to_ws_assistant
 from shared.addons.utils import update_assistant
@@ -331,39 +330,14 @@ class AssistantFileUploadSerializer(serializers.ModelSerializer, SubscriptionVal
         request = self.context.get("request")
         files = self.context.get('files')
         assistant = self.context.get("assistant")
-        website_url = validated_data.get("website_url")
         
         if not assistant:
             raise_validation_error(message=_("Assistant kerak"))
 
         uploaded_files = []
 
-        # Handle website URL parsing
-        if website_url:
-            try:
-                screenshot = WebsiteScreenshot()
-                screenshot_path, pdf_path = screenshot.process_url(website_url)
-                filename = f"website_screenshot_{os.path.basename(website_url)}.pdf"
-                
-                with open(pdf_path, 'rb') as pdf_file:
-                    django_file = File(pdf_file)
-                    upload = AssistantFileUpload.objects.create(
-                        assistant=assistant,
-                        file=django_file,
-                        filename=filename,
-                        website_url=website_url
-                    )
-                    uploaded_files.append(upload)
-                
-                # Clean up temporary files
-                os.remove(screenshot_path)
-                os.remove(pdf_path)
-                
-            except Exception as e:
-                raise_validation_error(message=f"Error processing website URL: {str(e)}")
-
         # Handle file uploads
-        elif files:
+        if files:
             if not isinstance(files, (list, tuple)):
                 files = [files]
 
