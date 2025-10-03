@@ -858,4 +858,4 @@ class InstagramConversationKnowledgeBaseView(APIView):
         # 3) Create vector store from distilled text and update assistant.vector_id
         if integration.assistant.vector_id:
             update_vector_store_files_ai(integration.assistant.vector_id, [None], distilled_text)
-        return success_response(message=_("Conversation knowledge base muvaffaqiyatli olindi"), data={"messages": convs, "kb": distilled_text, "vector_id": vector_id}, code=200)
+        return success_response(message=_("Conversation knowledge base muvaffaqiyatli olindi"), data={"messages": convs, "kb": distilled_text}, code=200)
