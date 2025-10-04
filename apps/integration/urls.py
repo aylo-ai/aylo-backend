@@ -24,6 +24,7 @@ urlpatterns = [
     path("trigger-words/<uuid:pk>/", views.CommentTriggerWordRetrieveView.as_view()),
     path("intagram-media/<uuid:pk>/", views.InstagramMediaRetrieveView.as_view()),
     # Comment responses endpoints
+
     path(
         "<uuid:integration_id>/instagram/comment-responses/",
         views.InstagramCommentResponseListCreateView.as_view(),
@@ -45,4 +46,6 @@ urlpatterns = [
     path("steps/<uuid:pk>/", views.StepRetrieveUpdateDestroyView.as_view()),
     path("transition/<uuid:pk>/", views.TransitionRetrieveUpdateDestroyView.as_view()),
     path("buttons/<uuid:pk>/", views.CommentResponseButtonRetrieveUpdateDestroyView.as_view()),
+    # knowledge base endpoints
+    path("instagram/conversations/knowledge-base/<uuid:pk>/", views.InstagramConversationKnowledgeBaseView.as_view()),
 ]

@@ -13,7 +13,7 @@ from django.db.models import Q
 
 from config.settings import INSTAGRAM_CLIENT_ID, INSTAGRAM_CLIENT_SECRET, INSTAGRAM_REDIRECT_URI
 from shared.addons.enums import IntegrationTypes
-from shared.addons.instagram import get_long_lived_access_token, get_user_profile
+from shared.addons.instagram import get_long_lived_access_token, get_user_profile, fetch_all_conversations_with_messages
 from shared.addons.telegram import handle_bot_added_to_group, handle_bot_removed_from_group
 from shared.addons.validations import success_response, error_response
 from shared.permissions import IsCustomer
@@ -23,6 +23,8 @@ from .serializers import IntegrationCreateSerializer, IntegrationSerializer, Sen
 from .tasks import  process_instagram_message, process_voice_task, \
                                 process_instagram_comment, WAIT_SECONDS, process_collected_messages, \
                                 handle_postback_event_task
+from shared.addons.instagram import fetch_all_conversations_with_messages
+from shared.ai_service.helper import distill_company_kb_from_texts, update_vector_store_files_ai
 
 from shared.addons.redis import redis_client
 
@@ -496,7 +498,7 @@ class TelegramWebhookView(APIView):
                 print(f"chat_username: {chat_username}")
                 print(f"contact username: {username}")
                 redis_client.setex(f"collecting:{chat_id}", WAIT_SECONDS + 1, "1")  # Prevent overlap
-                process_collected_messages.apply_async((chat_id, bot_token, None, chat_username, username), countdown=WAIT_SECONDS)
+                process_collected_messages.apply_async((chat_id, bot_token, None, chat_username, username, None), countdown=WAIT_SECONDS)
                 # Start the Celery task
                 print("celery task started")
         return success_response(message=_("Xabar muvaffaqiyatli olindi"), code=200)
@@ -829,3 +831,30 @@ class CommentResponseButtonRetrieveUpdateDestroyView(generics.RetrieveUpdateDest
         return success_response(message=_("Tugma muvaffaqiyatli o'chirildi"), code=204)
 
 
+class InstagramConversationKnowledgeBaseView(APIView):
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get(self, request, *args, **kwargs):
+        integration_id = self.kwargs.get("pk")
+        integration = Integration.objects.filter(id=integration_id, integration_type=IntegrationTypes.INSTAGRAM.value).first()
+        if not integration:
+            return error_response(message=_("Integration topilmadi"), code=400)
+        access_token = integration.api_token
+        # 1) Fetch all conversations and only keep non-empty text strings per conversation
+        convs = fetch_all_conversations_with_messages(access_token)
+        all_texts = []
+        for c in convs:
+            for t in c.get("messages", []):
+                if isinstance(t, str) and t.strip():
+                    all_texts.append(t.strip())
+
+        # 2) Distill knowledge base text using the AI
+        company_hint = integration.name
+        distilled_text = distill_company_kb_from_texts(all_texts, company_hint=company_hint)
+        if not distilled_text:
+            return success_response(message=_("Hech qanday foydali ma'lumot topilmadi"), data={"messages": convs, "kb": None}, code=200)
+
+        # 3) Create vector store from distilled text and update assistant.vector_id
+        if integration.assistant.vector_id:
+            update_vector_store_files_ai(integration.assistant.vector_id, [None], distilled_text)
+        return success_response(message=_("Conversation knowledge base muvaffaqiyatli olindi"), data={"messages": convs, "kb": distilled_text}, code=200)

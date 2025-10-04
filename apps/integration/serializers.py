@@ -1,3 +1,5 @@
+import requests
+
 from rest_framework import serializers
 from django.utils.translation import gettext_lazy as _
 from django.shortcuts import get_object_or_404
@@ -165,7 +167,6 @@ class SendUserMessageSerializer(serializers.Serializer, SubscriptionValidationMi
 
 class InstagramMediaSerializer(serializers.ModelSerializer):
     children = serializers.JSONField(required=False)
-    # media_url = serializers.SerializerMethodField(method_name='media_url')
 
     class Meta:
         model = InstagramMedia
@@ -179,8 +180,59 @@ class InstagramMediaSerializer(serializers.ModelSerializer):
             "caption",
             "comments_count",
             "like_count",
-            'children'
+            "children"
         ]
+
+    def to_representation(self, instance):
+        data = super().to_representation(instance)
+        # Try to fetch the latest data from Instagram; fall back to DB fields
+        integration = None
+        try:
+            icr = instance.instagram_comment_responses.first()
+            integration = getattr(icr, "integration", None)
+        except Exception:
+            integration = None
+
+        if integration and getattr(integration, "api_token", None):
+            url = (
+                f"https://graph.instagram.com/v23.0/{instance.media_id}?fields="
+                "id,caption,media_type,media_url,permalink,timestamp,username,children{media_type,media_url}"
+            )
+            headers = {
+                "Content-Type": "application/json",
+                "Authorization": f"Bearer {integration.api_token}",
+            }
+            try:
+                resp = requests.get(url, headers=headers, timeout=8)
+                if resp.status_code == 200:
+                    payload = resp.json() or {}
+                    # Map payload to our model fields shape
+                    data = {
+                        "id": data.get("id"),
+                        "media_id": payload.get("id") or instance.media_id,
+                        "media_type": payload.get("media_type") or instance.media_type,
+                        "media_url": payload.get("media_url") or instance.media_url,
+                        "username": payload.get("username") or instance.username,
+                        "timestamp": data.get("timestamp") or (instance.timestamp.isoformat() if instance.timestamp else None),
+                        "caption": payload.get("caption") or instance.caption,
+                        "comments_count": instance.comments_count,
+                        "like_count": instance.like_count,
+                        "children": instance.children,
+                    }
+                    return data
+            except Exception:
+                pass
+
+        # Fallback to stored DB values, ensuring all fields are present
+        data.setdefault("media_type", instance.media_type)
+        data.setdefault("media_url", instance.media_url)
+        data.setdefault("username", instance.username)
+        data.setdefault("timestamp", instance.timestamp.isoformat() if instance.timestamp else None)
+        data.setdefault("caption", instance.caption)
+        data.setdefault("comments_count", instance.comments_count)
+        data.setdefault("like_count", instance.like_count)
+        data.setdefault("children", instance.children)
+        return data
                 
 
 class CommentTriggerWordSerializer(serializers.ModelSerializer):
