@@ -868,4 +868,6 @@ class InstagramConversationKnowledgeBaseView(APIView):
             file=file_content,
             filename="instagram_knowledge_base.txt",
         )
+        if integration.assistant.vector_id:
+            update_vector_store_files_ai(integration.assistant.vector_id, [None], distilled_text)
         return success_response(message=_("Conversation knowledge base muvaffaqiyatli olindi"), data={"assistant_file": assistant_file.id}, code=200)
