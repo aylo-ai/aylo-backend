@@ -14,7 +14,7 @@ from django.db.models import Q
 
 from config.settings import INSTAGRAM_CLIENT_ID, INSTAGRAM_CLIENT_SECRET, INSTAGRAM_REDIRECT_URI
 from shared.addons.enums import IntegrationTypes
-from shared.addons.instagram import get_long_lived_access_token, get_user_profile, fetch_all_conversations_with_messages
+from shared.addons.instagram import get_long_lived_access_token, get_user_profile
 from shared.addons.telegram import handle_bot_added_to_group, handle_bot_removed_from_group
 from shared.addons.validations import success_response, error_response
 from shared.permissions import IsCustomer
@@ -23,8 +23,7 @@ from .serializers import IntegrationCreateSerializer, IntegrationSerializer, Sen
     TelegramGroupSerializer, InstagramMediaSerializer, CommentTriggerWordSerializer, InstagramCommentResponseSerializer, InstagramCommentResponseFlowSerializer, TransitionSerializer, StepSerializer, CommentResponseButtonSerializer, InstagramUserStateSerializer
 from .tasks import  process_instagram_message, process_voice_task, \
                                 process_instagram_comment, WAIT_SECONDS, process_collected_messages, \
-                                handle_postback_event_task
-from shared.addons.instagram import fetch_all_conversations_with_messages
+                                handle_postback_event_task, fetch_all_conversations_with_messages, fetch_conversation_messages
 from shared.ai_service.helper import distill_company_kb_from_texts, update_vector_store_files_ai
 from apps.assistant.models import AssistantFileUpload
 
@@ -837,13 +836,15 @@ class InstagramConversationKnowledgeBaseView(APIView):
     permission_classes = [permissions.IsAuthenticated]
 
     def get(self, request, *args, **kwargs):
-        integration_id = request.query_params.get("integration_id")
+        integration_id = self.kwargs.get("pk")
+        # print(integration_id)
         integration = Integration.objects.filter(id=integration_id, integration_type=IntegrationTypes.INSTAGRAM.value).first()
         if not integration:
             return error_response(message=_("Integration topilmadi"), code=400)
         access_token = integration.api_token
 
         convs = fetch_all_conversations_with_messages(access_token)
+        print(convs)
         all_texts = []
         for c in convs:
             for t in c.get("messages", []):
@@ -856,10 +857,15 @@ class InstagramConversationKnowledgeBaseView(APIView):
             return success_response(message=_("Hech qanday foydali ma'lumot topilmadi"), data={"response": None}, code=200)
 
         #create assistant file upload object
-        file = BytesIO(distilled_text.encode("utf-8"))
-        file.name = "instagram_knowledge_base.txt"
+        from django.core.files.uploadedfile import SimpleUploadedFile
+        file_content = SimpleUploadedFile(
+            "instagram_knowledge_base.txt",
+            distilled_text.encode("utf-8"),
+            content_type="text/plain"
+        )
         assistant_file = AssistantFileUpload.objects.create(
             assistant=integration.assistant,
-            file=file
+            file=file_content,
+            filename="instagram_knowledge_base.txt",
         )
         return success_response(message=_("Conversation knowledge base muvaffaqiyatli olindi"), data={"assistant_file": assistant_file.id}, code=200)

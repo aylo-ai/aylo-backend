@@ -501,3 +501,80 @@ def send_instagram_postback_next(account_id: str, access_token: str, recipient_c
         print(resp.json())
         print("[+] handling instagram message for postback")
         print(resp)
+
+def fetch_conversation_messages(access_token: str, conversation_id: str):
+    """
+    Fetch full message objects for a single conversation, following pagination.
+    Returns list[dict] of messages: id, from, to, message, created_time, attachments.
+    """
+    messages = []
+    base = f"https://graph.instagram.com/v23.0/{conversation_id}/messages"
+    params = {
+        "fields": "id,from,to,message",
+    }
+    headers = {
+        "Content-Type": "application/json",
+        "Authorization": f"Bearer {access_token}",
+    }
+
+    next_url = base
+    next_params = params
+
+    while next_url:
+        resp = requests.get(next_url, headers=headers, params=next_params)
+        if resp.status_code != 200:
+            break
+        payload = resp.json() or {}
+        page_items = payload.get("data", [])
+        for item in page_items:
+            if item.get("message") and item.get("message") != "": 
+              messages.append(item.get("message"))
+
+        paging = payload.get("paging", {})
+        next_url = paging.get("next")
+        next_params = None
+
+    return messages
+
+def fetch_all_conversations_with_messages(
+    access_token: str,
+):
+    """
+    Fetch all conversations (paginated) and, for each, fetch all messages (paginated).
+    Returns list[dict] with keys: id, participants (list[dict]), messages (list[dict]).
+    """
+    collected = []
+    conv_url = "https://graph.instagram.com/v23.0/me/conversations"
+    conv_params = {
+        "fields": "id",
+    }
+    headers = {
+        "Content-Type": "application/json",
+        "Authorization": f"Bearer {access_token}",
+    }
+
+    next_url = conv_url
+    next_params = conv_params
+
+    while next_url:
+        resp = requests.get(next_url, headers=headers, params=next_params)
+        if resp.status_code != 200:
+            break
+        payload = resp.json() or {}
+        for conv in payload.get("data", []):
+            conv_id = conv.get("id")
+            if not conv_id:
+                continue
+            msgs = fetch_conversation_messages(
+                access_token,
+                conv_id,
+            )
+            if msgs:
+              collected.append({
+                "messages": msgs,
+            })
+
+        paging = payload.get("paging", {})
+        next_url = paging.get("next")
+        next_params = None
+    return collected
