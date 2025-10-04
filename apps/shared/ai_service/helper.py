@@ -195,11 +195,6 @@ def distill_company_kb_from_texts(texts: List[str], company_hint: Optional[str] 
     if not texts:
         return ""
 
-    # Cap the total length to keep request size reasonable
-    max_chars = 150_000
-    joined = "\n".join(texts)
-    corpus = joined[:max_chars]
-
     system = (
         f"You are a diligent analyst. From the provided chat logs, extract ONLY relevant "
         f"knowledge about the company. Ignore greetings, jokes, insults, and unrelated chatter. "
@@ -216,7 +211,7 @@ def distill_company_kb_from_texts(texts: List[str], company_hint: Optional[str] 
             temperature=0.6,
             messages=[
                 {"role": "system", "content": system},
-                {"role": "user", "content": f"Chat logs (may be noisy):\n\n{corpus}"},
+                {"role": "user", "content": f"Chat logs (may be noisy):\n\n{texts}"},
             ],
         )
         content = resp.choices[0].message.content or ""
@@ -227,7 +222,6 @@ def distill_company_kb_from_texts(texts: List[str], company_hint: Optional[str] 
 
 
 def update_vector_store_files_ai(vector_store_id: str, new_file_urls: List[str], clear_text: str = None) -> dict:
-
     # Upload new files and collect their file IDs
     new_file_ids = []
     for file_url in new_file_urls:

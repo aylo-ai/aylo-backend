@@ -6,6 +6,7 @@ import time
 import json
 
 from django.http import HttpResponse
+from io import BytesIO
 from rest_framework.views import APIView
 from rest_framework import generics, permissions
 from django.utils.translation import gettext_lazy as _
@@ -25,6 +26,7 @@ from .tasks import  process_instagram_message, process_voice_task, \
                                 handle_postback_event_task
 from shared.addons.instagram import fetch_all_conversations_with_messages
 from shared.ai_service.helper import distill_company_kb_from_texts, update_vector_store_files_ai
+from apps.assistant.models import AssistantFileUpload
 
 from shared.addons.redis import redis_client
 
@@ -835,12 +837,12 @@ class InstagramConversationKnowledgeBaseView(APIView):
     permission_classes = [permissions.IsAuthenticated]
 
     def get(self, request, *args, **kwargs):
-        integration_id = self.kwargs.get("pk")
+        integration_id = request.query_params.get("integration_id")
         integration = Integration.objects.filter(id=integration_id, integration_type=IntegrationTypes.INSTAGRAM.value).first()
         if not integration:
             return error_response(message=_("Integration topilmadi"), code=400)
         access_token = integration.api_token
-        # 1) Fetch all conversations and only keep non-empty text strings per conversation
+
         convs = fetch_all_conversations_with_messages(access_token)
         all_texts = []
         for c in convs:
@@ -848,13 +850,16 @@ class InstagramConversationKnowledgeBaseView(APIView):
                 if isinstance(t, str) and t.strip():
                     all_texts.append(t.strip())
 
-        # 2) Distill knowledge base text using the AI
         company_hint = integration.name
         distilled_text = distill_company_kb_from_texts(all_texts, company_hint=company_hint)
         if not distilled_text:
-            return success_response(message=_("Hech qanday foydali ma'lumot topilmadi"), data={"messages": convs, "kb": None}, code=200)
+            return success_response(message=_("Hech qanday foydali ma'lumot topilmadi"), data={"response": None}, code=200)
 
-        # 3) Create vector store from distilled text and update assistant.vector_id
-        if integration.assistant.vector_id:
-            update_vector_store_files_ai(integration.assistant.vector_id, [None], distilled_text)
-        return success_response(message=_("Conversation knowledge base muvaffaqiyatli olindi"), data={"messages": convs, "kb": distilled_text}, code=200)
+        #create assistant file upload object
+        file = BytesIO(distilled_text.encode("utf-8"))
+        file.name = "instagram_knowledge_base.txt"
+        assistant_file = AssistantFileUpload.objects.create(
+            assistant=integration.assistant,
+            file=file
+        )
+        return success_response(message=_("Conversation knowledge base muvaffaqiyatli olindi"), data={"assistant_file": assistant_file.id}, code=200)
