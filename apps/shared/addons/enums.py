@@ -183,4 +183,3 @@ class ConditionType(EnumBaseModel):
 
 class FlowType(EnumBaseModel):
     COMMENT_RESPONSE = 'comment_response'
-

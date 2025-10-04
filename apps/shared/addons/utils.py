@@ -183,7 +183,7 @@ def update_assistant(assistant_id, name,  assistant):
             name=name,
             temperature=0.7,
             instructions=instruction,
-            tools=[{"type": "file_search"}],
+            tools=[{"type":"file_search"}],
             tool_resources={"file_search": {"vector_store_ids": [assistant.vector_id]}},
             model="gpt-4o",
             response_format = {
@@ -232,7 +232,6 @@ def update_assistant(assistant_id, name,  assistant):
 
 def create_assistant(instructions, name, vector_store_id):
     print("Creating assistant with instructions")
-    tools = [{"type": "file_search"}]
     tool_resources = {"file_search": {"vector_store_ids": [vector_store_id]}}
     default_model = "gpt-4o"
 
@@ -241,7 +240,7 @@ def create_assistant(instructions, name, vector_store_id):
             instructions=instructions,
             name=name,
             temperature=0.7,
-            tools=tools,
+            tools=[{"type":"file_search"}],
             tool_resources=tool_resources,
             model=default_model,
             response_format = {
