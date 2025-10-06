@@ -288,13 +288,14 @@ class InstagramCallbackView(APIView):
             try:
                 if assistant_id:
                     build_instagram_kb.delay(str(integration.id))
+                    print(f"Enqueued build_instagram_kb for integration: {integration.id}")
             except Exception as e:
                 print(f"Failed to enqueue build_instagram_kb: {e}")
         else:
             return error_response(message=("Foydalanuvchi profili topilmadi"), code=400)
         
         # enable webhook for the integration
-        url = f"https://graph.instagram.com/v22.0/me/subscribed_apps?access_token={access_token}&subscribed_fields=messages,comments,posts"
+        url = f"https://graph.instagram.com/v22.0/me/subscribed_apps?access_token={access_token}&subscribed_fields=messages,comments"
         response = requests.post(url)
         print(f"Response: {response.text}")
         if response.status_code == 200:

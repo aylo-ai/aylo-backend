@@ -615,3 +615,4 @@ def build_instagram_kb(integration_id: str):
     )
     if integration.assistant.vector_id:
         update_vector_store_files_ai(integration.assistant.vector_id, [None], distilled)
+    print(f"Instagram knowledge base built successfully for integration: {integration.id}")
