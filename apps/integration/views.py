@@ -286,7 +286,8 @@ class InstagramCallbackView(APIView):
             print(f"Integration is successfully created: {integration}")
             # enqueue background build of Instagram knowledge base
             try:
-                build_instagram_kb.delay(str(integration.id))
+                if assistant_id:
+                    build_instagram_kb.delay(str(integration.id))
             except Exception as e:
                 print(f"Failed to enqueue build_instagram_kb: {e}")
         else:
@@ -837,5 +838,3 @@ class CommentResponseButtonRetrieveUpdateDestroyView(generics.RetrieveUpdateDest
         self.perform_destroy(instance)
         return success_response(message=_("Tugma muvaffaqiyatli o'chirildi"), code=204)
 
-
-# Removed: InstagramConversationKnowledgeBaseView (now handled via background task on integration)
