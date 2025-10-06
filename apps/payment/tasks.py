@@ -26,29 +26,30 @@ def process_monthly_subscriptions():
                     subscription.save()
                     continue
                 if user.subscription.auto_renew == False:
-                    create_notification(user, "Obuna tarifingiz tugadi. Iltimos, platformaga kirib, to'lovni qo'lda kiriting.")
+                    if user.subscription.retry_count <= 3:
+                        create_notification(user, "Obuna tarifingiz tugadi. Iltimos, platformaga kirib, to'lovni qo'lda kiriting.")
                 else:
                     success, message = process_subscription_payment(user)
                     print(f"Success: {success}, Message: {message}")
                     if not success:
                         if subscription.retry_count > 3:
                             restrict_user_account(user)
-                        else:
+                        if subscription.retry_count <= 3:
                             notify_user_about_failed_payment(user)
-                        print("Failed to process subscription payment")
-                        create_notification(user, f"Obuna tarifingiz tugadi. Sizda {message} xatolik yuz berdi.")
-                        # Increment retry count and set next payment date to the next day
-                        subscription = user.subscription
-                        subscription.retry_count += 1
-                        subscription.save()
+                            print("Failed to process subscription payment")
+                            create_notification(user, f"Obuna tarifingiz tugadi. Sizda {message} xatolik yuz berdi.")
+                            # Increment retry count and set next payment date to the next day
+                            subscription = user.subscription
+                            subscription.retry_count += 1
+                            subscription.save()
 
-                        RetryPayment.objects.create(
-                            subscription=subscription,
-                            amount=subscription.pricing_package.price,
-                            status='failed',
-                            retry_date=timezone.now(),
-                            error_message=message
-                        )
+                            RetryPayment.objects.create(
+                                subscription=subscription,
+                                amount=subscription.pricing_package.price,
+                                status='failed',
+                                retry_date=timezone.now(),
+                                error_message=message
+                            )
                     else:
                         print("Successfully processed subscription payment")
                         create_notification(user, "Obuna tarifingiz muvaffaqiyatli amalga oshirildi.")
