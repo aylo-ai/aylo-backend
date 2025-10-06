@@ -11,6 +11,7 @@ from rest_framework.views import APIView
 from rest_framework import generics, permissions
 from django.utils.translation import gettext_lazy as _
 from django.db.models import Q
+from django.db import transaction
 
 from config.settings import INSTAGRAM_CLIENT_ID, INSTAGRAM_CLIENT_SECRET, INSTAGRAM_REDIRECT_URI
 from shared.addons.enums import IntegrationTypes
@@ -287,7 +288,7 @@ class InstagramCallbackView(APIView):
             # enqueue background build of Instagram knowledge base
             try:
                 if assistant_id:
-                    build_instagram_kb.delay(str(integration.id))
+                    transaction.on_commit(lambda: build_instagram_kb.delay(str(integration.id)))
                     print(f"Enqueued build_instagram_kb for integration: {integration.id}")
             except Exception as e:
                 print(f"Failed to enqueue build_instagram_kb: {e}")
