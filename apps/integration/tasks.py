@@ -585,10 +585,13 @@ def fetch_all_conversations_with_messages(
 @shared_task
 def build_instagram_kb(integration_id: str):
     integration = Integration.objects.filter(id=integration_id).first()
+    print(f"Integration: {integration}")
     if not integration or integration.integration_type != "instagram":
         return
     if not integration.api_token or not integration.assistant:
         return
+    print(f"Integration API token: {integration.api_token}")
+    print(f"Integration Assistant: {integration.assistant}")
 
     convs = fetch_all_conversations_with_messages(integration.api_token)
     texts = []
@@ -598,21 +601,26 @@ def build_instagram_kb(integration_id: str):
                 texts.append(t.strip())
     if not texts:
         return
-
+    print(f"Texts: {texts}")
     distilled = distill_company_kb_from_texts(texts, company_hint=integration.name)
     if not distilled:
         return
-
+    print(f"Distilled: {distilled}")
     file_content = SimpleUploadedFile(
         "instagram_knowledge_base.txt",
         distilled.encode("utf-8"),
         content_type="text/plain",
     )
-    AssistantFileUpload.objects.create(
+    data_assistant_file_upload = AssistantFileUpload.objects.create(
         assistant=integration.assistant,
         file=file_content,
         filename="instagram_knowledge_base.txt",
     )
+    print(f"Assistant File Upload: {data_assistant_file_upload}")
     if integration.assistant.vector_id:
-        update_vector_store_files_ai(integration.assistant.vector_id, [None], distilled)
+        print(f"Integration Assistant Vector ID: {integration.assistant.vector_id}")
+        data_update_vector_store_files_ai = update_vector_store_files_ai(integration.assistant.vector_id, [None], distilled)
+        print(f"Update Vector Store Files AI: {data_update_vector_store_files_ai}")
+    else:
+        print(f"Integration Assistant Vector ID is not found")
     print(f"Instagram knowledge base built successfully for integration: {integration.id}")
