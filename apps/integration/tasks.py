@@ -10,9 +10,11 @@ from shared.addons.instagram import send_instagram_message, send_instagram_priva
 from shared.addons.telegram import send_telegram_message, send_telegram_action
 from shared.addons.utils import get_assistant_response_ai, handle_start_command, get_or_create_conversation, create_message, \
     speech_to_text, convert_ogg_to_mp3, process_instagram_audio
-from apps.assistant.models import Assistant,Conversation
+from apps.assistant.models import Assistant,Conversation, AssistantFileUpload
 from .models import TelegramGroupIntegration, Integration, InstagramMedia, InstagramCommentResponse, Flow, CommentResponseButton, Step, Transition, InstagramUserState
 from shared.addons.redis import publish_message_to_ws, redis_client
+from django.core.files.uploadedfile import SimpleUploadedFile
+from shared.ai_service.helper import distill_company_kb_from_texts, update_vector_store_files_ai
 
 WAIT_SECONDS = 5
 
@@ -578,3 +580,38 @@ def fetch_all_conversations_with_messages(
         next_url = paging.get("next")
         next_params = None
     return collected
+
+
+@shared_task
+def build_instagram_kb(integration_id: str):
+    integration = Integration.objects.filter(id=integration_id).first()
+    if not integration or integration.integration_type != "instagram":
+        return
+    if not integration.api_token or not integration.assistant:
+        return
+
+    convs = fetch_all_conversations_with_messages(integration.api_token)
+    texts = []
+    for c in convs:
+        for t in c.get("messages", []):
+            if isinstance(t, str) and t.strip():
+                texts.append(t.strip())
+    if not texts:
+        return
+
+    distilled = distill_company_kb_from_texts(texts, company_hint=integration.name)
+    if not distilled:
+        return
+
+    file_content = SimpleUploadedFile(
+        "instagram_knowledge_base.txt",
+        distilled.encode("utf-8"),
+        content_type="text/plain",
+    )
+    AssistantFileUpload.objects.create(
+        assistant=integration.assistant,
+        file=file_content,
+        filename="instagram_knowledge_base.txt",
+    )
+    if integration.assistant.vector_id:
+        update_vector_store_files_ai(integration.assistant.vector_id, [None], distilled)

@@ -23,7 +23,8 @@ from .serializers import IntegrationCreateSerializer, IntegrationSerializer, Sen
     TelegramGroupSerializer, InstagramMediaSerializer, CommentTriggerWordSerializer, InstagramCommentResponseSerializer, InstagramCommentResponseFlowSerializer, TransitionSerializer, StepSerializer, CommentResponseButtonSerializer, InstagramUserStateSerializer
 from .tasks import  process_instagram_message, process_voice_task, \
                                 process_instagram_comment, WAIT_SECONDS, process_collected_messages, \
-                                handle_postback_event_task, fetch_all_conversations_with_messages, fetch_conversation_messages
+                                handle_postback_event_task, fetch_all_conversations_with_messages, fetch_conversation_messages, \
+                                build_instagram_kb
 from shared.ai_service.helper import distill_company_kb_from_texts, update_vector_store_files_ai
 from apps.assistant.models import AssistantFileUpload
 
@@ -283,6 +284,11 @@ class InstagramCallbackView(APIView):
             if not created:
                 return error_response(message=("Instagram integratsiyasi sizda mavjud"), code=200)
             print(f"Integration is successfully created: {integration}")
+            # enqueue background build of Instagram knowledge base
+            try:
+                build_instagram_kb.delay(str(integration.id))
+            except Exception as e:
+                print(f"Failed to enqueue build_instagram_kb: {e}")
         else:
             return error_response(message=("Foydalanuvchi profili topilmadi"), code=400)
         
@@ -832,42 +838,4 @@ class CommentResponseButtonRetrieveUpdateDestroyView(generics.RetrieveUpdateDest
         return success_response(message=_("Tugma muvaffaqiyatli o'chirildi"), code=204)
 
 
-class InstagramConversationKnowledgeBaseView(APIView):
-    permission_classes = [permissions.IsAuthenticated]
-
-    def get(self, request, *args, **kwargs):
-        integration_id = self.kwargs.get("pk")
-        # print(integration_id)
-        integration = Integration.objects.filter(id=integration_id, integration_type=IntegrationTypes.INSTAGRAM.value).first()
-        if not integration:
-            return error_response(message=_("Integration topilmadi"), code=400)
-        access_token = integration.api_token
-
-        convs = fetch_all_conversations_with_messages(access_token)
-        print(convs)
-        all_texts = []
-        for c in convs:
-            for t in c.get("messages", []):
-                if isinstance(t, str) and t.strip():
-                    all_texts.append(t.strip())
-
-        company_hint = integration.name
-        distilled_text = distill_company_kb_from_texts(all_texts, company_hint=company_hint)
-        if not distilled_text:
-            return success_response(message=_("Hech qanday foydali ma'lumot topilmadi"), data={"response": None}, code=200)
-
-        #create assistant file upload object
-        from django.core.files.uploadedfile import SimpleUploadedFile
-        file_content = SimpleUploadedFile(
-            "instagram_knowledge_base.txt",
-            distilled_text.encode("utf-8"),
-            content_type="text/plain"
-        )
-        assistant_file = AssistantFileUpload.objects.create(
-            assistant=integration.assistant,
-            file=file_content,
-            filename="instagram_knowledge_base.txt",
-        )
-        if integration.assistant.vector_id:
-            update_vector_store_files_ai(integration.assistant.vector_id, [None], distilled_text)
-        return success_response(message=_("Conversation knowledge base muvaffaqiyatli olindi"), data={"assistant_file": assistant_file.id}, code=200)
+# Removed: InstagramConversationKnowledgeBaseView (now handled via background task on integration)

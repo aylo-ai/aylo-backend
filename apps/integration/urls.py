@@ -46,6 +46,4 @@ urlpatterns = [
     path("steps/<uuid:pk>/", views.StepRetrieveUpdateDestroyView.as_view()),
     path("transition/<uuid:pk>/", views.TransitionRetrieveUpdateDestroyView.as_view()),
     path("buttons/<uuid:pk>/", views.CommentResponseButtonRetrieveUpdateDestroyView.as_view()),
-    # knowledge base endpoints
-    path("instagram/<uuid:pk>/knowledge-base/", views.InstagramConversationKnowledgeBaseView.as_view()),
 ]
