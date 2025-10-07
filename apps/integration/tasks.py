@@ -242,16 +242,19 @@ def process_instagram_comment(account_id, comment_data):
             response = InstagramCommentResponse.objects.filter(instagram_media=media).first()
             if response.is_respond_to_all_comments:
                 print("[✓] Media-specific: Respond to all comments (is_respond_to_all_comments=True)")
+                flow = Flow.objects.filter(comment_response=response)
+
                 if response.comment_message_template:
                         send_instagram_comment_reply(integration.api_token, comment_id, response.comment_message_template)
-                if response.private_message_template:
+                #if flow exists do not reply from private message
+                if response.private_message_template and not flow.exists():
                         send_instagram_private_reply(integration.api_token, account_id, comment_id, response.private_message_template)
-                flow = Flow.objects.filter(comment_response=response)
+                
                 if flow.exists():
                     print("[+] Actual flow exists in that way")
                     if integration.instagram_account_id == '17841461784331766':
                         print("[+] Actual flow exists in that way and integartion is found")
-                        send_instagram_postback(account_id=account_id, access_token=integration.api_token, recipient_id=comment_id, data=flow.first(),commenter_id=commenter_id)
+                        send_instagram_postback(account_id=account_id, access_token=integration.api_token, recipient_comment_id=comment_id, data=flow.first(),commenter_id=commenter_id)
 
 
             else:
@@ -259,11 +262,13 @@ def process_instagram_comment(account_id, comment_data):
                 trigger_words = [tw.trigger_word.lower() for tw in response.trigger_words.all()]
                 if comment_text.strip().lower() in trigger_words:
                     print(f"[✓] Media-specific trigger match: {trigger_words}")
+                    flow = Flow.objects.filter(comment_response=response)
+
                     if response.comment_message_template:
                         send_instagram_comment_reply(integration.api_token, comment_id, response.comment_message_template)
-                    if response.private_message_template:
+                    # validate that flow do not exists for private message
+                    if response.private_message_template and not flow.exists():
                         send_instagram_private_reply(integration.api_token, account_id, comment_id, response.private_message_template)
-                    flow = Flow.objects.filter(comment_response=response)
                     if flow.exists():
                         print("[+] Actual flow exists in that way")
                         if integration.instagram_account_id == '17841461784331766':
@@ -292,16 +297,18 @@ def process_instagram_comment(account_id, comment_data):
                         print("are good for it")
                         if latest_response.is_respond_to_all_comments:
                             print("[✓] Media-specific: Respond to all comments (is_respond_to_all_comments=True)")
+                            flow = Flow.objects.filter(comment_response=response)
+
                             if latest_response.comment_message_template:
                                     send_instagram_comment_reply(integration.api_token, comment_id, latest_response.comment_message_template)
-                            if latest_response.private_message_template:
+                            # validate that flow does not exists
+                            if latest_response.private_message_template and not flow.exists():
                                     send_instagram_private_reply(integration.api_token, account_id, comment_id, latest_response.private_message_template)
-                            flow = Flow.objects.filter(comment_response=response)
                             if flow.exists():
                                 print("[+] Actual flow exists in that way")
                                 if integration.instagram_account_id == '17841461784331766':
                                     print("[+] Actual flow exists in that way and integartion is found")
-                                    send_instagram_postback(account_id=account_id, access_token=integration.api_token, recipient_id=comment_id, data=flow.first(),commenter_id=commenter_id)
+                                    send_instagram_postback(account_id=account_id, access_token=integration.api_token, recipient_comment_id=comment_id, data=flow.first(),commenter_id=commenter_id)
 
 
                         else:
@@ -318,7 +325,7 @@ def process_instagram_comment(account_id, comment_data):
                                     print("[+] Actual flow exists in that way")
                                     if integration.instagram_account_id == '17841461784331766':
                                         print("[+] Actual flow exists in that way and integartion is found")
-                                        send_instagram_postback(account_id=account_id, access_token=integration.api_token, recipient_id=comment_id, data=flow.first(),commenter_id=commenter_id)
+                                        send_instagram_postback(account_id=account_id, access_token=integration.api_token, recipient_comment_id=comment_id, data=flow.first(),commenter_id=commenter_id)
                         media_data = InstagramMedia.objects.create(
                             media_id=media_first.get('id'),
                             media_type=media_first.get('media_type', None),
@@ -419,6 +426,10 @@ def handle_postback_event_task(msg, access_token):
                                            button_text__id=inline_button_id).first()
     if transition is None:
         print(f"[-] Transicition was not create or not found for this step {transition}")
+        return
+    if transition.to_step.id is None:
+        print("[-]Transition to step is not given")
+        return
 
     send_step_message_task.delay(transition.to_step.id, account_id, sender_id, access_token)
 
@@ -585,42 +596,39 @@ def fetch_all_conversations_with_messages(
 @shared_task
 def build_instagram_kb(integration_id: str):
     integration = Integration.objects.filter(id=integration_id).first()
-    print(f"Integration: {integration}")
     if not integration or integration.integration_type != "instagram":
         return
     if not integration.api_token or not integration.assistant:
         return
-    print(f"Integration API token: {integration.api_token}")
-    print(f"Integration Assistant: {integration.assistant}")
 
     convs = fetch_all_conversations_with_messages(integration.api_token)
     texts = []
+
     for c in convs:
         for t in c.get("messages", []):
             if isinstance(t, str) and t.strip():
                 texts.append(t.strip())
+
     if not texts:
         return
-    print(f"Texts: {texts}")
     distilled = distill_company_kb_from_texts(texts, company_hint=integration.name)
+    
     if not distilled:
         return
-    print(f"Distilled: {distilled}")
     file_content = SimpleUploadedFile(
         "instagram_knowledge_base.txt",
         distilled.encode("utf-8"),
         content_type="text/plain",
     )
-    data_assistant_file_upload = AssistantFileUpload.objects.create(
+    AssistantFileUpload.objects.create(
         assistant=integration.assistant,
         file=file_content,
         filename="instagram_knowledge_base.txt",
     )
-    print(f"Assistant File Upload: {data_assistant_file_upload}")
     if integration.assistant.vector_id:
         print(f"Integration Assistant Vector ID: {integration.assistant.vector_id}")
-        data_update_vector_store_files_ai = update_vector_store_files_ai(integration.assistant.vector_id, [None], distilled)
-        print(f"Update Vector Store Files AI: {data_update_vector_store_files_ai}")
+        update_vector_store_files_ai(integration.assistant.vector_id, [None], distilled)
+        print(f"Update Vector Store Files AI:")
     else:
         print(f"Integration Assistant Vector ID is not found")
     print(f"Instagram knowledge base built successfully for integration: {integration.id}")

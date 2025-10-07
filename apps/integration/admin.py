@@ -99,7 +99,7 @@ class TelegramGroupIntegrationAdmin(admin.ModelAdmin):
 class CommentResponseButtonAdmin(admin.ModelAdmin):
     list_display = ('text','url')
     fieldsets = (
-        (None, {'fields':('text', 'url')}),
+        (None, {'fields':('text', 'url','type')}),
     )
 
 admin.site.register(Step)

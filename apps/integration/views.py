@@ -695,7 +695,7 @@ class InstagramFlowTransitionListCreateView(generics.ListCreateAPIView):
 
     def create(self, request, *args, **kwargs):
         flow_id = self.kwargs.get("pk")
-        # Support both single object and list payloads
+        # Support both single object and list payloads (do not hard-fail on single)
         is_many = isinstance(request.data, list)
         serializer = self.get_serializer(data=request.data, many=is_many)
         serializer.is_valid(raise_exception=True)
@@ -704,14 +704,16 @@ class InstagramFlowTransitionListCreateView(generics.ListCreateAPIView):
         def _validate_transition(datum):
             from_step = datum.get("from_to")
             to_step = datum.get("to_step")
+            from_step_id = getattr(from_step, "id", from_step)
+            to_step_id = getattr(to_step, "id", to_step)
+            
             # Steps must belong to the same flow
             if from_step:
-                if not Step.objects.filter(id=from_step, flow_id=flow_id).exists():
+                if not Step.objects.filter(id=from_step_id, flow_id=flow_id).exists():
                     raise ValueError("from_to step does not belong to this flow")
             if to_step:
-                if not Step.objects.filter(id=to_step, flow_id=flow_id).exists():
+                if not Step.objects.filter(id=to_step_id, flow_id=flow_id).exists():
                     raise ValueError("to_step does not belong to this flow")
-
         try:
             if is_many:
                 for item in serializer.validated_data:

@@ -255,6 +255,7 @@ class CommentResponseButtonSerializer(serializers.ModelSerializer):
         fields = (
             "id",
             "text",
+            "type",
             "url"
         )
 
@@ -404,11 +405,6 @@ class StepSerializer(serializers.ModelSerializer):
         fields = ["id", "action", "extra_button", "start_point", "extra_buttons", "message_image","message_content","condition_type","transitions"]
 
     
-class CommentResponseButtonSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = CommentResponseButton
-        fields = ["id", "text", "url", "type"]
-
 
 class InstagramCommentResponseFlowSerializer(serializers.ModelSerializer):
     steps = StepSerializer(many=True, write_only=True)
