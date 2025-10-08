@@ -134,18 +134,26 @@ def process_instagram_message(account_id, combined_message, user_message, audio_
     data = create_message(conversation=conversation, sender=SenderTypes.USER.value, content=combined_message, 
                           audio_file=audio_file, input_tokens=input_tokens, output_tokens=output_tokens)
     publish_message_to_ws(conversation.id, combined_message, sender="user", data=data, assistant_id=assistant.id)
-
-    response_message, run_status, response_data = get_assistant_response_ai(combined_message, assistant.assistant_id, conversation.thread_id, conversation=conversation)
-    print(f"Assistant response in Instagram: {response_message}")
-    # Handle lead creation if response_data exists
-    username = getattr(response_data, 'username', None)
-    platform = getattr(response_data, 'platform', None)
-    username_link = None
-    if username:
-        if platform and platform.lower() == "telegram":
-            username_link = f"@{username}"
-        elif platform and platform.lower() == "instagram":
-            username_link = f"https://www.instagram.com/{username}"
+    response_data = None
+    if assistant.ai_enabled:
+        response_message, run_status, response_data = get_assistant_response_ai(combined_message, assistant.assistant_id, conversation.thread_id, conversation=conversation)
+        print(f"Assistant response in Instagram: {response_message}")
+        # Handle lead creation if response_data exists
+        username = getattr(response_data, 'username', None)
+        platform = getattr(response_data, 'platform', None)
+        username_link = None
+        if username:
+            if platform and platform.lower() == "telegram":
+                username_link = f"@{username}"
+            elif platform and platform.lower() == "instagram":
+                username_link = f"https://www.instagram.com/{username}"
+                
+        send_instagram_message(account_id, integration.api_token, sender_id, response_message)
+        print(f"starting to create message: {response_message}, conversation: {conversation}")
+        data = create_message(conversation=conversation, sender=SenderTypes.ASSISTANT.value, content=response_message, run_status=run_status)
+        print(f"Sent message to Instagram user: {sender_id} with message: {response_message}")
+        publish_message_to_ws(conversation.id, response_message, sender="assistant", assistant_id=assistant.id, data=data)
+        print("Sent message to web socket")
 
     if response_data:
         response_lines = [
@@ -172,12 +180,7 @@ def process_instagram_message(account_id, combined_message, user_message, audio_
     # handling wait message
     
     # send response to user
-    send_instagram_message(account_id, integration.api_token, sender_id, response_message)
-    print(f"starting to create message: {response_message}, conversation: {conversation}")
-    data = create_message(conversation=conversation, sender=SenderTypes.ASSISTANT.value, content=response_message, run_status=run_status)
-    print(f"Sent message to Instagram user: {sender_id} with message: {response_message}")
-    publish_message_to_ws(conversation.id, response_message, sender="assistant", assistant_id=assistant.id, data=data)
-    print("Sent message to web socket")
+   
 
 @shared_task
 def process_voice_task(chat_id, voice_file_id, bot_token):
@@ -252,7 +255,7 @@ def process_instagram_comment(account_id, comment_data):
                 
                 if flow.exists():
                     print("[+] Actual flow exists in that way")
-                    if integration.instagram_account_id == '17841461784331766':
+                    if integration.instagram_account_id:
                         print("[+] Actual flow exists in that way and integartion is found")
                         send_instagram_postback(account_id=account_id, access_token=integration.api_token, recipient_comment_id=comment_id, data=flow.first(),commenter_id=commenter_id)
 
@@ -271,7 +274,7 @@ def process_instagram_comment(account_id, comment_data):
                         send_instagram_private_reply(integration.api_token, account_id, comment_id, response.private_message_template)
                     if flow.exists():
                         print("[+] Actual flow exists in that way")
-                        if integration.instagram_account_id == '17841461784331766':
+                        if integration.instagram_account_id:
                             print("[+] Actual flow exists in that way and integartion is found")
                             send_instagram_postback(account_id=account_id, access_token=integration.api_token, recipient_comment_id=comment_id, data=flow.first(), commenter_id=commenter_id)
         else:       
@@ -306,7 +309,7 @@ def process_instagram_comment(account_id, comment_data):
                                     send_instagram_private_reply(integration.api_token, account_id, comment_id, latest_response.private_message_template)
                             if flow.exists():
                                 print("[+] Actual flow exists in that way")
-                                if integration.instagram_account_id == '17841461784331766':
+                                if integration.instagram_account_id:
                                     print("[+] Actual flow exists in that way and integartion is found")
                                     send_instagram_postback(account_id=account_id, access_token=integration.api_token, recipient_comment_id=comment_id, data=flow.first(),commenter_id=commenter_id)
 
@@ -323,7 +326,7 @@ def process_instagram_comment(account_id, comment_data):
                                 flow = Flow.objects.filter(comment_response=response)
                                 if flow.exists():
                                     print("[+] Actual flow exists in that way")
-                                    if integration.instagram_account_id == '17841461784331766':
+                                    if integration.instagram_account_id:
                                         print("[+] Actual flow exists in that way and integartion is found")
                                         send_instagram_postback(account_id=account_id, access_token=integration.api_token, recipient_comment_id=comment_id, data=flow.first(),commenter_id=commenter_id)
                         media_data = InstagramMedia.objects.create(
