@@ -337,6 +337,12 @@ def get_assistant_response_ai(user_message_, assistant_id, thread_id, conversati
             intent = assistant_response.get("intent", None)
             message = assistant_response.get("reply", None)
             entities = assistant_response.get("entities", None)
+            if assistant_response.get("properties",None):
+                response_json = assistant_response.get("properties")
+                intent = response_json.get("intent", None)
+                message = response_json.get("reply", None)
+                entities = response_json.get("entities", None)
+
             clean_response = check_response(message)
             print(f"Intent: {intent}, Message: {message}, Entities: {entities}")
             handle_unknown_intent(intent, user_message_, assistant, conversation)
