@@ -331,7 +331,11 @@ def get_assistant_response_ai(user_message_, assistant_id, thread_id, conversati
             )
             print(f"Assistant response: {messages.data}, messages: {messages}, input_tokens: {run_status.usage.prompt_tokens}, output_tokens: {run_status.usage.completion_tokens}")
 
-            assistant_response_str = messages.data[0].content[0].text.value if messages.data else "No response received."
+            assistant_response_str = (
+                messages.data[-1].content[0].text.value
+                if messages.data and messages.data[-1].content
+                else "No response received."
+            )
             print(f"Assistant response: {assistant_response_str}")
             assistant_response = json.loads(assistant_response_str)
             intent = assistant_response.get("intent", None)
