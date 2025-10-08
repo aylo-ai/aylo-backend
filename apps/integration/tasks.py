@@ -252,7 +252,7 @@ def process_instagram_comment(account_id, comment_data):
                 
                 if flow.exists():
                     print("[+] Actual flow exists in that way")
-                    if integration.instagram_account_id == '17841461784331766':
+                    if integration.instagram_account_id:
                         print("[+] Actual flow exists in that way and integartion is found")
                         send_instagram_postback(account_id=account_id, access_token=integration.api_token, recipient_comment_id=comment_id, data=flow.first(),commenter_id=commenter_id)
 
@@ -271,7 +271,7 @@ def process_instagram_comment(account_id, comment_data):
                         send_instagram_private_reply(integration.api_token, account_id, comment_id, response.private_message_template)
                     if flow.exists():
                         print("[+] Actual flow exists in that way")
-                        if integration.instagram_account_id == '17841461784331766':
+                        if integration.instagram_account_id:
                             print("[+] Actual flow exists in that way and integartion is found")
                             send_instagram_postback(account_id=account_id, access_token=integration.api_token, recipient_comment_id=comment_id, data=flow.first(), commenter_id=commenter_id)
         else:       
@@ -306,7 +306,7 @@ def process_instagram_comment(account_id, comment_data):
                                     send_instagram_private_reply(integration.api_token, account_id, comment_id, latest_response.private_message_template)
                             if flow.exists():
                                 print("[+] Actual flow exists in that way")
-                                if integration.instagram_account_id == '17841461784331766':
+                                if integration.instagram_account_id:
                                     print("[+] Actual flow exists in that way and integartion is found")
                                     send_instagram_postback(account_id=account_id, access_token=integration.api_token, recipient_comment_id=comment_id, data=flow.first(),commenter_id=commenter_id)
 
@@ -323,7 +323,7 @@ def process_instagram_comment(account_id, comment_data):
                                 flow = Flow.objects.filter(comment_response=response)
                                 if flow.exists():
                                     print("[+] Actual flow exists in that way")
-                                    if integration.instagram_account_id == '17841461784331766':
+                                    if integration.instagram_account_id:
                                         print("[+] Actual flow exists in that way and integartion is found")
                                         send_instagram_postback(account_id=account_id, access_token=integration.api_token, recipient_comment_id=comment_id, data=flow.first(),commenter_id=commenter_id)
                         media_data = InstagramMedia.objects.create(

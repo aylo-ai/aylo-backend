@@ -331,13 +331,14 @@ def get_assistant_response_ai(user_message_, assistant_id, thread_id, conversati
             )
             print(f"Assistant response: {messages.data}, messages: {messages}, input_tokens: {run_status.usage.prompt_tokens}, output_tokens: {run_status.usage.completion_tokens}")
 
-            assistant_response_str = (
-                messages.data[-1].content[0].text.value
-                if messages.data and messages.data[-1].content
-                else "No response received."
-            )
-            print(f"Assistant response: {assistant_response_str}")
-            assistant_response = json.loads(assistant_response_str)
+            assistant_response_str = text_blocks[0].text.value or ""
+            print(f"Assistant response (raw): {assistant_response_str}")
+            try:
+                assistant_response = json.loads(assistant_response_str)
+            except Exception:
+                # Fallback: return the raw text and no structured data
+                clean_response = check_response(assistant_response_str)
+                return clean_response, run_status, None
             intent = assistant_response.get("intent", None)
             message = assistant_response.get("reply", None)
             entities = assistant_response.get("entities", None)
