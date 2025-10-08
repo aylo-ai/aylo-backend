@@ -29,7 +29,7 @@ backlog = 2048
 #       range. You'll want to vary this a bit to find the best
 #       for your particular application's work load.
 
-workers = cpu_count() + 1
+workers = 4 #cpu_count() + 1
 
 #   worker_class - The type of workers to use. The default
 #       sync class should handle most 'normal' types of work
