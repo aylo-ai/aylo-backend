@@ -377,7 +377,7 @@ def get_assistant_response_ai(user_message_, assistant_id, thread_id, conversati
             return clean_response, run_status, response_data
         
         except Exception as e:
-            print(f"[-] Error in get_assistant_response_ai: {str(e)}")
+            print(f"[-] Error  in get_assistant_response_ai: {str(e)}")
             return "", None, None
 
 def create_and_run_thread(assistant_id, vector_store_id):
