@@ -9,20 +9,15 @@ from shared.ai_service.openai_client import client
 from shared.ai_service.thread import wait_on_run
 from shared.addons.payloads import valid_intents
 from django.utils.translation import gettext_lazy as _
+
 def check_response(response):
-    """
-    Removes asterisks and patterns enclosed within 【】 from the response.
-    """
-    # Remove asterisks
     if "*" in response:
         response = response.replace("*", "")
 
-    # Remove 【...】 patterns
     pattern = r'【[^【】]*?】'
     response = re.sub(pattern, '', response)
 
     return response
-
 
 
 def create_payload_and_assistant(assistant, request=None):
@@ -47,7 +42,7 @@ def create_payload_and_assistant(assistant, request=None):
     new_assistant = send_assistant_create_request(instruction, assistant.name, vector_store_id)
     if not assistant:
         return None
-    print(f"New assistant: {assistant}, assistant_id: {new_assistant.id}, vector_store_id: {vector_store_id}")
+    print(f"[+] New assistant: {assistant}, assistant_id: {new_assistant.id}, vector_store_id: {vector_store_id}")
     return new_assistant.id, vector_store_id
 
 
@@ -68,7 +63,7 @@ def send_assistant_create_request(instructions, name, vector_store_id):
         # Check the response type before returning
         if my_assistant is None:
             raise Exception("Assistant creation returned None unexpectedly.")
-        print(f"Assistant created: {my_assistant}")
+        print(f"[+] Assistant created: {my_assistant}")
         return my_assistant
     except Exception as e:
         print(f"Error creating assistant: {e}")
@@ -102,5 +97,5 @@ def update_assistant_id_vector_id(assistant, request):
     assistant.assistant_id = assistant_id
     assistant.vector_id = vector_id
     assistant.save()
-    print(f"Assistant ID: {assistant.assistant_id}, vector_id: {assistant.vector_id} updated successfully")
+    print(f"[+] Assistant ID: {assistant.assistant_id}, vector_id: {assistant.vector_id} updated successfully")
     return 200

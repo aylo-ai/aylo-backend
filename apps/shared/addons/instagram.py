@@ -17,7 +17,6 @@ def get_long_lived_access_token(short_lived_access_token):
     if response.status_code == 200:
         access_token = response.json().get("access_token")
         refreshed_new_token = instagram_refresh_token(access_token)
-        print(f"refresh_token: {refreshed_new_token}")
         return access_token
     return None
 
@@ -41,7 +40,6 @@ def get_user_profile(access_token):
         f"access_token={access_token}"
     )
     response = requests.get(url)
-    print(f"get_user_profile response: {response.text}")
     if response.status_code == 200:
         user_profile = response.json()
         user_data = {
@@ -73,8 +71,6 @@ def send_instagram_message(account_id, access_token, recipient_id, message):
         payload = {"recipient": {"id": recipient_id}, "message": {"text": part}}
 
         response = requests.post(url, json=payload, headers=headers)
-        print(f"send_instagram_message response: {response.text}")
-
         if response.status_code != 200:
             success = False  # agar bitta qismi yuborilmasa, false qaytaramiz
 
@@ -82,7 +78,6 @@ def send_instagram_message(account_id, access_token, recipient_id, message):
 
 
 def send_instagram_private_reply(access_token, account_id, comment_id, message):
-    """Send private reply to an Instagram comment"""
     url = f"https://graph.instagram.com/v23.0/{account_id}/messages"
     headers = {
         "Content-Type": "application/json",
@@ -93,7 +88,7 @@ def send_instagram_private_reply(access_token, account_id, comment_id, message):
     payload = {"recipient": {"comment_id": comment_id}, "message": {"text": message}}
 
     response = requests.post(url, json=payload, headers=headers)
-    print(f"send_instagram_private_reply response: {response.text}")
+    print(f"[+] Send_instagram_private_reply response: {response.text}")
 
     if response.status_code != 200:
         success = False
@@ -102,7 +97,6 @@ def send_instagram_private_reply(access_token, account_id, comment_id, message):
 
 
 def send_instagram_comment_reply(access_token, comment_id, message):
-    """Send comment reply to an Instagram comment"""
     url = f"https://graph.instagram.com/v23.0/{comment_id}/replies"
     headers = {
         "Content-Type": "application/json",
@@ -110,14 +104,10 @@ def send_instagram_comment_reply(access_token, comment_id, message):
     }
     payload = {"message": message}
     response = requests.post(url, json=payload, headers=headers)
-    print(f"send_instagram_comment_reply response: {response.text}")
+    print(f"[+] Send_instagram_comment_reply response: {response.text}")
 
 
 def build_button_payload(btn):
-    """
-    btn: CommentResponseButton instance or dict with keys text, url, id, type
-    returns dict suitable for the IG template buttons
-    """
     if getattr(btn, "type", None) == "web_url" or (
         isinstance(btn, dict) and btn.get("type") == "web_url"
     ):
@@ -156,7 +146,6 @@ def send_instagram_postback(
         for b in first_step.extra_button.all():
             btns_payload.append(build_button_payload(b))
 
-        print(f"All buttons are ready{btns_payload}")
         image_url = None
         if first_step.message_image:
             image_url = first_step.message_image.url

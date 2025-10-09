@@ -33,15 +33,15 @@ def send_playmobile_sms(phone_number, message):
             auth=(PLAY_MOBILE_LOGIN, PLAY_MOBILE_PASSWORD),
             timeout=(30, 60)  # 10s connect timeout, 30s read timeout
         )
-        print(f"Response: {response.status_code} — {response.text}")
+        print(f"+] Response: {response.status_code} — {response.text}")
         if response.status_code == 200:
             return True, "SMS successfully sent"
         return False, f"Failed with status: {response.status_code}"
     except requests.exceptions.ConnectTimeout:
-        print(f"Connect timeout to {PLAY_MOBILE_URL}")
+        print(f"[+] Connect timeout to {PLAY_MOBILE_URL}")
         return False, "Connection timed out"
     except Exception as e:
-        print(f"Unexpected error during SMS sending: {str(e)}")
+        print(f"[+] Unexpected error during SMS sending: {str(e)}")
         return False, f"Unexpected error: {str(e)}"
 
 def send_code(phone_number):
@@ -53,7 +53,6 @@ def send_code(phone_number):
     # success, message = True, "Code sent successfully"
     if not success:
         return False, message
-    print(f"Your code for number {phone_number} is {code}")
     redis_connection.set(phone_number, code)
     redis_connection.expire(phone_number, time=60)
     return True, "Code sent successfully"
@@ -94,15 +93,6 @@ def send_sms_text(phone_number, text):
 
 
 def send_email_code(email):
-    """
-    Send verification code to email address.
-    
-    Args:
-        email (str): Email address to send code to
-        
-    Returns:
-        tuple: (success, message)
-    """
     try:
         code = generate_code()
         print(f"code generated: {code}")
@@ -143,16 +133,6 @@ def send_email_code(email):
 
 
 def verify_email_code(email, code):
-    """
-    Verify the code sent to email address.
-    
-    Args:
-        email (str): Email address to verify
-        code (str): Verification code to check
-        
-    Returns:
-        tuple: (success, message)
-    """
     try:
         # Get stored code from Redis
         stored_code = redis_connection.get(email)
@@ -179,15 +159,6 @@ def verify_email_code(email, code):
 
 
 def is_email_verified(email):
-    """
-    Check if email is verified.
-    
-    Args:
-        email (str): Email address to check
-        
-    Returns:
-        bool: True if email is verified, False otherwise
-    """
     try:
         return bool(redis_connection.get(f"{email}_verified"))
     except Exception:

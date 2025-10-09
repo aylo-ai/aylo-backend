@@ -126,7 +126,7 @@ class Flow(BaseModel):
 
 
 class Step(BaseModel):
-    message_content = models.CharField(max_length=255, null=True, blank=True)
+    message_content = models.TextField(null=True, blank=True)
     action = models.CharField(max_length=255, choices=ActionType.choices, default=ActionType.MESSAGE.value)
     condition_type = models.CharField(max_length=255, choices=ConditionType.choices, default=ConditionType.SUBSCRIBED.value)
     extra_button = models.ManyToManyField(CommentResponseButton, related_name='steps')

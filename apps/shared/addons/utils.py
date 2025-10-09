@@ -11,10 +11,9 @@ from django.utils.translation import gettext_lazy as _
 from django.conf import settings
 from django.core.mail import send_mail
 
-from apps.integration.models import Integration, TelegramGroupIntegration
 from apps.assistant.models import Message, Conversation, Lead, Assistant
 from config.settings import client
-from shared.addons.enums import SubscriptionStatuses, NotificationTypes, IntegrationTypes, ConversationPlatforms
+from shared.addons.enums import SubscriptionStatuses, NotificationTypes, ConversationPlatforms
 from shared.addons.telegram import send_telegram_message
 from shared.addons.validations import success_response, raise_validation_error, error_response
 from shared.addons.verification import send_playmobile_sms
@@ -47,14 +46,13 @@ def create_message(conversation, sender, content, audio_file=None, run_status=No
         input_tokens=input_tokens,
         output_tokens=output_tokens
     )
-    print(f"Message created: {conversation}, {sender}")
+    print(f"[+] Message created: {conversation}, {sender}")
 
     if audio_file:
         from django.core.files.base import ContentFile
         from django.utils.text import slugify
 
         file_name = f"audio_{slugify(conversation.id)}_{message.id}.mp3"
-        print(f"File name: {file_name}")
         message.audio_file.save(file_name, ContentFile(audio_file))
         message.save()
         return {
@@ -74,7 +72,6 @@ def get_or_create_conversation(user_id, assistant, reset=False, token=None, plat
         user_id=user_id,
         token=token).first()
     thread_id = None
-    print(f"Conversation: {conversation}")
     if conversation is None:
         if assistant.ai_enabled:
             thread_id = get_thread_id(str(assistant.assistant_id), str(assistant.vector_id))
@@ -290,7 +287,6 @@ def create_assistant(instructions, name, vector_store_id):
     
     
 def get_assistant_response_ai(user_message_, assistant_id, thread_id, conversation):
-    print(f"Getting assistant response from AI: {user_message_}, {assistant_id}, {thread_id}")
     assistant = Assistant.objects.get(assistant_id=assistant_id)
     if assistant.user.subscription is None:
         return error_response(message=_("Sizning obunangiz tugadi. Iltimos, platformaga kirib, to'lovni qayta amalga oshiring."), code=400)
@@ -299,13 +295,11 @@ def get_assistant_response_ai(user_message_, assistant_id, thread_id, conversati
         return assistant.fallback_message, None, None
     else:
         if thread_id is None:
-            return "Thread not initialized. Please create an assistant first."
-
+            return error_response(message=_("Sizda hali assistantga fayl yuklanmagan"), code=400)
         try:
             # Check if an active run exists for the given thread_id
             active_runs = client.beta.threads.runs.list(thread_id=thread_id)
             if active_runs.data:
-                print(f"active run found")
                 # Wait for all active runs to complete
                 for run in active_runs.data:
                     wait_on_run(run, thread_id)
@@ -316,8 +310,6 @@ def get_assistant_response_ai(user_message_, assistant_id, thread_id, conversati
                 role="user",
                 content=f"User: {user_message_}",
             )
-            print(f"User message: {user_message}")
-
             # Start a new assistant run
             run = client.beta.threads.runs.create(
                 thread_id=thread_id,
@@ -348,7 +340,6 @@ def get_assistant_response_ai(user_message_, assistant_id, thread_id, conversati
                 entities = response_json.get("entities", None)
 
             clean_response = check_response(message)
-            print(f"Intent: {intent}, Message: {message}, Entities: {entities}")
             handle_unknown_intent(intent, user_message_, assistant, conversation)
                     
             response_data = None
@@ -382,11 +373,11 @@ def get_assistant_response_ai(user_message_, assistant_id, thread_id, conversati
                     product=entities.get('product', None),
                     metadata=entities
                 )
-                print("✅ Lead created from Telegram message")
+                print("[+] Lead created from Telegram message")
             return clean_response, run_status, response_data
         
         except Exception as e:
-            print(f"Error in get_assistant_response_ai: {str(e)}")
+            print(f"[-] Error in get_assistant_response_ai: {str(e)}")
             return "", None, None
 
 def create_and_run_thread(assistant_id, vector_store_id):

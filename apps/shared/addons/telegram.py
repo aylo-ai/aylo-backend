@@ -21,13 +21,6 @@ def escape_markdown_v2(text):
 
 
 def clean_html(input_html, allowed_tags=None):
-    """
-    Clean HTML by removing tags not in the allowed list.
-
-    :param input_html: The HTML string to clean.
-    :param allowed_tags: List of allowed tags. Example: ['b', 'i', 'u', 'a']
-    :return: A sanitized HTML string containing only the allowed tags.
-    """
     if allowed_tags is None:
         allowed_tags = ['b', 'i', 'u', 'a']
 
@@ -86,15 +79,13 @@ def send_telegram_message(chat_id, text, token):
         "parse_mode": "html"
     }
     
-    print(f"send telegram message data: {data}, url: {url}")
     response = requests.post(url, json=data)
-    print(f"Message sent to Telegram: {response.status_code}, {response.json()}")
     response_data = response.json()
     if not response_data.get("ok"):
         # Handle migration to supergroup
         if "migrate_to_chat_id" in response_data.get("parameters", {}):
             new_chat_id = response_data["parameters"]["migrate_to_chat_id"]
-            print(f"Chat migrated to supergroup. New Chat ID: {new_chat_id}")
+            print(f"[+] Chat migrated to supergroup. New Chat ID: {new_chat_id}")
 
             # Update TelegramGroupIntegration model
             try:
@@ -102,11 +93,11 @@ def send_telegram_message(chat_id, text, token):
                 if group_integration:
                     group_integration.group_id = new_chat_id
                     group_integration.save()
-                    print(f"Updated TelegramGroupIntegration: {group_integration}")
+                    print(f"[+] Updated TelegramGroupIntegration: {group_integration}")
                 else:
-                    print(f"No TelegramGroupIntegration entry found for chat_id: {chat_id}")
+                    print(f"[-] No TelegramGroupIntegration entry found for chat_id: {chat_id}")
             except Exception as e:
-                print(f"Error updating TelegramGroupIntegration: {e}")
+                print(f"[-] Error updating TelegramGroupIntegration: {e}")
 
             # Retry sending the message with the new chat ID
             data["chat_id"] = new_chat_id
@@ -114,13 +105,13 @@ def send_telegram_message(chat_id, text, token):
             response_data = response.json()
 
             if response_data.get("ok"):
-                print("Message sent successfully after migration.")
+                print("[+] Message sent successfully after migration.")
             else:
-                print(f"Failed to send message after migration: {response_data}")
+                print(f"[-] Failed to send message after migration: {response_data}")
         else:
-            print(f"Failed to send message: {response_data}")
+            print(f"[-] Failed to send message: {response_data}")
     else:
-        print("Message sent successfully.")
+        print("[-] Message sent successfully.")
     return response
 
 
@@ -137,13 +128,13 @@ def set_telegram_webhook(bot_token, webhook_url):
     payload = {
         'url': webhook_url
     }
-    print(f"Setting webhook to: {webhook_url}")
+    print(f"[+] Setting webhook to: {webhook_url}")
     response = requests.post(url, data=payload)
     if response.status_code == 200:
-        print(f"Webhook set successfully, Status code: {response.status_code}")
+        print(f"[+] Webhook set successfully, Status code: {response.status_code}")
         return 200
     else:
-        print(f"Failed to set webhook: {response.json()}, Status code: {response.status_code}")
+        print(f"[-] Failed to set webhook: {response.json()}, Status code: {response.status_code}")
         return 400
 
 

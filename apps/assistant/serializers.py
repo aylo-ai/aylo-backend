@@ -120,12 +120,10 @@ class ConversationSerializer(serializers.ModelSerializer,
             thread_id=thread_id
         )
         publish_message_to_ws_assistant(conversation)
-        print("Published message to web socket")
         return conversation
 
     def to_representation(self, instance):
         response = super().to_representation(instance)
-        print(f"to_representation: instance: {instance}")
         # Fetching the messages ordered by `created_time`
         last_message = instance.messages.order_by('-created_time').first()
         last_message_time = last_message.created_time if last_message else None
@@ -186,10 +184,10 @@ class MessageSerializer(serializers.ModelSerializer, SubscriptionValidationMixin
     def validate(self, attrs):
         message_content = attrs.get("message_content")
         audio_file = attrs.get("audio_file")
+
         if not message_content and not audio_file:
             raise_validation_error(message=_("Xabar matni yoki audio fayl kerak"))
         conversation = self.context.get("conversation_id")
-        print(f"validate: conversation_id: {conversation}")
         try:
             conversation = Conversation.objects.get(id=conversation)
         except Conversation.DoesNotExist:
@@ -213,13 +211,10 @@ class MessageSerializer(serializers.ModelSerializer, SubscriptionValidationMixin
         conversation = validated_data.get("conversation")
         assistant = conversation.assistant
         sender = validated_data.get("sender")
-        print(f"time before transcribe: {time.time()}")
         # 1. Transcribe if audio exists
         if audio_file:
-            print("[MessageSerializer] Audio file received.")
             audio_bytes = audio_file.read()
             transcribed_text, input_tokens, output_tokens = speech_to_text(audio_bytes, language=assistant.language or "uz")
-            print(f"time after transcribe: {time.time()}")
             validated_data["message_content"] = transcribed_text
             validated_data["message_type"] = MessageTypes.AUDIO.value
         else:
@@ -229,7 +224,6 @@ class MessageSerializer(serializers.ModelSerializer, SubscriptionValidationMixin
         message = Message.objects.create(**validated_data)
         if conversation.status == ConversationStatuses.ESCALATED.value or not assistant.is_active:
             return message
-        print(f"time before get_assistant_response: {time.time()}")
         response, run_status, response_data = get_assistant_response_ai(
             message=transcribed_text,
             assistant_id=assistant.assistant_id,
@@ -255,7 +249,6 @@ class MessageSerializer(serializers.ModelSerializer, SubscriptionValidationMixin
                 send_telegram_message(telegram_group.group_id, response_text, telegram_integration.api_token)
                 telegram_group.lead_count += 1
                 telegram_group.save()
-        print(f"time after get_assistant_response: {time.time()}")
         response_message = Message.objects.create(
             conversation=conversation,
             sender=sender,
