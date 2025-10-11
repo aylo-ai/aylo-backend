@@ -378,6 +378,30 @@ class InstagramCommentResponseSerializer(serializers.ModelSerializer):
                     instance.instagram_media.add(obj)
         return instance
     
+    def to_representation(self, instance):
+        data = super().to_representation(instance)
+        flow = instance.flows.first()
+        
+        if flow:
+            last_step = flow.steps.filter(end_point=True).first()
+            
+            # Calculate conversion rate safely
+            conversion_rate = 0
+            if last_step and last_step.count > 0:
+                conversion_rate = round((flow.total_count / last_step.count) * 100)
+            
+            data['flow'] = {
+                "total_count": flow.total_count,
+                "conversion": conversion_rate
+            }
+        else:
+            data['flow'] = {
+                "total_count": 0,
+                "conversion": 0
+            }
+        
+        return data
+    
 class TransitionListSerializer(serializers.ListSerializer):
     def create(self, validated_data):
         # bulk create transitions
@@ -402,7 +426,7 @@ class StepSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Step
-        fields = ["id", "action", "extra_button", "start_point", "extra_buttons", "message_image","message_content","condition_type","transitions"]
+        fields = ["id", "action", "extra_button", "start_point", "end_point", "count", "extra_buttons", "message_image","message_content","condition_type","transitions"]
 
     
 
