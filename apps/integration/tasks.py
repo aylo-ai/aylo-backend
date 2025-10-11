@@ -9,6 +9,7 @@ from apps.shared.addons.enums import SenderTypes, ConversationStatuses
 from apps.assistant.models import Assistant, AssistantFileUpload
 from shared.addons.redis import publish_message_to_ws, redis_client
 from django.core.files.uploadedfile import SimpleUploadedFile
+from django.db import transaction
 
 from shared.ai_service.helper import distill_company_kb_from_texts, update_vector_store_files_ai
 from shared.addons.instagram import (send_instagram_message, send_instagram_private_reply, 
@@ -103,7 +104,7 @@ def process_instagram_message(account_id, combined_message, user_message, audio_
     
     integration = assistant.integrations.filter(integration_type="instagram", instagram_account_id=account_id).first()
     if not integration:
-        print("[-] ")
+        print("[-] Integration not found")
         return
     
     sender_id = user_message[0].get("sender", {}).get("id")
@@ -382,10 +383,20 @@ def handle_postback_event_task(msg, access_token):
     if transition is None:
         print(f"[-] Transicition was not create or not found for this step {transition}")
         return
-    if transition.to_step.id is None:
+    if transition.to_step is None:
         print("[-]Transition to step is not given")
         return
-
+    try:
+        with transaction.atomic():
+            # Increment the current step count (users who reached this step)
+            transition.to_step.count += 1
+            transition.to_step.save()
+            
+            # Also increment flow total count (total interactions in this flow)
+            transition.to_step.flow.total_count += 1
+            transition.to_step.flow.save()
+    except Exception as e:
+        print(f"[-] Error updating user state: {e}")
     send_step_message_task.delay(transition.to_step.id, account_id, sender_id, access_token)
 
 

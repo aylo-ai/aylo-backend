@@ -117,6 +117,7 @@ class Flow(BaseModel):
     flow_type = models.CharField(max_length=50, choices=FlowType.choices, default=FlowType.COMMENT_RESPONSE.value)
     is_active = models.BooleanField(default=True)
     comment_response = models.ForeignKey(InstagramCommentResponse, on_delete=models.CASCADE, related_name='flows', null=True, blank=True)
+    total_count = models.IntegerField(default=0)
 
     class Meta:
         db_table = 'flow'
@@ -133,6 +134,8 @@ class Step(BaseModel):
     message_image = models.ImageField(upload_to=comment_response_image_path, null=True, blank=True)
     flow = models.ForeignKey(Flow, on_delete=models.CASCADE, related_name='steps')
     start_point = models.BooleanField(default=False)
+    end_point = models.BooleanField(default=False)
+    count = models.IntegerField(default=0)
 
     class Meta:
         db_table = 'step'

@@ -1,5 +1,7 @@
 import requests
 
+from django.db import transaction
+
 from apps.integration.models import Flow, InstagramUserState, Step
 from shared.addons.enums import ActionType
 
@@ -176,6 +178,18 @@ def send_instagram_postback(
                 user_id=commenter_id,
                 defaults={"current_step": first_step},
             )
+            try:
+                with transaction.atomic():
+                    # Increment first step count (users who started the flow)
+                    first_step.count += 1
+                    first_step.save()
+                    
+                # Increment flow total count (total flow interactions)
+                    first_step.flow.total_count += 1
+                    first_step.flow.save()
+            except Exception as e:
+                print(f"[-] Error updating user state: {e}")
+
         print(resp.json())
         print(resp)
 
