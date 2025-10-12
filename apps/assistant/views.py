@@ -293,24 +293,6 @@ class AssistantFileUploadListCreateView(generics.ListCreateAPIView):
             print("saved assistant data")
         return success_response(message=_("File muvaffaqiyatli yaratildi"), code=201)
     
-    def destroy(self, request, *args, **kwargs):
-        """Handle DELETE request to remove a file"""
-        pk = kwargs.get("pk")
-        try:
-            instance = AssistantFileUpload.objects.get(id=pk)
-        except AssistantFileUpload.DoesNotExist:
-            return error_response(message=_("Fayl topilmadi"), code=404)
-
-        assistant = instance.assistant
-        instance.delete()  # This triggers model delete (also removes S3 file)
-
-        # Update the vector store files after deletion
-        file_urls = create_file_urls(assistant, request)
-        print(f"file_urls: {file_urls}")
-        update_vector_store_files(assistant.vector_id, file_urls, assistant)
-
-        return success_response(message=_("Fayl muvaffaqiyatli o'chirildi"), code=200)
-
 
 class AssistantFileUploadUpdateView(generics.CreateAPIView):
     queryset = AssistantFileUpload.objects.all()
@@ -358,9 +340,22 @@ class AssistantFileUploadRetrieveView(generics.RetrieveUpdateDestroyAPIView):
         return success_response(message=_("File muvaffaqiyatli o'zgartirildi"), data=serializer.data, code=200)
 
     def destroy(self, request, *args, **kwargs):
-        instance = self.get_object()
-        self.perform_destroy(instance)
-        return success_response(message=_("File muvaffaqiyatli o'chirildi"), code=204)
+        """Handle DELETE request to remove a file"""
+        pk = kwargs.get("pk")
+        try:
+            instance = AssistantFileUpload.objects.get(id=pk)
+        except AssistantFileUpload.DoesNotExist:
+            return error_response(message=_("Fayl topilmadi"), code=404)
+
+        assistant = instance.assistant
+        instance.delete()  # This triggers model delete (also removes S3 file)
+
+        # Update the vector store files after deletion
+        file_urls = create_file_urls(assistant, request)
+        print(f"file_urls: {file_urls}")
+        update_vector_store_files(assistant.vector_id, file_urls, assistant)
+
+        return success_response(message=_("Fayl muvaffaqiyatli o'chirildi"), code=200)
 
 
 class MessageBulkReadView(generics.UpdateAPIView):
