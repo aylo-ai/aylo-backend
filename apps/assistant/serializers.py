@@ -352,10 +352,6 @@ class AssistantFileUploadSerializer(serializers.ModelSerializer, SubscriptionVal
             update_vector_store_files(assistant.vector_id, file_urls)
 
         return uploaded_files[0] if len(uploaded_files) == 1 else uploaded_files
-    
-    def destroy(self, instance):
-        # The file will be deleted from S3 by the model's delete method
-        instance.delete()
 
     def to_representation(self, instance):
         assistant = getattr(instance, "assistant", None)
