@@ -253,7 +253,7 @@ def process_instagram_comment(account_id, comment_data):
                         send_instagram_postback(account_id=account_id, access_token=integration.api_token, recipient_comment_id=comment_id, data=flow.first(), commenter_id=commenter_id)
         else:       
             latest_response = InstagramCommentResponse.objects.filter(integration=integration).order_by("-created_time").first()
-            print(latest_response)
+            print("[+ Incoming new lasted post for comment response]")
             if latest_response and not latest_response.instagram_media.exists():
                 access_token = integration.api_token
                 url = "https://graph.instagram.com/v23.0/me/media"
@@ -272,7 +272,7 @@ def process_instagram_comment(account_id, comment_data):
                     if media_ts_tashkent > latest_response.created_time:
                         if latest_response.is_respond_to_all_comments:
 
-                            flow = Flow.objects.filter(comment_response=response)
+                            flow = Flow.objects.filter(comment_response=latest_response)
                             if latest_response.comment_message_template:
                                     send_instagram_comment_reply(integration.api_token, comment_id, latest_response.comment_message_template)
                             # validate that flow does not exists
@@ -288,7 +288,7 @@ def process_instagram_comment(account_id, comment_data):
                             trigger_words = [tw.trigger_word.lower() for tw in latest_response.trigger_words.all()]
                             if comment_text.strip().lower() in trigger_words:
 
-                                flow = Flow.objects.filter(comment_response=response)
+                                flow = Flow.objects.filter(comment_response=latest_response)
                                 print(f"[✓] Media-specific trigger match: {trigger_words}")
                                 if latest_response.comment_message_template:
                                     send_instagram_comment_reply(integration.api_token, comment_id, latest_response.comment_message_template)

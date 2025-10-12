@@ -111,7 +111,7 @@ def send_telegram_message(chat_id, text, token):
         else:
             print(f"[-] Failed to send message: {response_data}")
     else:
-        print("[-] Message sent successfully.")
+        print("[+] Message sent successfully.")
     return response
 
 

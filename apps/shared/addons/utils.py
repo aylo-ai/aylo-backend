@@ -321,61 +321,65 @@ def get_assistant_response_ai(user_message_, assistant_id, thread_id, conversati
             messages = client.beta.threads.messages.list(
                 thread_id=thread_id, order="asc", after=user_message.id
             )
-            print(f"Assistant response: {messages.data}, messages: {messages}, input_tokens: {run_status.usage.prompt_tokens}, output_tokens: {run_status.usage.completion_tokens}")
+            assistant_response = None
 
-            assistant_response_str = (
-                messages.data[-1].content[0].text.value
-                if messages.data and messages.data[-1].content
-                else "No response received."
-            )
-            print(f"Assistant response: {assistant_response_str}")
-            assistant_response = json.loads(assistant_response_str)
-            intent = assistant_response.get("intent", None)
-            message = assistant_response.get("reply", None)
-            entities = assistant_response.get("entities", None)
-            if assistant_response.get("properties",None):
-                response_json = assistant_response.get("properties")
-                intent = response_json.get("intent", None)
-                message = response_json.get("reply", None)
-                entities = response_json.get("entities", None)
+            # Iterate over all messages
+            for msg in messages.data:
+                if msg.role == "assistant" and msg.content:
+                    # Extract text content blocks
+                    for block in msg.content:
+                        if block.type == "text" and hasattr(block.text, "value"):
+                            assistant_response = block.text.value
 
-            clean_response = check_response(message)
-            handle_unknown_intent(intent, user_message_, assistant, conversation)
-                    
-            response_data = None
-            if intent == "order_confirmation":
-                name = (
-                        entities.get('name') or 
-                        entities.get('full_name') or 
-                        entities.get('customer_user') or 
-                        entities.get('customer_name') or 
-                        None
+            if assistant_response:
+                print(f"Assistant response: {assistant_response}")
+                assistant_response = json.loads(assistant_response)
+                intent = assistant_response.get("intent", None)
+                message = assistant_response.get("reply", None)
+                entities = assistant_response.get("entities", None)
+                if assistant_response.get("properties",None):
+                    response_json = assistant_response.get("properties")
+                    intent = response_json.get("intent", None)
+                    message = response_json.get("reply", None)
+                    entities = response_json.get("entities", None)
+
+                clean_response = check_response(message)
+                handle_unknown_intent(intent, user_message_, assistant, conversation)
+                        
+                response_data = None
+                if intent == "order_confirmation":
+                    name = (
+                            entities.get('name') or 
+                            entities.get('full_name') or 
+                            entities.get('customer_user') or 
+                            entities.get('customer_name') or 
+                            None
+                            )
+                    phone_number = (
+                            entities.get('phone_number') or 
+                            entities.get('contact_number') or 
+                            None
                         )
-                phone_number = (
-                        entities.get('phone_number') or 
-                        entities.get('contact_number') or 
-                        None
-                    )
-                platform = conversation.platform if conversation.platform else None
-                platform_map = {
-                    ConversationPlatforms.INSTAGRAM.value: conversation.client_full_name,
-                    ConversationPlatforms.TELEGRAM.value: conversation.username,
-                }
+                    platform = conversation.platform if conversation.platform else None
+                    platform_map = {
+                        ConversationPlatforms.INSTAGRAM.value: conversation.client_full_name,
+                        ConversationPlatforms.TELEGRAM.value: conversation.username,
+                    }
 
-                username = platform_map.get(conversation.platform) or None
-                response_data = create_update_lead(
-                    assistant=assistant,
-                    full_name=name,
-                    username=username,
-                    platform=platform,
-                    phone_number=phone_number,
-                    email=entities.get('email', None),
-                    product=entities.get('product', None),
-                    metadata=entities
-                )
-                print("[+] Lead created from Telegram message")
-            return clean_response, run_status, response_data
-        
+                    username = platform_map.get(conversation.platform) or None
+                    response_data = create_update_lead(
+                        assistant=assistant,
+                        full_name=name,
+                        username=username,
+                        platform=platform,
+                        phone_number=phone_number,
+                        email=entities.get('email', None),
+                        product=entities.get('product', None),
+                        metadata=entities
+                    )
+                    print("[+] Lead created from Telegram message")
+                return clean_response, run_status, response_data
+            
         except Exception as e:
             print(f"[-] Error  in get_assistant_response_ai: {str(e)}")
             return "", None, None
