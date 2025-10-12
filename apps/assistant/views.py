@@ -351,9 +351,14 @@ class AssistantFileUploadRetrieveView(generics.RetrieveUpdateDestroyAPIView):
         instance.delete()  # This triggers model delete (also removes S3 file)
 
         # Update the vector store files after deletion
-        file_urls = create_file_urls(assistant, request)
-        print(f"file_urls: {file_urls}")
-        update_vector_store_files(assistant.vector_id, file_urls, assistant)
+        if assistant and assistant.vector_id:
+            try:
+                file_urls = create_file_urls(assistant, request)
+                print(f"file_urls: {file_urls}")
+                update_vector_store_files(assistant.vector_id, file_urls)
+            except Exception as e:
+                print(f"[-] Error updating vector store after file deletion: {e}")
+                # Don't raise the exception to avoid preventing file deletion
 
         return success_response(message=_("Fayl muvaffaqiyatli o'chirildi"), code=200)
 
