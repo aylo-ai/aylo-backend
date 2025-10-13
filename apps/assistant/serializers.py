@@ -13,6 +13,8 @@ from shared.addons.google_integrations import process_google_doc
 from apps.assistant.models import Assistant, Conversation, Message, Settings, AssistantFileUpload, Lead
 from apps.integration.models import TelegramGroupIntegration
 from shared.addons.ai_requests import update_vector_store_files
+from shared.ai_service.openai_client import client
+from shared.ai_service.helper import upload_knowledge_base_file
 from shared.addons.utils import get_assistant_response_ai, get_thread_id, speech_to_text, send_telegram_message
 from shared.addons.payloads import create_file_urls
 from shared.addons.validations import raise_validation_error
@@ -230,7 +232,7 @@ class MessageSerializer(serializers.ModelSerializer, SubscriptionValidationMixin
             thread_id=conversation.thread_id,
             conversation=conversation
         )
-        if response_data:
+        if response_data and response_data.full_name and response_data.phone_number:
             # Build response_text conditionally
             response_lines = [
                 "🎉 *New Lead Created!*\n",
@@ -343,13 +345,32 @@ class AssistantFileUploadSerializer(serializers.ModelSerializer, SubscriptionVal
                     file=file,
                     filename=filename
                 )
+                # Upload to OpenAI and attach to vector store
+                try:
+                    file_url = request.build_absolute_uri(upload.file.url) if request else upload.file.url
+                    openai_file_id = upload_knowledge_base_file(file_url)
+                    if openai_file_id:
+                        upload.file_id = openai_file_id
+                        upload.save(update_fields=["file_id"])
+                        if getattr(assistant, 'vector_id', None):
+                            batch = client.vector_stores.file_batches.create(
+                                vector_store_id=assistant.vector_id,
+                                file_ids=[openai_file_id]
+                            )
+                            # Poll until completed/failed
+                            while True:
+                                status = client.vector_stores.file_batches.retrieve(
+                                    vector_store_id=assistant.vector_id,
+                                    batch_id=batch.id
+                                )
+                                if status.status in ["completed", "failed"]:
+                                    break
+                                time.sleep(0.5)
+                except Exception as e:
+                    print(f"[-] OpenAI upload/attach failed: {e}")
                 uploaded_files.append(upload)
 
-        # Ensure file URLs are created and vector store is updated
-        if assistant and assistant.vector_id:
-            file_urls = create_file_urls(assistant, request)
-            print(f"file_urls: {file_urls}")
-            update_vector_store_files(assistant.vector_id, file_urls)
+        # Avoid full replacement to preserve existing vector store content
 
         return uploaded_files[0] if len(uploaded_files) == 1 else uploaded_files
 
@@ -429,12 +450,29 @@ class UpdateFileUploadSerializer(serializers.ModelSerializer, SubscriptionValida
                 file=file,
                 filename=filename
             )
+            # Upload to OpenAI and attach to vector store
+            try:
+                file_url = request.build_absolute_uri(upload.file.url)
+                openai_file_id = upload_knowledge_base_file(file_url)
+                if openai_file_id:
+                    upload.file_id = openai_file_id
+                    upload.save(update_fields=["file_id"])
+                    if getattr(assistant, 'vector_id', None):
+                        batch = client.vector_stores.file_batches.create(
+                            vector_store_id=assistant.vector_id,
+                            file_ids=[openai_file_id]
+                        )
+                        while True:
+                            status = client.vector_stores.file_batches.retrieve(
+                                vector_store_id=assistant.vector_id,
+                                batch_id=batch.id
+                            )
+                            if status.status in ["completed", "failed"]:
+                                break
+                            time.sleep(0.5)
+            except Exception as e:
+                print(f"[-] OpenAI upload/attach failed: {e}")
             uploaded_files.append(upload)
-
-        # Ensure file URLs are created and vector store is updated
-        if assistant and getattr(assistant, 'vector_id', None):
-            file_urls = create_file_urls(assistant, request)
-            update_vector_store_files(assistant.vector_id, file_urls)
 
         return uploaded_files[0] if len(uploaded_files) == 1 else uploaded_files
 

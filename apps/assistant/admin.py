@@ -127,7 +127,7 @@ class AssistantFileUploadAdmin(admin.ModelAdmin):
     readonly_fields = ('created_time', 'updated_time')
     fieldsets = (
         (None, {
-            'fields': ('assistant', 'file')
+            'fields': ('assistant', 'file', 'file_id')
         }),
         ('System', {
             'fields': ('created_time', 'updated_time'),

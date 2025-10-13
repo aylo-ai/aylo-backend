@@ -200,6 +200,7 @@ class AssistantFileUpload(BaseModel):
     file_type = models.CharField(
         max_length=255, null=True, blank=True, choices=FileTypes.choices()
     )
+    file_id = models.CharField(max_length=355, null=True, blank=True)
 
     def __str__(self):
         return self.filename
