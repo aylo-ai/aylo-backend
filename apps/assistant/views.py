@@ -13,6 +13,7 @@ from apps.assistant.serializers import AssistantSerializer, ConversationSerializ
 from shared.addons.ai_requests import create_assistant_and_vector_id, delete_assitant, delete_vector_store, update_vector_store_files
 from shared.addons.validations import success_response, error_response
 from shared.addons.payloads import create_file_urls
+from shared.ai_service.openai_client import client
 from rest_framework.exceptions import NotFound
 from django.utils.translation import gettext_lazy as _
 from shared.addons.utils import update_assistant
@@ -340,28 +341,29 @@ class AssistantFileUploadRetrieveView(generics.RetrieveUpdateDestroyAPIView):
         return success_response(message=_("File muvaffaqiyatli o'zgartirildi"), data=serializer.data, code=200)
 
     def destroy(self, request, *args, **kwargs):
-        """Handle DELETE request to remove a file"""
         pk = kwargs.get("pk")
         try:
-            instance = AssistantFileUpload.objects.get(id=pk)
+            instance = AssistantFileUpload.objects.get(id=pk, assistant__user=request.user)
         except AssistantFileUpload.DoesNotExist:
             return error_response(message=_("Fayl topilmadi"), code=404)
 
         assistant = instance.assistant
-        instance.delete()  # This triggers model delete (also removes S3 file)
+        files = client.vector_stores.files.list(vector_store_id=assistant.vector_id)
+        for f in files.data:
+            print(f.id, f)
 
-        # Update the vector store files after deletion
-        if assistant and assistant.vector_id:
+        # 1) Remove from vector store by file_id (if tracked)
+        if assistant and getattr(assistant, "vector_id", None) and getattr(instance, "file_id", None):
             try:
-                file_urls = create_file_urls(assistant, request)
-                print(f"file_urls: {file_urls}")
-                update_vector_store_files(assistant.vector_id, file_urls)
+                
+                client.vector_stores.files.delete(
+                    vector_store_id=assistant.vector_id,
+                    file_id=instance.file_id
+                )
             except Exception as e:
-                print(f"[-] Error updating vector store after file deletion: {e}")
-                # Don't raise the exception to avoid preventing file deletion
-
+                print(f"[-] Failed removing file from vector store: {e}")  # non-fatal
+        instance.delete()
         return success_response(message=_("Fayl muvaffaqiyatli o'chirildi"), code=200)
-
 
 class MessageBulkReadView(generics.UpdateAPIView):
     serializer_class = MessageBulkReadSerializer

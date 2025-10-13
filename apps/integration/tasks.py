@@ -11,7 +11,7 @@ from shared.addons.redis import publish_message_to_ws, redis_client
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.db import transaction
 
-from shared.ai_service.helper import distill_company_kb_from_texts, update_vector_store_files_ai
+from shared.ai_service.helper import distill_company_kb_from_texts, update_vector_store_files_ai, upload_knowledge_base_file
 from shared.addons.instagram import (send_instagram_message, send_instagram_private_reply, 
                                         send_instagram_comment_reply, send_instagram_postback, 
                                         checking_instagram_followers, build_button_payload)
@@ -576,13 +576,36 @@ def build_instagram_kb(integration_id: str):
         distilled.encode("utf-8"),
         content_type="text/plain",
     )
-    AssistantFileUpload.objects.create(
+    upload = AssistantFileUpload.objects.create(
         assistant=integration.assistant,
         file=file_content,
         filename="instagram_knowledge_base.txt",
     )
-    if integration.assistant.vector_id:
-        update_vector_store_files_ai(integration.assistant.vector_id, [None], distilled)
-        print(f"[+] Update Vector Store Files AI with Instagram messages:")
-    else:
-        print(f"[-] vector database not found for assistant)")
+    # Upload distilled text directly to OpenAI and store file_id on upload
+    try:
+        openai_file_id = upload_knowledge_base_file(file_url=None, clear_text=distilled)
+        if openai_file_id:
+            upload.file_id = openai_file_id
+            upload.save(update_fields=["file_id"])
+            # Attach to vector store if exists
+            if integration.assistant and integration.assistant.vector_id:
+                batch = client.vector_stores.file_batches.create(
+                    vector_store_id=integration.assistant.vector_id,
+                    file_ids=[openai_file_id]
+                )
+                # poll until completion
+                while True:
+                    status = client.vector_stores.file_batches.retrieve(
+                        vector_store_id=integration.assistant.vector_id,
+                        batch_id=batch.id
+                    )
+                    if status.status in ["completed", "failed"]:
+                        break
+                    time.sleep(0.5)
+                print("[+] Distilled KB attached to vector store")
+            else:
+                print("[-] Assistant has no vector store; stored file_id only")
+        else:
+            print("[-] Failed to upload distilled KB to OpenAI")
+    except Exception as e:
+        print(f"[-] Error attaching distilled KB to vector store: {e}")
