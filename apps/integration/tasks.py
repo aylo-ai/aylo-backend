@@ -628,7 +628,7 @@ def process_instagram_comment_message(account_id, message, comment_id, integrati
             
         # Get or create conversation for this comment
         conversation = get_or_create_conversation(
-            sender_id=comment_id, 
+            user_id=comment_id, 
             assistant=assistant, 
             platform="instagram", 
             chat_username=None
