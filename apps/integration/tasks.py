@@ -308,10 +308,10 @@ def process_instagram_comment(account_id, comment_data):
                             children=media_first.get('children', None)
                         )
                         latest_response.instagram_media.add(media_data)
-    if integration.is_comment_response and media is None:
-        print("[+] Integration is comment response and new media is received")
-        process_instagram_comment_message.delay(account_id=account_id, message=comment_text, comment_id=comment_id, integration=integration)
-        return
+        if integration.is_comment_response and media is None:
+            print("[+] Integration is comment response and new media is received")
+            process_instagram_comment_message.delay(account_id=account_id, message=comment_text, comment_id=comment_id, integration=integration)
+            return
     print(f"[+] Media {media_id} has parent_id: {parent_id}")
 
 @shared_task
