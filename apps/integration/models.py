@@ -23,6 +23,7 @@ class Integration(BaseModel):
     api_token = models.CharField(max_length=255, null=True, blank=True)
     refresh_token = models.CharField(max_length=500, null=True, blank=True)  # Optional for Instagram
     integration_type = models.CharField(max_length=50, choices=IntegrationTypes.choices())
+    is_comment_response = models.BooleanField(default=False)
 
     # Instagram-specific fields
     instagram_user_id = models.CharField(max_length=50, null=True, blank=True)  # IG user ID

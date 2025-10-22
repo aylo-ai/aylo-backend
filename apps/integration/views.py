@@ -288,7 +288,7 @@ class InstagramCallbackView(APIView):
             # enqueue background build of Instagram knowledge base
             try:
                 if assistant_id:
-                    transaction.on_commit(lambda: build_instagram_kb.delay(str(integration.id)))
+                    # transaction.on_commit(lambda: build_instagram_kb.delay(str(integration.id)))
                     print(f"Enqueued build_instagram_kb for integration: {integration.id}")
             except Exception as e:
                 print(f"Failed to enqueue build_instagram_kb: {e}")

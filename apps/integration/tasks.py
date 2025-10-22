@@ -309,6 +309,9 @@ def process_instagram_comment(account_id, comment_data):
                             children=media_first.get('children', None)
                         )
                         latest_response.instagram_media.add(media_data)
+                    else:
+                        if integration.is_comment_response:
+                            process_instagram_comment_message.delay(account_id, comment_data, comment_id, integration)
 
     else:
         print(f"[+] Media {media_id} has parent_id: {parent_id}")
@@ -609,3 +612,45 @@ def build_instagram_kb(integration_id: str):
             print("[-] Failed to upload distilled KB to OpenAI")
     except Exception as e:
         print(f"[-] Error attaching distilled KB to vector store: {e}")
+
+
+@shared_task
+def process_instagram_comment_message(account_id, message, comment_id, integration):
+    print("[+] Process instagram comment message")
+    if not integration:
+        print("[-] Integration not found")
+        return
+    
+    try:
+        assistant = integration.assistant
+        if not assistant:
+            print("[-] No assistant found for integration")
+            return
+            
+        # Get or create conversation for this comment
+        conversation = get_or_create_conversation(
+            sender_id=comment_id, 
+            assistant=assistant, 
+            platform="instagram", 
+            chat_username=None
+        )
+        
+        # Update conversation with commenter info if needed
+        if conversation.client_full_name is None:
+            conversation.client_full_name = get_user_info(integration.api_token, comment_id).get("username", None)
+            conversation.save()
+                
+        # Process the comment message through AI if enabled
+        response_data = None
+        if assistant.ai_enabled:
+            response_message, run_status, response_data = get_assistant_response_ai(
+                message, assistant.assistant_id, conversation.thread_id, conversation=conversation
+            )
+            
+            # Send response back as Instagram comment
+            send_instagram_comment_reply(access_token=integration.api_token, comment_id=comment_id, message=response_message)
+            
+    except Exception as e:
+        print(f"[-] Error processing Instagram comment: {e}")
+        import traceback
+        traceback.print_exc()
