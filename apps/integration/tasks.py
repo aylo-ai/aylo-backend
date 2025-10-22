@@ -310,7 +310,7 @@ def process_instagram_comment(account_id, comment_data):
                         latest_response.instagram_media.add(media_data)
         if integration.is_comment_response and media is None:
             print("[+] Integration is comment response and new media is received")
-            process_instagram_comment_message.delay(account_id=account_id, message=comment_text, comment_id=comment_id, integration=integration)
+            process_instagram_comment_message.delay(account_id=account_id, message=comment_text, comment_id=comment_id, integration_id=integration.id)
             return
     print(f"[+] Media {media_id} has parent_id: {parent_id}")
 
@@ -613,8 +613,9 @@ def build_instagram_kb(integration_id: str):
 
 
 @shared_task
-def process_instagram_comment_message(account_id, message, comment_id, integration):
+def process_instagram_comment_message(account_id, message, comment_id, integration_id):
     print("[+] Process instagram comment message")
+    integration = Integration.objects.filter(id=integration_id).first()
     if not integration:
         print("[-] Integration not found")
         return
