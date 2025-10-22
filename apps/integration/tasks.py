@@ -633,11 +633,6 @@ def process_instagram_comment_message(account_id, message, comment_id, integrati
             platform="instagram", 
             chat_username=None
         )
-        
-        # Update conversation with commenter info if needed
-        if conversation.client_full_name is None:
-            conversation.client_full_name = get_user_info(integration.api_token, comment_id).get("username", None)
-            conversation.save()
                 
         # Process the comment message through AI if enabled
         response_data = None
