@@ -348,10 +348,6 @@ class AssistantFileUploadRetrieveView(generics.RetrieveUpdateDestroyAPIView):
             return error_response(message=_("Fayl topilmadi"), code=404)
 
         assistant = instance.assistant
-        files = client.vector_stores.files.list(vector_store_id=assistant.vector_id)
-        for f in files.data:
-            print(f.id, f)
-
         # 1) Remove from vector store by file_id (if tracked)
         if assistant and getattr(assistant, "vector_id", None) and getattr(instance, "file_id", None):
             try:
