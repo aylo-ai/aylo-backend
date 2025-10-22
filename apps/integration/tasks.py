@@ -282,7 +282,6 @@ def process_instagram_comment(account_id, comment_data):
                                 print("[+] Actual flow exists in that way and integartion is found")
                                 send_instagram_postback(account_id=account_id, access_token=integration.api_token, recipient_comment_id=comment_id, data=flow.first(),commenter_id=commenter_id)
 
-
                         else:
                             print("[+] Media comment response only for specific comment")
                             trigger_words = [tw.trigger_word.lower() for tw in latest_response.trigger_words.all()]
@@ -309,12 +308,11 @@ def process_instagram_comment(account_id, comment_data):
                             children=media_first.get('children', None)
                         )
                         latest_response.instagram_media.add(media_data)
-                    else:
-                        if integration.is_comment_response:
-                            process_instagram_comment_message.delay(account_id, comment_data, comment_id, integration)
-
-    else:
-        print(f"[+] Media {media_id} has parent_id: {parent_id}")
+    if integration.is_comment_response and media is None:
+        print("[+] Integration is comment response and new media is received")
+        process_instagram_comment_message.delay(account_id=account_id, message=comment_text, comment_id=comment_id, integration=integration)
+        return
+    print(f"[+] Media {media_id} has parent_id: {parent_id}")
 
 @shared_task
 def process_collected_messages(chat_id, bot_token=None, messaging=None, chat_username=None, username=None, account_id=None):
