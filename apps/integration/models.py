@@ -20,8 +20,8 @@ class Integration(BaseModel):
     name = models.CharField(max_length=255)
     description = models.TextField(null=True, blank=True)
     is_active = models.BooleanField(default=True)
-    api_token = models.CharField(max_length=255, null=True, blank=True)
-    refresh_token = models.CharField(max_length=500, null=True, blank=True)  # Optional for Instagram
+    api_token = models.TextField(null=True, blank=True)
+    refresh_token = models.TextField(null=True, blank=True)  # Optional for Instagram
     integration_type = models.CharField(max_length=50, choices=IntegrationTypes.choices())
     is_comment_response = models.BooleanField(default=False)
 
@@ -29,6 +29,7 @@ class Integration(BaseModel):
     instagram_user_id = models.CharField(max_length=50, null=True, blank=True)  # IG user ID
     instagram_account_id = models.CharField(max_length=50, null=True, blank=True)  # IG account ID
     instagram_username = models.CharField(max_length=100, null=True, blank=True)  # IG username
+    metadata = models.JSONField(null=True, blank=True)
 
     def __str__(self):
         return self.name

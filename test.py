@@ -1,21 +1,26 @@
 import requests
 import time
 
+secret_token = 'owZIyFPIpwyIvtmbskMUjNeSJvTUAvIrxoaHcnGFPkYFYuVHbduLcWu9s7DybxyNkyrWfShG7mBIjBZKyMGCtcpphdhCKfTajPdfncPWQuvKXtjQFjbtYNdSCWzrYBHFCDNw1NHphB4QUyGnnHVkTxSn4CWmdVCRxjHBhRFnkNIUnjfpevBSxaSofkHhKJhekTRcQmAXvEEGhYcsXxdBWuGEuPIsbnRvHAxdVfoYAFYeYuFEImIhdnieIAUsYStcFbkc2rrXdDhVomiDBsyeaAYrasVUYhcFHJiekWcLPpcSzshJSuxZSttFTGxExSdkLNzY3K5PHbxasfASLtus9UKBQ2IipFWBdCRIcVyYvUzkYtXFy6UxMNKcuiG8QmrLDoIuCZshMuBy5IfPXdfcTHdXj8hShQk8HiEbt6mLL8WBwRsSkLBjtu3nLpLJPcEv1FaGYRbjzCEryvQvjHCakuKuXPkiSQhPbwiViTcKNFAs5ahVxNJAWPoBUkPs3IYb'
+data = requests.get('https://api-admin.billz.ai/v1/auth/login', params={"secret_token": secret_token})
+data = data.json()
+print(data)
 
-def checking_instagram_followers(access_token:str, recicipient_id:str):
-    url = "https://graph.instagram.com/v23.0/me/media"
-    headers = {
-        "Content-Type": "application/json",
-        "Authorization": f"Bearer {access_token}",
-    }
-    params = {
-            "access_token": access_token,
-            "fields": "id,media_type,media_url,username,timestamp,caption,comments_count,like_count,permalink,thumbnail_url,children{media_type,media_url}"
-        }
-    response = requests.get(url, headers=headers, params=params)
-    return response.json()
 
-print(checking_instagram_followers(recicipient_id="1968400874008971",access_token="IGAARTl03yXtZABZAFF0bUowSHphMnpsczdBbXIxLXlhMmFuS1pIel9vZAUtHUXhNZADRDQkZAYQzRKOUJ6ZATRRd3lPNVE5NU9hVlUzVGJEMFVuNVRtVnhMS04wbHFKN0dBVl9TaEZAVN1dpbXVJWU1FV1JYU293"))
+# def checking_instagram_followers(access_token:str, recicipient_id:str):
+#     url = "https://graph.instagram.com/v23.0/me/media"
+#     headers = {
+#         "Content-Type": "application/json",
+#         "Authorization": f"Bearer {access_token}",
+#     }
+#     params = {
+#             "access_token": access_token,
+#             "fields": "id,media_type,media_url,username,timestamp,caption,comments_count,like_count,permalink,thumbnail_url,children{media_type,media_url}"
+#         }
+#     response = requests.get(url, headers=headers, params=params)
+#     return response.json()
+
+# print(checking_instagram_followers(recicipient_id="1968400874008971",access_token="IGAARTl03yXtZABZAFF0bUowSHphMnpsczdBbXIxLXlhMmFuS1pIel9vZAUtHUXhNZADRDQkZAYQzRKOUJ6ZATRRd3lPNVE5NU9hVlUzVGJEMFVuNVRtVnhMS04wbHFKN0dBVl9TaEZAVN1dpbXVJWU1FV1JYU293"))
 # def fetch_conversation_messages(access_token: str, conversation_id: str):
 #     """
 #     Fetch full message objects for a single conversation, following pagination.
@@ -261,3 +266,4 @@ print(checking_instagram_followers(recicipient_id="1968400874008971",access_toke
 #     response = requests.get(url, params=params)
 #     return response.json()
 # print(get_comment_from_post(access_token, '17878953921223680'))
+

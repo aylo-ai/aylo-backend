@@ -7,13 +7,15 @@ from google import genai
 from google.genai import types
 from io import BytesIO
 
+from asgiref.sync import async_to_sync
+
 from django.utils.translation import gettext_lazy as _
 from django.conf import settings
 from django.core.mail import send_mail
 
 from apps.assistant.models import Message, Conversation, Lead, Assistant
 from config.settings import client
-from shared.addons.enums import SubscriptionStatuses, NotificationTypes, ConversationPlatforms
+from shared.addons.enums import SubscriptionStatuses, NotificationTypes, ConversationPlatforms, IntegrationTypes
 from shared.addons.telegram import send_telegram_message
 from shared.addons.validations import success_response, raise_validation_error, error_response
 from shared.addons.verification import send_playmobile_sms
@@ -23,6 +25,7 @@ from config.settings import OPENAI_API_KEY
 from shared.ai_service.helper import create_prompt
 from shared.addons.payloads import valid_intents
 from shared.addons.redis import publish_message_to_ws_assistant
+from shared.mcp_server.mcp_server import get_assistant_response_ai_mcp
 
 def create_message(conversation, sender, content, audio_file=None, run_status=None, input_tokens=None, output_tokens=None):
     message_type = 'audio' if audio_file else 'text'
