@@ -5,10 +5,10 @@ from .models import Integration, TelegramGroupIntegration, InstagramMedia, Insta
 @admin.register(Integration)
 class Integration(admin.ModelAdmin):
     list_display = ["get_asssitant_name", "name", "integration_type", "is_active", "created_time"]
-    search_fields = ["name"]
+    search_fields = ["name",]
     fieldsets = (
         (None, {"fields": ("assistant", "user", "name", "description", "is_active", "api_token","is_comment_response",
-                           "refresh_token", "integration_type")}),
+                           "refresh_token", "integration_type", "metadata")}),
         ("Instagram", {"fields": ("instagram_user_id", "instagram_account_id", "instagram_username")}),
     )
 

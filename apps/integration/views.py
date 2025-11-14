@@ -13,7 +13,7 @@ from django.utils.translation import gettext_lazy as _
 from django.db.models import Q
 from django.db import transaction
 
-from config.settings import INSTAGRAM_CLIENT_ID, INSTAGRAM_CLIENT_SECRET, INSTAGRAM_REDIRECT_URI
+from config.settings import INSTAGRAM_CLIENT_ID, INSTAGRAM_CLIENT_SECRET, INSTAGRAM_REDIRECT_URI, BITRIX_CLIENT_ID, BITRIX_CLIENT_KEY
 from shared.addons.enums import IntegrationTypes
 from shared.addons.instagram import get_long_lived_access_token, get_user_profile
 from shared.addons.telegram import handle_bot_added_to_group, handle_bot_removed_from_group
@@ -30,6 +30,10 @@ from shared.ai_service.helper import distill_company_kb_from_texts, update_vecto
 from apps.assistant.models import AssistantFileUpload
 
 from shared.addons.redis import redis_client
+from django.conf import settings
+from django.shortcuts import redirect
+from urllib.parse import urlencode, parse_qs
+import secrets
 
 
 class IntegrationListView(generics.ListAPIView):
@@ -839,3 +843,389 @@ class CommentResponseButtonRetrieveUpdateDestroyView(generics.RetrieveUpdateDest
         self.perform_destroy(instance)
         return success_response(message=_("Tugma muvaffaqiyatli o'chirildi"), code=204)
 
+
+class AmoCRMOAuthInstallView(APIView):
+    permission_classes = [permissions.IsAuthenticated]
+    
+    def get(self, request):
+        try:
+            # Get parameters from request
+            subdomain = 'repli'
+            user_id = request.user.id
+            
+            if not subdomain:
+                return error_response(
+                    message="Subdomain is required", 
+                    code=400
+                )
+            
+            # Use credentials from settings
+            client_id = getattr(settings, 'AMOCRM_CLIENT_ID', None)
+            client_secret = getattr(settings, 'AMOCRM_SECRET_KEY', None)
+            
+            if not client_id or not client_secret:
+                return error_response(
+                    message="amoCRM credentials not configured", 
+                    code=500
+                )
+            
+            # Generate state parameter for security
+            state = secrets.token_urlsafe(32)
+            
+            # Store state and user info in session/redis for verification
+            redis_client.setex(
+                f"amocrm_oauth_state:{state}", 
+                300,  # 5 minutes expiry
+                json.dumps({
+                    'user_id': str(user_id),  # Convert UUID to string
+                    'subdomain': subdomain,
+                    'client_id': client_id,
+                    'client_secret': client_secret
+                })
+            )
+            
+            # Build OAuth authorization URL
+            redirect_uri = f"{settings.BASE_URL}/api/v1/integration/amocrm/"
+            auth_params = {
+                'response_type': 'code',
+                'client_id': client_id,
+                'redirect_uri': redirect_uri,
+                'state': state
+            }
+            
+            auth_url = f"https://www.amocrm.ru/oauth?{urlencode(auth_params)}"
+            
+            return success_response(
+                data={
+                    'auth_url': auth_url,
+                    'state': state,
+                    'subdomain': subdomain
+                },
+                message="amoCRM OAuth URL generated successfully",
+                code=200
+            )
+            
+        except Exception as e:
+            return error_response(
+                message=f"Error generating amoCRM OAuth URL: {str(e)}",
+                code=500
+            )
+
+
+class AmoCRMOAuthHandlerView(APIView):
+    permission_classes = [permissions.AllowAny]  # amoCRM will call this directly
+    
+    def get(self, request):
+        try:
+            # Get OAuth parameters
+            code = request.GET.get('code')
+            state = request.GET.get('state')
+            referer = request.GET.get('referer')  # amoCRM subdomain
+            error = request.GET.get('error')
+            
+            if error:
+                return error_response(
+                    message=f"OAuth error: {error}",
+                    code=400
+                )
+            
+            if not code or not state or not referer:
+                return error_response(
+                    message="Missing required OAuth parameters",
+                    code=400
+                )
+            
+            # Verify state parameter
+            stored_state = redis_client.get(f"amocrm_oauth_state:{state}")
+            if not stored_state:
+                return error_response(
+                    message="Invalid or expired state parameter",
+                    code=400
+                )
+            
+            state_data = json.loads(stored_state)
+            user_id = state_data.get('user_id')
+            client_id = state_data.get('client_id')
+            client_secret = state_data.get('client_secret')
+            
+            # Exchange authorization code for access token
+            token_url = f"https://{referer}/oauth2/access_token"
+            token_data = {
+                'grant_type': 'authorization_code',
+                'client_id': client_id,
+                'client_secret': client_secret,
+                'redirect_uri': f"{settings.BASE_URL}/api/v1/integration/amocrm/",
+                'code': code
+            }
+            
+            token_response = requests.post(token_url, data=token_data)
+            
+            if token_response.status_code != 200:
+                return error_response(
+                    message=f"Failed to exchange code for token: {token_response.text}",
+                    code=400
+                )
+            
+            print(f"[DEBUG] Token response status: {token_response.status_code}")
+            print(f"[DEBUG] Token response: {token_response.text}")
+            
+            if token_response.status_code != 200:
+                return error_response(
+                    message=f"Failed to exchange code for token: {token_response.text}",
+                    code=400
+                )
+            
+            token_info = token_response.json()
+            access_token = token_info.get('access_token')
+            print(f"[DEBUG] Access token: {access_token}")
+            refresh_token = token_info.get('refresh_token')
+            expires_in = token_info.get('expires_in')
+            print(f"[DEBUG] Refresh token: {refresh_token}")
+            print(f"[DEBUG] Expires in: {expires_in}")
+            
+            if not access_token:
+                return error_response(
+                    message="No access token received from amoCRM",
+                    code=400
+                )
+            # Get user info from amoCRM
+            user_info_url = f"https://{referer}/api/v4/account"
+            headers = {
+                'Authorization': f'Bearer {access_token}',
+                'Content-Type': 'application/json'
+            }
+            user_response = requests.get(user_info_url, headers=headers)
+            print(f"[DEBUG] User response: {user_response.text}")
+            if user_response.status_code != 200:
+                return error_response(
+                    message="Failed to get user information from amoCRM",
+                    code=400
+                )
+            
+            user_info = user_response.json()
+            account_id = user_info.get('id')
+            print(f"[DEBUG] Account ID: {account_id}")
+            # Create or update integration
+            from apps.assistant.models import Assistant
+            assistant = Assistant.objects.filter(user_id=user_id).first()
+            
+            if not assistant:
+                return error_response(
+                    message="No assistant found for user",
+                    code=404
+                )
+            
+            integration, created = Integration.objects.get_or_create(
+                assistant=assistant,
+                integration_type=IntegrationTypes.AMOCRM.value,
+                defaults={
+                    'name': f"amoCRM - {referer}",
+                    'api_token': access_token,
+                    'metadata': {
+                        'subdomain': referer,
+                        'client_id': client_id,
+                        'refresh_token': refresh_token,
+                        'expires_in': expires_in,
+                        'account_id': account_id,
+                        'user_info': user_info
+                    }
+                }
+            )
+            
+            if not created:
+                # Update existing integration
+                integration.api_token = access_token
+                integration.metadata.update({
+                    'subdomain': referer,
+                    'client_id': client_id,
+                    'refresh_token': refresh_token,
+                    'expires_in': expires_in,
+                    'account_id': account_id,
+                    'user_info': user_info
+                })
+                integration.save()
+            
+            # Clean up state
+            redis_client.delete(f"amocrm_oauth_state:{state}")
+            
+            return success_response(
+                data={
+                    'integration_id': str(integration.id),
+                    'subdomain': referer,
+                    'account_id': account_id,
+                    'user_info': user_info
+                },
+                message="amoCRM integration successful",
+                code=200
+            )
+            
+        except Exception as e:
+            return error_response(
+                message=f"Error processing amoCRM OAuth callback: {str(e)}",
+                code=500
+            )
+
+
+class AmoCRMTokenRefreshView(APIView):
+    permission_classes = [permissions.IsAuthenticated]
+    
+    def post(self, request):
+        try:
+            integration_id = request.data.get('integration_id')
+            if not integration_id:
+                return error_response(
+                    message="Integration ID is required",
+                    code=400
+                )
+            
+            integration = Integration.objects.filter(
+                id=integration_id,
+                integration_type=IntegrationTypes.AMOCRM.value
+            ).first()
+            
+            if not integration:
+                return error_response(
+                    message="amoCRM integration not found",
+                    code=404
+                )
+            
+            metadata = integration.metadata or {}
+            refresh_token = metadata.get('refresh_token')
+            subdomain = metadata.get('subdomain')
+            client_id = metadata.get('client_id')
+            client_secret = getattr(settings, 'AMOCRM_SECRET_KEY', None)
+            
+            if not refresh_token or not subdomain or not client_secret:
+                return error_response(
+                    message="Missing refresh token or credentials",
+                    code=400
+                )
+            
+            # Refresh the token
+            token_url = f"https://{subdomain}/oauth2/access_token"
+            token_data = {
+                'grant_type': 'refresh_token',
+                'client_id': client_id,
+                'client_secret': client_secret,
+                'refresh_token': refresh_token
+            }
+            
+            token_response = requests.post(token_url, data=token_data)
+            
+            if token_response.status_code != 200:
+                return error_response(
+                    message=f"Failed to refresh token: {token_response.text}",
+                    code=400
+                )
+            
+            token_info = token_response.json()
+            new_access_token = token_info.get('access_token')
+            new_refresh_token = token_info.get('refresh_token')
+            new_expires_in = token_info.get('expires_in')
+            
+            # Update integration with new tokens
+            integration.api_token = new_access_token
+            integration.metadata.update({
+                'refresh_token': new_refresh_token,
+                'expires_in': new_expires_in,
+                'last_refresh': time.time()
+            })
+            integration.save()
+            
+            return success_response(
+                data={
+                    'access_token': new_access_token,
+                    'expires_in': new_expires_in
+                },
+                message="Token refreshed successfully",
+                code=200
+            )
+            
+        except Exception as e:
+            return error_response(
+                message=f"Error refreshing token: {str(e)}",
+                code=500
+            )
+
+
+class AmoCRMSetPipelineView(APIView):
+    permission_classes = [permissions.IsAuthenticated]
+    
+    def post(self, request):
+        try:
+            integration_id = request.data.get('integration_id')
+            pipeline_id = request.data.get('pipeline_id')
+            if not integration_id or not pipeline_id:
+                return error_response(
+                    message="Integration ID and Pipeline ID are required",
+                    code=400
+                )
+            
+            integration = Integration.objects.filter(
+                id=integration_id,
+                integration_type=IntegrationTypes.AMOCRM.value
+            ).first()
+            
+            if not integration:
+                return error_response(
+                    message="amoCRM integration not found",
+                    code=404
+                )
+            
+            # Get pipeline info from amoCRM
+            print(f"[DEBUG] Integration metadata: {integration.metadata}")
+            subdomain = integration.metadata.get('subdomain') if integration.metadata else 'repli.amocrm.ru'
+            print(f"[DEBUG] Subdomain: {subdomain}")
+            access_token = integration.api_token
+            
+            # Get pipeline details
+            pipeline_url = f"https://{subdomain}/api/v4/leads/pipelines/{pipeline_id}"
+            headers = {
+                'Authorization': f'Bearer {access_token}',
+                'Content-Type': 'application/json'
+            }
+            
+            pipeline_response = requests.get(pipeline_url, headers=headers)
+            
+            if pipeline_response.status_code != 200:
+                return error_response(
+                    message=f"Failed to get pipeline info: {pipeline_response.text}",
+                    code=400
+                )
+            
+            pipeline_info = pipeline_response.json()
+            pipeline_name = pipeline_info.get('name', f'Pipeline {pipeline_id}')
+            
+            # Update integration metadata
+            integration.metadata.update({
+                'pipeline_id': pipeline_id,
+                'pipeline_name': pipeline_name,
+                'pipeline_info': pipeline_info
+            })
+            integration.save()
+            
+            return success_response(
+                data={
+                    'pipeline_id': pipeline_id,
+                    'pipeline_name': pipeline_name,
+                    'integration_id': str(integration.id)
+                },
+                message="Pipeline set successfully",
+                code=200
+            )
+            
+        except Exception as e:
+            return error_response(
+                message=f"Error setting pipeline: {str(e)}",
+                code=500
+            )
+        
+class BillzSecretTokenHandlerView(generics.CreateAPIView):
+    serializer_class = IntegrationSerializer
+    permission_classes = [permissions.IsAuthenticated]
+    queryset = Integration.objects.all()
+
+    def get_serializer_context(self):
+        context = super().get_serializer_context()
+        context['assistant_id'] = self.kwargs.get('pk')
+        return context

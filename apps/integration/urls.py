@@ -46,4 +46,11 @@ urlpatterns = [
     path("steps/<uuid:pk>/", views.StepRetrieveUpdateDestroyView.as_view()),
     path("transition/<uuid:pk>/", views.TransitionRetrieveUpdateDestroyView.as_view()),
     path("buttons/<uuid:pk>/", views.CommentResponseButtonRetrieveUpdateDestroyView.as_view()),
+    # amoCRM OAuth integration endpoints
+    path("amocrm/", views.AmoCRMOAuthHandlerView.as_view()),
+    path("amocrm/install/", views.AmoCRMOAuthInstallView.as_view()),
+    path("amocrm/refresh/", views.AmoCRMTokenRefreshView.as_view()),
+    path("amocrm/set-pipeline/", views.AmoCRMSetPipelineView.as_view()),
+    # billz integration
+    path("assistant/<uuid:pk>/billz/", views.BillzSecretTokenHandlerView.as_view()),
 ]

@@ -1,5 +1,6 @@
 import io
 import json
+from typing import Any
 import requests
 from pydub.utils import which
 from pydub import AudioSegment
@@ -7,13 +8,16 @@ from google import genai
 from google.genai import types
 from io import BytesIO
 
+from asgiref.sync import async_to_sync
+
 from django.utils.translation import gettext_lazy as _
 from django.conf import settings
 from django.core.mail import send_mail
+from django.db import transaction
 
 from apps.assistant.models import Message, Conversation, Lead, Assistant
 from config.settings import client
-from shared.addons.enums import SubscriptionStatuses, NotificationTypes, ConversationPlatforms
+from shared.addons.enums import SubscriptionStatuses, NotificationTypes, ConversationPlatforms, IntegrationTypes
 from shared.addons.telegram import send_telegram_message
 from shared.addons.validations import success_response, raise_validation_error, error_response
 from shared.addons.verification import send_playmobile_sms
@@ -23,6 +27,7 @@ from config.settings import OPENAI_API_KEY
 from shared.ai_service.helper import create_prompt
 from shared.addons.payloads import valid_intents
 from shared.addons.redis import publish_message_to_ws_assistant
+from shared.mcp_server.mcp_server import get_assistant_response_ai_mcp
 
 def create_message(conversation, sender, content, audio_file=None, run_status=None, input_tokens=None, output_tokens=None):
     message_type = 'audio' if audio_file else 'text'
@@ -289,13 +294,14 @@ def create_assistant(instructions, name, vector_store_id):
 def get_assistant_response_ai(user_message_, assistant_id, thread_id, conversation):
     assistant = Assistant.objects.get(assistant_id=assistant_id)
     if assistant.user.subscription is None:
-        return error_response(message=_("Sizning obunangiz tugadi. Iltimos, platformaga kirib, to'lovni qayta amalga oshiring."), code=400)
+        return error_response(message=_("Sizning obunangiz tugadi. Iltimos, platformaga kirib, to'lovni qayta amalga oshiring."), code=400), None, None
     subscription = assistant.user.subscription
     if subscription.remained_request_count <= 0 or subscription.status == SubscriptionStatuses.INACTIVE.value:
         return assistant.fallback_message, None, None
     else:
         if thread_id is None:
-            return error_response(message=_("Sizda hali assistantga fayl yuklanmagan"), code=400)
+            # Return tuple format: (response_message, run_status, response_data)
+            return _("Sizda hali assistantga fayl yuklanmagan"), None, None
         try:
             # Check if an active run exists for the given thread_id
             active_runs = client.beta.threads.runs.list(thread_id=thread_id)
@@ -493,20 +499,21 @@ def speech_to_text(audio_bytes: bytes, language: str = "uz") -> str:
     
 def create_update_lead(full_name, phone_number, email, product, assistant, platform, username, metadata=None):  
     try:
-        lead = Lead.objects.create(
-            full_name=full_name,
-            phone_number=phone_number,
-            email=email,
-            product=product,
-            assistant=assistant,
-            platform=platform,
-            username=username,
-            metadata=metadata,
-        )
-        return lead
+        with transaction.atomic():
+            lead = Lead.objects.create(
+                full_name=full_name,
+                phone_number=phone_number,
+                email=email,
+                product=product,
+                assistant=assistant,
+                platform=platform,
+                username=username,
+                metadata=metadata,
+            )
+            return lead
     except Exception as e:
         print(f"[create_lead] Error: {e}")
-        return error_response(message=_("Xaridor yaratishda xatolik"), code=500)
+        return None
 
 def notify_user_about_low_tokens(user, count):
     """Notify the user when their token count is low."""

@@ -6,7 +6,7 @@ import pytz
 
 from apps.shared.ai_service.openai_client import client
 from apps.shared.addons.enums import SenderTypes, ConversationStatuses
-from apps.assistant.models import Assistant, AssistantFileUpload
+from apps.assistant.models import Assistant, AssistantFileUpload, Lead
 from shared.addons.redis import publish_message_to_ws, redis_client
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.db import transaction
@@ -91,6 +91,13 @@ def process_message_task(chat_id, user_message, bot_token, chat_username=None, u
             send_telegram_message(telegram_group.group_id, response_text, bot_token)
             telegram_group.lead_count += 1
             telegram_group.save()
+
+        if response_data:
+            amocrm_integration = assistant.integrations.filter(integration_type="amocrm").first()
+            if amocrm_integration and amocrm_integration.metadata.get('pipeline_id'):
+                print(f"[+] Triggering amoCRM lead creation for Lead ID: {response_data.id}")
+                create_amocrm_lead.delay(response_data.id, amocrm_integration.id)
+            
     if response_message:
         send_telegram_message(chat_id, response_message, bot_token)
         data = create_message(conversation=conversation, sender=SenderTypes.ASSISTANT.value, content=response_message, run_status=run_status)
@@ -148,6 +155,12 @@ def process_instagram_message(account_id, combined_message, user_message, audio_
         publish_message_to_ws(conversation.id, response_message, sender="assistant", assistant_id=assistant.id, data=data)
 
     if response_data:
+        # Check if there's an amoCRM integration and create lead there
+        amocrm_integration = assistant.integrations.filter(integration_type="amocrm").first()
+        if amocrm_integration and amocrm_integration.metadata.get('pipeline_id'):
+            print(f"[+] Triggering amoCRM lead creation for Lead ID: {response_data.id}")
+            create_amocrm_lead.delay(response_data.id, amocrm_integration.id)
+        
         response_lines = [
                 "🎉 *New Lead Created!*\n",
                 f"👤 *Full Name: {response_data.full_name}  " if getattr(response_data, 'full_name', None) else None,
@@ -644,7 +657,129 @@ def process_instagram_comment_message(account_id, message, comment_id, integrati
             # Send response back as Instagram comment
             send_instagram_comment_reply(access_token=integration.api_token, comment_id=comment_id, message=response_message)
             
+            # Check if there's an amoCRM integration and create lead there
+            if response_data:
+                amocrm_integration = assistant.integrations.filter(integration_type="amocrm").first()
+                if amocrm_integration and amocrm_integration.metadata.get('pipeline_id'):
+                    # Get the created lead ID
+                    from apps.assistant.models import Lead
+                    lead = Lead.objects.filter(
+                        assistant=assistant,
+                        platform=conversation.platform,
+                        username=conversation.client_full_name or conversation.username
+                    ).order_by('-created_at').first()
+                    
+                    if lead:
+                        print(f"[+] Triggering amoCRM lead creation for Lead ID: {lead.id}")
+                        create_amocrm_lead.delay(lead.id, amocrm_integration.id)
+            
     except Exception as e:
         print(f"[-] Error processing Instagram comment: {e}")
+        import traceback
+        traceback.print_exc()
+
+
+@shared_task
+def create_amocrm_lead(lead_id, integration_id):
+    try:
+        print(f"[+] Creating amoCRM lead for Lead ID: {lead_id}")
+        
+        # Get the lead
+        lead = Lead.objects.filter(id=lead_id).first()
+        if not lead:
+            print(f"[-] Lead {lead_id} not found")
+            return
+        
+        # Get the amoCRM integration
+        from apps.integration.models import Integration
+        from apps.shared.addons.enums import IntegrationTypes
+        
+        integration = Integration.objects.filter(
+            id=integration_id,
+            integration_type=IntegrationTypes.AMOCRM.value
+        ).first()
+        
+        if not integration:
+            print(f"[-] amoCRM integration {integration_id} not found")
+            return
+        
+        pipeline_id = int(integration.metadata.get('pipeline_id'))
+        if not pipeline_id:
+            print(f"[-] Pipeline not set for integration {integration_id}")
+            return
+        
+        subdomain = integration.metadata.get('subdomain','repli.amocrm.ru') if integration.metadata else 'repli.amocrm.ru'
+        access_token = integration.api_token
+        
+        # Prepare lead data for amoCRM
+        lead_data = {
+            'name': lead.full_name or lead.username or 'New Lead',
+            'price': 0,  # You can set a default price or get it from lead data
+            'pipeline_id': pipeline_id,
+        }
+        
+        # Add contact info if available
+        if lead.phone_number:
+            lead_data['phone'] = lead.phone_number
+        if lead.email:
+            lead_data['email'] = lead.email
+        
+        # Add custom fields if needed
+        custom_fields = []
+
+        # Create lead in amoCRM
+        import requests
+        
+        lead_payload = {
+            'name': lead_data['name'],
+            'price': lead_data['price'],
+            'pipeline_id': lead_data['pipeline_id'],
+        }
+        
+        # Add contacts if available
+        if lead_data.get('phone') or lead_data.get('email'):
+            contacts = []
+            if lead_data.get('phone'):
+                contacts.append({
+                    'field_code': 'PHONE',
+                    'values': [{'value': lead_data['phone']}]
+                })
+            if lead_data.get('email'):
+                contacts.append({
+                    'field_code': 'EMAIL',
+                    'values': [{'value': lead_data['email']}]
+                })
+            lead_payload['contacts'] = contacts
+        
+        # Add custom fields (commented out for now)
+        # if custom_fields:
+        #     lead_payload['custom_fields_values'] = custom_fields
+        
+        # Make API call to amoCRM
+        create_url = f"https://{subdomain}/api/v4/leads"
+        headers = {
+            'Authorization': f'Bearer {access_token}',
+            'Content-Type': 'application/json'
+        }
+        
+        response = requests.post(create_url, headers=headers, json=[lead_payload])
+        
+        if response.status_code in [200, 201]:
+            result = response.json()
+            created_lead = result.get('_embedded', {}).get('leads', [{}])[0]
+            amocrm_lead_id = created_lead.get('id')
+            
+            # Store amoCRM lead ID in the local lead metadata
+            lead.metadata = lead.metadata or {}
+            lead.metadata['amocrm_lead_id'] = amocrm_lead_id
+            lead.metadata['amocrm_pipeline_id'] = pipeline_id
+            lead.save()
+            
+            print(f"[+] Lead created in amoCRM with ID: {amocrm_lead_id}")
+        else:
+            print(f"[-] Failed to create lead in amoCRM: {response.text}")
+            
+    except Exception as e:
+        print(f"[-] Error creating amoCRM lead: {e}")
         import traceback
         traceback.print_exc()

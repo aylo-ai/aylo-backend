@@ -95,6 +95,9 @@ class IntegrationTypes(EnumBaseModel):
     WHATSAPP = 'whatsapp'
     WEBSITE = 'website'
     INSTAGRAM = 'instagram'
+    BITRIX24 = 'bitrix24'
+    AMOCRM = 'amocrm'
+    BILLZ = 'billz'
 
 
 class ConversationPlatforms(EnumBaseModel):
