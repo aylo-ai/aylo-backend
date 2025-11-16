@@ -437,7 +437,7 @@ GOOGLE_REDIRECT_URI = os.environ.get("GOOGLE_REDIRECT_URI")
 
 client = AzureOpenAI(api_key=OPENAI_API_KEY,
                      azure_endpoint=AZURE_OPENAI_ENDPOINT,
-                     api_version="2024-12-01-preview")
+                     api_version="2025-04-14")
 
 GOOGLE_GEMINI_API_KEY = os.environ.get("GOOGLE_GEMINI_API_KEY")
 
