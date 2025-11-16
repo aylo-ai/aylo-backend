@@ -415,7 +415,7 @@ END OF KNOWLEDGE BASE"""
 
     try:
         resp = client.chat.completions.create(
-            model="gpt-4o",
+            model="gpt-4.1",
             temperature=0.6,
             messages=[
                 {"role": "system", "content": system},

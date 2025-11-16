@@ -101,9 +101,27 @@ def get_or_create_conversation(user_id, assistant, reset=False, token=None, plat
         conversation.status = 'open'
         print(f"Resetting conversation with new thread_id: {conversation.thread_id}")
         conversation.save()
+    elif conversation.thread_id and not check_thread_exists(conversation.thread_id):
+        thread_id = get_thread_id(str(assistant.assistant_id), str(assistant.vector_id))
+        conversation.thread_id = thread_id
+        conversation.status = 'open'
+        print(f"Thread id updated: {thread_id}")
+        conversation.save()
+        print(f"Conversation updated: {conversation}")
     else:
         print(f"Conversation already exists: {conversation}")
     return conversation
+
+def check_thread_exists(thread_id):
+    try:
+        thread = client.beta.threads.runs.list(thread_id=thread_id)
+        if thread.data:
+            return True
+        else:
+            return False
+    except Exception as e:
+        print(f"Error checking thread exists: {e}")
+        return False
 
 
 def handle_start_command(chat_id, assistant, bot_token, chat_username, username):
