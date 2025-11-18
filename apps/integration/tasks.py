@@ -113,9 +113,15 @@ def process_instagram_message(account_id, combined_message, user_message, audio_
     if not integration:
         print("[-] Integration not found")
         return
-    
     sender_id = user_message[0].get("sender", {}).get("id")
     print(f"Sender ID: {sender_id}")
+
+    if account_id == '17841460285897235':
+        if combined_message == "Obuna bo'ldim":
+            send_instagram_private_reply(integration.api_token, account_id, sender_id, "https://t.me/investorlikqollanmasi")
+            print("[+] Obuna bo'ldingiz. link foydalanuvchiga yuborildi")
+            return 
+    
     if not sender_id:
         return
     input_tokens = 0
