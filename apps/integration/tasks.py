@@ -118,9 +118,14 @@ def process_instagram_message(account_id, combined_message, user_message, audio_
 
     if account_id == '17841460285897235':
         if combined_message == "Obuna bo'ldim":
-            send_instagram_private_reply(integration.api_token, account_id, sender_id, "https://t.me/investorlikqollanmasi")
-            print("[+] Obuna bo'ldingiz. link foydalanuvchiga yuborildi")
-            return 
+            integration = Integration.objects.filter(instagram_account_id=account_id).first()
+            if integration:
+                send_instagram_private_reply(integration.api_token, account_id, sender_id, "https://t.me/investorlikqollanmasi")
+                print("[+] Obuna bo'ldingiz. link foydalanuvchiga yuborildi")
+                return 
+            else:
+                print("[-] Integration not foun for sending request link to user")
+                return
     
     if not sender_id:
         return
