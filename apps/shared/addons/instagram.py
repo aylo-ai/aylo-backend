@@ -73,9 +73,10 @@ def send_instagram_message(account_id, access_token, recipient_id, message):
         payload = {"recipient": {"id": recipient_id}, "message": {"text": part}}
 
         response = requests.post(url, json=payload, headers=headers)
+        
         if response.status_code != 200:
             success = False  # agar bitta qismi yuborilmasa, false qaytaramiz
-
+        print(f"[+] Send_instagram_message success: {success}, response: {response.text}")
     return success
 
 

@@ -71,13 +71,13 @@ def send_assistant_create_request(instructions, name, vector_store_id):
 
 
 def delete_assistant_by_id(assistant_id: str) -> dict:
-    BASE_URL = "https://api.openai.com/v1/assistants"
+    BASE_URL = "https://repli.azure.openai.azure.com/openai/assistants"
     headers = {
         "Authorization": f"Bearer {settings.OPENAI_API_KEY}",
         "Content-Type": "application/json",
         "OpenAI-Beta": "assistants=v2",
     }
-    url = f"{BASE_URL}/{assistant_id}"
+    url = f"{BASE_URL}/{assistant_id}?api-version=2024-05-01-preview"
 
     # Make the DELETE request
     response = requests.delete(url, headers=headers)

@@ -1,15 +1,11 @@
-import requests
-from openai import OpenAI
 
 from django.utils.translation import gettext_lazy as _
-from shared.addons.payloads import create_assistant_payload
 from shared.addons.validations import raise_validation_error
-from config.settings import OPENAI_API_KEY
-from shared.addons.utils import delete_assistant_by_id, delete_vector_store_by_id
+from shared.addons.utils import delete_vector_store_by_id
 from shared.ai_service.helper import create_prompt, create_vector_store, update_vector_store_files_ai
 from shared.addons.utils import create_assistant
 from shared.addons.payloads import valid_intents
-
+from shared.ai_service.assistant import delete_assistant_by_id
 
 BASE_URL = "http://localhost:8080"
 
