@@ -1,13 +1,12 @@
 import time
-import os
 import json
+from openpyxl import Workbook
+from datetime import datetime
 
 from rest_framework import serializers
 from django.utils.translation import gettext_lazy as _
 from django.utils.timezone import localtime
-from django.core.files import File
-from openpyxl import Workbook
-from datetime import datetime
+
 
 from shared.addons.google_integrations import process_google_doc
 from apps.assistant.models import Assistant, Conversation, Message, Settings, AssistantFileUpload, Lead
@@ -16,13 +15,11 @@ from shared.addons.ai_requests import update_vector_store_files
 from shared.ai_service.openai_client import client
 from shared.ai_service.helper import upload_knowledge_base_file
 from shared.addons.utils import get_assistant_response_ai, get_thread_id, speech_to_text, send_telegram_message
-from shared.addons.payloads import create_file_urls
 from shared.addons.validations import raise_validation_error
 from shared.addons.enums import ConversationPlatforms, ConversationStatuses
 from shared.addons.enums import MessageTypes
 from shared.mixins import SubscriptionValidationMixin
 from shared.addons.redis import publish_message_to_ws_assistant
-from shared.addons.utils import update_assistant
 
 class AssistantSerializer(serializers.ModelSerializer,
                           SubscriptionValidationMixin):
@@ -52,7 +49,6 @@ class AssistantSerializer(serializers.ModelSerializer,
         read_only_fields = ["created_time", "updated_time"]
 
     def get_integrations(self, obj):  # noqa
-        #  count of instagram and telegram integrations
         telegram_count = obj.integrations.filter(integration_type="telegram").exists()
         instagram_count = obj.integrations.filter(integration_type="instagram").exists()
         widget_count = obj.integrations.filter(integration_type="website").exists()
@@ -126,10 +122,8 @@ class ConversationSerializer(serializers.ModelSerializer,
 
     def to_representation(self, instance):
         response = super().to_representation(instance)
-        # Fetching the messages ordered by `created_time`
         last_message = instance.messages.order_by('-created_time').first()
         last_message_time = last_message.created_time if last_message else None
-        # Convert the time to the local time zone
         if last_message_time:
             last_message_time = localtime(last_message_time)
         response["last_message"] = last_message.message_content if last_message else None
@@ -194,7 +188,6 @@ class MessageSerializer(serializers.ModelSerializer, SubscriptionValidationMixin
             conversation = Conversation.objects.get(id=conversation)
         except Conversation.DoesNotExist:
             raise_validation_error(message=_("Conversation topilmadi"))
-        # Use the mixin's validation method
         self.validate_subscription(conversation.assistant.user.subscription)
 
         message_content = attrs.get("message_content")
@@ -213,7 +206,6 @@ class MessageSerializer(serializers.ModelSerializer, SubscriptionValidationMixin
         conversation = validated_data.get("conversation")
         assistant = conversation.assistant
         sender = validated_data.get("sender")
-        # 1. Transcribe if audio exists
         if audio_file:
             audio_bytes = audio_file.read()
             transcribed_text, input_tokens, output_tokens = speech_to_text(audio_bytes, language=assistant.language or "uz")
@@ -233,7 +225,6 @@ class MessageSerializer(serializers.ModelSerializer, SubscriptionValidationMixin
             conversation=conversation
         )
         if response_data and response_data.full_name and response_data.phone_number:
-            # Build response_text conditionally
             response_lines = [
                 "🎉 *New Lead Created!*\n",
                 f"👤 *Full Name:* {response_data.full_name}  " if getattr(response_data, 'full_name', None) else None,
@@ -300,12 +291,10 @@ class AssistantFileUploadSerializer(serializers.ModelSerializer, SubscriptionVal
         files = self.context.get("files")
         assistant = self.context.get("assistant")
         print(f"validate: assistant: {assistant}")
-        # Use the mixin's validation method
         self.validate_subscription(assistant.user.subscription)
         if not assistant.ai_enabled:
             raise_validation_error(message=_("Assistant AI sizda yoqilmagan"))
 
-        # Validate files if no website URL
         if not files:
             raise_validation_error(message=_("Fayl yuklanmadi"))
 
@@ -331,7 +320,6 @@ class AssistantFileUploadSerializer(serializers.ModelSerializer, SubscriptionVal
 
         uploaded_files = []
 
-        # Handle file uploads
         if files:
             if not isinstance(files, (list, tuple)):
                 files = [files]
@@ -345,7 +333,6 @@ class AssistantFileUploadSerializer(serializers.ModelSerializer, SubscriptionVal
                     file=file,
                     filename=filename
                 )
-                # Upload to OpenAI and attach to vector store
                 try:
                     file_url = request.build_absolute_uri(upload.file.url) if request else upload.file.url
                     openai_file_id = upload_knowledge_base_file(file_url)
@@ -357,7 +344,6 @@ class AssistantFileUploadSerializer(serializers.ModelSerializer, SubscriptionVal
                                 vector_store_id=assistant.vector_id,
                                 file_ids=[openai_file_id]
                             )
-                            # Poll until completed/failed
                             while True:
                                 status = client.vector_stores.file_batches.retrieve(
                                     vector_store_id=assistant.vector_id,
@@ -370,7 +356,6 @@ class AssistantFileUploadSerializer(serializers.ModelSerializer, SubscriptionVal
                     print(f"[-] OpenAI upload/attach failed: {e}")
                 uploaded_files.append(upload)
 
-        # Avoid full replacement to preserve existing vector store content
 
         return uploaded_files[0] if len(uploaded_files) == 1 else uploaded_files
 
@@ -409,7 +394,6 @@ class UpdateFileUploadSerializer(serializers.ModelSerializer, SubscriptionValida
         if not request:
             raise_validation_error(message=_("Request obyekt kerak"))
         user = request.user
-        # Use the mixin's validation method
         self.validate_subscription(user.subscription)
         if not files:
             raise_validation_error(message=_("Fayl yuklanmadi"))
@@ -450,7 +434,6 @@ class UpdateFileUploadSerializer(serializers.ModelSerializer, SubscriptionValida
                 file=file,
                 filename=filename
             )
-            # Upload to OpenAI and attach to vector store
             try:
                 file_url = request.build_absolute_uri(upload.file.url)
                 openai_file_id = upload_knowledge_base_file(file_url)

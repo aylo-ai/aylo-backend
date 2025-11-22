@@ -1,25 +1,29 @@
 import os
 
+from django.utils.translation import gettext_lazy as _
 from django.http import FileResponse
 from django.db.models import Q
 from rest_framework import permissions, filters, generics, views
 from django_filters.rest_framework import DjangoFilterBackend
-
+from rest_framework.exceptions import NotFound
 
 from apps.assistant.models import Assistant, AssistantFileUpload, Conversation, Message, Lead
-from apps.assistant.serializers import AssistantSerializer, ConversationSerializer, MessageSerializer, \
-        SettingsSerializer, AssistantFileUploadSerializer, ConversationRetrieveSerializer, UpdateFileUploadSerializer, \
-             MessageBulkReadSerializer, LeadSerializer, LeadExportSerializer
-from shared.addons.ai_requests import create_assistant_and_vector_id, delete_assitant, delete_vector_store, update_vector_store_files
+from shared.addons.ai_requests import create_assistant_and_vector_id, delete_assitant, delete_vector_store
 from shared.addons.validations import success_response, error_response
-from shared.addons.payloads import create_file_urls
 from shared.ai_service.openai_client import client
-from rest_framework.exceptions import NotFound
-from django.utils.translation import gettext_lazy as _
 from shared.addons.utils import update_assistant
 from shared.addons.redis import publish_new_message_to_ws
 from apps.assistant.filters import LeadFilter
-
+from apps.assistant.serializers import (AssistantSerializer, 
+    ConversationSerializer, 
+    MessageSerializer, 
+    SettingsSerializer, 
+    AssistantFileUploadSerializer, 
+    ConversationRetrieveSerializer, 
+    UpdateFileUploadSerializer, 
+    MessageBulkReadSerializer, 
+    LeadSerializer, 
+    LeadExportSerializer)
 
 class AssistantListCreateView(generics.ListCreateAPIView):
     queryset = Assistant.objects.all()
@@ -32,10 +36,9 @@ class AssistantListCreateView(generics.ListCreateAPIView):
 
     def get_queryset(self):
         user = self.request.user
-        # Get assistants for the user and all staff members they created
         return Assistant.objects.filter(
-                Q(user=user.created_by) |  # User's own assistants
-                Q(user=user)  # Assistants of staff members created by this user
+                Q(user=user.created_by) |
+                Q(user=user)
             ).distinct()
 
     def create(self, request, *args, **kwargs):
@@ -56,8 +59,8 @@ class AssistantRetrieveView(generics.RetrieveUpdateDestroyAPIView):
     def get_queryset(self):
         user = self.request.user
         return Assistant.objects.filter(
-                Q(user=user.created_by) |  # User's own assistants
-                Q(user=user)  # Assistants of staff members created by this user
+                Q(user=user.created_by) |
+                Q(user=user)
             ).distinct()
 
     def retrieve(self, request, *args, **kwargs):
@@ -78,7 +81,6 @@ class AssistantRetrieveView(generics.RetrieveUpdateDestroyAPIView):
 
     def destroy(self, request, *args, **kwargs):
         instance = self.get_object()
-        # Only allow deletion if the user is the original creator of the assistant
         if instance.user != request.user:
             return error_response(
                 message=_("Faqat mijozlar o'zlarining assistantlarini o'chirishlari mumkin"),
@@ -307,7 +309,7 @@ class AssistantFileUploadUpdateView(generics.CreateAPIView):
         except Assistant.DoesNotExist:
             return error_response(message=_("Assistant topilmadi"), code=404)
 
-        files = request.FILES.getlist('file')  # Handle multiple files
+        files = request.FILES.getlist('file')
         context = {'assistant': assistant, 'files': files, 'request': request}
 
         serializer = self.get_serializer(data=request.data, context=context, many=True)
@@ -348,7 +350,6 @@ class AssistantFileUploadRetrieveView(generics.RetrieveUpdateDestroyAPIView):
             return error_response(message=_("Fayl topilmadi"), code=404)
 
         assistant = instance.assistant
-        # 1) Remove from vector store by file_id (if tracked)
         if assistant and getattr(assistant, "vector_id", None) and getattr(instance, "file_id", None):
             try:
                 
@@ -357,7 +358,7 @@ class AssistantFileUploadRetrieveView(generics.RetrieveUpdateDestroyAPIView):
                     file_id=instance.file_id
                 )
             except Exception as e:
-                print(f"[-] Failed removing file from vector store: {e}")  # non-fatal
+                print(f"[-] Failed removing file from vector store: {e}")
         instance.delete()
         return success_response(message=_("Fayl muvaffaqiyatli o'chirildi"), code=200)
 
@@ -371,7 +372,6 @@ class MessageBulkReadView(generics.UpdateAPIView):
         serializer.is_valid(raise_exception=True)
         message_ids = serializer.validated_data['message_ids']
         
-        # Update all messages in a single query
         updated_count = Message.objects.filter(
             id__in=message_ids,
             conversation__id=conversation_id,

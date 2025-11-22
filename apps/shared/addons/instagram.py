@@ -75,7 +75,9 @@ def send_instagram_message(account_id, access_token, recipient_id, message):
         response = requests.post(url, json=payload, headers=headers)
         
         if response.status_code != 200:
-            success = False  # agar bitta qismi yuborilmasa, false qaytaramiz
+            success = False
+            if response.status_code == 190:
+                print(f"[-] Refresh instgram token here")
         print(f"[+] Send_instagram_message success: {success}, response: {response.text}")
     return success
 
