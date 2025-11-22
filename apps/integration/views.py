@@ -5,35 +5,43 @@ import hmac
 import time
 import json
 
+import secrets
+from django.db.models import Q
+from django.conf import settings
+from urllib.parse import urlencode
 from django.http import HttpResponse
-from io import BytesIO
 from rest_framework.views import APIView
 from rest_framework import generics, permissions
 from django.utils.translation import gettext_lazy as _
-from django.db.models import Q
-from django.db import transaction
 
-from config.settings import INSTAGRAM_CLIENT_ID, INSTAGRAM_CLIENT_SECRET, INSTAGRAM_REDIRECT_URI, BITRIX_CLIENT_ID, BITRIX_CLIENT_KEY
+
+from config.settings import INSTAGRAM_CLIENT_ID, INSTAGRAM_CLIENT_SECRET, INSTAGRAM_REDIRECT_URI
 from shared.addons.enums import IntegrationTypes
 from shared.addons.instagram import get_long_lived_access_token, get_user_profile
 from shared.addons.telegram import handle_bot_added_to_group, handle_bot_removed_from_group
 from shared.addons.validations import success_response, error_response
 from shared.permissions import IsCustomer
 from .models import Integration, TelegramGroupIntegration, InstagramMedia, CommentTriggerWord, InstagramCommentResponse, Flow, Transition, Step, CommentResponseButton, InstagramUserState
-from .serializers import IntegrationCreateSerializer, IntegrationSerializer, SendUserMessageSerializer, \
-    TelegramGroupSerializer, InstagramMediaSerializer, CommentTriggerWordSerializer, InstagramCommentResponseSerializer, InstagramCommentResponseFlowSerializer, TransitionSerializer, StepSerializer, CommentResponseButtonSerializer, InstagramUserStateSerializer
-from .tasks import  process_instagram_message, process_voice_task, \
-                                process_instagram_comment, WAIT_SECONDS, process_collected_messages, \
-                                handle_postback_event_task, fetch_all_conversations_with_messages, fetch_conversation_messages, \
-                                build_instagram_kb
-from shared.ai_service.helper import distill_company_kb_from_texts, update_vector_store_files_ai
-from apps.assistant.models import AssistantFileUpload
+from .serializers import (IntegrationCreateSerializer, 
+                        IntegrationSerializer, 
+                        SendUserMessageSerializer, 
+                        TelegramGroupSerializer, 
+                        InstagramMediaSerializer, 
+                        CommentTriggerWordSerializer, 
+                        InstagramCommentResponseSerializer, 
+                        InstagramCommentResponseFlowSerializer, 
+                        TransitionSerializer, 
+                        StepSerializer, 
+                        CommentResponseButtonSerializer)
+from .tasks import (process_instagram_message, 
+                    process_voice_task, 
+                    process_instagram_comment, 
+                    WAIT_SECONDS, 
+                    process_collected_messages, 
+                    handle_postback_event_task)
 
 from shared.addons.redis import redis_client
-from django.conf import settings
-from django.shortcuts import redirect
-from urllib.parse import urlencode, parse_qs
-import secrets
+
 
 
 class IntegrationListView(generics.ListAPIView):
@@ -282,6 +290,7 @@ class InstagramCallbackView(APIView):
                     "assistant_id": assistant_id,
                     "name": user_profile.get("instagram_username"),
                     "api_token": access_token,
+                    "refresh_token": short_lived_access_token,
                     "instagram_account_id": user_profile.get("instagram_account_id"),
                     "instagram_username": user_profile.get("instagram_username"),
                 }
@@ -316,16 +325,6 @@ class InstagramDeauthorizeView(APIView):
         if not signed_request:
             return error_response(message="Signed request not found", code=400)
         def parse_signed_request(signed_request: str, app_secret: str):
-            """
-            Parses and validates a signed_request from Instagram/Facebook.
-
-            Args:
-                signed_request (str): The signed request string from Meta.
-                app_secret (str): Your Instagram app's secret key.
-
-            Returns:
-                dict or None: Decoded data if valid, otherwise None.
-            """
             try:
                 def base64_url_decode(input_str):
                     input_str += '=' * ((4 - len(input_str) % 4) % 4)  # Proper padding

@@ -1,17 +1,17 @@
 import requests
 import time
-from celery import shared_task
-from datetime import datetime
 import pytz
+from datetime import datetime
+
+from django.core.files.uploadedfile import SimpleUploadedFile
+from django.db import transaction
 
 from apps.shared.ai_service.openai_client import client
 from apps.shared.addons.enums import SenderTypes, ConversationStatuses
 from apps.assistant.models import Assistant, AssistantFileUpload, Lead
 from shared.addons.redis import publish_message_to_ws, redis_client
-from django.core.files.uploadedfile import SimpleUploadedFile
-from django.db import transaction
-
-from shared.ai_service.helper import distill_company_kb_from_texts, update_vector_store_files_ai, upload_knowledge_base_file
+from celery import shared_task
+from shared.ai_service.helper import distill_company_kb_from_texts,  upload_knowledge_base_file
 from shared.addons.instagram import (send_instagram_message, send_instagram_private_reply, 
                                         send_instagram_comment_reply, send_instagram_postback, 
                                         checking_instagram_followers, build_button_payload)
@@ -21,7 +21,7 @@ from shared.addons.utils import (get_assistant_response_ai, handle_start_command
                                 speech_to_text, convert_ogg_to_mp3, process_instagram_audio)
 from .models import (TelegramGroupIntegration, Integration, 
                     InstagramMedia, InstagramCommentResponse, Flow, 
-                    CommentResponseButton, Step, Transition, InstagramUserState)
+                    Step, Transition, InstagramUserState)
 
 WAIT_SECONDS = 5
 
@@ -37,7 +37,6 @@ def process_message_task(chat_id, user_message, bot_token, chat_username=None, u
         handle_start_command(chat_id, assistant, bot_token, chat_username, username)
         return
 
-    # Handle regular messages
     conversation = get_or_create_conversation(chat_id, assistant, token=bot_token, chat_username=chat_username, username=username)
     if conversation.status == ConversationStatuses.ESCALATED.value or not assistant.is_active:
         data = create_message(conversation=conversation, sender=SenderTypes.USER.value, content=user_message, 
@@ -47,7 +46,6 @@ def process_message_task(chat_id, user_message, bot_token, chat_username=None, u
 
     response_data = None
     response_message = None
-    #send typing action
     send_telegram_action(chat_id, bot_token)
 
     data = create_message(conversation=conversation, sender=SenderTypes.USER.value, content=user_message, audio_file=audio_file, input_tokens=input_tokens, output_tokens=output_tokens)
@@ -79,7 +77,6 @@ def process_message_task(chat_id, user_message, bot_token, chat_username=None, u
             ]
         response_text = "\n".join([line for line in response_lines if line])
 
-    # Send response to user
     print(f"[+] Response data: {response_data}")
     if response_data:
         telegram_integration = assistant.integrations.filter(integration_type="telegram").first()
@@ -331,9 +328,9 @@ def process_instagram_comment(account_id, comment_data):
                             children=media_first.get('children', None)
                         )
                         latest_response.instagram_media.add(media_data)
-        if integration.is_comment_response and media is None:
+        if integration.is_comment_response:
             print("[+] Integration is comment response and new media is received")
-            process_instagram_comment_message.delay(account_id=account_id, message=comment_text, comment_id=comment_id, integration_id=integration.id)
+            process_instagram_comment_message.delay(account_id=account_id, message=comment_text, comment_id=comment_id, integration_id=integration.id, media=media)
             return
     print(f"[+] Media {media_id} has parent_id: {parent_id}")
 
@@ -636,7 +633,7 @@ def build_instagram_kb(integration_id: str):
 
 
 @shared_task
-def process_instagram_comment_message(account_id, message, comment_id, integration_id):
+def process_instagram_comment_message(account_id, message, comment_id, integration_id, media=None):
     print("[+] Process instagram comment message")
     integration = Integration.objects.filter(id=integration_id).first()
     if not integration:
@@ -656,6 +653,10 @@ def process_instagram_comment_message(account_id, message, comment_id, integrati
             platform="instagram", 
             chat_username=None
         )
+        if media:
+            instagram_comment_responses = InstagramCommentResponse.objects.filter(instagram_media__in=media).first()
+            if instagram_comment_responses:
+                send_instagram_comment_reply(access_token=integration.api_token, comment_id=comment_id, message=instagram_comment_responses.comment_message_template)
                 
         # Process the comment message through AI if enabled
         response_data = None
@@ -665,7 +666,7 @@ def process_instagram_comment_message(account_id, message, comment_id, integrati
             )
             
             # Send response back as Instagram comment
-            send_instagram_comment_reply(access_token=integration.api_token, comment_id=comment_id, message=response_message)
+            send_instagram_private_reply(access_token=integration.api_token, account_id=account_id, comment_id=comment_id, message=response_message)
             
             # Check if there's an amoCRM integration and create lead there
             if response_data:
@@ -760,10 +761,6 @@ def create_amocrm_lead(lead_id, integration_id):
                     'values': [{'value': lead_data['email']}]
                 })
             lead_payload['contacts'] = contacts
-        
-        # Add custom fields (commented out for now)
-        # if custom_fields:
-        #     lead_payload['custom_fields_values'] = custom_fields
         
         # Make API call to amoCRM
         create_url = f"https://{subdomain}/api/v4/leads"

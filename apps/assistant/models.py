@@ -2,6 +2,8 @@ from django.contrib.postgres.fields import ArrayField
 from django.db import models, transaction
 from django.utils import timezone
 from django.utils.timezone import now
+from shared.models import BaseModel
+from apps.integration.models import Integration
 from shared.addons.enums import (
     AssistantLanguages,
     PersonalityStyles,
@@ -13,9 +15,6 @@ from shared.addons.enums import (
     FileTypes,
     LeadStatuses,
 )
-from shared.models import BaseModel
-from apps.integration.models import Integration
-
 
 def assistant_file_path(instance, filename):
     return f"assistant/{instance.assistant.id}/files/{filename}"
@@ -28,6 +27,8 @@ def assistant_audio_path(instance, filename):
 class Assistant(BaseModel):
     name = models.CharField(max_length=255)
     description = models.TextField(null=True, blank=True)
+    company_name = models.CharField(max_length=100)
+    role = models.CharField(max_length=100, default="sales, support, and operations")
     user = models.ForeignKey(
         "user.User",
         on_delete=models.CASCADE,
@@ -35,9 +36,6 @@ class Assistant(BaseModel):
         blank=True,
         related_name="assistants",
     )
-    company_name = models.CharField(max_length=100)
-    role = models.CharField(max_length=100, default="sales, support, and operations")
-
     language = ArrayField(
        models.CharField(max_length=50, choices=AssistantLanguages.choices()),
         default=list,
@@ -65,7 +63,6 @@ class Assistant(BaseModel):
     is_active = models.BooleanField(default=True)
     ai_enabled = models.BooleanField(default=True)
 
-    # Type hint for the reverse relationship using string reference
     integrations: "models.QuerySet[Integration]"
 
     def __str__(self):
@@ -139,20 +136,12 @@ class Message(BaseModel):
         return f"Message from {self.sender} in conversation {self.conversation.id}"
 
     def save(self, *args, **kwargs):
-        """
-        Save method to update the conversation's updated_time and
-        increment the user's remained_request_count if applicable.
-        """
         from shared.addons.utils import notify_user_about_low_tokens
-
-        # Ensure atomicity of the operations
         with transaction.atomic():
-            # Update the conversation's updated_time if it exists
             if self.conversation:
                 self.conversation.updated_time = now()
                 self.conversation.save(update_fields=["updated_time"])
 
-            # If the sender is the assistant, update the user's remained_request_count
             assistant_user = (
                 getattr(self.conversation.assistant, "user", None)
                 if self.conversation
@@ -167,7 +156,6 @@ class Message(BaseModel):
                         assistant_user, subscription.remained_request_count
                     )
                 subscription.save(update_fields=["remained_request_count"])
-            # Call the parent save method
             super().save(*args, **kwargs)
 
 
@@ -177,9 +165,7 @@ class Settings(BaseModel):
     )
     timezone = models.CharField(max_length=50, default="UTC")
     language = models.CharField(max_length=50, default="en")
-    notification_preferences = models.JSONField(
-        default=dict
-    )  # E.g., {"email": True, "sms": False}
+    notification_preferences = models.JSONField(default=dict)
     escalation_rules = models.JSONField(default=dict)
 
     class Meta:
@@ -191,7 +177,9 @@ class Settings(BaseModel):
 
 class AssistantFileUpload(BaseModel):
     assistant = models.ForeignKey(
-        "Assistant", on_delete=models.CASCADE, related_name="files"
+        "Assistant", 
+        on_delete=models.CASCADE, 
+        related_name="files"
     )
     website_url = models.URLField(max_length=255, null=True, blank=True)
     file = models.FileField(upload_to=assistant_file_path)
@@ -215,9 +203,8 @@ class AssistantFileUpload(BaseModel):
         super().save(*args, **kwargs)
 
     def delete(self, *args, **kwargs):
-        # Delete the file from storage (S3)
         if self.file:
-            self.file.delete(save=False)  # This will delete from S3
+            self.file.delete(save=False)
         super(AssistantFileUpload, self).delete(*args, **kwargs)
 
 class Lead(BaseModel):

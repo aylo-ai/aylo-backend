@@ -21,7 +21,7 @@ class Integration(BaseModel):
     description = models.TextField(null=True, blank=True)
     is_active = models.BooleanField(default=True)
     api_token = models.TextField(null=True, blank=True)
-    refresh_token = models.TextField(null=True, blank=True)  # Optional for Instagram
+    refresh_token = models.TextField(null=True, blank=True)  
     integration_type = models.CharField(max_length=50, choices=IntegrationTypes.choices())
     is_comment_response = models.BooleanField(default=False)
 
@@ -158,8 +158,8 @@ class Transition(BaseModel):
         return f"{self.from_to.message_content} --> {self.to_step.message_content if self.to_step else 'END'}"
 
 class InstagramUserState(BaseModel):
-    account_id = models.CharField(max_length=255)   # ig user / account id
-    user_id = models.CharField(max_length=255)      # commenter / recipient id
+    account_id = models.CharField(max_length=255)
+    user_id = models.CharField(max_length=255)
     current_step = models.ForeignKey(Step, null=True, blank=True, on_delete=models.SET_NULL, related_name='+')
 
     class Meta:

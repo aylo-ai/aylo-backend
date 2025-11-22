@@ -7,7 +7,6 @@ from .models import AssistantFileUpload, Assistant
 
 @shared_task
 def save_uploaded_file(assistant, file_data, filename):
-    # Create an instance of the AssistantFileUpload model
     AssistantFileUpload.objects.create(
         assistant=assistant,
         file=file_data,
@@ -18,7 +17,6 @@ def save_uploaded_file(assistant, file_data, filename):
 
 @shared_task
 def finalize_assistant_files(assistant_id):
-    # Retrieve the assistant and compile file links
     assistant = Assistant.objects.get(id=assistant_id)
     data = {
         "name": assistant.name,

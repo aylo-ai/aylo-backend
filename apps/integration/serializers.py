@@ -4,14 +4,23 @@ from rest_framework import serializers
 from django.utils.translation import gettext_lazy as _
 from django.shortcuts import get_object_or_404
 
-from .models import Integration, TelegramGroupIntegration, InstagramMedia, CommentTriggerWord, InstagramCommentResponse, CommentResponseButton, Step, Transition, Flow, InstagramUserState
-from apps.assistant.models import Conversation, Assistant
 
+from apps.assistant.models import Conversation, Assistant
 from shared.addons.enums import IntegrationTypes, ConversationPlatforms, ConversationStatuses
 from shared.addons.telegram import telegram_get_me, set_telegram_webhook, get_webhook_info, send_telegram_message
 from shared.addons.utils import create_message
 from shared.addons.validations import raise_validation_error, success_response
 from shared.mixins import SubscriptionValidationMixin
+from .models import (Integration, 
+                    TelegramGroupIntegration, 
+                    InstagramMedia, 
+                    CommentTriggerWord, 
+                    InstagramCommentResponse, 
+                    CommentResponseButton, 
+                    Step, 
+                    Transition, 
+                    Flow, 
+                    InstagramUserState)
 
 
 class IntegrationCreateSerializer(serializers.ModelSerializer, SubscriptionValidationMixin):
@@ -43,9 +52,7 @@ class IntegrationCreateSerializer(serializers.ModelSerializer, SubscriptionValid
                 raise_validation_error(message=_("Assistant faol emas, zarur fayl yuklash"))
         except Assistant.DoesNotExist:
             raise_validation_error(message=_("Assistant topilmadi"))
-        # Use the mixin's validation method
         self.validate_subscription(user.subscription)
-        # validate integration count based on pricing package
         self.validate_intergation_count(user, assistant_id)
 
         if integration_type == IntegrationTypes.TELEGRAM.value and api_token:
@@ -89,7 +96,6 @@ class IntegrationSerializer(serializers.ModelSerializer, SubscriptionValidationM
     
     def validate(self, attrs):
         assistant_id = self.context.get("assistant_id")
-        print(f"Assistant ID {assistant_id}")
         try:
             assistant = Assistant.objects.get(id=assistant_id)
             if not assistant.ai_enabled:
@@ -121,7 +127,6 @@ class SendUserMessageSerializer(serializers.Serializer, SubscriptionValidationMi
 
     def validate(self, attrs):
         user = self.context.get("request").user
-        # Use the mixin's validation method
         conversation_id = attrs.get("conversation_id")
         message = attrs.get("message")
         if not conversation_id or not message:
@@ -129,7 +134,6 @@ class SendUserMessageSerializer(serializers.Serializer, SubscriptionValidationMi
         conversation = Conversation.objects.filter(id=conversation_id, assistant__user=user).first()
         self.validate_subscription(conversation.assistant.user.subscription)
         
-        print(f"Conversation: {conversation}")
         if not conversation:
             raise_validation_error(message=_("Muloqot topilmadi"))
         if conversation.status != ConversationStatuses.ESCALATED.value:
@@ -187,7 +191,6 @@ class InstagramMediaSerializer(serializers.ModelSerializer):
 
     def to_representation(self, instance):
         data = super().to_representation(instance)
-        # Try to fetch the latest data from Instagram; fall back to DB fields
         integration = None
         try:
             icr = instance.instagram_comment_responses.first()
@@ -208,7 +211,6 @@ class InstagramMediaSerializer(serializers.ModelSerializer):
                 resp = requests.get(url, headers=headers, timeout=8)
                 if resp.status_code == 200:
                     payload = resp.json() or {}
-                    # Map payload to our model fields shape
                     data = {
                         "id": data.get("id"),
                         "media_id": payload.get("id") or instance.media_id,
@@ -225,7 +227,6 @@ class InstagramMediaSerializer(serializers.ModelSerializer):
             except Exception:
                 pass
 
-        # Fallback to stored DB values, ensuring all fields are present
         data.setdefault("media_type", instance.media_type)
         data.setdefault("media_url", instance.media_url)
         data.setdefault("username", instance.username)
@@ -303,13 +304,11 @@ class InstagramCommentResponseSerializer(serializers.ModelSerializer):
 
         instance = InstagramCommentResponse.objects.create(**validated_data, integration=integration)
 
-        # Create or get trigger words
         for word in trigger_words_list:
             if word.strip():
                 trigger_word, _ = CommentTriggerWord.objects.get_or_create(trigger_word=word.strip())
                 instance.trigger_words.add(trigger_word)
 
-        # Create or get Instagram media
         instagram_media_objs = []
         for media_data in instagram_media_list:
             media = InstagramMedia.objects.create(
@@ -325,7 +324,6 @@ class InstagramCommentResponseSerializer(serializers.ModelSerializer):
                 )
             instagram_media_objs.append(media)
         
-        # Add all media at once to prevent duplicates
         if instagram_media_objs:
             instance.instagram_media.add(*instagram_media_objs)
 
@@ -333,7 +331,6 @@ class InstagramCommentResponseSerializer(serializers.ModelSerializer):
         return instance
     
     def update(self, instance, validated_data):
-        print(f"Instance: {instance}")
         trigger_words_list = validated_data.pop('trigger_words_list', [])
         instagram_media_list = validated_data.pop('instagram_media_list', [])
         instance = super().update(instance, validated_data)
@@ -351,21 +348,17 @@ class InstagramCommentResponseSerializer(serializers.ModelSerializer):
             current_media_ids = set(instance.instagram_media.values_list('media_id', flat=True))
             new_media_ids = set(media.get('media_id') or media.get('id') for media in instagram_media_list)
 
-            # Delete removed media
             for media in instance.instagram_media.filter(media_id__in=current_media_ids - new_media_ids):
                 media.delete()
 
-            # Update existing and add new
             for media_data in instagram_media_list:
                 media_id = media_data.get('media_id')
                 if media_id in current_media_ids:
-                    # Update existing
                     media_obj = instance.instagram_media.get(media_id=media_id)
                     for field, value in media_data.items():
                         setattr(media_obj, field, value)
                     media_obj.save()
                 else:
-                    # Create new
                     obj = InstagramMedia.objects.create(
                         media_id=media_data.get('media_id') or media_data.get('id'),
                         media_type=media_data.get('media_type'),
@@ -387,7 +380,6 @@ class InstagramCommentResponseSerializer(serializers.ModelSerializer):
         if flow:
             last_step = flow.steps.filter(end_point=True).first()
             
-            # Calculate conversion rate safely
             conversion_rate = 0
             if last_step and last_step.count > 0:
                 conversion_rate = round((flow.total_count / last_step.count) * 100)
@@ -406,7 +398,6 @@ class InstagramCommentResponseSerializer(serializers.ModelSerializer):
     
 class TransitionListSerializer(serializers.ListSerializer):
     def create(self, validated_data):
-        # bulk create transitions
         transitions = [Transition(**item) for item in validated_data]
         return Transition.objects.bulk_create(transitions)
     
@@ -448,7 +439,7 @@ class InstagramCommentResponseFlowSerializer(serializers.ModelSerializer):
             "steps",
         ]
         extra_kwargs = {
-            "comment_response": {"required": False},  # we attach manually in view
+            "comment_response": {"required": False},
         }
 
     def create(self, validated_data):
@@ -460,17 +451,14 @@ class InstagramCommentResponseFlowSerializer(serializers.ModelSerializer):
                 {"steps": "Qadamlar yaratilmagan, avval yarating"}
             )
 
-        # ensure comment_response exists
         comment_response = get_object_or_404(
             InstagramCommentResponse, id=comment_response_id
         )
 
-        # create flow
         flow = Flow.objects.create(
             comment_response=comment_response, **validated_data
         )
 
-        # create steps + buttons
         for step_data in steps_data:
             extra_buttons_data = step_data.pop("extra_buttons", [])
             step = Step.objects.create(flow=flow, **step_data)
