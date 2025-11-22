@@ -246,7 +246,7 @@ def process_instagram_comment(account_id, comment_data):
             if response.is_respond_to_all_comments:
                 print("[+] Media-specific: Respond to all comments")
                 flow = Flow.objects.filter(comment_response=response)
-                if response.comment_message_template:
+                if response.comment_message_template and not integration.is_comment_response:
                         send_instagram_comment_reply(integration.api_token, comment_id, response.comment_message_template)
                 #if flow exists do not reply from private message
                 if response.private_message_template and not flow.exists():
@@ -264,7 +264,7 @@ def process_instagram_comment(account_id, comment_data):
                     print(f"[+] Media-specific trigger match: {trigger_words}")
                     flow = Flow.objects.filter(comment_response=response)
 
-                    if response.comment_message_template:
+                    if response.comment_message_template and not integration.is_comment_response:
                         send_instagram_comment_reply(integration.api_token, comment_id, response.comment_message_template)
                     if response.private_message_template and not flow.exists():
                         send_instagram_private_reply(integration.api_token, account_id, comment_id, response.private_message_template)
@@ -293,7 +293,7 @@ def process_instagram_comment(account_id, comment_data):
                         if latest_response.is_respond_to_all_comments:
 
                             flow = Flow.objects.filter(comment_response=latest_response)
-                            if latest_response.comment_message_template:
+                            if latest_response.comment_message_template and not integration.is_comment_response:
                                     send_instagram_comment_reply(integration.api_token, comment_id, latest_response.comment_message_template)
                             # validate that flow does not exists
                             if latest_response.private_message_template and not flow.exists():
@@ -309,7 +309,7 @@ def process_instagram_comment(account_id, comment_data):
 
                                 flow = Flow.objects.filter(comment_response=latest_response)
                                 print(f"[✓] Media-specific trigger match: {trigger_words}")
-                                if latest_response.comment_message_template:
+                                if latest_response.comment_message_template and not integration.is_comment_response:
                                     send_instagram_comment_reply(integration.api_token, comment_id, latest_response.comment_message_template)
                                 if latest_response.private_message_template and not flow.exists():
                                     send_instagram_private_reply(integration.api_token, account_id, comment_id, latest_response.private_message_template)
