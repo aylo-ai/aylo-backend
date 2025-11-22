@@ -643,7 +643,7 @@ def process_instagram_comment_message(account_id, message, comment_id, integrati
     try:
         assistant = integration.assistant
         if not assistant:
-            print("[-] No assistant found for integration")
+            print("[-] No assistant found for integration ")
             return
             
         # Get or create conversation for this comment
