@@ -1,7 +1,5 @@
-# import requests
 # import json
-
-# from django.db.models import Q
+# import requests
 
 # from mcp import ClientSession
 # from mcp.server.fastmcp import FastMCP
@@ -11,10 +9,25 @@
 
 # @server.tool()
 # async def search_product(product_name: str, access_token: str):
+#     if not product_name:
+#         return {
+#             "success": False,
+#             "message": "Product name is required to search the catalog.",
+#             "products": [],
+#         }
+
+#     if not access_token:
+#         return {
+#             "success": False,
+#             "message": "Billz access token missing. Connect the Billz integration.",
+#             "products": [],
+#         }
+
 #     try:
-#         base_url = "https://api-admin.billz.ai/v2/"
+#         base_url = "https://api-admin.billz.ai/v2/products"
 #         params = {
-#             "search": product_name
+#             "search": product_name,
+#             "limit": 5,
 #         }
 #         headers = {
 #             "Content-Type": "application/json",
@@ -22,7 +35,7 @@
 #         }
 
 #         response = requests.get(
-#             url=f"{base_url}products/",
+#             url=base_url,
 #             headers=headers,
 #             params=params,
 #             timeout=10
@@ -39,7 +52,6 @@
 #                     "products": []
 #                 }
             
-#             # Format product data for the assistant
 #             formatted_products = []
 #             for product in products[:5]:  # Limit to top 5 results
 #                 formatted_products.append({
@@ -60,7 +72,7 @@
 #         else:
 #             return {
 #                 "success": False,
-#                 "message": f"API error: {response.status_code}",
+#                 "message": f"API error: {response.status_code} - {response.text}",
 #                 "products": []
 #             }
             
@@ -103,12 +115,17 @@
 #                     "description": "The name or keyword of the product to search for"
 #                 },  
 #             },
+#             "required": ["product_name"]
 #             }
 #         }
 #     }
 # ]
 
 # async def get_assistant_response_ai_mcp(thread_id, run_status, run_obj, client, api_token):
+#     required_action = getattr(run_status, "required_action", None)
+#     if not required_action or not getattr(required_action, "submit_tool_outputs", None):
+#         return
+
 #     server_parameters = StdioServerParameters(
 #         command="python",
 #         args=['-m', 'apps.shared.mcp_server.mcp_server']
@@ -116,27 +133,65 @@
 #     async with stdio_client(server_parameters) as (read_stream, write_stream):
 #         async with ClientSession(read_stream, write_stream) as session:
 #             await session.initialize()
-#             tool_calls = (
-#                 run_status.required_action.submit_tool_outputs.tool_calls
-#             )
+#             tool_calls = required_action.submit_tool_outputs.tool_calls
+#             if not tool_calls:
+#                 return
+
 #             tool_outputs = []
+#             token_error_message = None
+#             if not api_token:
+#                 token_error_message = (
+#                     "Billz integration is not configured. "
+#                     "Please add a Billz secret token to this assistant."
+#                 )
 
 #             for tool_call in tool_calls:
-#                 tool_name = tool_call.function.name
-#                 arguments = json.loads(tool_call.function.arguments)
+#                 try:
+#                     arguments = json.loads(tool_call.function.arguments)
+#                 except json.JSONDecodeError:
+#                     tool_outputs.append(
+#                         {
+#                             "tool_call_id": tool_call.id,
+#                             "output": "Invalid arguments supplied for Billz search.",
+#                         }
+#                     )
+#                     continue
+
+#                 if token_error_message:
+#                     tool_outputs.append(
+#                         {
+#                             "tool_call_id": tool_call.id,
+#                             "output": token_error_message,
+#                         }
+#                     )
+#                     continue
+
+#                 product_name = arguments.get("product_name")
+#                 if not product_name:
+#                     tool_outputs.append(
+#                         {
+#                             "tool_call_id": tool_call.id,
+#                             "output": "Product name is required for the Billz search tool.",
+#                         }
+#                     )
+#                     continue
 
 #                 try:
-#                     # Run tool via MCP server
 #                     result = await session.call_tool(
-#                         tool_name,
+#                         tool_call.function.name,
 #                         arguments={
 #                             **arguments,
 #                             "access_token": api_token,
-#                             "product_name": arguments.get("product_name"),
+#                             "product_name": product_name,
 #                         },
 #                     )
+#                     output_payload = (
+#                         result
+#                         if isinstance(result, str)
+#                         else json.dumps(result, ensure_ascii=False)
+#                     )
 #                     tool_outputs.append(
-#                         {"tool_call_id": tool_call.id, "output": str(result)}
+#                         {"tool_call_id": tool_call.id, "output": output_payload}
 #                     )
 #                 except Exception as e:
 #                     tool_outputs.append(
@@ -146,7 +201,6 @@
 #                         }
 #                     )
 
-#             # Send tool results back to assistant
 #             client.beta.threads.runs.submit_tool_outputs(
 #                 thread_id=thread_id,
 #                 run_id=run_obj.id,

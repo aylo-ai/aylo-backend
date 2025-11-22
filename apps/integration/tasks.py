@@ -78,7 +78,6 @@ def process_message_task(chat_id, user_message, bot_token, chat_username=None, u
                 "\n✅ Please follow up accordingly."
             ]
         response_text = "\n".join([line for line in response_lines if line])
-    print(f"[+] Response message: {response_message}")
 
     # Send response to user
     print(f"[+] Response data: {response_data}")

@@ -357,15 +357,19 @@ def get_assistant_response_ai(user_message_, assistant_id, thread_id, conversati
 
             if assistant_response:
                 print(f"Assistant response: {assistant_response}")
-                assistant_response = json.loads(assistant_response)
-                intent = assistant_response.get("intent", None)
-                message = assistant_response.get("reply", None)
-                entities = assistant_response.get("entities", None)
-                if assistant_response.get("properties",None):
-                    response_json = assistant_response.get("properties")
-                    intent = response_json.get("intent", None)
-                    message = response_json.get("reply", None)
-                    entities = response_json.get("entities", None)
+                if isinstance(assistant_response, dict):
+                    assistant_response = json.loads(assistant_response)
+                    intent = assistant_response.get("intent", None)
+                    message = assistant_response.get("reply", None)
+                    entities = assistant_response.get("entities", None)
+                    if assistant_response.get("properties",None):
+                        response_json = assistant_response.get("properties")
+                        intent = response_json.get("intent", None)
+                        message = response_json.get("reply", None)
+                        entities = response_json.get("entities", None)
+                else:
+                    message = assistant_response
+                    intent = None
 
                 clean_response = check_response(message)
                 handle_unknown_intent(intent, user_message_, assistant, conversation)
@@ -429,27 +433,6 @@ def get_thread_id(assistant_id, vector_id):
         return thread_id
     else:
         raise_validation_error(message=_(f"Failed to initialize thread for error: {assistant_id}"))
-
-def delete_assistant_by_id(assistant_id):
-    BASE_URL = "https://api.openai.com/v1/assistants"
-    headers = {
-        "Authorization": f"Bearer {OPENAI_API_KEY}",
-        "Content-Type": "application/json",
-        "OpenAI-Beta": "assistants=v2",
-    }
-    url = f"{BASE_URL}/{assistant_id}"
-
-    # Make the DELETE request
-    response = requests.delete(url, headers=headers)
-    print(f"Delete assistant response: {response.text}")
-    if response.status_code == 200:
-        return response.json()
-    elif response.status_code == 404:
-        raise_validation_error(message="Assistant not found.")
-    else:
-        raise_validation_error(
-            message=f"Failed to delete assistant: {response.text}",
-        )
 
 def delete_vector_store_by_id(vector_store_id):
     BASE_URL = "https://api.openai.com/v1/vector_stores"
