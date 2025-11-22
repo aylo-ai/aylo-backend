@@ -357,19 +357,15 @@ def get_assistant_response_ai(user_message_, assistant_id, thread_id, conversati
 
             if assistant_response:
                 print(f"Assistant response: {assistant_response}")
-                if isinstance(assistant_response, dict):
-                    assistant_response = json.loads(assistant_response)
-                    intent = assistant_response.get("intent", None)
-                    message = assistant_response.get("reply", None)
-                    entities = assistant_response.get("entities", None)
-                    if assistant_response.get("properties",None):
-                        response_json = assistant_response.get("properties")
-                        intent = response_json.get("intent", None)
-                        message = response_json.get("reply", None)
-                        entities = response_json.get("entities", None)
-                else:
-                    message = assistant_response
-                    intent = None
+                assistant_response = json.loads(assistant_response)
+                intent = assistant_response.get("intent", None)
+                message = assistant_response.get("reply", None)
+                entities = assistant_response.get("entities", None)
+                if assistant_response.get("properties",None):
+                    response_json = assistant_response.get("properties")
+                    intent = response_json.get("intent", None)
+                    message = response_json.get("reply", None)
+                    entities = response_json.get("entities", None)
 
                 clean_response = check_response(message)
                 handle_unknown_intent(intent, user_message_, assistant, conversation)
