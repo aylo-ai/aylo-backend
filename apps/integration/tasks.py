@@ -328,9 +328,9 @@ def process_instagram_comment(account_id, comment_data):
                             children=media_first.get('children', None)
                         )
                         latest_response.instagram_media.add(media_data)
-        if integration.is_comment_response and media is None:
+        if integration.is_comment_response:
             print("[+] Integration is comment response and new media is received")
-            process_instagram_comment_message.delay(account_id=account_id, message=comment_text, comment_id=comment_id, integration_id=integration.id)
+            process_instagram_comment_message.delay(account_id=account_id, message=comment_text, comment_id=comment_id, integration_id=integration.id, media=media)
             return
     print(f"[+] Media {media_id} has parent_id: {parent_id}")
 
@@ -633,7 +633,7 @@ def build_instagram_kb(integration_id: str):
 
 
 @shared_task
-def process_instagram_comment_message(account_id, message, comment_id, integration_id):
+def process_instagram_comment_message(account_id, message, comment_id, integration_id, media=None):
     print("[+] Process instagram comment message")
     integration = Integration.objects.filter(id=integration_id).first()
     if not integration:
@@ -653,6 +653,10 @@ def process_instagram_comment_message(account_id, message, comment_id, integrati
             platform="instagram", 
             chat_username=None
         )
+        if media:
+            instagram_comment_responses = InstagramCommentResponse.objects.filter(instagram_media__in=media).first()
+            if instagram_comment_responses:
+                send_instagram_comment_reply(access_token=integration.api_token, comment_id=comment_id, message=instagram_comment_responses.comment_message_template)
                 
         # Process the comment message through AI if enabled
         response_data = None
@@ -662,7 +666,7 @@ def process_instagram_comment_message(account_id, message, comment_id, integrati
             )
             
             # Send response back as Instagram comment
-            send_instagram_comment_reply(access_token=integration.api_token, comment_id=comment_id, message=response_message)
+            send_instagram_private_reply(access_token=integration.api_token, account_id=account_id, comment_id=comment_id, message=response_message)
             
             # Check if there's an amoCRM integration and create lead there
             if response_data:
