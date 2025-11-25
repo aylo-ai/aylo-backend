@@ -1,5 +1,4 @@
 amqp==5.2.0
-google-auth==2.40.1
 annotated-types==0.7.0
 anyio==4.9.0
 asgiref==3.8.1
@@ -13,7 +12,7 @@ beautifulsoup4==4.12.3
 billiard==4.2.1
 boto3==1.38.18
 botocore==1.38.46
-cachetools==6.2.1
+cachetools==5.5.2
 celery==5.4.0
 certifi==2024.8.30
 cffi==2.0.0
