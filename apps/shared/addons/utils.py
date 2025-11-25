@@ -27,7 +27,6 @@ from config.settings import OPENAI_API_KEY
 from shared.ai_service.helper import create_prompt
 from shared.addons.payloads import valid_intents
 from shared.addons.redis import publish_message_to_ws_assistant
-# from shared.mcp_server.mcp_server import get_assistant_response_ai_mcp
 
 def create_message(conversation, sender, content, audio_file=None, run_status=None, input_tokens=None, output_tokens=None):
     message_type = 'audio' if audio_file else 'text'
