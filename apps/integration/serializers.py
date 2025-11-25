@@ -5,6 +5,8 @@ from django.utils.translation import gettext_lazy as _
 from django.shortcuts import get_object_or_404
 
 
+from shared.addons.utils import update_assistant
+from shared.mcp_server.mcp_server import tools
 from apps.assistant.models import Conversation, Assistant
 from shared.addons.enums import IntegrationTypes, ConversationPlatforms, ConversationStatuses
 from shared.addons.telegram import telegram_get_me, set_telegram_webhook, get_webhook_info, send_telegram_message
@@ -78,6 +80,31 @@ class IntegrationCreateSerializer(serializers.ModelSerializer, SubscriptionValid
         elif integration_type == IntegrationTypes.INSTAGRAM.value:
             pass
         return attrs
+
+    def create(self, validated_data):
+        api_token = validated_data.get('api_token')
+        assistant_id = self.context.get('assistant_id')
+        assistant = Assistant.objects.get(id=assistant_id)
+        if not assistant:
+            raise_validation_error(message=_("Assistant topilmadi"))
+        type = validated_data.get('integration_type')
+        if type == IntegrationTypes.BILLZ.value:
+            if not api_token:
+                raise_validation_error(message=_("Billz API token kerak"))
+            response = requests.post(f"https://api-admin.billz.ai/v1/auth/login", json={"secret_token": api_token})
+            if response.status_code != 200:
+                raise_validation_error(message=_("Billz API token yaroqli emas"))
+
+            print(f"response: {response.json()}")
+            access_token = response.json().get('data').get('access_token')
+            if not access_token:
+                raise_validation_error(message=_("Billz access token topilmadi"))
+            validated_data['api_token'] = access_token
+            validated_data['refresh_token'] = response.json().get('data').get('refresh_token')
+            update_assistant(assistant.assistant_id, assistant.name, assistant, tools=tools)
+            return super().create(validated_data)
+        return super().create(validated_data)
+
 
 
 class IntegrationSerializer(serializers.ModelSerializer, SubscriptionValidationMixin):

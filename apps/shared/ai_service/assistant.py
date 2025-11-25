@@ -34,7 +34,9 @@ def create_payload_and_assistant(assistant, request=None):
         assistant.personality_style,
         assistant.language,
         valid_intents,
-        assistant.fallback_message
+        assistant.fallback_message,
+        assistant.steps,
+        tools=None
     )
     vector_store_id = create_vector_store(file_urls)
     if not vector_store_id:
@@ -53,7 +55,7 @@ def send_assistant_create_request(instructions, name, vector_store_id):
 
     try:
         my_assistant = client.beta.assistants.create(
-            instructions=instructions.content,  #change here from instructions.content to instructions
+            instructions=instructions,  #change here from instructions.content to instructions
             name=name,
             tools=tools,
             tool_resources=tool_resources,

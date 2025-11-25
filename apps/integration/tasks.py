@@ -7,7 +7,7 @@ from django.core.files.uploadedfile import SimpleUploadedFile
 from django.db import transaction
 
 from apps.shared.ai_service.openai_client import client
-from apps.shared.addons.enums import SenderTypes, ConversationStatuses
+from apps.shared.addons.enums import SenderTypes, ConversationStatuses, IntegrationTypes
 from apps.assistant.models import Assistant, AssistantFileUpload, Lead
 from shared.addons.redis import publish_message_to_ws, redis_client
 from celery import shared_task
@@ -16,9 +16,10 @@ from shared.addons.instagram import (send_instagram_message, send_instagram_priv
                                         send_instagram_comment_reply, send_instagram_postback, 
                                         checking_instagram_followers, build_button_payload)
 from shared.addons.telegram import send_telegram_message, send_telegram_action
-from shared.addons.utils import (get_assistant_response_ai, handle_start_command, 
+from shared.addons.utils import (get_assistant_response_ai, handle_start_command,   
                                 get_or_create_conversation, create_message, 
                                 speech_to_text, convert_ogg_to_mp3, process_instagram_audio)
+from shared.mcp_server.main_mcp import run_assistant_response_ai_mcp_sync
 from .models import (TelegramGroupIntegration, Integration, 
                     InstagramMedia, InstagramCommentResponse, Flow, 
                     Step, Transition, InstagramUserState)
@@ -50,21 +51,32 @@ def process_message_task(chat_id, user_message, bot_token, chat_username=None, u
 
     data = create_message(conversation=conversation, sender=SenderTypes.USER.value, content=user_message, audio_file=audio_file, input_tokens=input_tokens, output_tokens=output_tokens)
     publish_message_to_ws(conversation_id=conversation.id, message=user_message, sender='user', data=data, assistant_id=assistant.id)
-    if assistant.ai_enabled:
+    billz_integration = assistant.integrations.filter(integration_type=IntegrationTypes.BILLZ.value).first()
+    if billz_integration:
+        response_message, run_status, response_data = run_assistant_response_ai_mcp_sync(
+            message_content=user_message, 
+            assistant_id=assistant.assistant_id, 
+            thread_id=conversation.thread_id, 
+            billz_api_token=billz_integration.api_token,
+            conversation=conversation
+        )
+    else:   
         response_message, run_status, response_data = get_assistant_response_ai(user_message, 
                                                                                 assistant.assistant_id, 
                                                                                 conversation.thread_id,
                                                                                 conversation=conversation
                                                                                 )
-        username = getattr(response_data, 'username', None)
-        platform = getattr(response_data, 'platform', None)
-        username_link = None
-        if username:
-            if platform and platform.lower() == "telegram":
-                username_link = f"@{username}"
-            elif platform and platform.lower() == "instagram":
-                username_link = f"https://www.instagram.com/{username}"
+    
+    username = getattr(response_data, 'username', None) if response_data else None
+    platform = getattr(response_data, 'platform', None) if response_data else None
+    username_link = None
+    if username:
+        if platform and platform.lower() == "telegram":
+            username_link = f"@{username}"
+        elif platform and platform.lower() == "instagram":
+            username_link = f"https://www.instagram.com/{username}"
 
+    if response_data:
         response_lines = [
                 "🎉 *New Lead Created!*\n",
                 f"👤 *Full Name: {response_data.full_name}  " if getattr(response_data, 'full_name', None) else None,
@@ -76,6 +88,8 @@ def process_message_task(chat_id, user_message, bot_token, chat_username=None, u
                 "\n✅ Please follow up accordingly."
             ]
         response_text = "\n".join([line for line in response_lines if line])
+    else:
+        response_text = None
 
     print(f"[+] Response data: {response_data}")
     if response_data:
@@ -116,7 +130,7 @@ def process_instagram_message(account_id, combined_message, user_message, audio_
         if combined_message == "Obuna bo'ldim":
             integration = Integration.objects.filter(instagram_account_id=account_id).first()
             if integration:
-                send_instagram_private_reply(integration.api_token, account_id, sender_id, "https://t.me/investorlikqollanmasi")
+                send_instagram_message(integration.api_token, account_id, sender_id, "https://t.me/investorlikqollanmasi")
                 print("[+] Obuna bo'ldingiz. link foydalanuvchiga yuborildi")
                 return 
             else:

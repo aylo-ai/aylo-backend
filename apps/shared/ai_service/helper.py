@@ -30,10 +30,7 @@ def extract_text_from_txt_files(txt_file_path):
 
 
 def create_prompt(assistant_name, company_name, company_description, assistant_role, 
-                  conversation_style, assistant_language, valid_intents, fallback_message, steps):
-    """
-    Generate a structured prompt for an AI assistant, including intent classification, reply format, and flow guidelines.
-    """
+                  conversation_style, assistant_language, valid_intents, fallback_message, steps, tools=None):
     print(f"create_prompt: {assistant_name}, {company_name}, {company_description}, {assistant_role}, {conversation_style}, {assistant_language}")
 
     # Format valid intents for display
@@ -105,6 +102,9 @@ def create_prompt(assistant_name, company_name, company_description, assistant_r
                 - Set intent to `"unknown"`
                 - Say: "Sorry, I’m only able to assist with what's in the current documents. If you'd like, I can pass this along to a team member."
             """
+
+    if tools:
+        prompt_template += f"""5. ⚙️ Tool Output Interpretation (CRITICAL INSTRUCTIONS) When a tool (e.g., search_product) is invoked, you will receive its output as a JSON payload. You MUST use this data to construct your final reply."""
 
     return prompt_template
 

@@ -1,3 +1,4 @@
+from typing import Any
 import requests
 import base64
 import hashlib
@@ -21,6 +22,9 @@ from shared.addons.instagram import get_long_lived_access_token, get_user_profil
 from shared.addons.telegram import handle_bot_added_to_group, handle_bot_removed_from_group
 from shared.addons.validations import success_response, error_response
 from shared.permissions import IsCustomer
+from shared.addons.utils import update_assistant
+from shared.mcp_server.mcp_server import tools
+from apps.assistant.models import Assistant
 from .models import Integration, TelegramGroupIntegration, InstagramMedia, CommentTriggerWord, InstagramCommentResponse, Flow, Transition, Step, CommentResponseButton, InstagramUserState
 from .serializers import (IntegrationCreateSerializer, 
                         IntegrationSerializer, 
@@ -1228,3 +1232,27 @@ class BillzSecretTokenHandlerView(generics.CreateAPIView):
         context = super().get_serializer_context()
         context['assistant_id'] = self.kwargs.get('pk')
         return context
+    
+    def create(self, request, *args, **kwargs):
+        serializer = self.get_serializer(data=request.data)
+        api_token = request.data.get('api_token')
+        assistant_id = self.kwargs.get('pk')
+        try:
+            assistant = Assistant.objects.get(id=assistant_id)
+        except Assistant.DoesNotExist:
+            return error_response(message=_("Assistant topilmadi"), code=404)
+        if not api_token:
+            return error_response(message=_("Billz API token kerak"), code=400)
+        response = requests.post(f"https://api-admin.billz.ai/v1/auth/login", json={"secret_token": api_token})
+        if response.status_code != 200:
+            return error_response(message=_("Billz API token yaroqli emas"), code=400)
+
+        print(f"response: {response.json()}")
+        access_token = response.json().get('data').get('access_token')
+        if not access_token:
+            return error_response(message=_("Billz access token topilmadi"), code=400)
+        request.data['api_token'] = access_token
+        update_assistant(assistant.assistant_id, assistant.name, assistant, tools=tools)
+        serializer.is_valid(raise_exception=True)
+        self.perform_create(serializer)
+        return success_response(message=_("Billz secret token muvaffaqiyatli yaratildi"), data=serializer.data, code=201)
