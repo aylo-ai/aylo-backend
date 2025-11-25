@@ -3,8 +3,8 @@ import logging
 import json
 from typing import Optional, Tuple
 
-# from mcp import ClientSession
-# from mcp.client.stdio import StdioServerParameters, stdio_client
+from mcp import ClientSession
+from mcp.client.stdio import StdioServerParameters, stdio_client
 from asgiref.sync import sync_to_async
 
 from config.settings import client
@@ -75,14 +75,14 @@ async def get_assistant_response_ai_mcp(
             for run in active_runs.data:
                 wait_on_run(run, thread_id)
 
-        # server_params = StdioServerParameters(
-        #     command="python",
-        #     args=["-m", BILLZ_SERVER_MODULE],
-        # )
+        server_params = StdioServerParameters(
+            command="python",
+            args=["-m", BILLZ_SERVER_MODULE],
+        )
 
-        # async with stdio_client(server_params) as (read_stream, write_stream):
-        #     async with ClientSession(read_stream, write_stream) as session:
-        #         await session.initialize()
+        async with stdio_client(server_params) as (read_stream, write_stream):
+            async with ClientSession(read_stream, write_stream) as session:
+                await session.initialize()
 
                 # Send the user's message to the assistant
                 user_message = client.beta.threads.messages.create(
