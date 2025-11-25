@@ -185,7 +185,7 @@ def restrict_user_account(user):
     subscription.save()
 
 
-def update_assistant(assistant_id, name,  assistant):
+def update_assistant(assistant_id, name,  assistant, tools=None):
     print(f"Updating assistant with instructions")
     try:
         instruction = create_prompt(
@@ -196,14 +196,16 @@ def update_assistant(assistant_id, name,  assistant):
             assistant.personality_style,
             assistant.language,
             valid_intents,
-            assistant.fallback_message
+            assistant.fallback_message,
+            assistant.steps,
+            tools=tools
         )
         assistant = client.beta.assistants.update(
             assistant_id=assistant_id,
             name=name,
             temperature=0.7,
             instructions=instruction,
-            tools=[{"type":"file_search"}],
+            tools=tools,
             tool_resources={"file_search": {"vector_store_ids": [assistant.vector_id]}},
             model="gpt-4o",
             response_format = {
@@ -357,15 +359,20 @@ def get_assistant_response_ai(user_message_, assistant_id, thread_id, conversati
 
             if assistant_response:
                 print(f"Assistant response: {assistant_response}")
-                assistant_response = json.loads(assistant_response)
-                intent = assistant_response.get("intent", None)
-                message = assistant_response.get("reply", None)
-                entities = assistant_response.get("entities", None)
-                if assistant_response.get("properties",None):
-                    response_json = assistant_response.get("properties")
-                    intent = response_json.get("intent", None)
-                    message = response_json.get("reply", None)
-                    entities = response_json.get("entities", None)
+                try:
+                    assistant_response = json.loads(assistant_response)
+                    intent = assistant_response.get("intent", None)
+                    message = assistant_response.get("reply", None)
+                    entities = assistant_response.get("entities", None)
+                    if assistant_response.get("properties",None):
+                        response_json = assistant_response.get("properties")
+                        intent = response_json.get("intent", None)
+                        message = response_json.get("reply", None)
+                        entities = response_json.get("entities", None)
+                except Exception as e:
+                    print(f"Error loading assistant response: {e}")
+                    message = assistant_response
+                    intent = None
 
                 clean_response = check_response(message)
                 handle_unknown_intent(intent, user_message_, assistant, conversation)
