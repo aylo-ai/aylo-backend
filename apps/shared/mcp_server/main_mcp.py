@@ -214,7 +214,6 @@ async def get_assistant_response_ai_mcp(
                             tool_outputs.append(
                                 {"tool_call_id": tool_call.id, "output": str(result)}
                             )
-                            logging.info(f"tool_outputs: {tool_outputs}")   
 
                         client.beta.threads.runs.submit_tool_outputs(
                             thread_id=thread_id,

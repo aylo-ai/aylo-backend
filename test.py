@@ -1,4 +1,4 @@
-# import requests
+import requests
 # import time
 
 # # secret_token = '5a877c65e211f8cf24e0ae4766f59eed98f84c62357fdb2dc626a9f5bbed8b42750ae5aba915089246b707af08871870b4d20e66c934bf3d2b1b1254a3f7a91528a5169ab344534c22cde9e5e64a2f404fcd8e895c357d6cd1951b5daac313aa6fba7fd104a80d08c270cd2ab422ac949047b3edebce24ff'
@@ -6,10 +6,14 @@
 # # data = data.json()
 # # print(data)
 
-# # secret_token = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJjbGllbnRfcGxhdGZvcm1faWQiOiI3ZDRhNGMzOC1kZDg0LTQ5MDItYjc0NC0wNDg4YjgwYTRjMDEiLCJjb21wYW55X2lkIjoiNGY5NjYxOTgtZjA5Yy00YmJlLWEzMWEtYmE2YjAxNjIxY2Q5IiwiZGF0YSI6IiIsImV4cCI6MTc2NDkzNzU0NiwiaWF0IjoxNzYzNjQxNTQ2LCJpZCI6ImExZTVmYjJiLTRlYjEtNDA0Mi04ZjJmLTlmZGUwMWM1MjlhOSIsInVzZXJfaWQiOiI3N2MyMGFkYy03MDk0LTQ5ZjktODk2MS1iMmI0ZjMxNWFmOTAifQ.0YlZ9JsQThwHgYconf-MLZlwA2Lew7l_GCqnUAMsWXk"
-# # data = requests.get('https://api-admin.billz.ai/v2/products?limit=1&search=Пелёнка', headers={"Authorization": f"Bearer {secret_token}", "Content-Type": "application/json"})
-# # data = data.json()
-# # print(data)
+secret_token = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJjbGllbnRfcGxhdGZvcm1faWQiOiI3ZDRhNGMzOC1kZDg0LTQ5MDItYjc0NC0wNDg4YjgwYTRjMDEiLCJjb21wYW55X2lkIjoiNGY5NjYxOTgtZjA5Yy00YmJlLWEzMWEtYmE2YjAxNjIxY2Q5IiwiZGF0YSI6IiIsImV4cCI6MTc2NDkzNzU0NiwiaWF0IjoxNzYzNjQxNTQ2LCJpZCI6ImExZTVmYjJiLTRlYjEtNDA0Mi04ZjJmLTlmZGUwMWM1MjlhOSIsInVzZXJfaWQiOiI3N2MyMGFkYy03MDk0LTQ5ZjktODk2MS1iMmI0ZjMxNWFmOTAifQ.0YlZ9JsQThwHgYconf-MLZlwA2Lew7l_GCqnUAMsWXk"
+filter_data = {
+    "company_id": ["4f966198-f09c-4bbe-a31a-ba6b01621cd9"]
+}
+data = requests.get('https://api-admin.billz.ai/v2/category', headers={"Authorization": f"Bearer {secret_token}", "Content-Type": "application/json"}, params={"limit": 1000})
+data = data.json()
+print(data)
+# 885e207f-47c6-4bde-a6c4-c50bf074b134
 
 
 # def send_instagram_direct_message(access_token, account_id, sender_id, message):
@@ -293,25 +297,25 @@
 # print(get_comment_from_post(access_token, '17878953921223680'))
 
 
-import json
+# import json
 
 
 
-def test_payoad(assistant_response):
-    try:
-        assistant_response = json.loads(assistant_response)
-        intent = assistant_response.get("intent", None)
-        message = assistant_response.get("reply", None)
-        entities = assistant_response.get("entities", None)
-        if assistant_response.get("properties",None):
-            response_json = assistant_response.get("properties")
-            intent = response_json.get("intent", None)
-            message = response_json.get("reply", None)
-            entities = response_json.get("entities", None)
-    except Exception as e:
-        print(f"Error loading assistant response: {e}")
-        message = assistant_response
-        intent = None
-    return intent, message
+# def test_payoad(assistant_response):
+#     try:
+#         assistant_response = json.loads(assistant_response)
+#         intent = assistant_response.get("intent", None)
+#         message = assistant_response.get("reply", None)
+#         entities = assistant_response.get("entities", None)
+#         if assistant_response.get("properties",None):
+#             response_json = assistant_response.get("properties")
+#             intent = response_json.get("intent", None)
+#             message = response_json.get("reply", None)
+#             entities = response_json.get("entities", None)
+#     except Exception as e:
+#         print(f"Error loading assistant response: {e}")
+#         message = assistant_response
+#         intent = None
+#     return intent, message
 
-print(test_payoad('Slaom jiagr {name: "John Doe", phone_number: "1234567890", email: "john.doe@example.com"}'))
+# print(test_payoad('Slaom jiagr {name: "John Doe", phone_number: "1234567890", email: "john.doe@example.com"}'))

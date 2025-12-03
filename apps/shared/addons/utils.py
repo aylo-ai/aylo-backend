@@ -1,14 +1,11 @@
 import io
 import json
-from typing import Any
 import requests
 from pydub.utils import which
 from pydub import AudioSegment
 from google import genai
 from google.genai import types
 from io import BytesIO
-
-from asgiref.sync import async_to_sync
 
 from django.utils.translation import gettext_lazy as _
 from django.conf import settings
@@ -27,6 +24,7 @@ from config.settings import OPENAI_API_KEY
 from shared.ai_service.helper import create_prompt
 from shared.addons.payloads import valid_intents
 from shared.addons.redis import publish_message_to_ws_assistant
+from shared.mcp_server.mcp_server import tools as mcp_tools
 
 def create_message(conversation, sender, content, audio_file=None, run_status=None, input_tokens=None, output_tokens=None):
     message_type = 'audio' if audio_file else 'text'
@@ -187,6 +185,7 @@ def restrict_user_account(user):
 def update_assistant(assistant_id, name,  assistant, tools=None):
     print(f"Updating assistant with instructions")
     try:
+        tools = mcp_tools if assistant.integrations.filter(integration_type=IntegrationTypes.BILLZ.value).exists() else [{"type": "file_search"}]
         instruction = create_prompt(
             assistant.name,
             assistant.company_name,
@@ -437,19 +436,12 @@ def get_thread_id(assistant_id, vector_id):
         raise_validation_error(message=_(f"Failed to initialize thread for error: {assistant_id}"))
 
 def delete_vector_store_by_id(vector_store_id):
-    BASE_URL = "https://api.openai.com/v1/vector_stores"
-    headers = {
-        "Authorization": f"Bearer {OPENAI_API_KEY}",
-        "Content-Type": "application/json",
-        "OpenAI-Beta": "vector_stores=v1",
-    }
-    url = f"{BASE_URL}/{vector_store_id}"
-    response = requests.delete(url, headers=headers)
-    print(f"Delete vector store response: {response.text}")
-    if response.status_code == 200:
-        return response.json()
-    elif response.status_code == 404:
-        raise_validation_error(message="Vector store not found.")
+    deleted_response = client.vector_stores.delete(vector_store_id=vector_store_id)
+    print(f"Delete vector store response: {deleted_response}")
+    if deleted_response is not None:
+        return "Vector store deleted successfully."
+    else:
+        return "Vector store not found."
 
 
 def convert_ogg_to_mp3(audio_bytes: bytes) -> bytes:
