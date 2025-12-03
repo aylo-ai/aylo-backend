@@ -126,11 +126,11 @@ def process_instagram_message(account_id, combined_message, user_message, audio_
     sender_id = user_message[0].get("sender", {}).get("id")
     print(f"Sender ID: {sender_id}")
 
-    if account_id == '17841460285897235':
+    if account_id == '17841461784331766':
         if combined_message == "Obuna bo'ldim":
             integration = Integration.objects.filter(instagram_account_id=account_id).first()
             if integration:
-                send_instagram_message(integration.api_token, account_id, sender_id, "https://t.me/investorlikqollanmasi")
+                send_instagram_message(account_id, integration.api_token, sender_id, "https://t.me/investorlikqollanmasi")
                 print("[+] Obuna bo'ldingiz. link foydalanuvchiga yuborildi")
                 return 
             else:
