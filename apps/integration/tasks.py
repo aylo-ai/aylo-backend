@@ -126,7 +126,7 @@ def process_instagram_message(account_id, combined_message, user_message, audio_
     sender_id = user_message[0].get("sender", {}).get("id")
     print(f"Sender ID: {sender_id}")
 
-    if account_id == '17841461784331766':
+    if account_id in  ['17841461784331766', "17841460285897235"]:
         if combined_message == "Obuna bo'ldim":
             integration = Integration.objects.filter(instagram_account_id=account_id).first()
             if integration:
