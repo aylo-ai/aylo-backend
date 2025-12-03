@@ -6,36 +6,38 @@ import requests
 # # data = data.json()
 # # print(data)
 
-secret_token = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJjbGllbnRfcGxhdGZvcm1faWQiOiI3ZDRhNGMzOC1kZDg0LTQ5MDItYjc0NC0wNDg4YjgwYTRjMDEiLCJjb21wYW55X2lkIjoiNGY5NjYxOTgtZjA5Yy00YmJlLWEzMWEtYmE2YjAxNjIxY2Q5IiwiZGF0YSI6IiIsImV4cCI6MTc2NDkzNzU0NiwiaWF0IjoxNzYzNjQxNTQ2LCJpZCI6ImExZTVmYjJiLTRlYjEtNDA0Mi04ZjJmLTlmZGUwMWM1MjlhOSIsInVzZXJfaWQiOiI3N2MyMGFkYy03MDk0LTQ5ZjktODk2MS1iMmI0ZjMxNWFmOTAifQ.0YlZ9JsQThwHgYconf-MLZlwA2Lew7l_GCqnUAMsWXk"
-filter_data = {
-    "company_id": ["4f966198-f09c-4bbe-a31a-ba6b01621cd9"]
-}
-data = requests.get('https://api-admin.billz.ai/v2/category', headers={"Authorization": f"Bearer {secret_token}", "Content-Type": "application/json"}, params={"limit": 1000})
-data = data.json()
-print(data)
+# secret_token = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJjbGllbnRfcGxhdGZvcm1faWQiOiI3ZDRhNGMzOC1kZDg0LTQ5MDItYjc0NC0wNDg4YjgwYTRjMDEiLCJjb21wYW55X2lkIjoiNGY5NjYxOTgtZjA5Yy00YmJlLWEzMWEtYmE2YjAxNjIxY2Q5IiwiZGF0YSI6IiIsImV4cCI6MTc2NDkzNzU0NiwiaWF0IjoxNzYzNjQxNTQ2LCJpZCI6ImExZTVmYjJiLTRlYjEtNDA0Mi04ZjJmLTlmZGUwMWM1MjlhOSIsInVzZXJfaWQiOiI3N2MyMGFkYy03MDk0LTQ5ZjktODk2MS1iMmI0ZjMxNWFmOTAifQ.0YlZ9JsQThwHgYconf-MLZlwA2Lew7l_GCqnUAMsWXk"
+# filter_data = {
+#     "company_id": ["4f966198-f09c-4bbe-a31a-ba6b01621cd9"]
+# }
+# data = requests.get('https://api-admin.billz.ai/v2/category', headers={"Authorization": f"Bearer {secret_token}", "Content-Type": "application/json"}, params={"limit": 1000})
+# data = data.json()
+# print(data)
 # 885e207f-47c6-4bde-a6c4-c50bf074b134
 
 
-# def send_instagram_direct_message(access_token, account_id, sender_id, message):
-#     url = f"https://graph.instagram.com/v23.0/{account_id}/messages"
-#     headers = {
-#         "Content-Type": "application/json",
-#         "Authorization": f"Bearer {access_token}",
-#     }
+def send_instagram_direct_message(access_token, account_id, sender_id, message):
+    url = f"https://graph.instagram.com/v22.0/me/messages"
+    headers = {
+        "Content-Type": "application/json",
+        "Authorization": f"Bearer {access_token}",
+    }
 
-#     success = True
-#     payload = {"recipient": {"id": sender_id}, "message": {"text": message}}
+    success = True
+    print(f"Sender ID: {sender_id}, Account ID: {account_id}, Message: {message}")
+    payload = {"recipient": {"id": sender_id}, "message": {"text": message}}
 
-#     response = requests.post(url, json=payload, headers=headers)
-#     print(f"[+] Send_instagram_direct_message response: {response.text}")
+    response = requests.post(url, json=payload, headers=headers)
+    print(f"[+] Send_instagram_direct_message response: {response.text}")
 
-#     if response.status_code != 200:
-#         success = False
-#     print(response.json())
-#     return success
+    if response.status_code != 200:
+        success = False
+    print(response.json())
+    return success
 
-# print(send_instagram_direct_message("IGAARTl03yXtZABZAFFSSkNiM25BaTQ2ekdDVTFlTUZAkV0xRT1lrX3Rzcl9iVGI2dkRYeksyZA2ZAaVUpHZA3ZANX09ibWlHNUlpVnNjTEtsSWRRbEFCckhiYVFVWm0xN2RVV0RkaFQ4Q3ZAmOHFORy1kUlptNkhR", '17841460285897235', '1490667048879565', 'https://t.me/investorlikqollanmasi'))
-
+print(send_instagram_direct_message(
+    "IGAARTl03yXtZABZAFJxdjhpTDBsMVdmN3VnOUpHQ3lvQ2RGWUZACVjR5YU5qaGh2MG1LaW5QdVZA5dTV5QUhWSHpwTmZAWazh5QzFfRXZAlRVNMTmotNE95ODlRc0JjYl9fS3BDTk5SRk1rM1M1VmFQWXVyQ0Nn", 
+    '17841460285897235', '17841461784331766', 'test message'))
 # def checking_instagram_followers(access_token:str, recicipient_id:str):
 #     url = "https://graph.instagram.com/v23.0/me/media"
 #     headers = {
