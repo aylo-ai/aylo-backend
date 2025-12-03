@@ -488,7 +488,11 @@ CELERY_BEAT_SCHEDULE = {
     'process-monthly-subscriptions': {
         'task': 'apps.payment.tasks.process_monthly_subscriptions',
         'schedule': crontab(minute=0, hour=0),  # Run every day at 00:00
-    }
+    },
+    'daily-statistics-assistant': {
+        'task': 'apps.assistant.tasks.daily_statistics_assistant',
+        'schedule': crontab(minute=0, hour=21),  # Run every day at 21:00
+    },
 }
 
 # Modeltranslation settings
