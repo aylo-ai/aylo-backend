@@ -37,7 +37,6 @@ async def search_product(product_name: str, access_token: str):
             params=params,
             timeout=10
         )
-        logging.info(f"response: {response.json()}")
         
         if response.status_code == 200:
             response_json = response.json()
@@ -137,7 +136,7 @@ async def get_product_characteristics(access_token: str, limit: int = 1000):
         params = {"limit": limit}
         headers = {"Authorization": f"Bearer {access_token}"}
 
-        response = requests.get(url=base_url, headers=headers, params=params, timeout=10)
+        response = requests.get(url=base_url, headers=headers, params=params, timeout=30)
         
         if response.status_code == 200:
             return {"success": True, "characteristics": response.json()}
@@ -170,7 +169,7 @@ async def get_measurement_units(access_token: str):
         return {"success": False, "message": f"Error retrieving measurement units: {str(e)}"}
 
 @server.tool()
-async def get_categories(access_token: str, search: str = "", limit: int = 50):
+async def get_categories(access_token: str, search: str = "", limit: int = 100):
     """
     Retrieves a list of product categories from Billz.
     """
@@ -197,7 +196,7 @@ async def get_categories(access_token: str, search: str = "", limit: int = 50):
         return {"success": False, "message": f"Error retrieving categories: {str(e)}"}
 
 @server.tool()
-async def get_brands(access_token: str, search: str = "", limit: int = 10, page: int = 1):
+async def get_brands(access_token: str, search: str = "", limit: int = 100, page: int = 1):
     """
     Retrieves a list of product brands from Billz.
     """
