@@ -105,40 +105,8 @@ def create_prompt(assistant_name, company_name, company_description, assistant_r
 
     if tools:
         prompt_template += """
-        You are an intelligent assistant for the Billz product catalog. Your task is to analyze user requests and select the appropriate function from the list below.
-
-        CRITICAL INSTRUCTION: All function calls require a valid 'access_token'.
-        If user ask about something get list of it or related , approximatly some how close get things things, before getting product filter, get all measurtemt based on the api list, category, and otehrs, do not filter user given field filter only from api that calling it functions. do not show count of product or category
-
-        Important: if user asks something about product related always give option (category, brand, season like this and others) before getting product filter, get all measurtemt based on the api list, category, and otehrs, do not filter user given field filter only from api that calling it functions. do not show count of product or category
-
-        ### AVAILABLE FUNCTIONS AND USAGE GUIDELINES:
-
-        1.  **search_product(product_name: str, access_token: str)**
-            * **Use when:** The user asks for a specific product by name or keyword (e.g., "Find Nike shoes," "Do you have T-shirts?").
-            * **Goal:** Simple, broad keyword matching on products.
-
-        2.  **get_categories(access_token: str, search: str, limit: int, page: int)**
-            * **Use when:** The user asks for the available product categories (e.g., "What categories do you sell?", "List all departments").
-            * **Goal:** Retrieve the list of high-level categories.
-
-        3.  **get_brands(access_token: str, search: str, limit: int, page: int)**
-            * **Use when:** The user asks for the available product brands (e.g., "What brands do you carry?", "Is Adidas available?").
-            * **Goal:** Retrieve the list of available brand names.
-
-        4.  **get_measurement_units(access_token: str)**
-            * **Use when:** The user asks for units of measurement (e.g., "How are products measured?").
-            * **Goal:** Retrieve units like 'шт' (pcs) or 'кг' (kg).
-
-        5.  **get_product_characteristics(access_token: str, limit: int)**
-            * **Use when:** You need the IDs for specific **attributes** or **custom fields** before performing an advanced search.
-            * **Goal:** Retrieve the lookup list for attributes (like "Color") and custom properties.
-
-        6.  **search_products_with_filters(access_token: str, payload: dict, limit: int, page: int)**
-            * **Use when:** The user provides **multiple complex filtering criteria** simultaneously, such as combining brand, category, and price ranges (e.g., "Show me Nike shoes in category 123 where the price is between 500 and 1000").
-            * **Goal:** Perform advanced filtering using a JSON 'payload'. You must construct the 'payload' dictionary (e.g., "{"brand_ids": ["..."], "retail_price_from": "500"}") based on the user's request.
-        ---
-        **REMEMBER:** After receiving a function output, you MUST interpret the JSON result (checking 'success' and reading 'message') to formulate a final, helpful, and natural language response for the user.
+                #All important product will be stored in json file read and response user based on this one uploaded file.
+                **IMPORTANT**** When giving about 10 at least product or less then. If user mistype any product try to search it with relative similar one  and suggest you may ask this type of product and returrn  suggestion products like 10. and always stict to what user using language
                 """
     return prompt_template
 

@@ -79,17 +79,24 @@ async def search_product(product_name: str, access_token: str):
 @server.tool()
 async def search_products_with_filters(
     access_token: str, 
-    payload: dict,
-    limit: int = 10, 
+    payload: dict = None,
+    limit: int = 100,
+    page: int = 1,
 ):
     """
     Performs an advanced product search using multiple filters (category_ids, brand_ids, price ranges, etc.). 
     The 'payload' must be a dictionary containing the specific filter parameters.
+    If payload is not provided, it will be constructed from limit and page parameters.
     """
     if not access_token:
         return {"success": False, "message": "Billz access token missing."}
-    if not payload:
-        return {"success": False, "message": "Payload is required for advanced product search."}
+    
+    # If payload is not provided, create an empty dict
+    if payload is None:
+        payload = {}
+    
+    # Ensure pagination is in the payload
+    payload.update({"limit": limit, "page": page})
 
     try:
         base_url = "https://api-admin.billz.ai/v2/product-search-with-filters"
@@ -97,9 +104,6 @@ async def search_products_with_filters(
             "Content-Type": "application/json",
             "Authorization": f"Bearer {access_token}"
         }
-
-        # Ensure pagination is in the payload
-        payload.update({"limit": limit})
         
         response = requests.post(url=base_url, headers=headers, json=payload, timeout=20)
         
@@ -107,7 +111,6 @@ async def search_products_with_filters(
             response_json = response.json()
             products = response_json.get('products', [])
             total_found = response_json.get('count', 0)
-            
             return {
                 "success": True,
                 "message": f"Found {len(products)} product(s). Total: {total_found}",
@@ -139,7 +142,7 @@ async def get_product_characteristics(access_token: str, limit: int = 1000):
         response = requests.get(url=base_url, headers=headers, params=params, timeout=30)
         
         if response.status_code == 200:
-            return {"success": True, "characteristics": response.json()}
+            return {"success": True, "characteristics": response.json().get('product_characteristics', [])}
         else:
             return {"success": False, "message": f"API error: {response.status_code} - {response.text}"}
             
@@ -161,7 +164,7 @@ async def get_measurement_units(access_token: str):
         response = requests.get(url=base_url, headers=headers, timeout=10)
         
         if response.status_code == 200:
-            return {"success": True, "units": response.json()}
+            return {"success": True, "units": response.json().get('measurement_units', [])}
         else:
             return {"success": False, "message": f"API error: {response.status_code} - {response.text}"}
             
@@ -180,7 +183,6 @@ async def get_categories(access_token: str, search: str = "", limit: int = 100):
         base_url = "https://api-admin.billz.ai/v2/category"
         params = {
             "limit": limit,
-            "search": search,
             "is_deleted": False,
         }
         headers = {"Authorization": f"Bearer {access_token}"}
@@ -188,7 +190,7 @@ async def get_categories(access_token: str, search: str = "", limit: int = 100):
         response = requests.get(url=base_url, headers=headers, params=params, timeout=10)
         
         if response.status_code == 200:
-            return {"success": True, "categories": response.json()}
+            return {"success": True, "categories": response.json().get('categories', [])}
         else:
             return {"success": False, "message": f"API error: {response.status_code} - {response.text}"}
             
@@ -215,13 +217,14 @@ async def get_brands(access_token: str, search: str = "", limit: int = 100, page
         response = requests.get(url=base_url, headers=headers, params=params, timeout=10)
         
         if response.status_code == 200:
-            return {"success": True, "brands": response.json()}
+            return {"success": True, "brands": response.json().get("brands", [])}
         else:
             return {"success": False, "message": f"API error: {response.status_code} - {response.text}"}
             
     except requests.exceptions.RequestException as e:
         return {"success": False, "message": f"Error retrieving brands: {str(e)}"}
 tools = [
+    {"type": "file_search"},
     {
         "type": "function",
         "function": {
@@ -311,12 +314,12 @@ tools = [
                     "access_token": {"type": "string", "description": "Bearer token for API authentication"},
                     "payload": {
                         "type": "object",
-                        "description": "A dictionary containing the filter parameters (e.g., category_ids, retail_price_from, product_field_filters, etc.). Must conform to the API's POST body structure."
+                        "description": "Optional: A dictionary containing the filter parameters (e.g., category_ids, retail_price_from, product_field_filters, etc.). Must conform to the API's POST body structure. If not provided, only pagination will be applied."
                     },
                     "limit": {"type": "integer", "description": "Optional: Number of products per page (default 10)."},
                     "page": {"type": "integer", "description": "Optional: Page number for results (default 1)."}
                 },
-                "required": ["access_token", "payload"]
+                "required": ["access_token"]
             }
         }
     }
