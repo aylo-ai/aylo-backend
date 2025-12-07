@@ -1251,8 +1251,14 @@ class BillzSecretTokenHandlerView(generics.CreateAPIView):
         access_token = response.json().get('data').get('access_token')
         if not access_token:
             return error_response(message=_("Billz access token topilmadi"), code=400)
+        request.data['refresh_token'] = api_token
         request.data['api_token'] = access_token
         update_assistant(assistant.assistant_id, assistant.name, assistant, tools=tools)
         serializer.is_valid(raise_exception=True)
-        self.perform_create(serializer)
+        integration = serializer.save()
+        
+        # Trigger async task to fetch and save Billz products
+        from apps.integration.tasks import fetch_and_save_billz_products
+        fetch_and_save_billz_products.delay(str(integration.id))
+        
         return success_response(message=_("Billz secret token muvaffaqiyatli yaratildi"), data=serializer.data, code=201)

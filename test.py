@@ -1,43 +1,148 @@
 import requests
-# import time
+import time
+import json
 
-# # secret_token = '5a877c65e211f8cf24e0ae4766f59eed98f84c62357fdb2dc626a9f5bbed8b42750ae5aba915089246b707af08871870b4d20e66c934bf3d2b1b1254a3f7a91528a5169ab344534c22cde9e5e64a2f404fcd8e895c357d6cd1951b5daac313aa6fba7fd104a80d08c270cd2ab422ac949047b3edebce24ff'
-# # data = requests.post('https://api-admin.billz.ai/v1/auth/login', json={"secret_token": secret_token})
-# # data = data.json()
-# # print(data)
-
-# secret_token = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJjbGllbnRfcGxhdGZvcm1faWQiOiI3ZDRhNGMzOC1kZDg0LTQ5MDItYjc0NC0wNDg4YjgwYTRjMDEiLCJjb21wYW55X2lkIjoiNGY5NjYxOTgtZjA5Yy00YmJlLWEzMWEtYmE2YjAxNjIxY2Q5IiwiZGF0YSI6IiIsImV4cCI6MTc2NDkzNzU0NiwiaWF0IjoxNzYzNjQxNTQ2LCJpZCI6ImExZTVmYjJiLTRlYjEtNDA0Mi04ZjJmLTlmZGUwMWM1MjlhOSIsInVzZXJfaWQiOiI3N2MyMGFkYy03MDk0LTQ5ZjktODk2MS1iMmI0ZjMxNWFmOTAifQ.0YlZ9JsQThwHgYconf-MLZlwA2Lew7l_GCqnUAMsWXk"
-# filter_data = {
-#     "company_id": ["4f966198-f09c-4bbe-a31a-ba6b01621cd9"]
-# }
-# data = requests.get('https://api-admin.billz.ai/v2/category', headers={"Authorization": f"Bearer {secret_token}", "Content-Type": "application/json"}, params={"limit": 1000})
+# secret_token = '5a877c65e211f8cf24e0ae4766f59eed98f84c62357fdb2dc626a9f5bbed8b42750ae5aba915089246b707af08871870b4d20e66c934bf3d2b1b1254a3f7a91528a5169ab344534c22cde9e5e64a2f404fcd8e895c357d6cd1951b5daac313aa6fba7fd104a80d08c270cd2ab422ac949047b3edebce24ff'
+# data = requests.post('https://api-admin.billz.ai/v1/auth/login', json={"secret_token": secret_token})
 # data = data.json()
 # print(data)
+
+secret_token = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJjbGllbnRfcGxhdGZvcm1faWQiOiI3ZDRhNGMzOC1kZDg0LTQ5MDItYjc0NC0wNDg4YjgwYTRjMDEiLCJjb21wYW55X2lkIjoiNGY5NjYxOTgtZjA5Yy00YmJlLWEzMWEtYmE2YjAxNjIxY2Q5IiwiZGF0YSI6IiIsImV4cCI6MTc2NjM4NjM3MywiaWF0IjoxNzY1MDkwMzczLCJpZCI6IjNmNjY1ODFhLTBkNzgtNGU0Yy04YTY5LTJiOTA2ZTYzM2QwMCIsInVzZXJfaWQiOiI3N2MyMGFkYy03MDk0LTQ5ZjktODk2MS1iMmI0ZjMxNWFmOTAifQ.IEUvXJ9yTOqh5hlt9XyMMzahYTkjZiS3zf4QDDSXu-4"
+
+def extract_relevant_fields(product):
+    """
+    Extract only relevant fields from product for OpenAI agent queries.
+    Returns a simplified product object with only essential information.
+    """
+    # Extract color from custom_fields
+    color = None
+    size = None
+    for field in product.get('custom_fields', []):
+        if field.get('custom_field_system_name') == 'ЦВЕТ':
+            color = field.get('custom_field_value')
+        elif field.get('custom_field_system_name') == 'РАЗМЕР':
+            size = field.get('custom_field_value')
+    
+    # Extract shop names and prices
+    shops = []
+    for shop_price in product.get('shop_prices', []):
+        shops.append({
+            'shop_name': shop_price.get('shop_name', ''),
+            'retail_price': shop_price.get('retail_price', 0),
+            'retail_currency': shop_price.get('retail_currency', 'UZS')
+        })
+    
+    # Extract category names
+    categories = [cat.get('name', '') for cat in product.get('categories', [])]
+    
+    # Build simplified product
+    simplified = {
+        'id': product.get('id', ''),
+        'name': product.get('name', ''),
+        'product_name': product.get('name', ''),  # Alias for name
+        'sku': product.get('sku', ''),
+        'color': color,
+        'size': size,
+        'categories': categories,
+        'brand_name': product.get('brand_name', ''),
+        'shops': shops,
+        'description': product.get('description', ''),
+        'barcode': product.get('barcode', '')
+    }
+    
+    return simplified
+
+
+def get_all_products(access_token):
+    """
+    Fetch all products from the Billz API with pagination support.
+    Returns a list of all products with only relevant fields.
+    """
+    all_products = []
+    page = 1
+    limit = 1000  # Maximum items per page
+    base_url = 'https://api-admin.billz.ai/v2/products'
+    headers = {
+        "Authorization": f"Bearer {access_token}",
+        "Content-Type": "application/json"
+    }
+    
+    print("Fetching all products...")
+    
+    while True:
+        params = {
+            "limit": limit,
+            "page": page
+        }
+        
+        try:
+            response = requests.get(base_url, headers=headers, params=params)
+            response.raise_for_status()
+            data = response.json()
+            
+            # Extract products from response
+            products = data.get('products', [])
+            if not products:
+                break
+            
+            # Extract only relevant fields from each product
+            for product in products:
+                simplified_product = extract_relevant_fields(product)
+                all_products.append(simplified_product)
+            
+            print(f"Fetched page {page}: {len(products)} products (Total: {len(all_products)})")
+            
+            # Check if there are more pages
+            # If we got fewer products than the limit, we've reached the last page
+            if len(products) < limit:
+                break
+            
+            page += 1
+            
+        except requests.exceptions.RequestException as e:
+            print(f"Error fetching page {page}: {str(e)}")
+            break
+    
+    return all_products
+
+start_time = time.time()
+all_products = get_all_products(secret_token)
+end_time = time.time()
+
+print(f"\nTotal products fetched: {len(all_products)}")
+print(f"Time taken: {end_time - start_time:.2f} seconds")
+
+# Save to JSON file
+output_file = 'all_products.json'
+with open(output_file, 'w', encoding='utf-8') as f:
+    json.dump(all_products, f, ensure_ascii=False, indent=2)
+
+print(f"Products saved to {output_file}")
 # 885e207f-47c6-4bde-a6c4-c50bf074b134
 
 
-def send_instagram_direct_message(access_token, account_id, sender_id, message):
-    url = f"https://graph.instagram.com/v22.0/me/messages"
-    headers = {
-        "Content-Type": "application/json",
-        "Authorization": f"Bearer {access_token}",
-    }
+# def send_instagram_direct_message(access_token, account_id, sender_id, message):
+#     url = f"https://graph.instagram.com/v22.0/me/messages"
+#     headers = {
+#         "Content-Type": "application/json",
+#         "Authorization": f"Bearer {access_token}",
+#     }
 
-    success = True
-    print(f"Sender ID: {sender_id}, Account ID: {account_id}, Message: {message}")
-    payload = {"recipient": {"id": sender_id}, "message": {"text": message}}
+#     success = True
+#     print(f"Sender ID: {sender_id}, Account ID: {account_id}, Message: {message}")
+#     payload = {"recipient": {"id": sender_id}, "message": {"text": message}}
 
-    response = requests.post(url, json=payload, headers=headers)
-    print(f"[+] Send_instagram_direct_message response: {response.text}")
+#     response = requests.post(url, json=payload, headers=headers)
+#     print(f"[+] Send_instagram_direct_message response: {response.text}")
 
-    if response.status_code != 200:
-        success = False
-    print(response.json())
-    return success
+#     if response.status_code != 200:
+#         success = False
+#     print(response.json())
+#     return success
 
-print(send_instagram_direct_message(
-    "IGAARTl03yXtZABZAFJxdjhpTDBsMVdmN3VnOUpHQ3lvQ2RGWUZACVjR5YU5qaGh2MG1LaW5QdVZA5dTV5QUhWSHpwTmZAWazh5QzFfRXZAlRVNMTmotNE95ODlRc0JjYl9fS3BDTk5SRk1rM1M1VmFQWXVyQ0Nn", 
-    '17841460285897235', '17841461784331766', 'test message'))
+# print(send_instagram_direct_message(
+#     "IGAARTl03yXtZABZAFJxdjhpTDBsMVdmN3VnOUpHQ3lvQ2RGWUZACVjR5YU5qaGh2MG1LaW5QdVZA5dTV5QUhWSHpwTmZAWazh5QzFfRXZAlRVNMTmotNE95ODlRc0JjYl9fS3BDTk5SRk1rM1M1VmFQWXVyQ0Nn", 
+#     '17841460285897235', '17841461784331766', 'test message'))
 # def checking_instagram_followers(access_token:str, recicipient_id:str):
 #     url = "https://graph.instagram.com/v23.0/me/media"
 #     headers = {

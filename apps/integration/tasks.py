@@ -1,5 +1,8 @@
 import requests
 import time
+import json
+import os
+import tempfile
 import pytz
 from datetime import datetime
 
@@ -802,5 +805,256 @@ def create_amocrm_lead(lead_id, integration_id):
             
     except Exception as e:
         print(f"[-] Error creating amoCRM lead: {e}")
+        import traceback
+        traceback.print_exc()
+
+
+def extract_relevant_fields(product):
+    """
+    Extract only relevant fields from product for OpenAI agent queries.
+    Returns a simplified product object with only essential information.
+    """
+    # Extract color from custom_fields
+    color = None
+    size = None
+    for field in product.get('custom_fields', []):
+        if field.get('custom_field_system_name') == 'ЦВЕТ':
+            color = field.get('custom_field_value')
+        elif field.get('custom_field_system_name') == 'РАЗМЕР':
+            size = field.get('custom_field_value')
+    
+    # Extract shop names and prices
+    shops = []
+    for shop_price in product.get('shop_prices', []):
+        shops.append({
+            'shop_name': shop_price.get('shop_name', ''),
+            'retail_price': shop_price.get('retail_price', 0),
+            'retail_currency': shop_price.get('retail_currency', 'UZS')
+        })
+    
+    # Extract category names
+    categories = [cat.get('name', '') for cat in product.get('categories', [])]
+    
+    # Build simplified product
+    simplified = {
+        'id': product.get('id', ''),
+        'name': product.get('name', ''),
+        'product_name': product.get('name', ''),  # Alias for name
+        'sku': product.get('sku', ''),
+        'color': color,
+        'size': size,
+        'categories': categories,
+        'brand_name': product.get('brand_name', ''),
+        'shops': shops,
+        'description': product.get('description', ''),
+        'barcode': product.get('barcode', '')
+    }
+    
+    return simplified
+
+
+def get_all_billz_products(access_token):
+    """
+    Fetch all products from the Billz API with pagination support.
+    Returns a list of all products with only relevant fields.
+    """
+    all_products = []
+    page = 1
+    limit = 1000  # Maximum items per page
+    base_url = 'https://api-admin.billz.ai/v2/products'
+    headers = {
+        "Authorization": f"Bearer {access_token}",
+        "Content-Type": "application/json"
+    }
+    
+    print("[+] Fetching all Billz products...")
+    
+    while True:
+        params = {
+            "limit": limit,
+            "page": page
+        }
+        
+        try:
+            response = requests.get(base_url, headers=headers, params=params, timeout=30)
+            response.raise_for_status()
+            data = response.json()
+            
+            # Extract products from response
+            products = data.get('products', [])
+            if not products:
+                break
+            
+            # Extract only relevant fields from each product
+            for product in products:
+                simplified_product = extract_relevant_fields(product)
+                all_products.append(simplified_product)
+            
+            print(f"[+] Fetched page {page}: {len(products)} products (Total: {len(all_products)})")
+            
+            # Check if there are more pages
+            # If we got fewer products than the limit, we've reached the last page
+            if len(products) < limit:
+                break
+            
+            page += 1
+            
+        except requests.exceptions.RequestException as e:
+            print(f"[-] Error fetching page {page}: {str(e)}")
+            break
+    
+    return all_products
+
+
+@shared_task
+def fetch_and_save_billz_products(integration_id: str):
+    """
+    Fetch all Billz products and save them to vector store.
+    This task is called when Billz integration is created or updated.
+    """
+    try:
+        integration = Integration.objects.filter(id=integration_id).first()
+        if not integration or integration.integration_type != IntegrationTypes.BILLZ.value:
+            print(f"[-] Integration {integration_id} not found or not Billz type")
+            return
+        
+        if not integration.api_token or not integration.assistant:
+            print(f"[-] Integration {integration_id} missing api_token or assistant")
+            return
+        
+        assistant = integration.assistant
+        
+        # Fetch all products
+        all_products = get_all_billz_products(integration.api_token)
+        
+        if not all_products:
+            print(f"[-] No products fetched for integration {integration_id}")
+            return
+        
+        print(f"[+] Fetched {len(all_products)} products for integration {integration_id}")
+        
+        # Convert products to JSON string
+        products_json = json.dumps(all_products, ensure_ascii=False, indent=2)
+        
+        # Create a unique filename for this assistant's products
+        filename = f"billz_products_{assistant.id}_{int(time.time())}.json"
+        
+        # Save to temp file first
+        temp_dir = tempfile.gettempdir()
+        temp_file_path = os.path.join(temp_dir, filename)
+        
+        with open(temp_file_path, 'w', encoding='utf-8') as f:
+            f.write(products_json)
+        
+        print(f"[+] Saved products to temp file: {temp_file_path}")
+        
+        # Ensure assistant has a vector store
+        if not assistant.vector_id:
+            from shared.addons.ai_requests import create_assistant_and_vector_id
+            success, message = create_assistant_and_vector_id(assistant, request=None)
+            if not success:
+                print(f"[-] Failed to create vector store for assistant {assistant.id}: {message}")
+                # Clean up temp file
+                if os.path.exists(temp_file_path):
+                    os.remove(temp_file_path)
+                return
+        
+        # Get previous file_id from metadata if it exists
+        metadata = integration.metadata or {}
+        previous_file_id = metadata.get('billz_products_file_id')
+        
+        # Delete previous file from vector store if it exists
+        if previous_file_id and assistant.vector_id:
+            try:
+                print(f"[+] Deleting previous Billz products file (file_id: {previous_file_id}) from vector store")
+                client.vector_stores.files.delete(
+                    vector_store_id=assistant.vector_id,
+                    file_id=previous_file_id
+                )
+                print(f"[+] Successfully deleted previous Billz products file from vector store")
+            except Exception as e:
+                # If file doesn't exist anymore, that's okay - just log it
+                print(f"[!] Could not delete previous file (may not exist): {e}")
+        
+        # Upload to OpenAI using clear_text (more efficient than file URL)
+        openai_file_id = upload_knowledge_base_file(file_url=None, clear_text=products_json)
+        
+        if not openai_file_id:
+            print(f"[-] Failed to upload products to OpenAI for integration {integration_id}")
+            # Clean up temp file
+            if os.path.exists(temp_file_path):
+                os.remove(temp_file_path)
+            return
+        
+        print(f"[+] Uploaded products to OpenAI with file_id: {openai_file_id}")
+        
+        # Add file to vector store
+        if assistant.vector_id:
+            try:
+                batch = client.vector_stores.file_batches.create(
+                    vector_store_id=assistant.vector_id,
+                    file_ids=[openai_file_id]
+                )
+                
+                # Poll until completion
+                while True:
+                    status = client.vector_stores.file_batches.retrieve(
+                        vector_store_id=assistant.vector_id,
+                        batch_id=batch.id
+                    )
+                    if status.status in ["completed", "failed"]:
+                        break
+                    time.sleep(0.5)
+                
+                if status.status == "completed":
+                    print(f"[+] Products successfully added to vector store for assistant {assistant.id}")
+                    
+                    # Update integration metadata with new file_id
+                    if not integration.metadata:
+                        integration.metadata = {}
+                    integration.metadata['billz_products_file_id'] = openai_file_id
+                    integration.metadata['billz_products_updated_at'] = time.time()
+                    integration.save(update_fields=['metadata'])
+                    print(f"[+] Updated integration metadata with new file_id: {openai_file_id}")
+                else:
+                    print(f"[-] Failed to add products to vector store: {status.status}")
+            except Exception as e:
+                print(f"[-] Error adding products to vector store: {e}")
+        
+        # Clean up temp file
+        if os.path.exists(temp_file_path):
+            os.remove(temp_file_path)
+            print(f"[+] Cleaned up temp file: {temp_file_path}")
+            
+    except Exception as e:
+        print(f"[-] Error in fetch_and_save_billz_products: {e}")
+        import traceback
+        traceback.print_exc()
+
+
+@shared_task
+def update_billz_products_hourly():
+    """
+    Periodic task to update Billz products for all assistants with Billz integration.
+    Runs every hour to keep product data up to date.
+    """
+    try:
+        billz_integrations = Integration.objects.filter(
+            integration_type=IntegrationTypes.BILLZ.value,
+            is_active=True,
+            assistant__isnull=False
+        ).select_related('assistant')
+        
+        print(f"[+] Found {billz_integrations.count()} active Billz integrations to update")
+        
+        for integration in billz_integrations:
+            if integration.api_token and integration.assistant:
+                print(f"[+] Updating products for integration {integration.id} (assistant {integration.assistant.id})")
+                fetch_and_save_billz_products.delay(str(integration.id))
+            else:
+                print(f"[-] Skipping integration {integration.id} - missing api_token or assistant")
+                
+    except Exception as e:
+        print(f"[-] Error in update_billz_products_hourly: {e}")
         import traceback
         traceback.print_exc()

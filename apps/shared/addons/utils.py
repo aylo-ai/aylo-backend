@@ -182,10 +182,11 @@ def restrict_user_account(user):
     subscription.save()
 
 
-def update_assistant(assistant_id, name,  assistant, tools=None):
+def update_assistant(assistant_id, name, assistant, tools=None):
     print(f"Updating assistant with instructions")
     try:
-        tools = mcp_tools if assistant.integrations.filter(integration_type=IntegrationTypes.BILLZ.value).exists() else [{"type": "file_search"}]
+        # tools = mcp_tools if assistant.integrations.filter(integration_type=IntegrationTypes.BILLZ.value).exists() else [{"type": "file_search"}]
+        tools =  [{"type": "file_search"}]
         instruction = create_prompt(
             assistant.name,
             assistant.company_name,

@@ -207,6 +207,7 @@ async def get_assistant_response_ai_mcp(
                                     tool_name,
                                     arguments=arguments,
                                 )
+                                print(f"[+] Tool result: {result} and tool name: {tool_name}")
                                 
                             except Exception as exc:
                                 result = f"Tool error: {exc}"
