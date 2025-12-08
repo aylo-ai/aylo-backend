@@ -54,17 +54,17 @@ def process_message_task(chat_id, user_message, bot_token, chat_username=None, u
 
     data = create_message(conversation=conversation, sender=SenderTypes.USER.value, content=user_message, audio_file=audio_file, input_tokens=input_tokens, output_tokens=output_tokens)
     publish_message_to_ws(conversation_id=conversation.id, message=user_message, sender='user', data=data, assistant_id=assistant.id)
-    billz_integration = assistant.integrations.filter(integration_type=IntegrationTypes.BILLZ.value).first()
-    if billz_integration:
-        response_message, run_status, response_data = run_assistant_response_ai_mcp_sync(
-            message_content=user_message, 
-            assistant_id=assistant.assistant_id, 
-            thread_id=conversation.thread_id, 
-            billz_api_token=billz_integration.api_token,
-            conversation=conversation
-        )
-    else:   
-        response_message, run_status, response_data = get_assistant_response_ai(user_message, 
+    # billz_integration = assistant.integrations.filter(integration_type=IntegrationTypes.BILLZ.value).first()
+    # if billz_integration:
+    #     response_message, run_status, response_data = run_assistant_response_ai_mcp_sync(
+    #         message_content=user_message, 
+    #         assistant_id=assistant.assistant_id, 
+    #         thread_id=conversation.thread_id, 
+    #         billz_api_token=billz_integration.api_token,
+    #         conversation=conversation
+    #     )
+    # else:   
+    response_message, run_status, response_data = get_assistant_response_ai(user_message, 
                                                                                 assistant.assistant_id, 
                                                                                 conversation.thread_id,
                                                                                 conversation=conversation

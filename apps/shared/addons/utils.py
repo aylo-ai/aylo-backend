@@ -349,12 +349,17 @@ def get_assistant_response_ai(user_message_, assistant_id, thread_id, conversati
             assistant_response = None
 
             # Iterate over all messages
+            print(f"Messages in get_assistant_response_ai: {messages.data}")
             for msg in messages.data:
                 if msg.role == "assistant" and msg.content:
-                    # Extract text content blocks
                     for block in msg.content:
-                        if block.type == "text" and hasattr(block.text, "value"):
-                            assistant_response = block.text.value
+                        if block.type == "text":
+                            if hasattr(block.text, "value"):
+                                assistant_response = block.text.value
+                                break  # Found the response, break the inner loop
+                            elif isinstance(block.text, str):
+                                assistant_response = block.text
+                                break
 
             if assistant_response:
                 print(f"Assistant response: {assistant_response}")
@@ -409,7 +414,8 @@ def get_assistant_response_ai(user_message_, assistant_id, thread_id, conversati
                     )
                     print("[+] Lead created from Telegram message")
                 return clean_response, run_status, response_data
-            
+            else:
+                return None, None, None
         except Exception as e:
             print(f"[-] Error  in get_assistant_response_ai: {str(e)}")
             return "", None, None
