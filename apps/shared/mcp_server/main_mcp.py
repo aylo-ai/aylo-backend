@@ -113,6 +113,7 @@ async def get_assistant_response_ai_mcp(
                         
                         assistant_response = None
                         # Iterate over all messages
+                        print(f"Messages in get_assistant_response_ai_mcp: {messages}")
                         for msg in messages.data:
                             if msg.role == "assistant" and msg.content:
                                 # Extract text content blocks
