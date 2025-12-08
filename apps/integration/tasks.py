@@ -18,7 +18,7 @@ from shared.ai_service.helper import distill_company_kb_from_texts,  upload_know
 from shared.addons.instagram import (send_instagram_message, send_instagram_private_reply, 
                                         send_instagram_comment_reply, send_instagram_postback, 
                                         checking_instagram_followers, build_button_payload)
-from shared.addons.telegram import send_telegram_message, send_telegram_action
+from shared.addons.telegram import send_telegram_message, send_telegram_action, send_telegram_photo
 from shared.addons.utils import (get_assistant_response_ai, handle_start_command,   
                                 get_or_create_conversation, create_message, 
                                 speech_to_text, convert_ogg_to_mp3, process_instagram_audio)
@@ -54,22 +54,23 @@ def process_message_task(chat_id, user_message, bot_token, chat_username=None, u
 
     data = create_message(conversation=conversation, sender=SenderTypes.USER.value, content=user_message, audio_file=audio_file, input_tokens=input_tokens, output_tokens=output_tokens)
     publish_message_to_ws(conversation_id=conversation.id, message=user_message, sender='user', data=data, assistant_id=assistant.id)
-    # billz_integration = assistant.integrations.filter(integration_type=IntegrationTypes.BILLZ.value).first()
-    # if billz_integration:
-    #     response_message, run_status, response_data = run_assistant_response_ai_mcp_sync(
-    #         message_content=user_message, 
-    #         assistant_id=assistant.assistant_id, 
-    #         thread_id=conversation.thread_id, 
-    #         billz_api_token=billz_integration.api_token,
-    #         conversation=conversation
-    #     )
-    # else:   
-    response_message, run_status, response_data = get_assistant_response_ai(user_message, 
-                                                                                assistant.assistant_id, 
-                                                                                conversation.thread_id,
-                                                                                conversation=conversation
-                                                                                )
-    
+    billz_integration = assistant.integrations.filter(integration_type=IntegrationTypes.BILLZ.value).first()
+    entities = None
+    if billz_integration:
+        response_message, run_status, response_data, entities = run_assistant_response_ai_mcp_sync(
+            message_content=user_message, 
+            assistant_id=assistant.assistant_id, 
+            thread_id=conversation.thread_id, 
+            billz_api_token=billz_integration.api_token,
+            conversation=conversation
+        )
+    else:   
+        response_message, run_status, response_data = get_assistant_response_ai(user_message, 
+                                                                                    assistant.assistant_id, 
+                                                                                    conversation.thread_id,
+                                                                                    conversation=conversation
+                                                                                    )
+        
     username = getattr(response_data, 'username', None) if response_data else None
     platform = getattr(response_data, 'platform', None) if response_data else None
     username_link = None
@@ -115,6 +116,27 @@ def process_message_task(chat_id, user_message, bot_token, chat_username=None, u
         send_telegram_message(chat_id, response_message, bot_token)
         data = create_message(conversation=conversation, sender=SenderTypes.ASSISTANT.value, content=response_message, run_status=run_status)
         publish_message_to_ws(conversation.id, response_message, sender="assistant", assistant_id=assistant.id,data=data)
+
+    # Send entity-specific messages (e.g., product cards with images)
+    if entities:
+        entity_list = entities if isinstance(entities, list) else [entities]
+        for ent in entity_list:
+            if not isinstance(ent, dict):
+                continue
+            image_url = ent.get("image_url") or ent.get("main_image_url") or ent.get("main_image_url_full")
+            # Build caption/text excluding image_url
+            lines = []
+            if ent.get("product_name"):
+                lines.append(f"<b>{ent.get('product_name')}</b>")
+            if ent.get("shop_name"):
+                lines.append(f"Shop: {ent.get('shop_name')}")
+            if ent.get("price"):
+                cur = ent.get("currency") or ""
+                lines.append(f"Price: {ent.get('price')} {cur}")
+            caption = "\n".join(lines) if lines else None
+
+            if image_url:
+                send_telegram_photo(chat_id, image_url, bot_token, caption=caption)
 
 @shared_task
 def process_instagram_message(account_id, combined_message, user_message, audio_file=None):

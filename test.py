@@ -47,7 +47,11 @@ def extract_relevant_fields(product):
         'brand_name': product.get('brand_name', ''),
         'shops': shops,
         'description': product.get('description', ''),
-        'barcode': product.get('barcode', '')
+        'barcode': product.get('barcode', ''),
+        # Image fields
+        'main_image_url': product.get('main_image_url', ''),
+        'main_image_url_full': product.get('main_image_url_full', ''),
+        'photos': product.get('photos', []),
     }
     
     return simplified
