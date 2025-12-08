@@ -3,6 +3,7 @@ import json
 import requests
 from urllib.parse import urlencode
 from django.shortcuts import redirect
+from django.db.models import Q
 
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework import generics, status, permissions
@@ -309,7 +310,7 @@ class GoogleAuthCallbackView(APIView):
                 return error_response(message=_("Sub topilmadi"), code=400)
             print("sub topildi")
 
-            user = User.objects.filter(email=user_info.get("email", "")).first()
+            user = User.objects.filter(Q(email=user_info.get("email", "")) | Q(sub=sub)).first()
             print(f"user: {user}")
             if not user:
                 # create user
