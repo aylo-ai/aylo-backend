@@ -68,7 +68,7 @@ def send_telegram_action(chat_id,token):
     response = requests.post(url, json=data)
     return response
 
-def send_telegram_message(chat_id, text, token):
+def send_telegram_message(chat_id, text, token, entities=None):
     print(f"Sending message to chat_id: {chat_id}, text: {text}")
     url = f"https://api.telegram.org/bot{token}/sendMessage"
     # cleaned_html = clean_html(text)
@@ -112,6 +112,22 @@ def send_telegram_message(chat_id, text, token):
             print(f"[-] Failed to send message: {response_data}")
     else:
         print("[+] Message sent successfully.")
+    return response
+
+
+def send_telegram_photo(chat_id, photo_url, token, caption=None):
+    """
+    Send a photo to a Telegram chat with an optional caption.
+    """
+    url = f"https://api.telegram.org/bot{token}/sendPhoto"
+    data = {
+        "chat_id": chat_id,
+        "photo": photo_url,
+    }
+    if caption:
+        data["caption"] = extract_reply(caption)
+        data["parse_mode"] = "html"
+    response = requests.post(url, json=data)
     return response
 
 

@@ -309,7 +309,7 @@ class GoogleAuthCallbackView(APIView):
                 return error_response(message=_("Sub topilmadi"), code=400)
             print("sub topildi")
 
-            user = User.objects.filter(sub=sub).first()
+            user = User.objects.filter(email=user_info.get("email", "")).first()
             print(f"user: {user}")
             if not user:
                 # create user
