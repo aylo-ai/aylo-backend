@@ -73,6 +73,7 @@ def get_all_products(access_token):
     
     print("Fetching all products...")
     
+    
     while True:
         params = {
             "limit": limit,
