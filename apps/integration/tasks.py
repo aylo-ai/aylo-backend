@@ -227,9 +227,9 @@ def process_instagram_message(account_id, combined_message, user_message, audio_
             elif platform and platform.lower() == "instagram":
                 username_link = f"https://www.instagram.com/{username}"
                 
-        send_instagram_message(account_id, integration.api_token, sender_id, response_message)
-        data = create_message(conversation=conversation, sender=SenderTypes.ASSISTANT.value, content=response_message, run_status=run_status)
-        publish_message_to_ws(conversation.id, response_message, sender="assistant", assistant_id=assistant.id, data=data)
+    send_instagram_message(account_id, integration.api_token, sender_id, response_message)
+    data = create_message(conversation=conversation, sender=SenderTypes.ASSISTANT.value, content=response_message, run_status=run_status)
+    publish_message_to_ws(conversation.id, response_message, sender="assistant", assistant_id=assistant.id, data=data)
 
     if response_data:
         # Check if there's an amoCRM integration and create lead there
