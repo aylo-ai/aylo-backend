@@ -215,8 +215,8 @@ def process_instagram_message(account_id, combined_message, user_message, audio_
                 billz_api_token=billz_integration.api_token,
                 conversation=conversation
             )
-    else:
-        response_message, run_status, response_data = get_assistant_response_ai(combined_message, assistant.assistant_id, conversation.thread_id, conversation=conversation)
+        else:
+            response_message, run_status, response_data = get_assistant_response_ai(combined_message, assistant.assistant_id, conversation.thread_id, conversation=conversation)
     if response_data:
         username = getattr(response_data, 'username', None)
         platform = getattr(response_data, 'platform', None)
