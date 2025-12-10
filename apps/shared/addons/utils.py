@@ -415,6 +415,7 @@ def get_assistant_response_ai(user_message_, assistant_id, thread_id, conversati
                     print("[+] Lead created from Telegram message")
                 return clean_response, run_status, response_data
             else:
+                print(f"Failed to get assistant response: no runs found for thread_id: {thread_id}")
                 return None, None, None
         except Exception as e:
             print(f"[-] Error  in get_assistant_response_ai: {str(e)}")

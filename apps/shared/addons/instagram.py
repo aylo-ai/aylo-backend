@@ -81,6 +81,16 @@ def send_instagram_message(account_id, access_token, recipient_id, message):
         print(f"[+] Send_instagram_message success: {success}, response: {response.text}")
     return success
 
+def send_instagram_photo(account_id, access_token, recipient_id, photo_url):
+    url = f"https://graph.instagram.com/v22.0/{account_id}/messages"
+    headers = {
+        "Content-Type": "application/json",
+        "Authorization": f"Bearer {access_token}",
+    }
+    payload = {"recipient": {"id": recipient_id}, "message": {"attachment": {"type": "image", "payload": {"url": photo_url}}}}
+    response = requests.post(url, json=payload, headers=headers)
+    return response
+
 
 def send_instagram_private_reply(access_token, account_id, comment_id, message):
     url = f"https://graph.instagram.com/v23.0/{account_id}/messages"
