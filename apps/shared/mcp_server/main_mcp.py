@@ -185,9 +185,9 @@ async def get_assistant_response_ai_mcp(
                                 response_data = await create_lead()
                                 print("[+] Lead created from MCP message")
                             
-                            return clean_response, run_status, response_data, entities
+                            return clean_response, run_status, response_data, entities, intent
                         
-                        return None, run_status, None, None
+                        return None, run_status, None, None, None
 
                     if run_status.status == "requires_action":
                         required = run_status.required_action.submit_tool_outputs
@@ -229,7 +229,7 @@ async def get_assistant_response_ai_mcp(
     except Exception as e:
         print(f"[-] Error in get_assistant_response_ai_mcp: {str(e)}")
         logging.error(f"Error in get_assistant_response_ai_mcp: {str(e)}")
-        return "", None, None, None
+        return "", None, None, None, None
 
 
 def run_assistant_response_ai_mcp_sync(
@@ -239,7 +239,7 @@ def run_assistant_response_ai_mcp_sync(
     message_content: str,
     billz_api_token: str,
     conversation=None,
-) -> Tuple[Optional[str], Optional[object], Optional[object], Optional[object]]:
+) -> Tuple[Optional[str], Optional[object], Optional[object], Optional[object], Optional[str]]:
     """
     Synchronous wrapper for get_assistant_response_ai_mcp.
     Returns tuple: (response_message, run_status, response_data)

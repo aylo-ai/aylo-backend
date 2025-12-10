@@ -17,7 +17,7 @@ from celery import shared_task
 from shared.ai_service.helper import distill_company_kb_from_texts,  upload_knowledge_base_file
 from shared.addons.instagram import (send_instagram_message, send_instagram_private_reply, 
                                         send_instagram_comment_reply, send_instagram_postback, 
-                                        checking_instagram_followers, build_button_payload)
+                                        checking_instagram_followers, build_button_payload, send_instagram_photo)
 from shared.addons.telegram import send_telegram_message, send_telegram_action, send_telegram_photo
 from shared.addons.utils import (get_assistant_response_ai, handle_start_command,   
                                 get_or_create_conversation, create_message, 
@@ -56,8 +56,9 @@ def process_message_task(chat_id, user_message, bot_token, chat_username=None, u
     publish_message_to_ws(conversation_id=conversation.id, message=user_message, sender='user', data=data, assistant_id=assistant.id)
     billz_integration = assistant.integrations.filter(integration_type=IntegrationTypes.BILLZ.value).first()
     entities = None
+    intent = None
     if billz_integration:
-        response_message, run_status, response_data, entities = run_assistant_response_ai_mcp_sync(
+        response_message, run_status, response_data, entities, intent = run_assistant_response_ai_mcp_sync(
             message_content=user_message, 
             assistant_id=assistant.assistant_id, 
             thread_id=conversation.thread_id, 
@@ -89,6 +90,7 @@ def process_message_task(chat_id, user_message, bot_token, chat_username=None, u
                 f"📦 *Interested Product: {response_data.product}  " if getattr(response_data, 'product', None) else None,
                 f"📱 *Platform: {platform}  " if platform else None,
                 f"🔗 *Username: {username_link}\n" if username_link else None,
+                f"🆔 *Artikul:* {response_data.metadata.get('sku', None)}\n" if response_data.metadata and response_data.metadata.get('sku', None) else None,
                 "\n✅ Please follow up accordingly."
             ]
         response_text = "\n".join([line for line in response_lines if line])
@@ -117,26 +119,43 @@ def process_message_task(chat_id, user_message, bot_token, chat_username=None, u
         data = create_message(conversation=conversation, sender=SenderTypes.ASSISTANT.value, content=response_message, run_status=run_status)
         publish_message_to_ws(conversation.id, response_message, sender="assistant", assistant_id=assistant.id,data=data)
 
-    # Send entity-specific messages (e.g., product cards with images)
-    if entities:
+    # Send entity-specific messages (e.g., product recommendation cards)
+    if entities and intent == "product_recommendation":
         entity_list = entities if isinstance(entities, list) else [entities]
-        for ent in entity_list:
+        text_lines = []
+
+        for idx, ent in enumerate(entity_list, start=1):
             if not isinstance(ent, dict):
                 continue
-            image_url = ent.get("image_url") or ent.get("main_image_url") or ent.get("main_image_url_full")
-            # Build caption/text excluding image_url
-            lines = []
-            if ent.get("product_name"):
-                lines.append(f"<b>{ent.get('product_name')}</b>")
-            if ent.get("shop_name"):
-                lines.append(f"Shop: {ent.get('shop_name')}")
-            if ent.get("price"):
-                cur = ent.get("currency") or ""
-                lines.append(f"Price: {ent.get('price')} {cur}")
-            caption = "\n".join(lines) if lines else None
 
-            if image_url:
-                send_telegram_photo(chat_id, image_url, bot_token, caption=caption)
+            # Keep image_url for possible future use; do not send it now
+            _image_url = (
+                ent.get("image_url")
+                or ent.get("main_image_url")
+                or ent.get("main_image_url_full")
+            )
+
+            # Build a simple "key: value" summary using all non-image fields
+            detail_pairs = []
+            for key, value in ent.items():
+                if key in {"image_url", "main_image_url", "main_image_url_full", "sku"}:
+                    continue
+                if value in [None, ""]:
+                    continue
+                detail_pairs.append(f"{key.capitalize()}: {value}")
+
+            if not detail_pairs:
+                continue
+            # Render each field on its own line for clarity
+            text_line = f"\n{idx}." + "\n".join(detail_pairs)
+
+            if _image_url:
+                send_telegram_photo(chat_id, _image_url, bot_token, caption=text_line)
+            else:
+                text_lines.append(text_line)
+
+        if text_lines:
+            send_telegram_message(chat_id, "\n".join(text_lines), bot_token)
 
 @shared_task
 def process_instagram_message(account_id, combined_message, user_message, audio_file=None):
@@ -184,9 +203,21 @@ def process_instagram_message(account_id, combined_message, user_message, audio_
                           audio_file=audio_file, input_tokens=input_tokens, output_tokens=output_tokens)
     publish_message_to_ws(conversation.id, combined_message, sender="user", data=data, assistant_id=assistant.id)
     response_data = None
+    billz_integration = assistant.integrations.filter(integration_type=IntegrationTypes.BILLZ.value).first()
+    entities = None
+    intent = None
     if assistant.ai_enabled:
+        if billz_integration:
+            response_message, run_status, response_data, entities, intent = run_assistant_response_ai_mcp_sync(
+                message_content=combined_message, 
+                assistant_id=assistant.assistant_id, 
+                thread_id=conversation.thread_id, 
+                billz_api_token=billz_integration.api_token,
+                conversation=conversation
+            )
+    else:
         response_message, run_status, response_data = get_assistant_response_ai(combined_message, assistant.assistant_id, conversation.thread_id, conversation=conversation)
-        # Handle lead creation if response_data exists
+    if response_data:
         username = getattr(response_data, 'username', None)
         platform = getattr(response_data, 'platform', None)
         username_link = None
@@ -228,6 +259,53 @@ def process_instagram_message(account_id, combined_message, user_message, audio_
             telegram_group.lead_count += 1
             telegram_group.save()
             print(f"[+] Lead sent to telegram group: {telegram_group.group_id}")
+    if entities and intent == "product_recommendation":
+        entity_list = entities if isinstance(entities, list) else [entities]
+        text_lines = []
+
+        for idx, ent in enumerate(entity_list, start=1):
+            if not isinstance(ent, dict):
+                continue
+
+            # Keep image_url for possible future use; do not send it now
+            _image_url = (
+                ent.get("image_url")
+                or ent.get("main_image_url")
+                or ent.get("main_image_url_full")
+            )
+
+            # Build a simple "key: value" summary using all non-image fields
+            detail_pairs = []
+            for key, value in ent.items():
+                if key in {"image_url", "main_image_url", "main_image_url_full", "sku"}:
+                    continue
+                if value in [None, ""]:
+                    continue
+                detail_pairs.append(f"{key.capitalize()}: {value}")
+
+            if not detail_pairs:
+                continue
+            # Render each field on its own line for clarity
+            text_line = f"\n{idx}." + "\n".join(detail_pairs)
+
+            if _image_url:
+                response = send_instagram_photo(account_id, integration.api_token, sender_id, _image_url)
+                if response.status_code == 200:
+                    print("[+] Image sent to Instagram")
+                else:
+                    print(f"[-] Failed to send image to Instagram: {response.text}")
+                response = send_instagram_message(account_id, integration.api_token, sender_id, text_line)
+                if response.status_code == 200:
+                    print("[+] Message sent to Instagram")
+                    return
+                else:
+                    print(f"[-] Failed to send message to Instagram: {response.text}")
+                    return
+            else:
+                text_lines.append(text_line)
+
+        if text_lines:
+            send_instagram_message(account_id, integration.api_token, sender_id, "\n".join(text_lines))
    
 
 @shared_task
