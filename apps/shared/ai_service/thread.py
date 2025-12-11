@@ -34,4 +34,3 @@ async def wait_on_run_async(run, thread_id):
         )
         await asyncio.sleep(0.5)
     return run
-
