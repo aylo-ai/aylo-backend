@@ -12,7 +12,7 @@ from apps.assistant.models import Assistant
 from shared.addons.enums import SubscriptionStatuses, ConversationPlatforms
 from shared.addons.validations import error_response
 from shared.ai_service.assistant import check_response
-from shared.ai_service.thread import wait_on_run
+from shared.ai_service.thread import wait_on_run_async
 from shared.addons.utils import handle_unknown_intent, create_update_lead
 from django.utils.translation import gettext_lazy as _
 
@@ -73,7 +73,7 @@ async def get_assistant_response_ai_mcp(
         if active_runs.data:
             # Wait for all active runs to complete
             for run in active_runs.data:
-                wait_on_run(run, thread_id)
+                await wait_on_run_async(run, thread_id)
 
         server_params = StdioServerParameters(
             command="python",

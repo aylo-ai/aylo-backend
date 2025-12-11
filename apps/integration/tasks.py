@@ -245,6 +245,7 @@ def process_instagram_message(account_id, combined_message, user_message, audio_
                 f"📦 *Interested Product: {response_data.product}  " if getattr(response_data, 'product', None) else None,
                 f"📱 *Platform: {platform}  " if platform else None,
                 f"🔗 *Username: {username_link}\n" if username_link else None,
+                f"🆔 *Artikul:* {response_data.metadata.get('sku', None)}\n" if response_data.metadata and response_data.metadata.get('sku', None) else None,
                 "\n✅ Please follow up accordingly."
             ]
         response_text = "\n".join([line for line in response_lines if line])
@@ -276,9 +277,12 @@ def process_instagram_message(account_id, combined_message, user_message, audio_
             # Build a simple "key: value" summary using all non-image fields
             detail_pairs = []
             for key, value in ent.items():
-                if key in {"image_url", "main_image_url", "main_image_url_full", "sku"}:
+                if key in {"image_url", "main_image_url", "main_image_url_full"}:
                     continue
                 if value in [None, ""]:
+                    continue
+                if key == "sku":
+                    detail_pairs.append(f"🆔 *Artikul:* {value}")
                     continue
                 detail_pairs.append(f"{key.capitalize()}: {value}")
 

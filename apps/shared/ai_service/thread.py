@@ -1,4 +1,6 @@
 import time
+import asyncio
+
 from shared.ai_service.openai_client import client
 
 
@@ -23,3 +25,13 @@ def wait_on_run(run, thread_id):
         )
         time.sleep(0.5)
     return run
+
+async def wait_on_run_async(run, thread_id):
+    while run.status in ["queued", "in_progress"]:
+        run = await client.beta.threads.runs.retrieve(
+            thread_id=thread_id,
+            run_id=run.id,
+        )
+        await asyncio.sleep(0.5)
+    return run
+
