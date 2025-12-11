@@ -75,9 +75,8 @@ def get_or_create_conversation(user_id, assistant, reset=False, token=None, plat
         token=token).first()
     thread_id = None
     if conversation is None:
-        if assistant.ai_enabled:
-            thread_id = get_thread_id(str(assistant.assistant_id), str(assistant.vector_id))
-            print(f"conversation is None, creating new conversation with thread_id: {thread_id}")
+        thread_id = get_thread_id(str(assistant.assistant_id), str(assistant.vector_id))
+        print(f"conversation is None, creating new conversation with thread_id: {thread_id}")
         conversation = Conversation.objects.create(
             assistant=assistant,
             user_id=user_id,
@@ -432,7 +431,6 @@ def create_and_run_thread(assistant_id, vector_store_id):
         return thread_id, run
     except Exception as e:
         print(f"Error while creating a run: {e}")
-        raise Exception("Thread creation failed")
 
 def get_thread_id(assistant_id, vector_id):
     if assistant_id is None or vector_id is None:
