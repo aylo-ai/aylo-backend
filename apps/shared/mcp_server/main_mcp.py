@@ -190,6 +190,7 @@ async def get_assistant_response_ai_mcp(
                         return None, run_status, None, None, None
 
                     if run_status.status == "requires_action":
+                        print(f"[+] Run status for requires_action: {run_status}")
                         required = run_status.required_action.submit_tool_outputs
                         tool_calls = required.tool_calls if required else []
                         tool_outputs = []

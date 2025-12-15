@@ -28,7 +28,7 @@ def wait_on_run(run, thread_id):
 
 async def wait_on_run_async(run, thread_id):
     while run.status in ["queued", "in_progress"]:
-        run = await client.beta.threads.runs.retrieve(
+        run = client.beta.threads.runs.retrieve(
             thread_id=thread_id,
             run_id=run.id,
         )
