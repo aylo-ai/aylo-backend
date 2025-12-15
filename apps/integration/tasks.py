@@ -245,6 +245,7 @@ def process_instagram_message(account_id, combined_message, user_message, audio_
                 f"📦 *Interested Product: {response_data.product}  " if getattr(response_data, 'product', None) else None,
                 f"📱 *Platform: {platform}  " if platform else None,
                 f"🔗 *Username: {username_link}\n" if username_link else None,
+                f"📍 *Address: {response_data.metadata.get('address', None)}\n" if response_data.metadata and response_data.metadata.get('address', None) else None,
                 f"🆔 *Artikul:* {response_data.metadata.get('sku', None)}\n" if response_data.metadata and response_data.metadata.get('sku', None) else None,
                 "\n✅ Please follow up accordingly."
             ]

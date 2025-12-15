@@ -141,7 +141,7 @@ import json
 
 
 # def send_instagram_direct_message(access_token, account_id, sender_id, message):
-#     url = f"https://graph.instagram.com/v22.0/me/messages"
+#     url = f"https://graph.instagram.com/v22.0/17841460285897235/messages"
 #     headers = {
 #         "Content-Type": "application/json",
 #         "Authorization": f"Bearer {access_token}",
@@ -160,8 +160,8 @@ import json
 #     return success
 
 # print(send_instagram_direct_message(
-#     "IGAARTl03yXtZABZAFJxdjhpTDBsMVdmN3VnOUpHQ3lvQ2RGWUZACVjR5YU5qaGh2MG1LaW5QdVZA5dTV5QUhWSHpwTmZAWazh5QzFfRXZAlRVNMTmotNE95ODlRc0JjYl9fS3BDTk5SRk1rM1M1VmFQWXVyQ0Nn", 
-#     '17841460285897235', '17841461784331766', 'test message'))
+#     "IGAARTl03yXtZABZAGJlTWc5NkpGZAUpkaXFhZAFA4SS1aWUZAuLTYycE90U1pIS1UzZADFmZAWRXOTZA5N0ltWHJ4cmZAxb21oSXBFbkRaYUNKNElyMGNNY083a2NraTd2eWhKeWwxWktwVGNQZA2lXUWt2NTFUZAU5n", 
+#     '17841460285897235', '17841461784331766', 'test'))
 # def checking_instagram_followers(access_token:str, recicipient_id:str):
 #     url = "https://graph.instagram.com/v23.0/me/media"
 #     headers = {
