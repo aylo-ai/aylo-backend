@@ -7,122 +7,122 @@ import json
 # data = data.json()
 # print(data)
 
-# secret_token = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJjbGllbnRfcGxhdGZvcm1faWQiOiI3ZDRhNGMzOC1kZDg0LTQ5MDItYjc0NC0wNDg4YjgwYTRjMDEiLCJjb21wYW55X2lkIjoiNGY5NjYxOTgtZjA5Yy00YmJlLWEzMWEtYmE2YjAxNjIxY2Q5IiwiZGF0YSI6IiIsImV4cCI6MTc2NjM4NjM3MywiaWF0IjoxNzY1MDkwMzczLCJpZCI6IjNmNjY1ODFhLTBkNzgtNGU0Yy04YTY5LTJiOTA2ZTYzM2QwMCIsInVzZXJfaWQiOiI3N2MyMGFkYy03MDk0LTQ5ZjktODk2MS1iMmI0ZjMxNWFmOTAifQ.IEUvXJ9yTOqh5hlt9XyMMzahYTkjZiS3zf4QDDSXu-4"
+secret_token = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJjbGllbnRfcGxhdGZvcm1faWQiOiI3ZDRhNGMzOC1kZDg0LTQ5MDItYjc0NC0wNDg4YjgwYTRjMDEiLCJjb21wYW55X2lkIjoiNGY5NjYxOTgtZjA5Yy00YmJlLWEzMWEtYmE2YjAxNjIxY2Q5IiwiZGF0YSI6IiIsImV4cCI6MTc2NjM4NjM3MywiaWF0IjoxNzY1MDkwMzczLCJpZCI6IjNmNjY1ODFhLTBkNzgtNGU0Yy04YTY5LTJiOTA2ZTYzM2QwMCIsInVzZXJfaWQiOiI3N2MyMGFkYy03MDk0LTQ5ZjktODk2MS1iMmI0ZjMxNWFmOTAifQ.IEUvXJ9yTOqh5hlt9XyMMzahYTkjZiS3zf4QDDSXu-4"
 
-# def extract_relevant_fields(product):
-#     """
-#     Extract only relevant fields from product for OpenAI agent queries.
-#     Returns a simplified product object with only essential information.
-#     """
-#     # Extract color from custom_fields
-#     color = None
-#     size = None
-#     for field in product.get('custom_fields', []):
-#         if field.get('custom_field_system_name') == 'ЦВЕТ':
-#             color = field.get('custom_field_value')
-#         elif field.get('custom_field_system_name') == 'РАЗМЕР':
-#             size = field.get('custom_field_value')
+def extract_relevant_fields(product):
+    """
+    Extract only relevant fields from product for OpenAI agent queries.
+    Returns a simplified product object with only essential information.
+    """
+    # Extract color from custom_fields
+    color = None
+    size = None
+    for field in product.get('custom_fields', []):
+        if field.get('custom_field_system_name') == 'ЦВЕТ':
+            color = field.get('custom_field_value')
+        elif field.get('custom_field_system_name') == 'РАЗМЕР':
+            size = field.get('custom_field_value')
     
-#     # Extract shop names and prices
-#     shops = []
-#     for shop_price in product.get('shop_prices', []):
-#         shops.append({
-#             'shop_name': shop_price.get('shop_name', ''),
-#             'retail_price': shop_price.get('retail_price', 0),
-#             'retail_currency': shop_price.get('retail_currency', 'UZS')
-#         })
+    # Extract shop names and prices
+    shops = []
+    for shop_price in product.get('shop_prices', []):
+        shops.append({
+            'shop_name': shop_price.get('shop_name', ''),
+            'retail_price': shop_price.get('retail_price', 0),
+            'retail_currency': shop_price.get('retail_currency', 'UZS')
+        })
     
-#     # Extract category names
-#     categories = [cat.get('name', '') for cat in product.get('categories', [])]
+    # Extract category names
+    categories = [cat.get('name', '') for cat in product.get('categories', [])]
     
-#     # Build simplified product
-#     simplified = {
-#         'id': product.get('id', ''),
-#         'name': product.get('name', ''),
-#         'product_name': product.get('name', ''),  # Alias for name
-#         'sku': product.get('sku', ''),
-#         'color': color,
-#         'size': size,
-#         'categories': categories,
-#         'brand_name': product.get('brand_name', ''),
-#         'shops': shops,
-#         'description': product.get('description', ''),
-#         'barcode': product.get('barcode', ''),
-#         # Image fields
-#         'main_image_url': product.get('main_image_url', ''),
-#         'main_image_url_full': product.get('main_image_url_full', ''),
-#         'photos': product.get('photos', []),
-#     }
+    # Build simplified product
+    simplified = {
+        'id': product.get('id', ''),
+        'name': product.get('name', ''),
+        'product_name': product.get('name', ''),  # Alias for name
+        'sku': product.get('sku', ''),
+        'color': color,
+        'size': size,
+        'categories': categories,
+        'brand_name': product.get('brand_name', ''),
+        'shops': shops,
+        'description': product.get('description', ''),
+        'barcode': product.get('barcode', ''),
+        # Image fields
+        'main_image_url': product.get('main_image_url', ''),
+        'main_image_url_full': product.get('main_image_url_full', ''),
+        'photos': product.get('photos', []),
+    }
     
-#     return simplified
+    return simplified
 
 
-# def get_all_products(access_token):
-#     """
-#     Fetch all products from the Billz API with pagination support.
-#     Returns a list of all products with only relevant fields.
-#     """
-#     all_products = []
-#     page = 1
-#     limit = 1000  # Maximum items per page
-#     base_url = 'https://api-admin.billz.ai/v2/products'
-#     headers = {
-#         "Authorization": f"Bearer {access_token}",
-#         "Content-Type": "application/json"
-#     }
+def get_all_products(access_token):
+    """
+    Fetch all products from the Billz API with pagination support.
+    Returns a list of all products with only relevant fields.
+    """
+    all_products = []
+    page = 1
+    limit = 1000  # Maximum items per page
+    base_url = 'https://api-admin.billz.ai/v2/products'
+    headers = {
+        "Authorization": f"Bearer {access_token}",
+        "Content-Type": "application/json"
+    }
     
-#     print("Fetching all products...")
+    print("Fetching all products...")
     
     
-#     while True:
-#         params = {
-#             "limit": limit,
-#             "page": page
-#         }
+    while True:
+        params = {
+            "limit": limit,
+            "page": page
+        }
         
-#         try:
-#             response = requests.get(base_url, headers=headers, params=params)
-#             response.raise_for_status()
-#             data = response.json()
+        try:
+            response = requests.get(base_url, headers=headers, params=params)
+            response.raise_for_status()
+            data = response.json()
             
-#             # Extract products from response
-#             products = data.get('products', [])
-#             if not products:
-#                 break
+            # Extract products from response
+            products = data.get('products', [])
+            if not products:
+                break
             
-#             # Extract only relevant fields from each product
-#             for product in products:
-#                 simplified_product = extract_relevant_fields(product)
-#                 all_products.append(simplified_product)
+            # Extract only relevant fields from each product
+            for product in products:
+                simplified_product = extract_relevant_fields(product)
+                all_products.append(simplified_product)
             
-#             print(f"Fetched page {page}: {len(products)} products (Total: {len(all_products)})")
+            print(f"Fetched page {page}: {len(products)} products (Total: {len(all_products)})")
             
-#             # Check if there are more pages
-#             # If we got fewer products than the limit, we've reached the last page
-#             if len(products) < limit:
-#                 break
+            # Check if there are more pages
+            # If we got fewer products than the limit, we've reached the last page
+            if len(products) < limit:
+                break
             
-#             page += 1
+            page += 1
             
-#         except requests.exceptions.RequestException as e:
-#             print(f"Error fetching page {page}: {str(e)}")
-#             break
+        except requests.exceptions.RequestException as e:
+            print(f"Error fetching page {page}: {str(e)}")
+            break
     
-#     return all_products
+    return all_products
 
-# start_time = time.time()
-# all_products = get_all_products(secret_token)
-# end_time = time.time()
+start_time = time.time()
+all_products = get_all_products(secret_token)
+end_time = time.time()
 
-# print(f"\nTotal products fetched: {len(all_products)}")
-# print(f"Time taken: {end_time - start_time:.2f} seconds")
+print(f"\nTotal products fetched: {len(all_products)}")
+print(f"Time taken: {end_time - start_time:.2f} seconds")
 
-# # Save to JSON file
-# output_file = 'all_products.json'
-# with open(output_file, 'w', encoding='utf-8') as f:
-#     json.dump(all_products, f, ensure_ascii=False, indent=2)
+# Save to JSON file
+output_file = 'all_products.json'
+with open(output_file, 'w', encoding='utf-8') as f:
+    json.dump(all_products, f, ensure_ascii=False, indent=2)
 
-# print(f"Products saved to {output_file}")
+print(f"Products saved to {output_file}")
 # 885e207f-47c6-4bde-a6c4-c50bf074b134
 
 # def send_instagram_photo(account_id, access_token, recipient_id, photo_url, caption=None):

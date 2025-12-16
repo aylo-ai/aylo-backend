@@ -28,11 +28,9 @@ from shared.mcp_server.mcp_server import tools as mcp_tools
 
 def create_message(conversation, sender, content, audio_file=None, run_status=None, input_tokens=None, output_tokens=None):
     message_type = 'audio' if audio_file else 'text'
-    print(f"Creating message: {conversation}, {sender}, {content}, {audio_file}")
     if isinstance(audio_file, str) and audio_file.startswith("https://"):
         audio_file = get_audio_from_url(audio_file)
     
-    # Extract token usage from run_status if available
     if audio_file:
         input_tokens = input_tokens
         output_tokens = output_tokens
@@ -48,7 +46,6 @@ def create_message(conversation, sender, content, audio_file=None, run_status=No
         input_tokens=input_tokens,
         output_tokens=output_tokens
     )
-    print(f"[+] Message created: {conversation}, {sender}")
 
     if audio_file:
         from django.core.files.base import ContentFile
@@ -133,7 +130,6 @@ def handle_start_command(chat_id, assistant, bot_token, chat_username, username)
 
 
 def notify_user_about_failed_payment(user):
-    """Notify the user about payment failure."""
     message = f"Hurmatli {user.first_name}, sizning repli.uz dagi obuna tugadi. Iltimos, platformaga kirib, to'lovni qayta amalga oshiring." 
     print(f"Payment failure notification message: {user.phone_number} or {user.email}, {message}")
     
@@ -308,6 +304,43 @@ def create_assistant(instructions, name, vector_store_id):
         print(f"Error creating assistant: {e}")
         raise Exception(f"Error creating assistant: {e}")
     
+def recursion_ai_response(thread_id, message_content, assistant_id):
+    active_runs = client.beta.threads.runs.list(thread_id=thread_id)
+    if active_runs.data:
+        for run in active_runs.data:
+            wait_on_run(run, thread_id)
+
+    user_message = client.beta.threads.messages.create(
+        thread_id=thread_id,
+        role="user",
+        content=f"User: {message_content}",
+    )
+
+    run = client.beta.threads.runs.create(
+        thread_id=thread_id,
+        assistant_id=assistant_id,
+    )
+    run_status = wait_on_run(run, thread_id)
+
+    messages = client.beta.threads.messages.list(
+        thread_id=thread_id, order="asc", after=user_message.id
+    )
+    assistant_response = None
+
+    for msg in messages.data:
+        if msg.role == "assistant" and msg.content:
+            for block in msg.content:
+                if block.type == "text":
+                    if hasattr(block.text, "value"):
+                        assistant_response = block.text.value
+                        break
+                    elif isinstance(block.text, str):
+                        assistant_response = block.text
+                        break
+    if not assistant_response:
+        recursion_ai_response(thread_id, message_content, assistant_id)
+    return assistant_response, run_status
+    
     
 def get_assistant_response_ai(user_message_, assistant_id, thread_id, conversation):
     assistant = Assistant.objects.get(assistant_id=assistant_id)
@@ -321,44 +354,11 @@ def get_assistant_response_ai(user_message_, assistant_id, thread_id, conversati
             # Return tuple format: (response_message, run_status, response_data)
             return _("Sizda hali assistantga fayl yuklanmagan"), None, None
         try:
-            # Check if an active run exists for the given thread_id
-            active_runs = client.beta.threads.runs.list(thread_id=thread_id)
-            if active_runs.data:
-                # Wait for all active runs to complete
-                for run in active_runs.data:
-                    wait_on_run(run, thread_id)
-
-            # Send the user's message to the assistant
-            user_message = client.beta.threads.messages.create(
+            assistant_response, run_status = recursion_ai_response(
                 thread_id=thread_id,
-                role="user",
-                content=f"User: {user_message_}",
+                message_content=user_message_,
+                assistant_id=assistant_id
             )
-            # Start a new assistant run
-            run = client.beta.threads.runs.create(
-                thread_id=thread_id,
-                assistant_id=assistant_id,
-            )
-            run_status = wait_on_run(run, thread_id)
-
-            # Retrieve the assistant's response
-            messages = client.beta.threads.messages.list(
-                thread_id=thread_id, order="asc", after=user_message.id
-            )
-            assistant_response = None
-
-            # Iterate over all messages
-            print(f"Messages in get_assistant_response_ai: {messages.data}")
-            for msg in messages.data:
-                if msg.role == "assistant" and msg.content:
-                    for block in msg.content:
-                        if block.type == "text":
-                            if hasattr(block.text, "value"):
-                                assistant_response = block.text.value
-                                break  # Found the response, break the inner loop
-                            elif isinstance(block.text, str):
-                                assistant_response = block.text
-                                break
 
             if assistant_response:
                 print(f"Assistant response: {assistant_response}")
@@ -419,6 +419,8 @@ def get_assistant_response_ai(user_message_, assistant_id, thread_id, conversati
         except Exception as e:
             print(f"[-] Error  in get_assistant_response_ai: {str(e)}")
             return "", None, None
+        
+
 
 def create_and_run_thread(assistant_id, vector_store_id):
     try:
@@ -517,7 +519,6 @@ def create_update_lead(full_name, phone_number, email, product, assistant, platf
         return None
 
 def notify_user_about_low_tokens(user, count):
-    """Notify the user when their token count is low."""
     from apps.user.models import Notification
     
     # Create notification instance
@@ -531,7 +532,6 @@ def notify_user_about_low_tokens(user, count):
     print(f"Notification created to notify user about low request token count")
     
 def get_audio_from_url(url: str) -> bytes:
-    """Download audio from URL and convert to MP3 bytes."""
     try:
         # Download the audio file
         response = requests.get(url)
