@@ -69,25 +69,21 @@ def send_telegram_action(chat_id,token):
     return response
 
 def send_telegram_message(chat_id, text, token, entities=None):
-    print(f"Sending message to chat_id: {chat_id}, text: {text}")
     url = f"https://api.telegram.org/bot{token}/sendMessage"
     # cleaned_html = clean_html(text)
     text_reply = extract_reply(text)
     data = {
         "chat_id": chat_id,
         "text": text_reply,
-        "parse_mode": "html"
+        "parse_mode": "html",
+        "disable_web_page_preview": True,
     }
     
     response = requests.post(url, json=data)
     response_data = response.json()
     if not response_data.get("ok"):
-        # Handle migration to supergroup
         if "migrate_to_chat_id" in response_data.get("parameters", {}):
             new_chat_id = response_data["parameters"]["migrate_to_chat_id"]
-            print(f"[+] Chat migrated to supergroup. New Chat ID: {new_chat_id}")
-
-            # Update TelegramGroupIntegration model
             try:
                 group_integration = TelegramGroupIntegration.objects.filter(group_id=chat_id).first()
                 if group_integration:
@@ -116,9 +112,6 @@ def send_telegram_message(chat_id, text, token, entities=None):
 
 
 def send_telegram_photo(chat_id, photo_url, token, caption=None):
-    """
-    Send a photo to a Telegram chat with an optional caption.
-    """
     url = f"https://api.telegram.org/bot{token}/sendPhoto"
     data = {
         "chat_id": chat_id,
@@ -138,7 +131,6 @@ def delete_telegram_message(chat_id, message_id, token):
     return response
 
 
-# Function to set the webhook
 def set_telegram_webhook(bot_token, webhook_url):
     url = f"https://api.telegram.org/bot{bot_token}/setWebhook"
     payload = {
@@ -154,7 +146,6 @@ def set_telegram_webhook(bot_token, webhook_url):
         return 400
 
 
-# Function to check webhook information
 def get_webhook_info(bot_token):
     url = f"https://api.telegram.org/bot{bot_token}/getWebhookInfo"
     response = requests.get(url)
@@ -187,15 +178,6 @@ def handle_bot_removed_from_group(chat_id, chat_title):
 
 
 def check_register_info(message):
-    """
-    Checks the given message for user registration info using regex and returns a formatted notification if matched.
-
-    Args:
-        message (str): The message text to process.
-
-    Returns:
-        str: A formatted notification string if registration info is found, otherwise None.
-    """
     registered_date = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     print(f"Checking message for registration info: {message}")
     # Check if the message contains the registration tag

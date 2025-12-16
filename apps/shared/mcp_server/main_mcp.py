@@ -3,17 +3,13 @@ import logging
 import json
 from typing import Optional, Tuple
 
-from mcp import ClientSession
-from mcp.client.stdio import StdioServerParameters, stdio_client
-from asgiref.sync import sync_to_async
-
 from config.settings import client
 from apps.assistant.models import Assistant
 from shared.addons.enums import SubscriptionStatuses, ConversationPlatforms
 from shared.addons.validations import error_response
 from shared.ai_service.assistant import check_response
 from shared.ai_service.thread import wait_on_run
-from shared.addons.utils import handle_unknown_intent, create_update_lead
+from shared.addons.utils import handle_unknown_intent, create_update_lead, recursion_ai_response
 from django.utils.translation import gettext_lazy as _
 
 BILLZ_SERVER_MODULE = "apps.shared.mcp_server.mcp_server"
@@ -40,47 +36,13 @@ def get_assistant_response_ai_mcp(
         return assistant.fallback_message, None, None, None, None
     else:
         if thread_id is None:
-            # Return tuple format: (response_message, run_status, response_data)
             return _("Sizda hali assistantga fayl yuklanmagan"), None, None, None, None
         try:
-            # Check if an active run exists for the given thread_id
-            active_runs = client.beta.threads.runs.list(thread_id=thread_id)
-            if active_runs.data:
-                # Wait for all active runs to complete
-                for run in active_runs.data:
-                    wait_on_run(run, thread_id)
-
-            # Send the user's message to the assistant
-            user_message = client.beta.threads.messages.create(
-                thread_id=thread_id,
-                role="user",
-                content=f"User: {message_content}",
+            assistant_response, run_status = recursion_ai_response(
+                thread_id=thread_id, 
+                message_content=message_content,
+                assistant_id=assistant_id
             )
-            # Start a new assistant run
-            run = client.beta.threads.runs.create(
-                thread_id=thread_id,
-                assistant_id=assistant_id,
-            )
-            run_status = wait_on_run(run, thread_id)
-
-            # Retrieve the assistant's response
-            messages = client.beta.threads.messages.list(
-                thread_id=thread_id, order="asc", after=user_message.id
-            )
-            assistant_response = None
-
-            # Iterate over all messages
-            print(f"Messages in get_assistant_response_ai: {messages.data}")
-            for msg in messages.data:
-                if msg.role == "assistant" and msg.content:
-                    for block in msg.content:
-                        if block.type == "text":
-                            if hasattr(block.text, "value"):
-                                assistant_response = block.text.value
-                                break  # Found the response, break the inner loop
-                            elif isinstance(block.text, str):
-                                assistant_response = block.text
-                                break
 
             if assistant_response:
                 entities = None
@@ -143,7 +105,7 @@ def get_assistant_response_ai_mcp(
         except Exception as e:
             print(f"[-] Error  in get_assistant_response_ai: {str(e)}")
             return "", None, None, None, None
-
+        
 
 def run_assistant_response_ai_mcp_sync(
     *,

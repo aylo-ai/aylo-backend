@@ -3,6 +3,7 @@ import time
 import json
 import os
 import tempfile
+import logging
 import pytz
 from datetime import datetime
 
@@ -27,16 +28,17 @@ from .models import (TelegramGroupIntegration, Integration,
                     InstagramMedia, InstagramCommentResponse, Flow, 
                     Step, Transition, InstagramUserState)
 
+logger = logging.getLogger(__name__)
+
 WAIT_SECONDS = 5
 
 @shared_task
 def process_message_task(chat_id, user_message, bot_token, chat_username=None, username=None, audio_file=None, input_tokens=None, output_tokens=None):
     assistant = Assistant.objects.filter(integrations__api_token=bot_token).first()
     if not assistant:
-        print("[-] No assistant found, skipping processing")
-        return  # No assistant found, skip processing
+        logging.warning(f"[-] No assistant found for bot_token: {bot_token}")
+        return
 
-    # Handle `/start` command
     if user_message == '/start':
         handle_start_command(chat_id, assistant, bot_token, chat_username, username)
         return
@@ -97,7 +99,6 @@ def process_message_task(chat_id, user_message, bot_token, chat_username=None, u
     else:
         response_text = None
 
-    print(f"[+] Response data: {response_data}")
     if response_data:
         telegram_integration = assistant.integrations.filter(integration_type="telegram").first()
         telegram_groups = TelegramGroupIntegration.objects.filter(
@@ -111,7 +112,7 @@ def process_message_task(chat_id, user_message, bot_token, chat_username=None, u
         if response_data:
             amocrm_integration = assistant.integrations.filter(integration_type="amocrm").first()
             if amocrm_integration and amocrm_integration.metadata.get('pipeline_id'):
-                print(f"[+] Triggering amoCRM lead creation for Lead ID: {response_data.id}")
+                logging.info(f"[+] Triggering amoCRM lead creation for Lead ID: {response_data.id}")
                 create_amocrm_lead.delay(response_data.id, amocrm_integration.id)
             
     if response_message:
@@ -119,7 +120,6 @@ def process_message_task(chat_id, user_message, bot_token, chat_username=None, u
         data = create_message(conversation=conversation, sender=SenderTypes.ASSISTANT.value, content=response_message, run_status=run_status)
         publish_message_to_ws(conversation.id, response_message, sender="assistant", assistant_id=assistant.id,data=data)
 
-    # Send entity-specific messages (e.g., product recommendation cards)
     if entities and intent == "product_recommendation":
         entity_list = entities if isinstance(entities, list) else [entities]
         text_lines = []
@@ -128,14 +128,12 @@ def process_message_task(chat_id, user_message, bot_token, chat_username=None, u
             if not isinstance(ent, dict):
                 continue
 
-            # Keep image_url for possible future use; do not send it now
             _image_url = (
                 ent.get("image_url")
                 or ent.get("main_image_url")
                 or ent.get("main_image_url_full")
             )
 
-            # Build a simple "key: value" summary using all non-image fields
             detail_pairs = []
             for key, value in ent.items():
                 if key in {"image_url", "main_image_url", "main_image_url_full", "sku"}:
@@ -146,7 +144,7 @@ def process_message_task(chat_id, user_message, bot_token, chat_username=None, u
 
             if not detail_pairs:
                 continue
-            # Render each field on its own line for clarity
+
             text_line = f"\n{idx}." + "\n".join(detail_pairs)
 
             if _image_url:
@@ -165,20 +163,20 @@ def process_instagram_message(account_id, combined_message, user_message, audio_
     
     integration = assistant.integrations.filter(integration_type="instagram", instagram_account_id=account_id).first()
     if not integration:
-        print("[-] Integration not found")
+        logging.warning("[-] No Instagram integration found for the given account_id")
         return
     sender_id = user_message[0].get("sender", {}).get("id")
-    print(f"Sender ID: {sender_id}")
+    logging.info(f"Sender id: {sender_id}")
 
     if account_id in  ['17841461784331766', "17841460285897235"]:
         if combined_message == "Obuna bo'ldim":
             integration = Integration.objects.filter(instagram_account_id=account_id).first()
             if integration:
                 send_instagram_message(account_id, integration.api_token, sender_id, "https://t.me/investorlikqollanmasi")
-                print("[+] Obuna bo'ldingiz. link foydalanuvchiga yuborildi")
+                logging.info("[+] Obuna bo'ldingiz. link foydalanuvchiga yuborildi")
                 return 
             else:
-                print("[-] Integration not foun for sending request link to user")
+                logging.info("[-] Integration not foun for sending request link to user")
                 return
     
     if not sender_id:
@@ -188,7 +186,7 @@ def process_instagram_message(account_id, combined_message, user_message, audio_
     if audio_file:
         combined_message,input_tokens,output_tokens = process_instagram_audio(audio_file, assistant.language)
     if not combined_message:
-        print("[-] No message is recived from user")
+        logging.info("[-] No message content to process")
         return
     conversation = get_or_create_conversation(sender_id, assistant, platform="instagram", chat_username=None)
     if conversation.client_full_name is None:
@@ -234,7 +232,7 @@ def process_instagram_message(account_id, combined_message, user_message, audio_
         # Check if there's an amoCRM integration and create lead there
         amocrm_integration = assistant.integrations.filter(integration_type="amocrm").first()
         if amocrm_integration and amocrm_integration.metadata.get('pipeline_id'):
-            print(f"[+] Triggering amoCRM lead creation for Lead ID: {response_data.id}")
+            logging.info(f"[+] Triggering amoCRM lead creation for Lead ID: {response_data.id}")
             create_amocrm_lead.delay(response_data.id, amocrm_integration.id)
         
         response_lines = [
@@ -259,7 +257,7 @@ def process_instagram_message(account_id, combined_message, user_message, audio_
             send_telegram_message(telegram_group.group_id, response_text, telegram_integration.api_token)
             telegram_group.lead_count += 1
             telegram_group.save()
-            print(f"[+] Lead sent to telegram group: {telegram_group.group_id}")
+            logging.info(f"[+] Lead sent to telegram group: {telegram_group.group_id}")
     if entities and intent == "product_recommendation":
         entity_list = entities if isinstance(entities, list) else [entities]
         text_lines = []
@@ -268,14 +266,12 @@ def process_instagram_message(account_id, combined_message, user_message, audio_
             if not isinstance(ent, dict):
                 continue
 
-            # Keep image_url for possible future use; do not send it now
             _image_url = (
                 ent.get("image_url")
                 or ent.get("main_image_url")
                 or ent.get("main_image_url_full")
             )
 
-            # Build a simple "key: value" summary using all non-image fields
             detail_pairs = []
             for key, value in ent.items():
                 if key in {"image_url", "main_image_url", "main_image_url_full"}:
@@ -283,28 +279,21 @@ def process_instagram_message(account_id, combined_message, user_message, audio_
                 if value in [None, ""]:
                     continue
                 if key == "sku":
-                    detail_pairs.append(f"🆔 *Artikul:* {value}")
+                    detail_pairs.append(f"Artikul {value}")
                     continue
                 detail_pairs.append(f"{key.capitalize()}: {value}")
 
             if not detail_pairs:
                 continue
-            # Render each field on its own line for clarity
             text_line = f"\n{idx}." + "\n".join(detail_pairs)
 
             if _image_url:
                 response = send_instagram_photo(account_id, integration.api_token, sender_id, _image_url)
                 if response.status_code == 200:
-                    print("[+] Image sent to Instagram")
+                    logging.info("[+] Image sent to Instagram")
                 else:
-                    print(f"[-] Failed to send image to Instagram: {response.text}")
+                    logging.warning(f"[-] Failed to send image to Instagram: {response.text}")
                 response = send_instagram_message(account_id, integration.api_token, sender_id, text_line)
-                if response.status_code == 200:
-                    print("[+] Message sent to Instagram")
-                    return
-                else:
-                    print(f"[-] Failed to send message to Instagram: {response.text}")
-                    return
             else:
                 text_lines.append(text_line)
 
@@ -316,37 +305,31 @@ def process_instagram_message(account_id, combined_message, user_message, audio_
 def process_voice_task(chat_id, voice_file_id, bot_token):
     assistant = Assistant.objects.filter(integrations__api_token=bot_token).first()
     if not assistant:
-        print("[-] Assistant not found")
+        logging.warning("[+] Assistant not found")
         return
 
-    # Step 1: Get Telegram file URL
     file_info_url = f"https://api.telegram.org/bot{bot_token}/getFile?file_id={voice_file_id}"
     file_info_resp = requests.get(file_info_url)
     file_path = file_info_resp.json()["result"]["file_path"]
     file_url = f"https://api.telegram.org/file/bot{bot_token}/{file_path}"
 
-    # Step 2: Download the audio file in ogg format
     audio_bytes_ogg = requests.get(file_url).content
     audio_bytes_mp3 = convert_ogg_to_mp3(audio_bytes_ogg)
 
-    # Step 3: Use Gemini API (or any speech_to_text service)
     language_code = assistant.language or "uz"
     transcribed_text, input_tokens, output_tokens = speech_to_text(audio_bytes_mp3, language=language_code)
 
-    # Step 4: Trigger the regular message processor
     process_message_task.delay(chat_id=chat_id, user_message=transcribed_text, bot_token=bot_token, audio_file=audio_bytes_mp3, input_tokens=input_tokens, output_tokens=output_tokens)
 
 @shared_task
 def process_instagram_comment(account_id, comment_data):
-    """Process Instagram comment and send private reply"""
-    print(f"[+] Processing Instagram comment for account_id: {account_id}")
+    logging.info(f"[+] Processing Instagram comment for account_id: {account_id}")
     
     integration = Integration.objects.filter(instagram_account_id=account_id).first()
     if not integration:
-        print("[-] Integration not found")
+        logging.warning("[-] Integration not found")
         return
 
-    # Extract incoming comment data
     media_id = comment_data.get("media",{}).get("id")
     comment_id = comment_data.get("id")
     comment_text = comment_data.get("text", "").strip()
@@ -354,10 +337,9 @@ def process_instagram_comment(account_id, comment_data):
     parent_id = comment_data.get("parent_id", None)
 
     if not all([media_id, comment_id, comment_text, commenter_id]):
-        print("[-] Missing required comment data")
+        logging.warning("[-] Missing required comment data")
         return
     
-    # Step 1: Check if the specific media has is_respond_to_all_comments=True
     if parent_id is None:
 
         media = InstagramMedia.objects.filter(media_id=media_id).first()
@@ -1141,10 +1123,6 @@ def fetch_and_save_billz_products(integration_id: str):
 
 @shared_task
 def update_billz_products_hourly():
-    """
-    Periodic task to update Billz products for all assistants with Billz integration.
-    Runs every hour to keep product data up to date.
-    """
     try:
         billz_integrations = Integration.objects.filter(
             integration_type=IntegrationTypes.BILLZ.value,
