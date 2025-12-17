@@ -1,5 +1,6 @@
 import io
 import json
+import logging
 import requests
 from pydub.utils import which
 from pydub import AudioSegment
@@ -24,7 +25,9 @@ from config.settings import OPENAI_API_KEY
 from shared.ai_service.helper import create_prompt
 from shared.addons.payloads import valid_intents
 from shared.addons.redis import publish_message_to_ws_assistant
-from shared.mcp_server.mcp_server import tools as mcp_tools
+
+logger = logging.getLogger(__name__)
+
 
 def create_message(conversation, sender, content, audio_file=None, run_status=None, input_tokens=None, output_tokens=None):
     message_type = 'audio' if audio_file else 'text'
@@ -337,7 +340,8 @@ def recursion_ai_response(thread_id, message_content, assistant_id):
                     elif isinstance(block.text, str):
                         assistant_response = block.text
                         break
-    if not assistant_response:
+    if assistant_response is None:
+        logging.error(f"No assistant response found in messages for thread_id: {thread_id} and {assistant_response}")
         recursion_ai_response(thread_id, message_content, assistant_id)
     return assistant_response, run_status
     

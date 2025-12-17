@@ -397,6 +397,10 @@ CELERY_BEAT_SCHEDULE = {
         'task': 'apps.integration.tasks.update_billz_products_hourly',
         'schedule': crontab(minute=0),  # Run every hour at minute 0
     },
+    'daily_statistics_assistant':{
+        'task': 'apps.assistant.tasks.daily_statistics_assistant',
+        'schedule': crontab(minute=0, hour=21),  # Run every day at 21:00
+    }
 }
 
 # Modeltranslation settings
