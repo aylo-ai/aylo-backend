@@ -14,7 +14,12 @@ from apps.integration.models import TelegramGroupIntegration
 from shared.addons.ai_requests import update_vector_store_files
 from shared.ai_service.openai_client import client
 from shared.ai_service.helper import upload_knowledge_base_file
-from shared.addons.utils import get_assistant_response_ai, get_thread_id, speech_to_text, send_telegram_message
+from shared.addons.telegram import send_telegram_message
+# from shared.addons.utils import get_assistant_response_ai, get_thread_id, speech_to_text, send_telegram_message
+from shared.ai_service.conversation import conversation_service
+from shared.ai_service.assistant import assistant_service
+from shared.ai_service.thread import thread_service
+from shared.ai_service.conversation import conver
 from shared.addons.validations import raise_validation_error
 from shared.addons.enums import ConversationPlatforms, ConversationStatuses
 from shared.addons.enums import MessageTypes
@@ -111,7 +116,7 @@ class ConversationSerializer(serializers.ModelSerializer,
         assistant = validated_data.get("assistant")
         thread_id = None
         if assistant.ai_enabled:
-            thread_id = get_thread_id(str(assistant.assistant_id), str(assistant.vector_id))
+            thread_id = thread_service.get_thread_id(str(assistant.assistant_id), str(assistant.vector_id))
         conversation = Conversation.objects.create(
             platform=ConversationPlatforms.WEBSITE.value,
             assistant=assistant,
@@ -208,7 +213,7 @@ class MessageSerializer(serializers.ModelSerializer, SubscriptionValidationMixin
         sender = validated_data.get("sender")
         if audio_file:
             audio_bytes = audio_file.read()
-            transcribed_text, input_tokens, output_tokens = speech_to_text(audio_bytes, language=assistant.language or "uz")
+            transcribed_text, input_tokens, output_tokens = assistant_service.speech_to_text(audio_bytes, language=assistant.language or "uz")
             validated_data["message_content"] = transcribed_text
             validated_data["message_type"] = MessageTypes.AUDIO.value
         else:
@@ -218,7 +223,7 @@ class MessageSerializer(serializers.ModelSerializer, SubscriptionValidationMixin
         message = Message.objects.create(**validated_data)
         if conversation.status == ConversationStatuses.ESCALATED.value or not assistant.is_active:
             return message
-        response, run_status, response_data = get_assistant_response_ai(
+        response, run_status, response_data = conversation_service.get_assistant_response_ai(
             message=transcribed_text,
             assistant_id=assistant.assistant_id,
             thread_id=conversation.thread_id,

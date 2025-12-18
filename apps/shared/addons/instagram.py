@@ -6,164 +6,190 @@ from apps.integration.models import Flow, InstagramUserState, Step
 from shared.addons.enums import ActionType
 
 
-def get_long_lived_access_token(short_lived_access_token):
-    """Get long-lived access token from short-lived access token"""
-    CLIENT_SECRET = "dc12159193e69625fd27281997b28f4f"
-    grant_type = "ig_exchange_token"
-    url = (
-        f"https://graph.instagram.com/access_token?grant_type={grant_type}&"
-        f"client_secret={CLIENT_SECRET}&access_token={short_lived_access_token}"
-    )
+class InstagramService:
+    GRAPH_BASE = "https://graph.instagram.com"
 
-    response = requests.get(url)
-    if response.status_code == 200:
-        access_token = response.json().get("access_token")
-        refreshed_new_token = instagram_refresh_token(access_token)
-        return access_token
-    return None
+    def __init__(self):
+        pass
 
+    # ---- Auth / profile ----
 
-def instagram_refresh_token(access_token):
-    grant_type = "ig_refresh_token"
-    url = f"https://graph.instagram.com/refresh_access_token?grant_type={grant_type}&access_token={access_token}"
+    def get_long_lived_access_token(self, short_lived_access_token: str) -> str | None:
+        """Get long-lived access token from short-lived access token."""
+        CLIENT_SECRET = "dc12159193e69625fd27281997b28f4f"
+        grant_type = "ig_exchange_token"
+        url = (
+            f"{self.GRAPH_BASE}/access_token?grant_type={grant_type}&"
+            f"client_secret={CLIENT_SECRET}&access_token={short_lived_access_token}"
+        )
 
-    response = requests.get(url)
-    if response.status_code == 200:
-        access_token = response.json().get("access_token")
-        return access_token
-    return None
+        response = requests.get(url)
+        if response.status_code == 200:
+            access_token = response.json().get("access_token")
+            # Optionally refresh right away
+            self.instagram_refresh_token(access_token)
+            return access_token
+        return None
 
+    def instagram_refresh_token(self, access_token: str) -> str | None:
+        """Refresh a long-lived access token."""
+        grant_type = "ig_refresh_token"
+        url = f"{self.GRAPH_BASE}/refresh_access_token?grant_type={grant_type}&access_token={access_token}"
 
-def get_user_profile(access_token):
-    """Get user profile from access token"""
-    url = (
-        f"https://graph.instagram.com/me?"
-        f"fields=id,user_id,username&"
-        f"access_token={access_token}"
-    )
-    response = requests.get(url)
-    if response.status_code == 200:
-        user_profile = response.json()
-        user_data = {
-            "instagram_user_id": user_profile.get("id"),
-            "instagram_account_id": user_profile.get("user_id"),
-            "instagram_username": user_profile.get("username"),
+        response = requests.get(url)
+        if response.status_code == 200:
+            return response.json().get("access_token")
+        return None
+
+    def get_user_profile(self, access_token: str) -> dict | None:
+        """Get user profile from access token."""
+        url = (
+            f"{self.GRAPH_BASE}/me?"
+            f"fields=id,user_id,username&"
+            f"access_token={access_token}"
+        )
+        response = requests.get(url)
+        if response.status_code == 200:
+            user_profile = response.json()
+            return {
+                "instagram_user_id": user_profile.get("id"),
+                "instagram_account_id": user_profile.get("user_id"),
+                "instagram_username": user_profile.get("username"),
+            }
+        return None
+
+    # ---- Messaging ----
+
+    def send_message(
+        self, account_id: str, access_token: str, recipient_id: str, message: str
+    ) -> bool:
+        """Send message to Instagram user, splitting if message is over 1000 characters."""
+        url = f"{self.GRAPH_BASE}/v22.0/{account_id}/messages"
+        headers = {
+            "Content-Type": "application/json",
+            "Authorization": f"Bearer {access_token}",
         }
-        return user_data
-    return None
 
+        MAX_LENGTH = 1000
+        message_parts = [
+            message[i : i + MAX_LENGTH] for i in range(0, len(message), MAX_LENGTH)
+        ]
 
-def send_instagram_message(account_id, access_token, recipient_id, message):
-    """Send message to Instagram user, splitting if message is over 1000 characters"""
+        success = True
+        for part in message_parts:
+            payload = {"recipient": {"id": recipient_id}, "message": {"text": part}}
+            response = requests.post(url, json=payload, headers=headers)
 
-    url = f"https://graph.instagram.com/v22.0/{account_id}/messages"
-    headers = {
-        "Content-Type": "application/json",
-        "Authorization": f"Bearer {access_token}",
-    }
+            if response.status_code != 200:
+                success = False
+                if response.status_code == 190:
+                    print("[-] Refresh Instagram token here")
+            print(
+                f"[+] send_message success: {success}, response: {response.text}"
+            )
+        return success
 
-    # Split message if it's longer than 1000 characters
-    MAX_LENGTH = 1000
-    message_parts = [
-        message[i : i + MAX_LENGTH] for i in range(0, len(message), MAX_LENGTH)
-    ]
+    def send_photo(
+        self, account_id: str, access_token: str, recipient_id: str, photo_url: str
+    ):
+        """Send a photo message to an Instagram user."""
+        url = f"{self.GRAPH_BASE}/v22.0/{account_id}/messages"
+        headers = {
+            "Content-Type": "application/json",
+            "Authorization": f"Bearer {access_token}",
+        }
+        payload = {
+            "recipient": {"id": recipient_id},
+            "message": {
+                "attachment": {
+                    "type": "image",
+                    "payload": {"url": photo_url},
+                }
+            },
+        }
+        return requests.post(url, json=payload, headers=headers)
 
-    success = True
-    for part in message_parts:
-        payload = {"recipient": {"id": recipient_id}, "message": {"text": part}}
+    def send_private_reply(
+        self, access_token: str, account_id: str, comment_id: str, message: str
+    ) -> bool:
+        """Send a private reply to a comment via Instagram messaging."""
+        url = f"{self.GRAPH_BASE}/v23.0/{account_id}/messages"
+        headers = {
+            "Content-Type": "application/json",
+            "Authorization": f"Bearer {access_token}",
+        }
+
+        success = True
+        payload = {
+            "recipient": {"comment_id": comment_id},
+            "message": {"text": message},
+        }
 
         response = requests.post(url, json=payload, headers=headers)
-        
+        print(f"[+] send_private_reply response: {response.text}")
+
         if response.status_code != 200:
             success = False
-            if response.status_code == 190:
-                print(f"[-] Refresh instgram token here")
-        print(f"[+] Send_instagram_message success: {success}, response: {response.text}")
-    return success
 
-def send_instagram_photo(account_id, access_token, recipient_id, photo_url):
-    url = f"https://graph.instagram.com/v22.0/{account_id}/messages"
-    headers = {
-        "Content-Type": "application/json",
-        "Authorization": f"Bearer {access_token}",
-    }
-    payload = {"recipient": {"id": recipient_id}, "message": {"attachment": {"type": "image", "payload": {"url": photo_url}}}}
-    response = requests.post(url, json=payload, headers=headers)
-    return response
+        return success
 
-
-def send_instagram_private_reply(access_token, account_id, comment_id, message):
-    url = f"https://graph.instagram.com/v23.0/{account_id}/messages"
-    headers = {
-        "Content-Type": "application/json",
-        "Authorization": f"Bearer {access_token}",
-    }
-
-    success = True
-    payload = {"recipient": {"comment_id": comment_id}, "message": {"text": message}}
-
-    response = requests.post(url, json=payload, headers=headers)
-    print(f"[+] Send_instagram_private_reply response: {response.text}")
-
-    if response.status_code != 200:
-        success = False
-
-    return success
-
-
-def send_instagram_comment_reply(access_token, comment_id, message):
-    url = f"https://graph.instagram.com/v23.0/{comment_id}/replies"
-    headers = {
-        "Content-Type": "application/json",
-        "Authorization": f"Bearer {access_token}",
-    }
-    payload = {"message": message}
-    response = requests.post(url, json=payload, headers=headers)
-    print(f"[+] Send_instagram_comment_reply response: {response.text}")
-
-
-def build_button_payload(btn):
-    if getattr(btn, "type", None) == "web_url" or (
-        isinstance(btn, dict) and btn.get("type") == "web_url"
-    ):
-        return {
-            "type": "web_url",
-            "url": btn.url if hasattr(btn, "url") else btn.get("url"),
-            "title": btn.text if hasattr(btn, "text") else btn.get("text"),
+    def send_comment_reply(self, access_token: str, comment_id: str, message: str):
+        """Reply to a comment publicly."""
+        url = f"{self.GRAPH_BASE}/v23.0/{comment_id}/replies"
+        headers = {
+            "Content-Type": "application/json",
+            "Authorization": f"Bearer {access_token}",
         }
-    # default is postback (inline)
-    btn_id = btn.id if hasattr(btn, "id") else btn.get("id")
-    return {
-        "type": "postback",
-        "title": btn.text if hasattr(btn, "text") else btn.get("text"),
-        "payload": f"inline_button:{btn_id}",
-    }
+        payload = {"message": message}
+        response = requests.post(url, json=payload, headers=headers)
+        print(f"[+] send_comment_reply response: {response.text}")
+        return response
 
+    # ---- Buttons / postbacks ----
 
-def send_instagram_postback(
-    account_id: str,
-    access_token: str,
-    recipient_comment_id: str,
-    data: Flow,
-    commenter_id: str,
-):
-    url = "https://graph.instagram.com/v23.0/me/messages"  # keep version consistent with your integration
-    headers = {
-        "Content-Type": "application/json",
-        "Authorization": f"Bearer {access_token}",
-    }
-    first_step = Step.objects.filter(
-        flow=data, action=ActionType.MESSAGE.value, start_point=True
-    ).first()
-    # Build buttons list
-    if first_step:
-        btns_payload = []
-        for b in first_step.extra_button.all():
-            btns_payload.append(build_button_payload(b))
+    def build_button_payload(self, btn):
+        """Build a payload for an Instagram button (web_url or postback)."""
+        if getattr(btn, "type", None) == "web_url" or (
+            isinstance(btn, dict) and btn.get("type") == "web_url"
+        ):
+            return {
+                "type": "web_url",
+                "url": btn.url if hasattr(btn, "url") else btn.get("url"),
+                "title": btn.text if hasattr(btn, "text") else btn.get("text"),
+            }
+        # default is postback (inline)
+        btn_id = btn.id if hasattr(btn, "id") else btn.get("id")
+        return {
+            "type": "postback",
+            "title": btn.text if hasattr(btn, "text") else btn.get("text"),
+            "payload": f"inline_button:{btn_id}",
+        }
 
-        image_url = None
-        if first_step.message_image:
-            image_url = first_step.message_image.url
+    def send_postback(
+        self,
+        account_id: str,
+        access_token: str,
+        recipient_comment_id: str,
+        data: Flow,
+        commenter_id: str,
+    ):
+        """Send a generic template postback with buttons and optional image."""
+        url = f"{self.GRAPH_BASE}/v23.0/me/messages"
+        headers = {
+            "Content-Type": "application/json",
+            "Authorization": f"Bearer {access_token}",
+        }
+        first_step = Step.objects.filter(
+            flow=data, action=ActionType.MESSAGE.value, start_point=True
+        ).first()
+        if not first_step:
+            return None
+
+        btns_payload = [
+            self.build_button_payload(b) for b in first_step.extra_button.all()
+        ]
+
+        image_url = first_step.message_image.url if first_step.message_image else None
         event = {
             "recipient": {"comment_id": recipient_comment_id},
             "message": {
@@ -186,18 +212,15 @@ def send_instagram_postback(
 
         resp = requests.post(url, json=event, headers=headers)
         if resp.status_code == 200:
-            obj, created = InstagramUserState.objects.update_or_create(
-                account_id=account_id,
-                user_id=commenter_id,
-                defaults={"current_step": first_step},
-            )
             try:
                 with transaction.atomic():
-                    # Increment first step count (users who started the flow)
+                    InstagramUserState.objects.update_or_create(
+                        account_id=account_id,
+                        user_id=commenter_id,
+                        defaults={"current_step": first_step},
+                    )
                     first_step.count += 1
                     first_step.save()
-                    
-                # Increment flow total count (total flow interactions)
                     first_step.flow.total_count += 1
                     first_step.flow.save()
             except Exception as e:
@@ -205,13 +228,74 @@ def send_instagram_postback(
 
         print(resp.json())
         print(resp)
+        return resp
+
+    # ---- Followers / metadata ----
+
+    def checking_followers(self, access_token: str, recipient_id: str) -> dict:
+        """Check if a user follows the business account."""
+        url = f"{self.GRAPH_BASE}/v23.0/{recipient_id}?fields=name,username,is_user_follow_business"
+        headers = {
+            "Content-Type": "application/json",
+            "Authorization": f"Bearer {access_token}",
+        }
+        response = requests.get(url, headers=headers)
+        return response.json()
+
+
+# Singleton service instance
+instagram_service = InstagramService()
+
+
+# ---- Backwards‑compatible function wrappers ----
+
+def get_long_lived_access_token(short_lived_access_token):
+    return instagram_service.get_long_lived_access_token(short_lived_access_token)
+
+
+def instagram_refresh_token(access_token):
+    return instagram_service.instagram_refresh_token(access_token)
+
+
+def get_user_profile(access_token):
+    return instagram_service.get_user_profile(access_token)
+
+
+def send_instagram_message(account_id, access_token, recipient_id, message):
+    return instagram_service.send_message(account_id, access_token, recipient_id, message)
+
+
+def send_instagram_photo(account_id, access_token, recipient_id, photo_url):
+    return instagram_service.send_photo(account_id, access_token, recipient_id, photo_url)
+
+
+def send_instagram_private_reply(access_token, account_id, comment_id, message):
+    return instagram_service.send_private_reply(access_token, account_id, comment_id, message)
+
+
+def send_instagram_comment_reply(access_token, comment_id, message):
+    return instagram_service.send_comment_reply(access_token, comment_id, message)
+
+
+def build_button_payload(btn):
+    return instagram_service.build_button_payload(btn)
+
+
+def send_instagram_postback(
+    account_id: str,
+    access_token: str,
+    recipient_comment_id: str,
+    data: Flow,
+    commenter_id: str,
+):
+    return instagram_service.send_postback(
+        account_id=account_id,
+        access_token=access_token,
+        recipient_comment_id=recipient_comment_id,
+        data=data,
+        commenter_id=commenter_id,
+    )
 
 
 def checking_instagram_followers(access_token: str, recicipient_id: str):
-    url = f"https://graph.instagram.com/v23.0/{recicipient_id}?fields=name,username,is_user_follow_business"
-    headers = {
-        "Content-Type": "application/json",
-        "Authorization": f"Bearer {access_token}",
-    }
-    response = requests.get(url, headers=headers)
-    return response.json()
+    return instagram_service.checking_followers(access_token, recicipient_id)
