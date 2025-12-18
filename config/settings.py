@@ -399,7 +399,7 @@ CELERY_BEAT_SCHEDULE = {
     },
     'daily_statistics_assistant':{
         'task': 'apps.assistant.tasks.daily_statistics_assistant',
-        'schedule': crontab(minute=40, hour=12),  # Run every day at 12:40
+        'schedule': crontab(minute=45, hour=0),  # Run every day at 00:41
     }
 }
 
