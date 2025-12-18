@@ -49,13 +49,14 @@ def daily_statistics_assistant():
         print(f"Instagram integration: {instagram_integration}")
         print(f"Telegram integration: {telegram_integration}")
         if telegram_integration:
-            telegram_group = telegram_integration.telegram_group.first()
+            telegram_group = telegram_integration.telegram_group
             print(f"Telegram group: {telegram_group}")
             daily_lead_instagram, daily_lead_telegram, phone_number_leave = get_daily_lead_statistics(assistant.id)
             message = f"""Kunlik statistika ({timezone.now().date().strftime("%Y.%m.%d")}):\n\nUmumiy leadlar: {daily_lead_instagram + daily_lead_telegram}\nInstagramdan kelgan leadlar: {daily_lead_instagram}\nTelegramdan kelgan leadlar: {daily_lead_telegram}\nTelefon raqam qoldirgan leadlar: {phone_number_leave}\n"""
-            print(f"Message: {message}")    
-            send_telegram_message(telegram_group.group_id, message, telegram_integration.api_token)
-            print(f"Message sent to telegram group: {telegram_group.group_id}")
+            print(f"Message: {message}")
+            if telegram_group and telegram_group.group_id:
+                send_telegram_message(telegram_group.group_id, message, telegram_integration.api_token)
+                print(f"Message sent to telegram group: {telegram_group.group_id}")
 
 
 def get_daily_lead_statistics(assistant_id):

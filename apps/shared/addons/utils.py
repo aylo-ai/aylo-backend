@@ -437,6 +437,7 @@ def create_and_run_thread(assistant_id, vector_store_id):
         return thread_id, run
     except Exception as e:
         print(f"Error while creating a run: {e}")
+        return None, None
 
 def get_thread_id(assistant_id, vector_id):
     if assistant_id is None or vector_id is None:
