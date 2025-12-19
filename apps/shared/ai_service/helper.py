@@ -22,11 +22,6 @@ SUPPORTED_MIME_TYPES = {
 }
 
 
-def extract_text_from_txt_files(txt_file_path):
-    text = ""
-    with open(txt_file_path, 'r', encoding='utf-8') as file:
-        text += file.read()
-    return text[:2000]  # Limit text to the first 2000 characters
 
 
 def create_prompt(assistant_name, company_name, company_description, assistant_role, 

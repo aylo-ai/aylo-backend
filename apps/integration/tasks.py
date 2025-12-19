@@ -16,13 +16,10 @@ from apps.assistant.models import Assistant, AssistantFileUpload, Lead
 from shared.addons.redis import publish_message_to_ws, redis_client
 from celery import shared_task
 from shared.ai_service.helper import distill_company_kb_from_texts,  upload_knowledge_base_file
-from shared.addons.instagram import (send_instagram_message, send_instagram_private_reply, 
-                                        send_instagram_comment_reply, send_instagram_postback, 
-                                        checking_instagram_followers, build_button_payload, send_instagram_photo)
+from shared.addons.instagram import instagram_service
 from shared.addons.telegram import send_telegram_message, send_telegram_action, send_telegram_photo
-from shared.addons.utils import (get_assistant_response_ai, handle_start_command,   
-                                get_or_create_conversation, create_message, 
-                                speech_to_text, convert_ogg_to_mp3, process_instagram_audio)
+from apps.shared.ai_service.assistant import assistant_service
+from apps.shared.ai_service.conversation import conversation_service
 from shared.mcp_server.main_mcp import run_assistant_response_ai_mcp_sync
 from .models import (TelegramGroupIntegration, Integration, 
                     InstagramMedia, InstagramCommentResponse, Flow, 
@@ -40,12 +37,12 @@ def process_message_task(chat_id, user_message, bot_token, chat_username=None, u
         return
 
     if user_message == '/start':
-        handle_start_command(chat_id, assistant, bot_token, chat_username, username)
+        conversation_service.handle_start_command(chat_id, assistant, bot_token, chat_username, username)
         return
 
-    conversation = get_or_create_conversation(chat_id, assistant, token=bot_token, chat_username=chat_username, username=username)
+    conversation = conversation_service.get_or_create_conversation(chat_id, assistant, token=bot_token, chat_username=chat_username, username=username)
     if conversation.status == ConversationStatuses.ESCALATED.value or not assistant.is_active:
-        data = create_message(conversation=conversation, sender=SenderTypes.USER.value, content=user_message, 
+        data = conversation_service.create_message(conversation=conversation, sender=SenderTypes.USER.value, content=user_message, 
                               audio_file=audio_file, input_tokens=input_tokens, output_tokens=output_tokens)
         publish_message_to_ws(conversation.id, user_message, sender="user", data=data, assistant_id=assistant.id)
         return
@@ -54,7 +51,7 @@ def process_message_task(chat_id, user_message, bot_token, chat_username=None, u
     response_message = None
     send_telegram_action(chat_id, bot_token)
 
-    data = create_message(conversation=conversation, sender=SenderTypes.USER.value, content=user_message, audio_file=audio_file, input_tokens=input_tokens, output_tokens=output_tokens)
+    data = conversation_service.create_message(conversation=conversation, sender=SenderTypes.USER.value, content=user_message, audio_file=audio_file, input_tokens=input_tokens, output_tokens=output_tokens)
     publish_message_to_ws(conversation_id=conversation.id, message=user_message, sender='user', data=data, assistant_id=assistant.id)
     billz_integration = assistant.integrations.filter(integration_type=IntegrationTypes.BILLZ.value).first()
     entities = None
@@ -68,7 +65,7 @@ def process_message_task(chat_id, user_message, bot_token, chat_username=None, u
             conversation=conversation
         )
     else:   
-        response_message, run_status, response_data = get_assistant_response_ai(user_message, 
+        response_message, run_status, response_data = conversation_service.get_assistant_response_ai(user_message, 
                                                                                     assistant.assistant_id, 
                                                                                     conversation.thread_id,
                                                                                     conversation=conversation
@@ -117,7 +114,7 @@ def process_message_task(chat_id, user_message, bot_token, chat_username=None, u
             
     if response_message:
         send_telegram_message(chat_id, response_message, bot_token)
-        data = create_message(conversation=conversation, sender=SenderTypes.ASSISTANT.value, content=response_message, run_status=run_status)
+        data = conversation_service.create_message(conversation=conversation, sender=SenderTypes.ASSISTANT.value, content=response_message, run_status=run_status)
         publish_message_to_ws(conversation.id, response_message, sender="assistant", assistant_id=assistant.id,data=data)
 
     if entities and intent == "product_recommendation":
@@ -172,7 +169,7 @@ def process_instagram_message(account_id, combined_message, user_message, audio_
         if combined_message == "Obuna bo'ldim":
             integration = Integration.objects.filter(instagram_account_id=account_id).first()
             if integration:
-                send_instagram_message(account_id, integration.api_token, sender_id, "https://t.me/investorlikqollanmasi")
+                instagram_service.send_message(account_id, integration.api_token, sender_id, "https://t.me/investorlikqollanmasi")
                 logging.info("[+] Obuna bo'ldingiz. link foydalanuvchiga yuborildi")
                 return 
             else:
@@ -184,20 +181,20 @@ def process_instagram_message(account_id, combined_message, user_message, audio_
     input_tokens = 0
     output_tokens = 0
     if audio_file:
-        combined_message,input_tokens,output_tokens = process_instagram_audio(audio_file, assistant.language)
+        combined_message,input_tokens,output_tokens = conversation_service.process_instagram_audio(audio_file, assistant.language)
     if not combined_message:
         logging.info("[-] No message content to process")
         return
-    conversation = get_or_create_conversation(sender_id, assistant, platform="instagram", chat_username=None)
+    conversation = conversation_service.get_or_create_conversation(sender_id, assistant, platform="instagram", chat_username=None)
     if conversation.client_full_name is None:
         conversation.client_full_name = get_user_info(integration.api_token, sender_id).get("username", None)
         conversation.save()
     if conversation.status == ConversationStatuses.ESCALATED.value or not assistant.is_active:
-        data = create_message(conversation=conversation, sender=SenderTypes.USER.value, content=combined_message, 
+        data = conversation_service.create_message(conversation=conversation, sender=SenderTypes.USER.value, content=combined_message, 
                               audio_file=audio_file, input_tokens=input_tokens, output_tokens=output_tokens)
         publish_message_to_ws(conversation.id, combined_message, sender="user", data=data, assistant_id=assistant.id)
         return
-    data = create_message(conversation=conversation, sender=SenderTypes.USER.value, content=combined_message, 
+    data = conversation_service.create_message(conversation=conversation, sender=SenderTypes.USER.value, content=combined_message, 
                           audio_file=audio_file, input_tokens=input_tokens, output_tokens=output_tokens)
     publish_message_to_ws(conversation.id, combined_message, sender="user", data=data, assistant_id=assistant.id)
     response_data = None
@@ -214,7 +211,7 @@ def process_instagram_message(account_id, combined_message, user_message, audio_
                 conversation=conversation
             )
         else:
-            response_message, run_status, response_data = get_assistant_response_ai(combined_message, assistant.assistant_id, conversation.thread_id, conversation=conversation)
+            response_message, run_status, response_data = conversation_service.get_assistant_response_ai(combined_message, assistant.assistant_id, conversation.thread_id, conversation=conversation)
         username = getattr(response_data, 'username', None)
         platform = getattr(response_data, 'platform', None)
         username_link = None
@@ -224,8 +221,8 @@ def process_instagram_message(account_id, combined_message, user_message, audio_
             elif platform and platform.lower() == "instagram":
                 username_link = f"https://www.instagram.com/{username}"
                 
-        send_instagram_message(account_id, integration.api_token, sender_id, response_message)
-        data = create_message(conversation=conversation, sender=SenderTypes.ASSISTANT.value, content=response_message, run_status=run_status)
+        instagram_service.send_message(account_id, integration.api_token, sender_id, response_message)
+        data = conversation_service.create_message(conversation=conversation, sender=SenderTypes.ASSISTANT.value, content=response_message, run_status=run_status)
         publish_message_to_ws(conversation.id, response_message, sender="assistant", assistant_id=assistant.id, data=data)
 
     if response_data:
@@ -288,17 +285,17 @@ def process_instagram_message(account_id, combined_message, user_message, audio_
             text_line = f"\n{idx}." + "\n".join(detail_pairs)
 
             if _image_url:
-                response = send_instagram_photo(account_id, integration.api_token, sender_id, _image_url)
+                response = instagram_service.send_photo(account_id, integration.api_token, sender_id, _image_url)
                 if response.status_code == 200:
                     logging.info("[+] Image sent to Instagram")
                 else:
                     logging.warning(f"[-] Failed to send image to Instagram: {response.text}")
-                response = send_instagram_message(account_id, integration.api_token, sender_id, text_line)
+                response = instagram_service.send_message(account_id, integration.api_token, sender_id, text_line)
             else:
                 text_lines.append(text_line)
 
         if text_lines:
-            send_instagram_message(account_id, integration.api_token, sender_id, "\n".join(text_lines))
+            instagram_service.send_message(account_id, integration.api_token, sender_id, "\n".join(text_lines))
    
 
 @shared_task
@@ -314,10 +311,10 @@ def process_voice_task(chat_id, voice_file_id, bot_token):
     file_url = f"https://api.telegram.org/file/bot{bot_token}/{file_path}"
 
     audio_bytes_ogg = requests.get(file_url).content
-    audio_bytes_mp3 = convert_ogg_to_mp3(audio_bytes_ogg)
+    audio_bytes_mp3 = conversation_service.convert_ogg_to_mp3(audio_bytes_ogg)
 
     language_code = assistant.language or "uz"
-    transcribed_text, input_tokens, output_tokens = speech_to_text(audio_bytes_mp3, language=language_code)
+    transcribed_text, input_tokens, output_tokens = conversation_service.speech_to_text(audio_bytes_mp3, language=language_code)
 
     process_message_task.delay(chat_id=chat_id, user_message=transcribed_text, bot_token=bot_token, audio_file=audio_bytes_mp3, input_tokens=input_tokens, output_tokens=output_tokens)
 
@@ -350,14 +347,14 @@ def process_instagram_comment(account_id, comment_data):
                 print("[+] Media-specific: Respond to all comments")
                 flow = Flow.objects.filter(comment_response=response)
                 if response.comment_message_template and not integration.is_comment_response:
-                        send_instagram_comment_reply(integration.api_token, comment_id, response.comment_message_template)
+                    instagram_service.send_comment_reply(integration.api_token, comment_id, response.comment_message_template)
                 #if flow exists do not reply from private message
                 if response.private_message_template and not flow.exists():
-                        send_instagram_private_reply(integration.api_token, account_id, comment_id, response.private_message_template)
-                
+                    instagram_service.send_private_reply(integration.api_token, account_id, comment_id, response.private_message_template)
+
                 if flow.exists():
                     print("[+] Actual flow exists in that way and integartion is found")
-                    send_instagram_postback(account_id=account_id, access_token=integration.api_token, recipient_comment_id=comment_id, data=flow.first(),commenter_id=commenter_id)
+                    instagram_service.send_postback(account_id=account_id, access_token=integration.api_token, recipient_comment_id=comment_id, data=flow.first(), commenter_id=commenter_id)
 
 
             else:
@@ -368,12 +365,12 @@ def process_instagram_comment(account_id, comment_data):
                     flow = Flow.objects.filter(comment_response=response)
 
                     if response.comment_message_template and not integration.is_comment_response:
-                        send_instagram_comment_reply(integration.api_token, comment_id, response.comment_message_template)
+                        instagram_service.send_comment_reply(integration.api_token, comment_id, response.comment_message_template)
                     if response.private_message_template and not flow.exists():
-                        send_instagram_private_reply(integration.api_token, account_id, comment_id, response.private_message_template)
+                        instagram_service.send_private_reply(integration.api_token, account_id, comment_id, response.private_message_template)
                     if flow.exists():
                         print("[+] Actual flow exists in that way and integartion is found")
-                        send_instagram_postback(account_id=account_id, access_token=integration.api_token, recipient_comment_id=comment_id, data=flow.first(), commenter_id=commenter_id)
+                        instagram_service.send_postback(account_id=account_id, access_token=integration.api_token, recipient_comment_id=comment_id, data=flow.first(), commenter_id=commenter_id)
         else:       
             latest_response = InstagramCommentResponse.objects.filter(integration=integration).order_by("-created_time").first()
             print("[+ Incoming new lasted post for comment response]")
@@ -397,13 +394,13 @@ def process_instagram_comment(account_id, comment_data):
 
                             flow = Flow.objects.filter(comment_response=latest_response)
                             if latest_response.comment_message_template and not integration.is_comment_response:
-                                    send_instagram_comment_reply(integration.api_token, comment_id, latest_response.comment_message_template)
+                                    instagram_service.send_comment_reply(integration.api_token, comment_id, latest_response.comment_message_template)
                             # validate that flow does not exists
                             if latest_response.private_message_template and not flow.exists():
-                                    send_instagram_private_reply(integration.api_token, account_id, comment_id, latest_response.private_message_template)
+                                    instagram_service.send_private_reply(integration.api_token, account_id, comment_id, latest_response.private_message_template)
                             if flow.exists():
                                 print("[+] Actual flow exists in that way and integartion is found")
-                                send_instagram_postback(account_id=account_id, access_token=integration.api_token, recipient_comment_id=comment_id, data=flow.first(),commenter_id=commenter_id)
+                                instagram_service.send_postback(account_id=account_id, access_token=integration.api_token, recipient_comment_id=comment_id, data=flow.first(),commenter_id=commenter_id)
 
                         else:
                             print("[+] Media comment response only for specific comment")
@@ -413,12 +410,12 @@ def process_instagram_comment(account_id, comment_data):
                                 flow = Flow.objects.filter(comment_response=latest_response)
                                 print(f"[✓] Media-specific trigger match: {trigger_words}")
                                 if latest_response.comment_message_template and not integration.is_comment_response:
-                                    send_instagram_comment_reply(integration.api_token, comment_id, latest_response.comment_message_template)
+                                    instagram_service.send_instagram_comment_reply(integration.api_token, comment_id, latest_response.comment_message_template)
                                 if latest_response.private_message_template and not flow.exists():
-                                    send_instagram_private_reply(integration.api_token, account_id, comment_id, latest_response.private_message_template)
+                                    instagram_service.send_instagram_private_reply(integration.api_token, account_id, comment_id, latest_response.private_message_template)
                                 if flow.exists():
                                     print("[+] Actual flow exists in that way and integartion is found")
-                                    send_instagram_postback(account_id=account_id, access_token=integration.api_token, recipient_comment_id=comment_id, data=flow.first(),commenter_id=commenter_id)
+                                    instagram_service.send_instagram_postback(account_id=account_id, access_token=integration.api_token, recipient_comment_id=comment_id, data=flow.first(),commenter_id=commenter_id)
                         media_data = InstagramMedia.objects.create(
                             media_id=media_first.get('id'),
                             media_type=media_first.get('media_type', None),
@@ -500,7 +497,7 @@ def handle_postback_event_task(msg, access_token):
         return 
     
     #checking user that he subscribed or not
-    status_subscription = checking_instagram_followers(access_token=access_token, recicipient_id=sender_id)
+    status_subscription = conversation_service.checking_instagram_followers(access_token=access_token, recicipient_id=sender_id)
     #based on the subscrition send another way
     transition = Transition.objects.filter(from_to=user_state.current_step, action_subscription=status_subscription['is_user_follow_business'], 
                                            button_text__id=inline_button_id).first()
@@ -545,7 +542,7 @@ def send_step_message_task(step_id, account_id, recipient_id, access_token):
             )
         else:
             # Use regular message for text-only messages
-            resp = send_instagram_message(
+            resp = instagram_service.send_message(
                 account_id=account_id,
                 access_token=access_token,
                 recipient_id=recipient_id,
@@ -566,7 +563,7 @@ def send_instagram_postback_next(account_id: str, access_token: str, recipient_c
     if next_step:
         btns_payload = []
         for b in next_step.extra_button.all():
-            btns_payload.append(build_button_payload(b))
+            btns_payload.append(instagram_service.build_button_payload(b))
 
         print(f"All buttons are ready {btns_payload}")
         image_url = None
@@ -750,7 +747,7 @@ def process_instagram_comment_message(account_id, message, comment_id, integrati
             return
             
         # Get or create conversation for this comment
-        conversation = get_or_create_conversation(
+        conversation = conversation_service.get_or_create_conversation(
             user_id=comment_id, 
             assistant=assistant, 
             platform="instagram", 
@@ -759,17 +756,17 @@ def process_instagram_comment_message(account_id, message, comment_id, integrati
         if media_id:
             instagram_comment_responses = InstagramCommentResponse.objects.filter(instagram_media__media_id=media_id).first()
             if instagram_comment_responses:
-                send_instagram_comment_reply(access_token=integration.api_token, comment_id=comment_id, message=instagram_comment_responses.comment_message_template)
+                instagram_service.send_comment_reply(access_token=integration.api_token, comment_id=comment_id, message=instagram_comment_responses.comment_message_template)
                 
         # Process the comment message through AI if enabled
         response_data = None
         if assistant.ai_enabled:
-            response_message, run_status, response_data = get_assistant_response_ai(
+            response_message, run_status, response_data = conversation_service.get_assistant_response_ai(
                 message, assistant.assistant_id, conversation.thread_id, conversation=conversation
             )
             
             # Send response back as Instagram comment
-            send_instagram_private_reply(access_token=integration.api_token, account_id=account_id, comment_id=comment_id, message=response_message)
+            instagram_service.send_private_reply(access_token=integration.api_token, account_id=account_id, comment_id=comment_id, message=response_message)
             
             # Check if there's an amoCRM integration and create lead there
             if response_data:
@@ -837,12 +834,7 @@ def create_amocrm_lead(lead_id, integration_id):
             lead_data['phone'] = lead.phone_number
         if lead.email:
             lead_data['email'] = lead.email
-        
-        # Add custom fields if needed
-        custom_fields = []
 
-        # Create lead in amoCRM
-        import requests
         
         lead_payload = {
             'name': lead_data['name'],
@@ -896,10 +888,6 @@ def create_amocrm_lead(lead_id, integration_id):
 
 
 def extract_relevant_fields(product):
-    """
-    Extract only relevant fields from product for OpenAI agent queries.
-    Returns a simplified product object with only essential information.
-    """
     # Extract color from custom_fields
     color = None
     size = None
@@ -1039,8 +1027,7 @@ def fetch_and_save_billz_products(integration_id: str):
         
         # Ensure assistant has a vector store
         if not assistant.vector_id:
-            from shared.addons.ai_requests import create_assistant_and_vector_id
-            success, message = create_assistant_and_vector_id(assistant, request=None)
+            success, message = assistant_service.create_assistant_and_vector_id(assistant, request=None)
             if not success:
                 print(f"[-] Failed to create vector store for assistant {assistant.id}: {message}")
                 # Clean up temp file
@@ -1065,8 +1052,7 @@ def fetch_and_save_billz_products(integration_id: str):
                 # If file doesn't exist anymore, that's okay - just log it
                 print(f"[!] Could not delete previous file (may not exist): {e}")
         
-        # Upload to OpenAI using clear_text (more efficient than file URL)
-        openai_file_id = upload_knowledge_base_file(file_url=None, clear_text=products_json)
+        openai_file_id = assistant_service.upload_knowledge_base_file(file_url=None, clear_text=products_json)
         
         if not openai_file_id:
             print(f"[-] Failed to upload products to OpenAI for integration {integration_id}")

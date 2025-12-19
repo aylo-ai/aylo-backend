@@ -8,10 +8,9 @@ from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework.exceptions import NotFound
 
 from apps.assistant.models import Assistant, AssistantFileUpload, Conversation, Message, Lead
-from shared.addons.ai_requests import create_assistant_and_vector_id, delete_assitant, delete_vector_store
 from shared.addons.validations import success_response, error_response
 from shared.ai_service.openai_client import client
-from shared.addons.utils import update_assistant
+from shared.ai_service.assistant import assistant_service
 from shared.addons.redis import publish_new_message_to_ws
 from apps.assistant.filters import LeadFilter
 from apps.assistant.serializers import (AssistantSerializer, 
@@ -75,7 +74,7 @@ class AssistantRetrieveView(generics.RetrieveUpdateDestroyAPIView):
         self.perform_update(serializer)
         assistant = instance
         if assistant and assistant.assistant_id:
-            success, message = update_assistant(assistant.assistant_id, assistant.name, assistant)
+            success, message = assistant_service.update_assistant(assistant.assistant_id, assistant.name, assistant)
             print(f"Assistant updated successfully: {success}, {message}")
         return success_response(message=_("Assistant muvaffaqiyatli o'zgartirildi"), data=serializer.data, code=200)
 
@@ -90,9 +89,9 @@ class AssistantRetrieveView(generics.RetrieveUpdateDestroyAPIView):
         vector_id = instance.vector_id
         print(f"Assistant ID: {assistant_id}")
         if assistant_id:
-            delete_assitant(assistant_id)
+            assistant_service.delete_assistant(assistant_id)
         if vector_id:
-            delete_vector_store(vector_id)
+            assistant_service.delete_vector_store(vector_id)
         self.perform_destroy(instance)
         return success_response(message=_("Assistant muvaffaqiyatli o'chirildi"), code=204)
 
@@ -290,7 +289,7 @@ class AssistantFileUploadListCreateView(generics.ListCreateAPIView):
 
         serializer.save()
         if assistant and not assistant.vector_id:
-            success, message = create_assistant_and_vector_id(assistant, request)
+            success, message = assistant_service.create_assistant_and_vector_id(assistant, request)
             if not success:
                 return error_response(message=message, code=400)
             print("saved assistant data")

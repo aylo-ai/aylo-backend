@@ -63,7 +63,6 @@ class InstagramService:
     def send_message(
         self, account_id: str, access_token: str, recipient_id: str, message: str
     ) -> bool:
-        """Send message to Instagram user, splitting if message is over 1000 characters."""
         url = f"{self.GRAPH_BASE}/v22.0/{account_id}/messages"
         headers = {
             "Content-Type": "application/json",
@@ -243,59 +242,5 @@ class InstagramService:
         return response.json()
 
 
-# Singleton service instance
 instagram_service = InstagramService()
 
-
-# ---- Backwards‑compatible function wrappers ----
-
-def get_long_lived_access_token(short_lived_access_token):
-    return instagram_service.get_long_lived_access_token(short_lived_access_token)
-
-
-def instagram_refresh_token(access_token):
-    return instagram_service.instagram_refresh_token(access_token)
-
-
-def get_user_profile(access_token):
-    return instagram_service.get_user_profile(access_token)
-
-
-def send_instagram_message(account_id, access_token, recipient_id, message):
-    return instagram_service.send_message(account_id, access_token, recipient_id, message)
-
-
-def send_instagram_photo(account_id, access_token, recipient_id, photo_url):
-    return instagram_service.send_photo(account_id, access_token, recipient_id, photo_url)
-
-
-def send_instagram_private_reply(access_token, account_id, comment_id, message):
-    return instagram_service.send_private_reply(access_token, account_id, comment_id, message)
-
-
-def send_instagram_comment_reply(access_token, comment_id, message):
-    return instagram_service.send_comment_reply(access_token, comment_id, message)
-
-
-def build_button_payload(btn):
-    return instagram_service.build_button_payload(btn)
-
-
-def send_instagram_postback(
-    account_id: str,
-    access_token: str,
-    recipient_comment_id: str,
-    data: Flow,
-    commenter_id: str,
-):
-    return instagram_service.send_postback(
-        account_id=account_id,
-        access_token=access_token,
-        recipient_comment_id=recipient_comment_id,
-        data=data,
-        commenter_id=commenter_id,
-    )
-
-
-def checking_instagram_followers(access_token: str, recicipient_id: str):
-    return instagram_service.checking_followers(access_token, recicipient_id)

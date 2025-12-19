@@ -6,11 +6,9 @@ import mimetypes
 import time
 import json
 from io import BytesIO
-from typing import List, Optional
-from google import genai
-from google.genai import types
-from django.conf import settings
-from django.db import transaction
+from typing import List
+
+from openai import OpenAIError
 
 from shared.addons.validations import error_response, success_response, raise_validation_error
 from apps.assistant.models import Assistant
@@ -440,7 +438,7 @@ class AssistantService:
             logging.error(f"Error creating vector store: {e}")
             return None
         
-    def upload_knowledge_base_file(file_url, clear_text=None):
+    def upload_knowledge_base_file(self, file_url, clear_text=None):
         if file_url:
             mime_type, _ = mimetypes.guess_type(file_url)
 
@@ -491,6 +489,19 @@ class AssistantService:
             return "Vector store deleted successfully."
         else:
             return "Vector store not found."
+
+    def delete_vector_store(self, vector_store_id):
+        if not vector_store_id:
+            raise_validation_error("vector_store_id is required.")
+
+        try:
+            deleted_response = self.delete_vector_store_by_id(vector_store_id)
+            return {
+                "message": "Vector store deleted successfully.",
+                "data": deleted_response
+            }, 200
+        except Exception as e:
+            raise_validation_error(f"Failed to delete vector store: {e}")
         
     def check_response(self, response):
         if "*" in response:
@@ -596,9 +607,9 @@ class AssistantService:
             return True, "Successfully created assistant and vector id"
         except Exception as e:
             return False, str(e)
-        
-    def update_vector_store_files(vector_store_id, new_file_urls):
-        updated_assistant = update_vector_store_files_ai(vector_store_id, new_file_urls)
+
+    def update_vector_store_files(self, vector_store_id, new_file_urls):
+        updated_assistant = self.update_vector_store_files_ai(vector_store_id, new_file_urls)
         if updated_assistant is not None:
             print("[+] Vector store updated successfully", updated_assistant)
             return updated_assistant
@@ -608,6 +619,66 @@ class AssistantService:
             error_message = f"{input_field}: {message}"
             print(f"[+] Error updating vector store: {error_message}")
             raise_validation_error(message=error_message)
+
+    def update_vector_store_files_ai(self, vector_store_id: str, new_file_urls: List[str], clear_text: str = None) -> dict:
+        # Upload new files and collect their file IDs
+        new_file_ids = []
+        for file_url in new_file_urls:
+            try:
+                file_id = self.upload_knowledge_base_file(file_url, clear_text)
+                if file_id:
+                    new_file_ids.append(file_id)
+                else:
+                    raise ValueError(_("Failed to upload file from URL: {}").format(file_url))
+            except Exception as e:
+                return error_response(
+                    message=_("Error uploading file from URL: {}, Error: {}").format(file_url, str(e)),
+                    code=400
+                )
+
+        if not new_file_ids:
+            print(_("No valid file IDs obtained from provided URLs."))
+            return error_response(
+                message=_("No valid file IDs found"),
+                code=400
+            )
+
+        try:
+            # Replace the current files in the vector store with the new file IDs
+            batch_response = client.vector_stores.file_batches.create(
+                vector_store_id=vector_store_id,
+                file_ids=new_file_ids
+            )
+            # Wait for batch completion
+            while True:
+                batch_status = client.vector_stores.file_batches.retrieve(
+                    vector_store_id=vector_store_id,
+                    batch_id=batch_response.id
+                )
+                print(f"Batch status: {batch_status.status}")
+                if batch_status.status == "completed":
+                    break
+                elif batch_status.status == "failed":
+                    raise Exception("File batch processing failed.")
+                time.sleep(1)  # wait before polling again
+            print(f"Batch status: {batch_response.status}")
+            return {
+                "message": "Files replaced successfully.",
+                "batch_id": batch_response.id
+            }
+        
+        except OpenAIError as e:
+            print(f"OpenAI API error: {str(e)}")
+            return error_response(
+                message=f"OpenAI API error: {str(e)}",
+                code=400
+            )
+        except Exception as e:
+            print(f"Error updating vector store files: {str(e)}")
+            return error_response(
+                message=f"Error updating vector store files: {str(e)}",
+                code=400
+            )
 
 
 assistant_service = AssistantService(client)

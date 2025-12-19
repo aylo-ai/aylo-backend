@@ -11,18 +11,10 @@ logger = logging.getLogger(__name__)
 
 
 class ThreadService:
-    """
-    Central service for creating threads/runs and waiting on them.
-    """
-
     def __init__(self):
         self.client = client
 
     def create_and_run_thread(self, assistant_id, vector_store_id):
-        """
-        Create a new thread and run for the given assistant/vector store.
-        Returns (thread_id, run) or (None, None) on error.
-        """
         try:
             run = self.client.beta.threads.create_and_run(
                 assistant_id=assistant_id,
@@ -34,11 +26,19 @@ class ThreadService:
         except Exception as e:
             logger.error(f"Error while creating a run: {e}")
             return None, None
+        
+    def check_thread_exists(self, thread_id):
+        try:
+            thread = client.beta.threads.runs.list(thread_id=thread_id)
+            if thread.data:
+                return True
+            else:
+                return False
+        except Exception as e:
+            print(f"Error checking thread exists: {e}")
+            return False
 
     def wait_on_run(self, run, thread_id):
-        """
-        Poll a run until it is completed/failed and return the final run object.
-        """
         while run.status in ["queued", "in_progress"]:
             run = self.client.beta.threads.runs.retrieve(
                 thread_id=thread_id,
@@ -48,9 +48,6 @@ class ThreadService:
         return run
 
     def get_thread_id(self, assistant_id, vector_id):
-        """
-        Public helper to get/create a thread id for an assistant/vector pair.
-        """
         if assistant_id is None or vector_id is None:
             raise_validation_error(
                 message=_(

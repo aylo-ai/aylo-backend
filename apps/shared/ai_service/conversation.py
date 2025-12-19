@@ -16,11 +16,10 @@ from django.utils.translation import gettext_lazy as _
 from apps.assistant.models import Assistant, Message, Conversation, Lead
 from shared.addons.enums import SubscriptionStatuses, ConversationPlatforms
 from shared.addons.validations import error_response, success_response
-from shared.ai_service.assistant import check_response
 from shared.ai_service.openai_client import client
-from shared.ai_service.thread import wait_on_run
-from shared.addons.utils import check_thread_exists, create_update_lead, handle_unknown_intent
+
 from shared.ai_service.thread import thread_service
+from shared.ai_service.assistant import assistant_service
 from shared.addons.telegram import send_telegram_message
 from shared.addons.redis import publish_message_to_ws_assistant
 
@@ -29,7 +28,7 @@ logger = logging.getLogger(__name__)
 
 
 class ConversationService:
-    def __init__(self):
+    def __init__(self, client):
         self.client = client
 
     def _recursion_ai_response(
@@ -39,7 +38,7 @@ class ConversationService:
         active_runs = self.client.beta.threads.runs.list(thread_id=thread_id)
         if active_runs.data:
             for run in active_runs.data:
-                wait_on_run(run, thread_id)
+                thread_service.wait_on_run(run, thread_id)
 
         user_message = self.client.beta.threads.messages.create(
             thread_id=thread_id,
@@ -51,7 +50,7 @@ class ConversationService:
             thread_id=thread_id,
             assistant_id=assistant_id,
         )
-        run_status = wait_on_run(run, thread_id)
+        run_status = thread_service.wait_on_run(run, thread_id)
 
         messages = self.client.beta.threads.messages.list(
             thread_id=thread_id, order="asc", after=user_message.id
@@ -150,10 +149,9 @@ class ConversationService:
                 intent = None
                 entities = None
 
-            clean_response = check_response(message)
+            clean_response = assistant_service.check_response(message)
 
             # Notify unknown intent if needed
-            handle_unknown_intent(intent, user_message, assistant, conversation)
 
             response_data = None
             # Lead creation logic, same as before
@@ -178,7 +176,7 @@ class ConversationService:
                     else None
                 )
 
-                response_data = create_update_lead(
+                response_data = self.create_update_lead(
                     assistant=assistant,
                     full_name=name,
                     username=username,

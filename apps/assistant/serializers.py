@@ -11,18 +11,14 @@ from django.utils.timezone import localtime
 from shared.addons.google_integrations import process_google_doc
 from apps.assistant.models import Assistant, Conversation, Message, Settings, AssistantFileUpload, Lead
 from apps.integration.models import TelegramGroupIntegration
-from shared.addons.ai_requests import update_vector_store_files
 from shared.ai_service.openai_client import client
-from shared.ai_service.helper import upload_knowledge_base_file
 from shared.addons.telegram import send_telegram_message
-# from shared.addons.utils import get_assistant_response_ai, get_thread_id, speech_to_text, send_telegram_message
 from shared.ai_service.conversation import conversation_service
 from shared.ai_service.assistant import assistant_service
 from shared.ai_service.thread import thread_service
-from shared.ai_service.conversation import conver
+from shared.ai_service.conversation import conversation_service
 from shared.addons.validations import raise_validation_error
-from shared.addons.enums import ConversationPlatforms, ConversationStatuses
-from shared.addons.enums import MessageTypes
+from shared.addons.enums import ConversationPlatforms, ConversationStatuses,MessageTypes
 from shared.mixins import SubscriptionValidationMixin
 from shared.addons.redis import publish_message_to_ws_assistant
 
@@ -97,7 +93,6 @@ class ConversationSerializer(serializers.ModelSerializer,
 
     def validate(self, attrs):
         assistant = self.context.get("assistant_id")
-        print(f"validate: assistant: {assistant}")
         try:
             assistant = Assistant.objects.get(id=assistant)
             self.validate_subscription(assistant.user.subscription)
@@ -213,7 +208,7 @@ class MessageSerializer(serializers.ModelSerializer, SubscriptionValidationMixin
         sender = validated_data.get("sender")
         if audio_file:
             audio_bytes = audio_file.read()
-            transcribed_text, input_tokens, output_tokens = assistant_service.speech_to_text(audio_bytes, language=assistant.language or "uz")
+            transcribed_text, _, _ = conversation_service.speech_to_text(audio_bytes, language=assistant.language or "uz")
             validated_data["message_content"] = transcribed_text
             validated_data["message_type"] = MessageTypes.AUDIO.value
         else:
@@ -315,7 +310,7 @@ class AssistantFileUploadSerializer(serializers.ModelSerializer, SubscriptionVal
                 raise_validation_error(message=f"File {file.name} exceeds the 30MB size limit.")
         return attrs
 
-    def create(self, validated_data):
+    def create(self):
         request = self.context.get("request")
         files = self.context.get('files')
         assistant = self.context.get("assistant")
@@ -340,7 +335,7 @@ class AssistantFileUploadSerializer(serializers.ModelSerializer, SubscriptionVal
                 )
                 try:
                     file_url = request.build_absolute_uri(upload.file.url) if request else upload.file.url
-                    openai_file_id = upload_knowledge_base_file(file_url)
+                    openai_file_id = assistant_service.upload_knowledge_base_file(file_url)
                     if openai_file_id:
                         upload.file_id = openai_file_id
                         upload.save(update_fields=["file_id"])
@@ -411,15 +406,14 @@ class UpdateFileUploadSerializer(serializers.ModelSerializer, SubscriptionValida
                 continue
             if not hasattr(file, 'size') or not hasattr(file, 'name'):
                 raise_validation_error(message=f"Invalid file object: {file}")
-            if file.size > 30 * 1024 * 1024:  # 30MB limit
+            if file.size > 30 * 1024 * 1024:
                 raise_validation_error(message=f"Fayl {file.name} 30MB dan katta")
         return attrs
 
-    def create(self, validated_data):
+    def create(self):
         request = self.context.get("request")
         if not request:
             raise_validation_error(message=_("Request obyekt kerak"))
-        user = request.user
         files = self.context.get('files')
         assistant = self.context.get("assistant")
         
@@ -441,7 +435,7 @@ class UpdateFileUploadSerializer(serializers.ModelSerializer, SubscriptionValida
             )
             try:
                 file_url = request.build_absolute_uri(upload.file.url)
-                openai_file_id = upload_knowledge_base_file(file_url)
+                openai_file_id = assistant_service.upload_knowledge_base_file(file_url)
                 if openai_file_id:
                     upload.file_id = openai_file_id
                     upload.save(update_fields=["file_id"])
@@ -505,7 +499,7 @@ class AssistantFileGoogleDocSerializer(serializers.Serializer):
         if assistant and assistant.vector_id:
             file_url = response.get("file_url")
             print(f"file_url: {file_url}")
-            update_vector_store_files(assistant.vector_id, [file_url])
+            assistant_service.update_vector_store_files(assistant.vector_id, [file_url])
         
         print(f"response: {response}")
         validated_data["file_type"] = response.get("file_type")

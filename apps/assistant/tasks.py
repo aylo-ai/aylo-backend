@@ -3,9 +3,9 @@ from django.utils import timezone
 
 from celery import shared_task
 
-from shared.addons.ai_requests import create_assistant_and_vector_id
+from apps.shared.ai_service.assistant import assistant_service
 from shared.addons.validations import raise_validation_error
-from .models import AssistantFileUpload, Assistant
+from apps.assistant.models import AssistantFileUpload, Assistant
 from apps.integration.models import TelegramGroupIntegration
 from shared.addons.enums import IntegrationTypes, ConversationPlatforms
 from shared.addons.utils import send_telegram_message
@@ -33,7 +33,7 @@ def finalize_assistant_files(assistant_id):
         "assistant_language": assistant.language,
         "file_links": [file.file.url for file in assistant.files.all()]
     }
-    assistant_id, code = create_assistant_and_vector_id(data)
+    assistant_id, code = assistant_service.create_assistant_and_vector_id(data)
     if code == 400:
         raise_validation_error(message=assistant_id)
     assistant.assistant_id = assistant_id
@@ -47,21 +47,25 @@ def daily_statistics_assistant():
     current_date = timezone.now().date()
     for assistant in assistants:
         print(f"Assistant: {assistant.name}")
-        # Get all telegram integrations for this assistant
         telegram_integrations = assistant.integrations.filter(integration_type=IntegrationTypes.TELEGRAM.value)
         
         if not telegram_integrations.exists():
             print(f"No Telegram integration found for assistant: {assistant.name}")
             continue
-        
-        # Get statistics for the target date
         daily_lead_instagram, daily_lead_telegram, phone_number_leave = get_daily_lead_statistics(assistant.id, current_date)
 
-        # Prepare message
-        message = f"""Kunlik statistika ({current_date.strftime("%Y.%m.%d")}):\n\nUmumiy leadlar: {daily_lead_instagram + daily_lead_telegram}\nInstagramdan kelgan leadlar: {daily_lead_instagram}\nTelegramdan kelgan leadlar: {daily_lead_telegram}\nTelefon raqam qoldirgan leadlar: {phone_number_leave}\n"""
+        message = f"""
+📊 **Kunlik Statistika** ({current_date.strftime("%d.%m.%Y")})
+
+✅ **Umumiy leadlar:** {daily_lead_instagram + daily_lead_telegram}
+---
+📱 **Instagram:** {daily_lead_instagram}
+🔹 **Telegram:** {daily_lead_telegram}
+
+📞 **Telefon qoldirganlar:** {phone_number_leave}
+"""
         print(f"Message: {message}")
         
-        # Send to all telegram groups for all integrations
         for telegram_integration in telegram_integrations:
             telegram_groups = TelegramGroupIntegration.objects.filter(integration=telegram_integration).all()
             

@@ -3,14 +3,15 @@ import logging
 import json
 from typing import Optional, Tuple
 
+from django.utils.translation import gettext_lazy as _
+
+
 from config.settings import client
 from apps.assistant.models import Assistant
 from shared.addons.enums import SubscriptionStatuses, ConversationPlatforms
 from shared.addons.validations import error_response
-from shared.ai_service.assistant import check_response
-from shared.ai_service.thread import wait_on_run
-from shared.addons.utils import handle_unknown_intent, create_update_lead, recursion_ai_response
-from django.utils.translation import gettext_lazy as _
+from shared.ai_service.conversation import conversation_service
+from shared.ai_service.assistant import assistant_service
 
 BILLZ_SERVER_MODULE = "apps.shared.mcp_server.mcp_server"
 
@@ -38,7 +39,7 @@ def get_assistant_response_ai_mcp(
         if thread_id is None:
             return _("Sizda hali assistantga fayl yuklanmagan"), None, None, None, None
         try:
-            assistant_response, run_status = recursion_ai_response(
+            assistant_response, run_status = conversation_service._recursion_ai_response(
                 thread_id=thread_id, 
                 message_content=message_content,
                 assistant_id=assistant_id
@@ -63,9 +64,8 @@ def get_assistant_response_ai_mcp(
                     message = assistant_response
                     intent = None
 
-                clean_response = check_response(message)
-                handle_unknown_intent(intent, message_content, assistant, conversation)
-                        
+                clean_response = assistant_service.check_response(message)
+
                 response_data = None
                 if intent == "order_confirmation":
                     name = (
@@ -87,7 +87,7 @@ def get_assistant_response_ai_mcp(
                     }
 
                     username = platform_map.get(conversation.platform) or None
-                    response_data = create_update_lead(
+                    response_data = conversation_service.create_update_lead(
                         assistant=assistant,
                         full_name=name,
                         username=username,

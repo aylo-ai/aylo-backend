@@ -1,12 +1,11 @@
-from typing import Any
 import requests
 import base64
 import hashlib
 import hmac
 import time
 import json
-
 import secrets
+
 from django.db.models import Q
 from django.conf import settings
 from urllib.parse import urlencode
@@ -18,12 +17,11 @@ from django.utils.translation import gettext_lazy as _
 
 from config.settings import INSTAGRAM_CLIENT_ID, INSTAGRAM_CLIENT_SECRET, INSTAGRAM_REDIRECT_URI
 from shared.addons.enums import IntegrationTypes
-from shared.addons.instagram import get_long_lived_access_token, get_user_profile
 from shared.addons.telegram import handle_bot_added_to_group, handle_bot_removed_from_group
 from shared.addons.validations import success_response, error_response
 from shared.permissions import IsCustomer
-from shared.addons.utils import update_assistant
-from shared.mcp_server.mcp_server import tools
+from apps.shared.ai_service.assistant import assistant_service
+from apps.shared.addons.instagram import instagram_service
 from apps.assistant.models import Assistant
 from .models import Integration, TelegramGroupIntegration, InstagramMedia, CommentTriggerWord, InstagramCommentResponse, Flow, Transition, Step, CommentResponseButton, InstagramUserState
 from .serializers import (IntegrationCreateSerializer, 
@@ -275,12 +273,12 @@ class InstagramCallbackView(APIView):
             user_id = token_data.get("user_id")
             print(f"Short lived Access Token: {short_lived_access_token}, User ID: {user_id}")
             # Fetch Instagram Business Accounts
-            access_token = get_long_lived_access_token(short_lived_access_token)
+            access_token = instagram_service.get_long_lived_access_token(short_lived_access_token)
             print(f"Long lived Access Token: {access_token}")
         else:
             return error_response(message=("Access token topilmadi"), code=400)
         # get instagram user profile
-        user_profile = get_user_profile(access_token)
+        user_profile = instagram_service.get_user_profile(access_token)
         if user_profile:
             print(f"User Profile: {user_profile}")
             if Integration.objects.filter(instagram_account_id=user_profile.get("instagram_account_id")).exists():
@@ -1253,7 +1251,7 @@ class BillzSecretTokenHandlerView(generics.CreateAPIView):
             return error_response(message=_("Billz access token topilmadi"), code=400)
         request.data['refresh_token'] = api_token
         request.data['api_token'] = access_token
-        update_assistant(assistant.assistant_id, assistant.name, assistant, tools=tools)
+        assistant_service.update_assistant(assistant.assistant_id, assistant.name, assistant, tools=tools)
         serializer.is_valid(raise_exception=True)
         integration = serializer.save()
         
