@@ -100,7 +100,7 @@ class IntegrationCreateSerializer(serializers.ModelSerializer, SubscriptionValid
                 raise_validation_error(message=_("Billz access token topilmadi"))
             validated_data['api_token'] = access_token
             validated_data['refresh_token'] = response.json().get('data').get('refresh_token')
-            assistant_service.update_assistant(assistant.assistant_id, assistant.name, assistant, tools=tools)
+            assistant_service.update_assistant(assistant.assistant_id, assistant.name, assistant)
             return super().create(validated_data)
         return super().create(validated_data)
 

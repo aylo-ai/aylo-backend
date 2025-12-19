@@ -185,7 +185,6 @@ class AssistantService:
                 valid_intents,
                 assistant.fallback_message,
                 assistant.steps,
-                tools=self.tools
             )
             assistant = client.beta.assistants.update(
                 assistant_id=assistant_id,

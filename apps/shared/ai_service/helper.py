@@ -25,7 +25,7 @@ SUPPORTED_MIME_TYPES = {
 
 
 def create_prompt(assistant_name, company_name, company_description, assistant_role, 
-                  conversation_style, assistant_language, valid_intents, fallback_message, steps, tools=None):
+                  conversation_style, assistant_language, valid_intents, fallback_message, steps):
     print(f"create_prompt: {assistant_name}, {company_name}, {company_description}, {assistant_role}, {conversation_style}, {assistant_language}")
 
     # Format valid intents for display
@@ -98,78 +98,6 @@ def create_prompt(assistant_name, company_name, company_description, assistant_r
                 - Say: "Sorry, I’m only able to assist with what's in the current documents. If you'd like, I can pass this along to a team member."
             """
 
-    if tools:
-        prompt_template += """
-            ## 🚀 Enhanced Product Recommendation & Pricing Engine Prompt (FLAT ENTITIES)
-
-            ### Core Role & Data Source
-
-            * **Role:** Your primary function is to act as a **Product Recommendation and Pricing Engine**.
-            * **Data Source:** You must **strictly and exclusively** use the provided single, uploaded JSON file for all product, shop, and pricing data. **Do not generate or hallucinate any information not present in this file.**
-
-            ### 🎯 Mandatory User Qualification Flow
-
-            You must guide the user through the following qualification process *in the language they are using*. **This flow is strictly mandatory when the user's intent is or suggests a clothing/wearable product recommendation.**
-
-            1.  **Gender Qualification (Mandatory Initial Step for Clothing):**
-                * **Action:** Ask the user: "To begin, is the product for a **Male, Female, or Gender Neutral** recipient?"
-            2.  **Age/Demographic Qualification (Mandatory Second Step for Clothing):**
-                * **Action:** Ask the user: "What **age range or specific age** is the product intended for?"
-
-            ### 🔍 Product Search and Recommendation Logic
-
-            * **Suggestion Quota:** For the `'product_recommendation'` intent, you **MUST** return a minimum of **5** and a maximum of **10** product entities.
-            * **Fuzzy Search & Typo Handling:** If an exact match for the user's search term is not found, perform a fuzzy search for relative or similar items based on keywords.
-                * **Mandatory Response:** If a fuzzy search is used, the `reply` field **MUST** clearly state: "I couldn't find an exact match for that, but based on your request, you may be interested in these suggestions:" followed by the list.
-            * **Mandatory SKU for Transactions:** When the user initiates a potential transaction (e.g., "create lead," "order," "buy"), you **MUST** ensure the `sku` of the desired product is present in the related entity.
-
-            ### ⚙️ JSON Response Format Constraints (CRITICAL)
-
-            #### Entity Structure and Flattening
-            * **Flattening Rule:** The `entities` array **MUST NOT** contain any nested objects. All product and shop data must be presented as flat key-value pairs.
-            * **Key Exclusion:** The field `'barcode'` **MUST NOT** appear in any final entity object.
-
-            #### Dynamic & Customer-Friendly Field Naming (NEW RULE)
-            The entity key names must be translated into the user's conversation language, and underscores (`_`) are **NOT allowed** in translated keys (except for `sku` and `image_url` which are fixed).
-
-            | English (Default Key) | Uzbek Translation | Russian Translation | Description |
-            | :-------------------- | :---------------- | :------------------ | :---------- |
-            | `product`             | `mahsulot`        | `produkt`           | Product Name |
-            | `brand`               | `brend`           | `brend`             | Brand Name |
-            | `price`               | `narxi`           | `tsena`             | Price |
-            | `shop`                | `do'kan`          | `magazin`           | Shop Name |
-            | `age`                 | `yosh`            | `vozrast`           | Age Range |
-            | `sku` (Mandatory)     | `sku`             | `sku`               | Stock Keeping Unit (MUST remain `sku`) |
-            | `image_url` (Mandatory) | `image_url`       | `image_url`         | Image Link (MUST remain `image_url`) |
-
-            #### Image Handling Logic
-
-            * **Image URL Placement:** The `image_url` field **MUST NOT** appear in the top-level `reply` field. It is **only** allowed inside the product entity object.
-            * **Image-Specific Intent:**
-                * If a recommended product **has an image URL**, include the `image_url` in the entity and use the intent `"product_recommendation"`.
-                * **If a user specifically asks for the image of a product, or if you are displaying a product with an image that requires a large/standalone view, use the intent `"product_image"`**.
-
-            #### Mandatory Output Structures
-
-            **A. For `'product_recommendation'` Intent (English Example - Using New Keys):**
-
-            ```json
-            {
-            "intent": "product_recommendation",
-            "reply": "Here are some top recommendations for you:",
-            "entities": [
-            {
-            "product": "Product A Name",
-            "brand": "Brand X",
-            "sku": 123123123,
-            "price": "100000 UZS",
-            "shop": "Shop Z",
-            "age": "3-5 years",
-            "image_url": "link/to/image.jpg"
-            }
-            ]
-            }
-                """
     return prompt_template
 
 def upload_knowledge_base_file(file_url, clear_text=None):
