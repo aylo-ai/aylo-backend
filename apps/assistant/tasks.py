@@ -46,7 +46,7 @@ def daily_statistics_assistant():
     """
     Send daily statistics for December 18th, 2024 to all Telegram groups with integrations.
     """
-    target_date = date(2025, 12, 18)
+    current_date = timezone.now().date()
     assistants = Assistant.objects.all()
     
     for assistant in assistants:
@@ -58,12 +58,21 @@ def daily_statistics_assistant():
         if not telegram_integrations.exists():
             print(f"No Telegram integration found for assistant: {assistant.name}")
             continue
-        
-        # Get statistics for the target date
-        daily_lead_instagram, daily_lead_telegram, phone_number_leave = get_daily_lead_statistics(assistant.id, target_date)
-        
+
+        # Get statistics for the current date
+        daily_lead_instagram, daily_lead_telegram, phone_number_leave = get_daily_lead_statistics(assistant.id, current_date)
+
         # Prepare message
-        message = f"""Kunlik statistika ({target_date.strftime("%Y.%m.%d")}):\n\nUmumiy leadlar: {daily_lead_instagram + daily_lead_telegram}\nInstagramdan kelgan leadlar: {daily_lead_instagram}\nTelegramdan kelgan leadlar: {daily_lead_telegram}\nTelefon raqam qoldirgan leadlar: {phone_number_leave}\n"""
+        message = f"""
+📊 **Kunlik Statistika** ({current_date.strftime("%d.%m.%Y")})
+
+✅ **Umumiy leadlar:** {daily_lead_instagram + daily_lead_telegram}
+---
+📱 **Instagram:** {daily_lead_instagram}
+🔹 **Telegram:** {daily_lead_telegram}
+
+📞 **Telefon qoldirganlar:** {phone_number_leave}
+"""
         print(f"Message: {message}")
         
         # Send to all telegram groups for all integrations
