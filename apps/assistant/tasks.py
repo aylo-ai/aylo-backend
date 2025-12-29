@@ -1,11 +1,10 @@
-from datetime import date
 from django.utils import timezone
 
 from celery import shared_task
 
 from apps.shared.ai_service.assistant import assistant_service
 from shared.addons.validations import raise_validation_error
-from apps.assistant.models import AssistantFileUpload, Assistant
+from apps.assistant.models import AssistantFileUpload, Assistant, Message
 from apps.integration.models import TelegramGroupIntegration
 from shared.addons.enums import IntegrationTypes, ConversationPlatforms
 from shared.addons.utils import send_telegram_message
@@ -53,9 +52,15 @@ def daily_statistics_assistant():
             print(f"No Telegram integration found for assistant: {assistant.name}")
             continue
         daily_lead_instagram, daily_lead_telegram, phone_number_leave = get_daily_lead_statistics(assistant.id, current_date)
+        new_conversations, existing_conversations = get_daily_conversation_statistics(assistant.id, current_date)
 
         message = f"""
 📊 **Kunlik Statistika** ({current_date.strftime("%d.%m.%Y")})
+
+💬 **Suhbatlar:**
+🆕 **Yangi:** {new_conversations}
+🔄 **Davom etgan:** {existing_conversations}
+📊 **Jami:** {new_conversations + existing_conversations}
 
 ✅ **Umumiy leadlar:** {daily_lead_instagram + daily_lead_telegram}
 ---
@@ -96,3 +101,22 @@ def get_daily_lead_statistics(assistant_id, target_date):
     ).count()
 
     return daily_lead_instagram, daily_lead_telegram, phone_number_leave
+
+
+def get_daily_conversation_statistics(assistant_id, target_date):
+    assistant = Assistant.objects.get(id=assistant_id)
+    
+    new_conversations = assistant.conversations.filter(
+        created_time__date=target_date
+    ).count()
+    
+    conversations_before_today = assistant.conversations.filter(
+        created_time__date__lt=target_date
+    )
+    
+    existing_conversations = Message.objects.filter(
+        conversation__in=conversations_before_today,
+        created_time__date=target_date
+    ).values_list('conversation_id', flat=True).distinct().count()
+    
+    return new_conversations, existing_conversations

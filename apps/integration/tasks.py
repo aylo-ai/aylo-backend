@@ -7,21 +7,19 @@ import logging
 import pytz
 from datetime import datetime
 
-from django.core.files.uploadedfile import SimpleUploadedFile
 from django.db import transaction
+from celery import shared_task
+
 
 from apps.shared.ai_service.openai_client import client
 from apps.shared.addons.enums import SenderTypes, ConversationStatuses, IntegrationTypes
-from apps.assistant.models import Assistant, AssistantFileUpload, Lead
+from apps.assistant.models import Assistant, Lead
 from shared.addons.redis import publish_message_to_ws, redis_client
-from celery import shared_task
-from shared.ai_service.helper import distill_company_kb_from_texts,  upload_knowledge_base_file
 from shared.addons.instagram import instagram_service
-from shared.addons.telegram import send_telegram_message, send_telegram_action, send_telegram_photo
+from shared.addons.telegram import send_telegram_message, send_telegram_action
 from apps.shared.ai_service.assistant import assistant_service
 from apps.shared.ai_service.conversation import conversation_service
-from shared.mcp_server.main_mcp import run_assistant_response_ai_mcp_sync
-from .models import (TelegramGroupIntegration, Integration, 
+from .models import (Integration, 
                     InstagramMedia, InstagramCommentResponse, Flow, 
                     Step, Transition, InstagramUserState)
 
@@ -412,136 +410,6 @@ def send_instagram_postback_next(account_id: str, access_token: str, recipient_c
         print("[+] Sending instagram message for postback")
         print(resp)
 
-def fetch_conversation_messages(access_token: str, conversation_id: str):
-    messages = []
-    base = f"https://graph.instagram.com/v23.0/{conversation_id}/messages"
-    params = {
-        "fields": "id,from,to,message",
-    }
-    headers = {
-        "Content-Type": "application/json",
-        "Authorization": f"Bearer {access_token}",
-    }
-
-    next_url = base
-    next_params = params
-
-    while next_url:
-        resp = requests.get(next_url, headers=headers, params=next_params)
-        if resp.status_code != 200:
-            break
-        payload = resp.json() or {}
-        page_items = payload.get("data", [])
-        for item in page_items:
-            if item.get("message") and item.get("message") != "": 
-              messages.append(item.get("message"))
-
-        paging = payload.get("paging", {})
-        next_url = paging.get("next")
-        next_params = None
-
-    return messages
-
-def fetch_all_conversations_with_messages(access_token: str):
-    collected = []
-    conv_url = "https://graph.instagram.com/v23.0/me/conversations"
-    conv_params = {
-        "fields": "id",
-    }
-    headers = {
-        "Content-Type": "application/json",
-        "Authorization": f"Bearer {access_token}",
-    }
-
-    next_url = conv_url
-    next_params = conv_params
-
-    while next_url:
-        resp = requests.get(next_url, headers=headers, params=next_params)
-        if resp.status_code != 200:
-            break
-        payload = resp.json() or {}
-        for conv in payload.get("data", []):
-            conv_id = conv.get("id")
-            if not conv_id:
-                continue
-            msgs = fetch_conversation_messages(
-                access_token,
-                conv_id,
-            )
-            if msgs:
-              collected.append({
-                "messages": msgs,
-            })
-
-        paging = payload.get("paging", {})
-        next_url = paging.get("next")
-        next_params = None
-    return collected
-
-
-@shared_task
-def build_instagram_kb(integration_id: str):
-    integration = Integration.objects.filter(id=integration_id).first()
-    if not integration or integration.integration_type != "instagram":
-        print("[-] Integration not found for Instagram")
-        return
-    
-    if not integration.api_token or not integration.assistant:
-        return
-
-    convs = fetch_all_conversations_with_messages(integration.api_token)
-    texts = []
-
-    for c in convs:
-        for t in c.get("messages", []):
-            if isinstance(t, str) and t.strip():
-                texts.append(t.strip())
-
-    if not texts:
-        return
-    distilled = distill_company_kb_from_texts(texts, company_hint=integration.name)
-    
-    if not distilled:
-        return
-    file_content = SimpleUploadedFile(
-        "instagram_knowledge_base.txt",
-        distilled.encode("utf-8"),
-        content_type="text/plain",
-    )
-    upload = AssistantFileUpload.objects.create(
-        assistant=integration.assistant,
-        file=file_content,
-        filename="instagram_knowledge_base.txt",
-    )
-    # Upload distilled text directly to OpenAI and store file_id on upload
-    try:
-        openai_file_id = upload_knowledge_base_file(file_url=None, clear_text=distilled)
-        if openai_file_id:
-            upload.file_id = openai_file_id
-            upload.save(update_fields=["file_id"])
-            # Attach to vector store if exists
-            if integration.assistant and integration.assistant.vector_id:
-                batch = client.vector_stores.file_batches.create(
-                    vector_store_id=integration.assistant.vector_id,
-                    file_ids=[openai_file_id]
-                )
-                # poll until completion
-                while True:
-                    status = client.vector_stores.file_batches.retrieve(
-                        vector_store_id=integration.assistant.vector_id,
-                        batch_id=batch.id
-                    )
-                    if status.status in ["completed", "failed"]:
-                        break
-                    time.sleep(0.5)
-                print("[+] Distilled KB attached to vector store")
-            else:
-                print("[-] Assistant has no vector store; stored file_id only")
-        else:
-            print("[-] Failed to upload distilled KB to OpenAI")
-    except Exception as e:
-        print(f"[-] Error attaching distilled KB to vector store: {e}")
 
 
 @shared_task
@@ -571,30 +439,12 @@ def process_instagram_comment_message(account_id, message, comment_id, integrati
                 instagram_service.send_comment_reply(access_token=integration.api_token, comment_id=comment_id, message=instagram_comment_responses.comment_message_template)
                 
         # Process the comment message through AI if enabled
-        response_data = None
-        if assistant.ai_enabled:
-            response_message, run_status, response_data = conversation_service.get_assistant_response_ai(
-                message, assistant.assistant_id, conversation.thread_id, conversation=conversation
+        if assistant.ai_enabled and assistant.is_active:
+            response_message = assistant_service.generate_response(
+                user_input=message, assistent=assistant, conversation=conversation
             )
             
-            # Send response back as Instagram comment
             instagram_service.send_private_reply(access_token=integration.api_token, account_id=account_id, comment_id=comment_id, message=response_message)
-            
-            # Check if there's an amoCRM integration and create lead there
-            if response_data:
-                amocrm_integration = assistant.integrations.filter(integration_type="amocrm").first()
-                if amocrm_integration and amocrm_integration.metadata.get('pipeline_id'):
-                    # Get the created lead ID
-                    from apps.assistant.models import Lead
-                    lead = Lead.objects.filter(
-                        assistant=assistant,
-                        platform=conversation.platform,
-                        username=conversation.client_full_name or conversation.username
-                    ).order_by('-created_at').first()
-                    
-                    if lead:
-                        print(f"[+] Triggering amoCRM lead creation for Lead ID: {lead.id}")
-                        create_amocrm_lead.delay(lead.id, amocrm_integration.id)
             
     except Exception as e:
         print(f"[-] Error processing Instagram comment: {e}")
