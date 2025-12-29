@@ -288,11 +288,11 @@ class AssistantFileUploadListCreateView(generics.ListCreateAPIView):
         serializer.is_valid(raise_exception=True)
 
         serializer.save()
-        if assistant and not assistant.vector_id:
-            success, message = assistant_service.create_assistant_and_vector_id(assistant, request)
-            if not success:
-                return error_response(message=message, code=400)
-            print("saved assistant data")
+        # if assistant and not assistant.vector_id:
+        #     success, message = assistant_service.create_assistant_and_vector_id(assistant, request)
+        #     if not success:
+            #     return error_response(message=message, code=400)
+            # print("saved assistant data")
         return success_response(message=_("File muvaffaqiyatli yaratildi"), code=201)
     
 
@@ -348,16 +348,7 @@ class AssistantFileUploadRetrieveView(generics.RetrieveUpdateDestroyAPIView):
         except AssistantFileUpload.DoesNotExist:
             return error_response(message=_("Fayl topilmadi"), code=404)
 
-        assistant = instance.assistant
-        if assistant and getattr(assistant, "vector_id", None) and getattr(instance, "file_id", None):
-            try:
-                
-                client.vector_stores.files.delete(
-                    vector_store_id=assistant.vector_id,
-                    file_id=instance.file_id
-                )
-            except Exception as e:
-                print(f"[-] Failed removing file from vector store: {e}")
+        assistant_service.gemini.delete_vectore_store_file(instance.file_id)
         instance.delete()
         return success_response(message=_("Fayl muvaffaqiyatli o'chirildi"), code=200)
 

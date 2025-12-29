@@ -47,110 +47,17 @@ def process_message_task(chat_id, user_message, bot_token, chat_username=None, u
         publish_message_to_ws(conversation.id, user_message, sender="user", data=data, assistant_id=assistant.id)
         return
 
-    response_data = None
-    response_message = None
     send_telegram_action(chat_id, bot_token)
 
     data = conversation_service.create_message(conversation=conversation, sender=SenderTypes.USER.value, content=user_message, audio_file=audio_file, input_tokens=input_tokens, output_tokens=output_tokens)
     publish_message_to_ws(conversation_id=conversation.id, message=user_message, sender='user', data=data, assistant_id=assistant.id)
-    billz_integration = assistant.integrations.filter(integration_type=IntegrationTypes.BILLZ.value).first()
-    entities = None
-    intent = None
-    if billz_integration:
-        response_message, run_status, response_data, entities, intent = run_assistant_response_ai_mcp_sync(
-            message_content=user_message, 
-            assistant_id=assistant.assistant_id, 
-            thread_id=conversation.thread_id, 
-            billz_api_token=billz_integration.api_token,
-            conversation=conversation
-        )
-    else:   
-        response_message, run_status, response_data = conversation_service.get_assistant_response_ai(user_message, 
-                                                                                    assistant.assistant_id, 
-                                                                                    conversation.thread_id,
-                                                                                    conversation=conversation
-                                                                                    )
-        
-    username = getattr(response_data, 'username', None) if response_data else None
-    platform = getattr(response_data, 'platform', None) if response_data else None
-    username_link = None
-    if username:
-        if platform and platform.lower() == "telegram":
-            username_link = f"@{username}"
-        elif platform and platform.lower() == "instagram":
-            username_link = f"https://www.instagram.com/{username}"
+    response_message = assistant_service.generate_response(user_message, assistant, conversation)
+    
+    logger.info(f"[+] Response message: {response_message}")
 
-    if response_data:
-        response_lines = [
-                "🎉 *New Lead Created!*\n",
-                f"👤 *Full Name: {response_data.full_name}  " if getattr(response_data, 'full_name', None) else None,
-                f"📞 *Phone Number: {response_data.phone_number}  " if getattr(response_data, 'phone_number', None) not in [None, ""] else None,
-                f"📧 *Email: {response_data.email}  " if getattr(response_data, 'email', None) not in [None, ""] else None,
-                f"📦 *Interested Product: {response_data.product}  " if getattr(response_data, 'product', None) else None,
-                f"📱 *Platform: {platform}  " if platform else None,
-                f"🔗 *Username: {username_link}\n" if username_link else None,
-                f"🆔 *Artikul:* {response_data.metadata.get('sku', None)}\n" if response_data.metadata and response_data.metadata.get('sku', None) else None,
-                "\n✅ Please follow up accordingly."
-            ]
-        response_text = "\n".join([line for line in response_lines if line])
-    else:
-        response_text = None
-
-    if response_data:
-        telegram_integration = assistant.integrations.filter(integration_type="telegram").first()
-        telegram_groups = TelegramGroupIntegration.objects.filter(
-            integration=telegram_integration
-        ).all()
-        for telegram_group in telegram_groups:
-            send_telegram_message(telegram_group.group_id, response_text, bot_token)
-            telegram_group.lead_count += 1
-            telegram_group.save()
-
-        if response_data:
-            amocrm_integration = assistant.integrations.filter(integration_type="amocrm").first()
-            if amocrm_integration and amocrm_integration.metadata.get('pipeline_id'):
-                logging.info(f"[+] Triggering amoCRM lead creation for Lead ID: {response_data.id}")
-                create_amocrm_lead.delay(response_data.id, amocrm_integration.id)
-            
     if response_message:
         send_telegram_message(chat_id, response_message, bot_token)
-        data = conversation_service.create_message(conversation=conversation, sender=SenderTypes.ASSISTANT.value, content=response_message, run_status=run_status)
-        publish_message_to_ws(conversation.id, response_message, sender="assistant", assistant_id=assistant.id,data=data)
-
-    if entities and intent == "product_recommendation":
-        entity_list = entities if isinstance(entities, list) else [entities]
-        text_lines = []
-
-        for idx, ent in enumerate(entity_list, start=1):
-            if not isinstance(ent, dict):
-                continue
-
-            _image_url = (
-                ent.get("image_url")
-                or ent.get("main_image_url")
-                or ent.get("main_image_url_full")
-            )
-
-            detail_pairs = []
-            for key, value in ent.items():
-                if key in {"image_url", "main_image_url", "main_image_url_full", "sku"}:
-                    continue
-                if value in [None, ""]:
-                    continue
-                detail_pairs.append(f"{key.capitalize()}: {value}")
-
-            if not detail_pairs:
-                continue
-
-            text_line = f"\n{idx}." + "\n".join(detail_pairs)
-
-            if _image_url:
-                send_telegram_photo(chat_id, _image_url, bot_token, caption=text_line)
-            else:
-                text_lines.append(text_line)
-
-        if text_lines:
-            send_telegram_message(chat_id, "\n".join(text_lines), bot_token)
+        
 
 @shared_task
 def process_instagram_message(account_id, combined_message, user_message, audio_file=None):
@@ -197,106 +104,11 @@ def process_instagram_message(account_id, combined_message, user_message, audio_
     data = conversation_service.create_message(conversation=conversation, sender=SenderTypes.USER.value, content=combined_message, 
                           audio_file=audio_file, input_tokens=input_tokens, output_tokens=output_tokens)
     publish_message_to_ws(conversation.id, combined_message, sender="user", data=data, assistant_id=assistant.id)
-    response_data = None
-    billz_integration = assistant.integrations.filter(integration_type=IntegrationTypes.BILLZ.value).first()
-    entities = None
-    intent = None
-    if assistant.ai_enabled:
-        if billz_integration:
-            response_message, run_status, response_data, entities, intent = run_assistant_response_ai_mcp_sync(
-                message_content=combined_message, 
-                assistant_id=assistant.assistant_id, 
-                thread_id=conversation.thread_id, 
-                billz_api_token=billz_integration.api_token,
-                conversation=conversation
-            )
-        else:
-            response_message, run_status, response_data = conversation_service.get_assistant_response_ai(combined_message, assistant.assistant_id, conversation.thread_id, conversation=conversation)
-        username = getattr(response_data, 'username', None)
-        platform = getattr(response_data, 'platform', None)
-        username_link = None
-        if username:
-            if platform and platform.lower() == "telegram":
-                username_link = f"@{username}"
-            elif platform and platform.lower() == "instagram":
-                username_link = f"https://www.instagram.com/{username}"
-                
+    response_message = assistant_service.generate_response(combined_message, assistant, conversation)
+    if response_message:
         instagram_service.send_message(account_id, integration.api_token, sender_id, response_message)
-        data = conversation_service.create_message(conversation=conversation, sender=SenderTypes.ASSISTANT.value, content=response_message, run_status=run_status)
-        publish_message_to_ws(conversation.id, response_message, sender="assistant", assistant_id=assistant.id, data=data)
-
-    if response_data:
-        # Check if there's an amoCRM integration and create lead there
-        amocrm_integration = assistant.integrations.filter(integration_type="amocrm").first()
-        if amocrm_integration and amocrm_integration.metadata.get('pipeline_id'):
-            logging.info(f"[+] Triggering amoCRM lead creation for Lead ID: {response_data.id}")
-            create_amocrm_lead.delay(response_data.id, amocrm_integration.id)
         
-        response_lines = [
-                "🎉 *New Lead Created!*\n",
-                f"👤 *Full Name: {response_data.full_name}  " if getattr(response_data, 'full_name', None) else None,
-                f"📞 *Phone Number: {response_data.phone_number}  " if getattr(response_data, 'phone_number', None) not in [None, ""] else None,
-                f"📧 *Email: {response_data.email}  " if getattr(response_data, 'email', None) not in [None, ""] else None,
-                f"📦 *Interested Product: {response_data.product}  " if getattr(response_data, 'product', None) else None,
-                f"📱 *Platform: {platform}  " if platform else None,
-                f"🔗 *Username: {username_link}\n" if username_link else None,
-                f"📍 *Address: {response_data.metadata.get('address', None)}\n" if response_data.metadata and response_data.metadata.get('address', None) else None,
-                f"🆔 *Artikul:* {response_data.metadata.get('sku', None)}\n" if response_data.metadata and response_data.metadata.get('sku', None) else None,
-                "\n✅ Please follow up accordingly."
-            ]
-        response_text = "\n".join([line for line in response_lines if line])
-        # Send lead notification to Telegram groups if configured
-        telegram_integration = assistant.integrations.filter(integration_type="telegram").first()
-        telegram_groups = TelegramGroupIntegration.objects.filter(
-            integration=telegram_integration
-        ).all()
-        for telegram_group in telegram_groups:
-            send_telegram_message(telegram_group.group_id, response_text, telegram_integration.api_token)
-            telegram_group.lead_count += 1
-            telegram_group.save()
-            logging.info(f"[+] Lead sent to telegram group: {telegram_group.group_id}")
-    if entities and intent == "product_recommendation":
-        entity_list = entities if isinstance(entities, list) else [entities]
-        text_lines = []
 
-        for idx, ent in enumerate(entity_list, start=1):
-            if not isinstance(ent, dict):
-                continue
-
-            _image_url = (
-                ent.get("image_url")
-                or ent.get("main_image_url")
-                or ent.get("main_image_url_full")
-            )
-
-            detail_pairs = []
-            for key, value in ent.items():
-                if key in {"image_url", "main_image_url", "main_image_url_full"}:
-                    continue
-                if value in [None, ""]:
-                    continue
-                if key == "sku":
-                    detail_pairs.append(f"Artikul {value}")
-                    continue
-                detail_pairs.append(f"{key.capitalize()}: {value}")
-
-            if not detail_pairs:
-                continue
-            text_line = f"\n{idx}." + "\n".join(detail_pairs)
-
-            if _image_url:
-                response = instagram_service.send_photo(account_id, integration.api_token, sender_id, _image_url)
-                if response.status_code == 200:
-                    logging.info("[+] Image sent to Instagram")
-                else:
-                    logging.warning(f"[-] Failed to send image to Instagram: {response.text}")
-                response = instagram_service.send_message(account_id, integration.api_token, sender_id, text_line)
-            else:
-                text_lines.append(text_line)
-
-        if text_lines:
-            instagram_service.send_message(account_id, integration.api_token, sender_id, "\n".join(text_lines))
-   
 
 @shared_task
 def process_voice_task(chat_id, voice_file_id, bot_token):

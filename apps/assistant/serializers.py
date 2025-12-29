@@ -14,13 +14,13 @@ from apps.integration.models import TelegramGroupIntegration
 from shared.ai_service.openai_client import client
 from shared.addons.telegram import send_telegram_message
 from shared.ai_service.conversation import conversation_service
-from shared.ai_service.assistant import assistant_service
 from shared.ai_service.thread import thread_service
 from shared.ai_service.conversation import conversation_service
 from shared.addons.validations import raise_validation_error
 from shared.addons.enums import ConversationPlatforms, ConversationStatuses,MessageTypes
 from shared.mixins import SubscriptionValidationMixin
 from shared.addons.redis import publish_message_to_ws_assistant
+from apps.shared.ai_service.assistant import assistant_service
 
 class AssistantSerializer(serializers.ModelSerializer,
                           SubscriptionValidationMixin):
@@ -218,7 +218,7 @@ class MessageSerializer(serializers.ModelSerializer, SubscriptionValidationMixin
         message = Message.objects.create(**validated_data)
         if conversation.status == ConversationStatuses.ESCALATED.value or not assistant.is_active:
             return message
-        response, run_status, response_data = conversation_service.get_assistant_response_ai(
+        response, run_status, response_data = assistant_service.get_assistant_response_ai(
             message=transcribed_text,
             assistant_id=assistant.assistant_id,
             thread_id=conversation.thread_id,
@@ -310,7 +310,7 @@ class AssistantFileUploadSerializer(serializers.ModelSerializer, SubscriptionVal
                 raise_validation_error(message=f"File {file.name} exceeds the 30MB size limit.")
         return attrs
 
-    def create(self):
+    def create(self, validated_data):
         request = self.context.get("request")
         files = self.context.get('files')
         assistant = self.context.get("assistant")
@@ -335,25 +335,18 @@ class AssistantFileUploadSerializer(serializers.ModelSerializer, SubscriptionVal
                 )
                 try:
                     file_url = request.build_absolute_uri(upload.file.url) if request else upload.file.url
-                    openai_file_id = assistant_service.upload_knowledge_base_file(file_url)
-                    if openai_file_id:
-                        upload.file_id = openai_file_id
+                    if not assistant.vector_id:
+                        vectore_name, file_name = assistant_service.gemini.create_vectore_store(file_url=file_url)
+                        upload.file_id = file_name
                         upload.save(update_fields=["file_id"])
-                        if getattr(assistant, 'vector_id', None):
-                            batch = client.vector_stores.file_batches.create(
-                                vector_store_id=assistant.vector_id,
-                                file_ids=[openai_file_id]
-                            )
-                            while True:
-                                status = client.vector_stores.file_batches.retrieve(
-                                    vector_store_id=assistant.vector_id,
-                                    batch_id=batch.id
-                                )
-                                if status.status in ["completed", "failed"]:
-                                    break
-                                time.sleep(0.5)
+                        assistant.vector_id = vectore_name
+                        assistant.save(update_fields=["vector_id"])
+                    else:
+                        vectore_name, file_name = assistant_service.gemini.create_vectore_store(vectore_name=assistant.vector_id, file_url=file_url)
+                        upload.file_id = file_name
+                        upload.save(update_fields=["file_id"])
                 except Exception as e:
-                    print(f"[-] OpenAI upload/attach failed: {e}")
+                    print(f"[-] Gemini upload/attach failed: {e}")
                 uploaded_files.append(upload)
 
 

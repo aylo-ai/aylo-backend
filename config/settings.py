@@ -418,10 +418,10 @@ MODELTRANSLATION_LANGUAGES = ('en', 'uz', 'ru', 'kk', 'ar')
 
 import sentry_sdk
 
-sentry_sdk.init(
-    dsn="https://cb6c7ba11d9da224011674295fef19a0@o4506302611980288.ingest.us.sentry.io/4510062349189120",
-    send_default_pii=True,
-)
+# sentry_sdk.init(
+#     dsn="https://cb6c7ba11d9da224011674295fef19a0@o4506302611980288.ingest.us.sentry.io/4510062349189120",
+#     send_default_pii=True,
+# )
 
 BITRIX_CLIENT_ID='local.68fa1c012ca095.04783670'
 BITRIX_CLIENT_KEY='8Jpee3uOJnVgQQzBNtHmzqhWufqxIfm7fzjiohFjK3RS2cpqqP'
