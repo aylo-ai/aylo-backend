@@ -20,7 +20,7 @@ class AssistantAdmin(admin.ModelAdmin):
     readonly_fields = ('created_time', 'updated_time')
     fieldsets = (
         (None, {
-            'fields': ('name', 'description', 'user', 'company_name', 'role', 'language', 'created_by',
+            'fields': ('name', 'description', 'user', 'company_name', 'role', 'language', 'created_by','steps',
                        'personality_style', 'greeting_message', 'fallback_message', 'wait_message',
                        'assistant_id','ai_enabled', 'is_active', "vector_id", "created_time", "updated_time")
         }),
