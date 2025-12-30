@@ -62,6 +62,7 @@ def daily_statistics_assistant():
 🔄 **Davom etgan:** {existing_conversations}
 📊 **Jami:** {new_conversations + existing_conversations}
 
+
 ✅ **Umumiy leadlar:** {daily_lead_instagram + daily_lead_telegram}
 ---
 📱 **Instagram:** {daily_lead_instagram}

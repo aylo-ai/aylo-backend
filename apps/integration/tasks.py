@@ -49,7 +49,7 @@ def process_message_task(chat_id, user_message, bot_token, chat_username=None, u
 
     data = conversation_service.create_message(conversation=conversation, sender=SenderTypes.USER.value, content=user_message, audio_file=audio_file, input_tokens=input_tokens, output_tokens=output_tokens)
     publish_message_to_ws(conversation_id=conversation.id, message=user_message, sender='user', data=data, assistant_id=assistant.id)
-    response_message = assistant_service.generate_response(user_message, assistant, conversation)
+    response_message = assistant_service.generate_response(user_input=user_message, assistent=assistant, conversation=conversation)
     
     logger.info(f"[+] Response message: {response_message}")
 
@@ -70,17 +70,6 @@ def process_instagram_message(account_id, combined_message, user_message, audio_
     sender_id = user_message[0].get("sender", {}).get("id")
     logging.info(f"Sender id: {sender_id}")
 
-    if account_id in  ['17841461784331766', "17841460285897235"]:
-        if combined_message == "Obuna bo'ldim":
-            integration = Integration.objects.filter(instagram_account_id=account_id).first()
-            if integration:
-                instagram_service.send_message(account_id, integration.api_token, sender_id, "https://t.me/investorlikqollanmasi")
-                logging.info("[+] Obuna bo'ldingiz. link foydalanuvchiga yuborildi")
-                return 
-            else:
-                logging.info("[-] Integration not foun for sending request link to user")
-                return
-    
     if not sender_id:
         return
     input_tokens = 0
@@ -102,7 +91,7 @@ def process_instagram_message(account_id, combined_message, user_message, audio_
     data = conversation_service.create_message(conversation=conversation, sender=SenderTypes.USER.value, content=combined_message, 
                           audio_file=audio_file, input_tokens=input_tokens, output_tokens=output_tokens)
     publish_message_to_ws(conversation.id, combined_message, sender="user", data=data, assistant_id=assistant.id)
-    response_message = assistant_service.generate_response(combined_message, assistant, conversation)
+    response_message = assistant_service.generate_response(user_input=combined_message, assistent=assistant, conversation=conversation)
     if response_message:
         instagram_service.send_message(account_id, integration.api_token, sender_id, response_message)
         
