@@ -91,9 +91,10 @@ def process_instagram_message(account_id, combined_message, user_message, audio_
     data = conversation_service.create_message(conversation=conversation, sender=SenderTypes.USER.value, content=combined_message, 
                           audio_file=audio_file, input_tokens=input_tokens, output_tokens=output_tokens)
     publish_message_to_ws(conversation.id, combined_message, sender="user", data=data, assistant_id=assistant.id)
-    response_message = assistant_service.generate_response(user_input=combined_message, assistent=assistant, conversation=conversation)
-    if response_message:
-        instagram_service.send_message(account_id, integration.api_token, sender_id, response_message)
+    if assistant.ai_enabled:
+        response_message = assistant_service.generate_response(user_input=combined_message, assistent=assistant, conversation=conversation)
+        if response_message:
+            instagram_service.send_message(account_id, integration.api_token, sender_id, response_message)
         
 
 
