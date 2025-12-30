@@ -15,14 +15,12 @@ from django.db import transaction
 
 from apps.assistant.models import Message, Conversation, Lead, Assistant
 from config.settings import client
-from shared.addons.enums import SubscriptionStatuses, NotificationTypes, ConversationPlatforms, IntegrationTypes
+from shared.addons.enums import SubscriptionStatuses, NotificationTypes, ConversationPlatforms
 from shared.addons.telegram import send_telegram_message
 from shared.addons.validations import success_response, raise_validation_error, error_response
 from shared.addons.verification import send_playmobile_sms
-from shared.ai_service.assistant import check_response
-from shared.ai_service.thread import wait_on_run
-from config.settings import OPENAI_API_KEY
-from shared.ai_service.helper import create_prompt
+from shared.ai_service.assistant import assistant_service
+from apps.shared.ai_service.thread import thread_service
 from shared.addons.payloads import valid_intents
 from shared.addons.redis import publish_message_to_ws_assistant
 
@@ -183,9 +181,8 @@ def restrict_user_account(user):
 def update_assistant(assistant_id, name, assistant, tools=None):
     print(f"Updating assistant with instructions")
     try:
-        # tools = mcp_tools if assistant.integrations.filter(integration_type=IntegrationTypes.BILLZ.value).exists() else [{"type": "file_search"}]
         tools =  [{"type": "file_search"}]
-        instruction = create_prompt(
+        instruction = assistant_service.create_prompt(
             assistant.name,
             assistant.company_name,
             assistant.description,
@@ -311,7 +308,7 @@ def recursion_ai_response(thread_id, message_content, assistant_id):
     active_runs = client.beta.threads.runs.list(thread_id=thread_id)
     if active_runs.data:
         for run in active_runs.data:
-            wait_on_run(run, thread_id)
+            thread_service.wait_on_run(run, thread_id)
 
     user_message = client.beta.threads.messages.create(
         thread_id=thread_id,
@@ -323,7 +320,7 @@ def recursion_ai_response(thread_id, message_content, assistant_id):
         thread_id=thread_id,
         assistant_id=assistant_id,
     )
-    run_status = wait_on_run(run, thread_id)
+    run_status = thread_service.wait_on_run(run, thread_id)
 
     messages = client.beta.threads.messages.list(
         thread_id=thread_id, order="asc", after=user_message.id
@@ -381,8 +378,7 @@ def get_assistant_response_ai(user_message_, assistant_id, thread_id, conversati
                     message = assistant_response
                     intent = None
 
-                clean_response = check_response(message)
-                handle_unknown_intent(intent, user_message_, assistant, conversation)
+                clean_response = assistant_service.check_response(message)
                         
                 response_data = None
                 if intent == "order_confirmation":
@@ -405,7 +401,7 @@ def get_assistant_response_ai(user_message_, assistant_id, thread_id, conversati
                     }
 
                     username = platform_map.get(conversation.platform) or None
-                    response_data = create_update_lead(
+                    response_data = assistant_service.create_update_lead(
                         assistant=assistant,
                         full_name=name,
                         username=username,
@@ -437,6 +433,7 @@ def create_and_run_thread(assistant_id, vector_store_id):
         return thread_id, run
     except Exception as e:
         print(f"Error while creating a run: {e}")
+        return None, None
 
 def get_thread_id(assistant_id, vector_id):
     if assistant_id is None or vector_id is None:
@@ -571,26 +568,3 @@ def process_instagram_audio(audio_url: str, language: str = "uz") -> str:
         print(f"[process_instagram_audio] Traceback: {traceback.format_exc()}")
         return "Sorry, I couldn't process the audio."
     
-def handle_unknown_intent(intent, user_message, assistant, conversation):
-    pass
-#     if intent == "unknown":
-#         telegram_intergration = Integration.objects.filter(assistant=assistant, integration_type=IntegrationTypes.TELEGRAM.value).first()
-#         print(f"Telegram intergration: {telegram_intergration}")
-#         telegram_group = TelegramGroupIntegration.objects.filter(integration=telegram_intergration).first()
-#         print(f"Telegram group: {telegram_group}")
-#         if telegram_group:
-#             message = f"""
-# 📩 Yangi So'rov!!!
-
-# 👤 Foydalanuvchi: {conversation.client_phone_email if conversation.client_phone_email else conversation.client_full_name}  
-# 💬 Xabar: `{user_message}`  
-# 📱 Platforma: {conversation.platform}
-
-# ❗ Assistant xabarni tushunolmadi.
-
-# 🛠 Iltimos, foydalanuvchiga o'zingiz bog'laning.
-# """
-#             send_telegram_message(telegram_group.group_id, message, telegram_intergration.api_token)
-#             print(f"Assistantga tushunmadi oziz jovob berdi: {telegram_group.group_id}")
-#     else:
-#         pass

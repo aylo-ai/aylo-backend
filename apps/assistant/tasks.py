@@ -1,11 +1,10 @@
-from datetime import date
 from django.utils import timezone
 
 from celery import shared_task
 
-from shared.addons.ai_requests import create_assistant_and_vector_id
+from apps.shared.ai_service.assistant import assistant_service
 from shared.addons.validations import raise_validation_error
-from .models import AssistantFileUpload, Assistant
+from apps.assistant.models import AssistantFileUpload, Assistant, Message
 from apps.integration.models import TelegramGroupIntegration
 from shared.addons.enums import IntegrationTypes, ConversationPlatforms
 from shared.addons.utils import send_telegram_message
@@ -33,7 +32,7 @@ def finalize_assistant_files(assistant_id):
         "assistant_language": assistant.language,
         "file_links": [file.file.url for file in assistant.files.all()]
     }
-    assistant_id, code = create_assistant_and_vector_id(data)
+    assistant_id, code = assistant_service.create_assistant_and_vector_id(data)
     if code == 400:
         raise_validation_error(message=assistant_id)
     assistant.assistant_id = assistant_id
@@ -43,28 +42,26 @@ def finalize_assistant_files(assistant_id):
 
 @shared_task
 def daily_statistics_assistant():
-    """
-    Send daily statistics for December 18th, 2024 to all Telegram groups with integrations.
-    """
-    current_date = timezone.now().date()
     assistants = Assistant.objects.all()
-    
+    current_date = timezone.now().date()
     for assistant in assistants:
         print(f"Assistant: {assistant.name}")
-        
-        # Get all telegram integrations for this assistant
         telegram_integrations = assistant.integrations.filter(integration_type=IntegrationTypes.TELEGRAM.value)
         
         if not telegram_integrations.exists():
             print(f"No Telegram integration found for assistant: {assistant.name}")
             continue
-
-        # Get statistics for the current date
         daily_lead_instagram, daily_lead_telegram, phone_number_leave = get_daily_lead_statistics(assistant.id, current_date)
+        new_conversations, existing_conversations = get_daily_conversation_statistics(assistant.id, current_date)
 
-        # Prepare message
         message = f"""
 📊 **Kunlik Statistika** ({current_date.strftime("%d.%m.%Y")})
+
+💬 **Suhbatlar:**
+🆕 **Yangi:** {new_conversations}
+🔄 **Davom etgan:** {existing_conversations}
+📊 **Jami:** {new_conversations + existing_conversations}
+
 
 ✅ **Umumiy leadlar:** {daily_lead_instagram + daily_lead_telegram}
 ---
@@ -75,7 +72,6 @@ def daily_statistics_assistant():
 """
         print(f"Message: {message}")
         
-        # Send to all telegram groups for all integrations
         for telegram_integration in telegram_integrations:
             telegram_groups = TelegramGroupIntegration.objects.filter(integration=telegram_integration).all()
             
@@ -90,18 +86,7 @@ def daily_statistics_assistant():
                 except Exception as e:
                     print(f"Error sending message to group {telegram_group.group_id}: {e}")
 
-
 def get_daily_lead_statistics(assistant_id, target_date):
-    """
-    Get daily lead statistics for a specific date.
-    
-    Args:
-        assistant_id: ID of the assistant
-        target_date: Date object for which to get statistics
-    
-    Returns:
-        Tuple of (instagram_leads, telegram_leads, phone_number_leads)
-    """
     assistant = Assistant.objects.get(id=assistant_id)
     daily_lead_instagram = assistant.leads.filter(
         created_time__date=target_date, 
@@ -117,3 +102,22 @@ def get_daily_lead_statistics(assistant_id, target_date):
     ).count()
 
     return daily_lead_instagram, daily_lead_telegram, phone_number_leave
+
+
+def get_daily_conversation_statistics(assistant_id, target_date):
+    assistant = Assistant.objects.get(id=assistant_id)
+    
+    new_conversations = assistant.conversations.filter(
+        created_time__date=target_date
+    ).count()
+    
+    conversations_before_today = assistant.conversations.filter(
+        created_time__date__lt=target_date
+    )
+    
+    existing_conversations = Message.objects.filter(
+        conversation__in=conversations_before_today,
+        created_time__date=target_date
+    ).values_list('conversation_id', flat=True).distinct().count()
+    
+    return new_conversations, existing_conversations

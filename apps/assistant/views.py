@@ -8,10 +8,9 @@ from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework.exceptions import NotFound
 
 from apps.assistant.models import Assistant, AssistantFileUpload, Conversation, Message, Lead
-from shared.addons.ai_requests import create_assistant_and_vector_id, delete_assitant, delete_vector_store
 from shared.addons.validations import success_response, error_response
 from shared.ai_service.openai_client import client
-from shared.addons.utils import update_assistant
+from shared.ai_service.assistant import assistant_service
 from shared.addons.redis import publish_new_message_to_ws
 from apps.assistant.filters import LeadFilter
 from apps.assistant.serializers import (AssistantSerializer, 
@@ -75,7 +74,7 @@ class AssistantRetrieveView(generics.RetrieveUpdateDestroyAPIView):
         self.perform_update(serializer)
         assistant = instance
         if assistant and assistant.assistant_id:
-            success, message = update_assistant(assistant.assistant_id, assistant.name, assistant)
+            success, message = assistant_service.update_assistant(assistant.assistant_id, assistant.name, assistant)
             print(f"Assistant updated successfully: {success}, {message}")
         return success_response(message=_("Assistant muvaffaqiyatli o'zgartirildi"), data=serializer.data, code=200)
 
@@ -90,9 +89,9 @@ class AssistantRetrieveView(generics.RetrieveUpdateDestroyAPIView):
         vector_id = instance.vector_id
         print(f"Assistant ID: {assistant_id}")
         if assistant_id:
-            delete_assitant(assistant_id)
+            assistant_service.delete_assistant(assistant_id)
         if vector_id:
-            delete_vector_store(vector_id)
+            assistant_service.delete_vector_store(vector_id)
         self.perform_destroy(instance)
         return success_response(message=_("Assistant muvaffaqiyatli o'chirildi"), code=204)
 
@@ -289,11 +288,11 @@ class AssistantFileUploadListCreateView(generics.ListCreateAPIView):
         serializer.is_valid(raise_exception=True)
 
         serializer.save()
-        if assistant and not assistant.vector_id:
-            success, message = create_assistant_and_vector_id(assistant, request)
-            if not success:
-                return error_response(message=message, code=400)
-            print("saved assistant data")
+        # if assistant and not assistant.vector_id:
+        #     success, message = assistant_service.create_assistant_and_vector_id(assistant, request)
+        #     if not success:
+            #     return error_response(message=message, code=400)
+            # print("saved assistant data")
         return success_response(message=_("File muvaffaqiyatli yaratildi"), code=201)
     
 
@@ -349,16 +348,7 @@ class AssistantFileUploadRetrieveView(generics.RetrieveUpdateDestroyAPIView):
         except AssistantFileUpload.DoesNotExist:
             return error_response(message=_("Fayl topilmadi"), code=404)
 
-        assistant = instance.assistant
-        if assistant and getattr(assistant, "vector_id", None) and getattr(instance, "file_id", None):
-            try:
-                
-                client.vector_stores.files.delete(
-                    vector_store_id=assistant.vector_id,
-                    file_id=instance.file_id
-                )
-            except Exception as e:
-                print(f"[-] Failed removing file from vector store: {e}")
+        assistant_service.gemini.delete_vectore_store_file(instance.file_id)
         instance.delete()
         return success_response(message=_("Fayl muvaffaqiyatli o'chirildi"), code=200)
 

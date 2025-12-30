@@ -5,12 +5,11 @@ from django.utils.translation import gettext_lazy as _
 from django.shortcuts import get_object_or_404
 
 
-from shared.addons.utils import update_assistant
-from shared.mcp_server.mcp_server import tools
 from apps.assistant.models import Conversation, Assistant
 from shared.addons.enums import IntegrationTypes, ConversationPlatforms, ConversationStatuses
 from shared.addons.telegram import telegram_get_me, set_telegram_webhook, get_webhook_info, send_telegram_message
-from shared.addons.utils import create_message
+from apps.shared.ai_service.assistant import assistant_service
+from apps.shared.ai_service.conversation import conversation_service
 from shared.addons.validations import raise_validation_error, success_response
 from shared.mixins import SubscriptionValidationMixin
 from .models import (Integration, 
@@ -101,7 +100,7 @@ class IntegrationCreateSerializer(serializers.ModelSerializer, SubscriptionValid
                 raise_validation_error(message=_("Billz access token topilmadi"))
             validated_data['api_token'] = access_token
             validated_data['refresh_token'] = response.json().get('data').get('refresh_token')
-            update_assistant(assistant.assistant_id, assistant.name, assistant, tools=tools)
+            assistant_service.update_assistant(assistant.assistant_id, assistant.name, assistant)
             return super().create(validated_data)
         return super().create(validated_data)
 
@@ -189,11 +188,11 @@ class SendUserMessageSerializer(serializers.Serializer, SubscriptionValidationMi
             bot_token = validated_data.get("bot_token")
             message = validated_data.get("message")
             send_telegram_message(user_id, message, bot_token)
-            create_message(conversation, "admin", message)
+            conversation_service.create_message(conversation, "admin", message)
 
         if platform == ConversationPlatforms.WEBSITE.value:
             message = validated_data.get("message")
-            create_message(conversation, "admin", message)
+            conversation_service.create_message(conversation, "admin", message)
 
         return success_response(message=_("Xabar muvaffaqiyatli yuborildi"), code=200)
 
