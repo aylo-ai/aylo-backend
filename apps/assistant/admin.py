@@ -136,6 +136,6 @@ class AssistantFileUploadAdmin(admin.ModelAdmin):
     )
     add_fieldsets = (
         (None, {
-            'fields': ('assistant', 'file')
+            'fields': ('assistant', 'file','steps')
         }),
     )
