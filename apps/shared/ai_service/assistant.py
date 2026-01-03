@@ -134,7 +134,7 @@ class SupervisorAssistant:
                     store=True
                 )
                 print(f"[+] Final response: {response}")
-            redis_client.set(f"assistant:{assistent.id}:conversation_id:{conversation.id}", response.id, ex=240)
+            redis_client.set(f"assistant:{assistent.id}:conversation_id:{conversation.id}", response.id, ex=60*60*24)
         else:
             instructions = self.format_instructions(assistent = assistent)
             response = self.client.responses.create(
@@ -183,7 +183,7 @@ class SupervisorAssistant:
                     store=True
                 )
                 print(f"[+] Final response: {response}")
-            redis_client.set(f"assistant:{assistent.id}:conversation_id:{conversation.id}", response.id, ex=240)
+            redis_client.set(f"assistant:{assistent.id}:conversation_id:{conversation.id}", response.id, ex=60*60*24)
             response_message = self.format_response(response)
             print(f"[+] Response message: {response_message}")
             data = self.conversation.create_message(conversation=conversation, sender=SenderTypes.ASSISTANT.value, audio_file=None, 
