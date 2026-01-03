@@ -64,10 +64,6 @@ class SupervisorAssistant:
                         "type": "string",
                         "description": "A valid contact number including area code."
                     },
-                    "address": {
-                        "type": "string",
-                        "description": "The full shipping or billing address, including city and zip code."
-                    },
                     "products": {
                         "type": "array",
                         "description": "A list of specific product names or SKUs the user is interested in.",
@@ -83,7 +79,6 @@ class SupervisorAssistant:
                     "required": [
                     "full_name",
                     "phone_number",
-                    "address",
                     "products"
                     ]
                 }
@@ -256,7 +251,7 @@ class SupervisorAssistant:
                 # TOOL LOGIC
                 1. UNKNOWN INFO: If the user asks about products or details not in your immediate memory, call `search_vectore_store`.
                 2. ORDER FINALIZATION: When a user confirms they want to buy/order, call `generate_lead`. 
-                - Required Lead Data: [full_name, phone_number, address, products, lead_summary].
+                - Required Lead Data: [full_name, phone_number, products, lead_summary].
                 - Ensure the 'lead_summary' is detailed and professional.
 
                 # GOALS
