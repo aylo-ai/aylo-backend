@@ -73,7 +73,7 @@ class SupervisorAssistant:
                     },
                     "lead_summary": {
                         "type": "string",
-                        "description": "professional summary of the user's specific requirements and proper format and emoji."
+                        "description": "professional summary of the user's specific requirements and proper format and emoji and there must be client full name and phone number."
                     }
                     },
                     "required": [
@@ -212,7 +212,7 @@ class SupervisorAssistant:
         )
         print(f"[+] Lead: {lead}")
         lead_summary = parameters.get('lead_summary', None)
-        text = "\nUsername: @{}\n".format(conversation.username)
+        text = "\nUsername: @{}\n".format(conversation.client_full_name)
         text += "Platform: {}\n".format(conversation.platform)
         lead_summary += text
         for telegram_group in telegram_groups:
