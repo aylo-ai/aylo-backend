@@ -22,7 +22,7 @@ class AssistantAdmin(admin.ModelAdmin):
         (None, {
             'fields': ('name', 'description', 'user', 'company_name', 'role', 'language', 'created_by','steps',
                        'personality_style', 'greeting_message', 'fallback_message', 'wait_message',
-                       'assistant_id','ai_enabled', 'is_active', "vector_id", "created_time", "updated_time")
+                       'assistant_id','ai_enabled', 'system_prompt', 'is_active', "vector_id", "created_time", "updated_time")
         }),
     )
     inlines = [IntegrationInline]
@@ -72,7 +72,7 @@ class ConversationAdmin(admin.ModelAdmin):
     fieldsets = (
         (None, {
             'fields': ('assistant', 'status', 'thread_id', 'user_id', 
-            'username', 'token','client_full_name','client_phone_email', 'platform', 'system_prompt')
+            'username', 'token','client_full_name','client_phone_email', 'platform',)
         }),
         ('System', {
             'fields': ('start_time', 'end_time'),
