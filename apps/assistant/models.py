@@ -29,6 +29,7 @@ class Assistant(BaseModel):
     description = models.TextField(null=True, blank=True)
     company_name = models.CharField(max_length=100)
     role = models.CharField(max_length=100, default="sales, support, and operations")
+    system_prompt = models.TextField(null=True, blank=True)
     user = models.ForeignKey(
         "user.User",
         on_delete=models.CASCADE,
