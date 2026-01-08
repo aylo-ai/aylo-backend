@@ -64,22 +64,16 @@ class SupervisorAssistant:
                         "type": "string",
                         "description": "A valid contact number including area code."
                     },
-                    "products": {
-                        "type": "array",
-                        "description": "A list of specific product names or SKUs the user is interested in.",
-                        "items": {
-                        "type": "string"
-                        }
-                    },
-                    "lead_summary": {
+                    "product": {
                         "type": "string",
-                        "description": "professional summary of the user's specific requirements and proper format and emoji and there must be client full name and phone number."
-                    }
+                        "description": "User requested products with detail if has",
+
+                    },
                     },
                     "required": [
                     "full_name",
                     "phone_number",
-                    "products"
+                    "product"
                     ]
                 }
                 }
@@ -206,18 +200,32 @@ class SupervisorAssistant:
             assistant=assistent,
             full_name=parameters.get('full_name', None),
             phone_number=parameters.get('phone_number', None),    
-            product=parameters.get('products', None),
+            product=parameters.get('product', None),
             metadata=parameters,
             platform=conversation.platform
         )
         print(f"[+] Lead: {lead}")
-        lead_summary = parameters.get('lead_summary', None)
-        text = "\nUsername: @{}\n".format(conversation.client_full_name)
-        text += "Platform: {}\n".format(conversation.platform)
-        lead_summary += text
+        username = conversation.username if conversation.platform == 'telegram' else conversation.client_full_name
+        platform = conversation.platform if conversation.platform else None
+        username_link = None
+        if username:
+            if platform and platform.lower() == "telegram":
+                username_link = f"@{username}"
+            elif platform and platform.lower() == "instagram":
+                username_link = f"https://www.instagram.com/{username}"
+        lead_content = f"""
+New Lead Generated! 📢
+
+👤 Full Name: {lead.full_name}
+📞 Phone Number: {lead.phone_number}
+📦 Product: {lead.product}
+🔗 Username: {username_link}
+🌐 Platform: {lead.platform}
+        """
+
         for telegram_group in telegram_groups:
-            send_telegram_message(telegram_group.group_id, lead_summary, telegram.api_token)
-        return lead_summary
+            send_telegram_message(telegram_group.group_id, lead_content, telegram.api_token)
+        return parameters
 
     def format_response(self, response: Response):
         for res in response.output:
@@ -252,10 +260,9 @@ class SupervisorAssistant:
                 {assistent.steps}
 
                 # TOOL LOGIC
-                1. UNKNOWN INFO: If the user asks about products or details not in your immediate memory, call `search_vectore_store`.
+                1. UNKNOWN INFO: If the user asks about product or details not in your immediate memory, call `search_vectore_store`.
                 2. ORDER FINALIZATION: When a user confirms they want to buy/order, call `generate_lead`. 
-                - Required Lead Data: [full_name, phone_number, products, lead_summary].
-                - Ensure the 'lead_summary' is detailed and professional.
+                - Required Lead Data: [full_name, phone_number, product].
 
                 # GOALS
                 - Accurately classify user intent.
@@ -268,7 +275,7 @@ class SupervisorAssistant:
                 - SENSITIVE DATA: Never ask for passwords or credit card numbers. Only collect the lead information specified in the tools.
 
                 # OUTPUT FORMAT (STRICT JSON)
-                You must output ONLY valid JSON. No markdown formatting, no conversational filler outside the JSON.
+                You must output ONLY valid JSON. No markdown formatting, no conversational filler outside the JSON and when responsding do not use " **" sight or others.
                 {{
                 "intent": "string",
                 "entities":{{ "key": "value" }}
