@@ -6,13 +6,13 @@ from pydub import AudioSegment
 import logging
 from google import genai
 from google.genai import types
-from django.conf import settings
 
 from django.db import transaction
 from django.utils.translation import gettext_lazy as _
 
 from apps.assistant.models import  Message, Conversation, Lead
 from shared.addons.validations import success_response
+from config import settings
 
 from shared.addons.telegram import send_telegram_message
 from shared.addons.redis import publish_message_to_ws_assistant
