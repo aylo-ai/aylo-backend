@@ -21,7 +21,7 @@ class AssistantAdmin(admin.ModelAdmin):
     fieldsets = (
         (None, {
             'fields': ('name', 'description', 'user', 'company_name', 'role', 'language', 'created_by','steps',
-                       'personality_style', 'greeting_message', 'fallback_message', 'wait_message',
+                       'personality_style', 'greeting_message', 'fallback_message', 'wait_message','web_search_tool',
                        'assistant_id','ai_enabled', 'system_prompt', 'is_active', "vector_id", "created_time", "updated_time")
         }),
     )

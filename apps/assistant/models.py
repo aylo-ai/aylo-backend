@@ -63,6 +63,8 @@ class Assistant(BaseModel):
     vector_id = models.CharField(max_length=255, null=True, blank=True)
     is_active = models.BooleanField(default=True)
     ai_enabled = models.BooleanField(default=True)
+    web_search_tool = models.BooleanField(default=False)
+
 
     integrations: "models.QuerySet[Integration]"
 
@@ -95,7 +97,7 @@ class Conversation(BaseModel):
     end_time = models.DateTimeField(null=True, blank=True)
     client_full_name = models.CharField(max_length=255, null=True, blank=True)
     client_phone_email = models.CharField(max_length=255, null=True, blank=True)
-
+    
     def save(self, *args, **kwargs):
         super().save(*args, **kwargs)
 
