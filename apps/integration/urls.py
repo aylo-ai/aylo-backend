@@ -18,6 +18,7 @@ urlpatterns = [
     path(
         "integration/<uuid:pk>/instagram/posts/", views.InstagramPostListView.as_view()
     ),
+    path("send/integration/<uuid:pk>/", views.SendIntegrationMessageView.as_view()),
     path("send-telegram-message/", views.SendUserMessageView.as_view()),
     # Trigger words endpoints
     path("trigger-words/", views.CommentTriggerWordListCreateView.as_view()),

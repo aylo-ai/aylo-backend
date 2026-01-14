@@ -14,7 +14,6 @@ from rest_framework.views import APIView
 from rest_framework import generics, permissions
 from django.utils.translation import gettext_lazy as _
 
-
 from config.settings import INSTAGRAM_CLIENT_ID, INSTAGRAM_CLIENT_SECRET, INSTAGRAM_REDIRECT_URI
 from shared.addons.enums import IntegrationTypes
 from shared.addons.telegram import handle_bot_added_to_group, handle_bot_removed_from_group
@@ -37,10 +36,12 @@ from .serializers import (IntegrationCreateSerializer,
                         CommentResponseButtonSerializer)
 from .tasks import (process_instagram_message, 
                     process_voice_task, 
+                    process_photo_task,
                     process_instagram_comment, 
                     WAIT_SECONDS, 
                     process_collected_messages, 
-                    handle_postback_event_task)
+                    handle_postback_event_task,
+                    send_message_integration_task)
 
 from shared.addons.redis import redis_client
 
@@ -140,6 +141,27 @@ class SendUserMessageView(generics.CreateAPIView):
         serializer.is_valid(raise_exception=True)
         response = serializer.save()
         return success_response(message=response.get("message"), code=200)
+
+
+class SendIntegrationMessageView(generics.CreateAPIView):
+    permission_classes = [permissions.IsAuthenticated]
+
+    def create(self, request, *args, **kwargs):
+        integration_id = self.kwargs.get('pk')
+        message = request.data.get("message")
+        if not message:
+            return error_response(message=_("Xabar mavjud emas"), code=400)
+        if not integration_id:
+            return error_response(message=_("Integration ID mavjud emas"), code=400)
+        try:
+            integration = Integration.objects.get(id=integration_id)
+            if integration.assistant.user != request.user:
+                print(f"Integration user: {integration.user}, Request user: {request.user}")
+                return error_response(message=_("Sizda bu integration mavjud emas"), code=400)
+        except Integration.DoesNotExist:
+            return error_response(message=_("Integration topilmadi"), code=404)
+        send_message_integration_task.delay(integration_id, message)
+        return success_response(message=_("Xabar muvaffaqiyatli yuborildi"), code=200)
 
 
 class InstagramWebhookView(APIView):
@@ -499,7 +521,18 @@ class TelegramWebhookView(APIView):
                     print("[-] Cannot handle document messages")
                     return success_response(message=_("Document message muvaffaqiyatli olindi"), code=200)
 
-                    # Voice message handling
+                # Photo message handling
+                if "photo" in data:
+                    photos = data["photo"]
+                    if photos:
+                        # Get the largest photo (last in the array)
+                        largest_photo = photos[-1]
+                        photo_file_id = largest_photo.get("file_id")
+                        if photo_file_id:
+                            process_photo_task.delay(chat_id, photo_file_id, bot_token, chat_username, username)
+                            return success_response(message=_("Photo message muvaffaqiyatli olindi"), code=200)
+
+                # Voice message handling
                 if "voice" in data:
                     voice_file_id = data["voice"]["file_id"]
                     process_voice_task.delay(chat_id, voice_file_id, bot_token)

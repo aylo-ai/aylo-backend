@@ -13,7 +13,7 @@ from celery import shared_task
 
 from apps.shared.ai_service.openai_client import client
 from apps.shared.addons.enums import SenderTypes, ConversationStatuses, IntegrationTypes
-from apps.assistant.models import Assistant, Lead
+from apps.assistant.models import Assistant, Lead, Conversation
 from shared.addons.redis import publish_message_to_ws, redis_client
 from shared.addons.instagram import instagram_service
 from shared.addons.telegram import send_telegram_message, send_telegram_action
@@ -95,6 +95,18 @@ def process_instagram_message(account_id, combined_message, user_message, audio_
         response_message = assistant_service.generate_response(user_input=combined_message, assistent=assistant, conversation=conversation)
         if response_message:
             instagram_service.send_message(account_id, integration.api_token, sender_id, response_message)
+
+
+@shared_task
+def send_message_integration_task(integration_id, message):
+    integration = Integration.objects.get(id=integration_id)
+    conversations = Conversation.objects.filter(assistant=integration.assistant, platform=integration.integration_type)
+    if integration.integration_type == IntegrationTypes.TELEGRAM.value:
+        for conversation in conversations:
+            send_telegram_message(conversation.user_id, message, integration.api_token)
+    if integration.integration_type == IntegrationTypes.INSTAGRAM.value:
+        for conversation in conversations:
+            instagram_service.send_message(account_id=conversation.user_id, access_token=integration.api_token, recipient_id=conversation.user_id, message=message)
         
 
 
@@ -117,6 +129,66 @@ def process_voice_task(chat_id, voice_file_id, bot_token):
     transcribed_text, input_tokens, output_tokens = conversation_service.speech_to_text(audio_bytes_mp3, language=language_code)
 
     process_message_task.delay(chat_id=chat_id, user_message=transcribed_text, bot_token=bot_token, audio_file=audio_bytes_mp3, input_tokens=input_tokens, output_tokens=output_tokens)
+
+@shared_task
+def process_photo_task(chat_id, photo_file_id, bot_token, chat_username=None, username=None):
+    assistant = Assistant.objects.filter(integrations__api_token=bot_token).first()
+    if not assistant:
+        logging.warning("[+] Assistant not found")
+        return
+
+    try:
+        # Get file info from Telegram
+        file_info_url = f"https://api.telegram.org/bot{bot_token}/getFile?file_id={photo_file_id}"
+        file_info_resp = requests.get(file_info_url)
+        file_info_resp.raise_for_status()
+        file_path = file_info_resp.json()["result"]["file_path"]
+        file_url = f"https://api.telegram.org/file/bot{bot_token}/{file_path}"
+        
+        image_analysis = assistant_service.gemini.picture_analysis(file_url, language=assistant.language)
+        
+        if not image_analysis or image_analysis.startswith("I couldn't") or image_analysis.startswith("I encountered"):
+            send_telegram_message(chat_id, "I couldn't analyze the image. Please try again.", bot_token)
+            return
+        
+        conversation = conversation_service.get_or_create_conversation(
+            chat_id, assistant, token=bot_token, chat_username=chat_username, username=username
+        )
+        
+        if conversation.status == ConversationStatuses.ESCALATED.value or not assistant.is_active:
+            data = conversation_service.create_message(
+                conversation=conversation, 
+                sender=SenderTypes.USER.value, 
+                content=f"[Image] {image_analysis}"
+            )
+            publish_message_to_ws(conversation.id, image_analysis, sender="user", data=data, assistant_id=assistant.id)
+            return
+        
+        send_telegram_action(chat_id, bot_token)
+        
+        data = conversation_service.create_message(
+            conversation=conversation, 
+            sender=SenderTypes.USER.value, 
+            content=f"[Image] {image_analysis}"
+        )
+        publish_message_to_ws(conversation_id=conversation.id, message=image_analysis, sender='user', data=data, assistant_id=assistant.id)
+        
+        response_message = assistant_service.generate_response(
+            user_input=image_analysis, 
+            assistent=assistant, 
+            conversation=conversation
+        )
+        
+        logger.info(f"[+] Photo response message: {response_message}")
+        
+        if response_message:
+            send_telegram_message(chat_id, response_message, bot_token)
+            
+    except Exception as e:
+        logging.error(f"Error processing photo: {e}")
+        import traceback
+        logging.error(f"Traceback: {traceback.format_exc()}")
+        send_telegram_message(chat_id, "I encountered an error while processing the image. Please try again.", bot_token)
 
 @shared_task
 def process_instagram_comment(account_id, comment_data):
@@ -297,7 +369,7 @@ def handle_postback_event_task(msg, access_token):
         return 
     
     #checking user that he subscribed or not
-    status_subscription = conversation_service.checking_instagram_followers(access_token=access_token, recicipient_id=sender_id)
+    status_subscription = instagram_service.checking_followers(access_token=access_token, recicipient_id=sender_id)
     #based on the subscrition send another way
     transition = Transition.objects.filter(from_to=user_state.current_step, action_subscription=status_subscription['is_user_follow_business'], 
                                            button_text__id=inline_button_id).first()
