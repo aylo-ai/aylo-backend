@@ -369,7 +369,7 @@ def handle_postback_event_task(msg, access_token):
         return 
     
     #checking user that he subscribed or not
-    status_subscription = instagram_service.checking_followers(access_token=access_token, recicipient_id=sender_id)
+    status_subscription = instagram_service.checking_followers(access_token=access_token, recipient_id=sender_id)
     #based on the subscrition send another way
     transition = Transition.objects.filter(from_to=user_state.current_step, action_subscription=status_subscription['is_user_follow_business'], 
                                            button_text__id=inline_button_id).first()
