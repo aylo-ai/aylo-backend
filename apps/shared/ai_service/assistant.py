@@ -1,4 +1,5 @@
 import os
+import re
 import time
 import json
 import logging
@@ -227,27 +228,32 @@ New Lead Generated! 📢
             send_telegram_message(telegram_group.group_id, lead_content, telegram.api_token)
         return parameters
 
+
     def format_response(self, response: Response):
         final_text = ""
         for item in response.output:
             if item.type == "message" and getattr(item, 'role', None) == "assistant":
                 for content in item.content:
-                    if content.type == "output_text":
-                        final_text = content.text
-                        
+                    if content.type == "output_text" and content.text:
+                        if "{" in content.text and '"reply"' in content.text:
+                            final_text = content.text
+                            break
+                if final_text: break
+
         cleaned = final_text.strip()
         if cleaned.startswith('```json'):
-            cleaned = cleaned.split('```json')[1].split('```')[0].strip()
+            cleaned = cleaned.replace('```json', '').replace('```', '').strip()
         elif cleaned.startswith('```'):
-            cleaned = cleaned.split('```')[1].split('```')[0].strip()
+            cleaned = cleaned.replace('```', '').strip()
 
         try:
             parsed_data = json.loads(cleaned)
-            main_reply = parsed_data.get("reply", cleaned)
+            return parsed_data.get("reply", cleaned) 
         except json.JSONDecodeError:
-            main_reply = cleaned
-    
-        return main_reply
+            match = re.search(r'"reply":\s*"(.*?)"', cleaned, re.DOTALL)
+            if match:
+                return match.group(1).encode().decode('unicode_escape')
+            return cleaned
 
     def format_instructions(self, assistant: Assistant):
         return f"""
