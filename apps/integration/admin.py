@@ -44,7 +44,6 @@ class InstagramCommentResponseAdmin(admin.ModelAdmin):
         "instagram_media__media_id",
     ]
     filter_horizontal = ("instagram_media", "trigger_words")
-    readonly_fields = ("is_respond_to_all_comments",)
     fieldsets = (
         (None, {
             "fields": (
