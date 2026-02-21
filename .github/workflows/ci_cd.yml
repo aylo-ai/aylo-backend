@@ -31,7 +31,7 @@ jobs:
       - uses: actions/checkout@v4
       - name: Deploy
         run: |
-          cp /home/mukhammad/.secrets/.env .
+          cp /home/mukhammad.irmatov/.secrets/.env .
           docker compose down
           docker compose up --build -d
           yes | docker image prune
