@@ -417,7 +417,7 @@ LANGUAGES = (
 MODELTRANSLATION_LANGUAGES = ('en', 'uz', 'ru', 'kk', 'ar')
 
 
-import sentry_sdk
+import sentry_sdk # Sentry SDK for error tracking and monitoring
 
 # sentry_sdk.init(
 #     dsn="https://cb6c7ba11d9da224011674295fef19a0@o4506302611980288.ingest.us.sentry.io/4510062349189120",
