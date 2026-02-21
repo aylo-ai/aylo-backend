@@ -24,8 +24,7 @@ jobs:
             docker compose down
             docker compose up --build -d
             yes | docker image prune
-            
-    deploy_gcp:
+  deploy_gcp:
     name: Deploy to GCP
     runs-on: [self-hosted, linux, gcp]
     steps:
