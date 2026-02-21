@@ -4,16 +4,13 @@ on:
   push:
     branches:
       - main
-
     paths-ignore:
       - "README.md"
 
 jobs:
   deploy:
     name: Deploy
-
-    runs-on: [self-hosted]
-
+    runs-on: [self-hosted, linux]
     defaults:
       run:
         working-directory: ${{ github.workspace }}
@@ -21,10 +18,21 @@ jobs:
     steps:
       - name: Checkout the repo
         uses: actions/checkout@v4
-
       - name: Deploy using docker compose
         run: |
             cp /home/mukhammad/.secrets/.env .
             docker compose down
             docker compose up --build -d
             yes | docker image prune
+            
+    deploy_gcp:
+    name: Deploy to GCP
+    runs-on: [self-hosted, linux, gcp]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Deploy
+        run: |
+          cp /home/mukhammad/.secrets/.env .
+          docker compose down
+          docker compose up --build -d
+          yes | docker image prune
