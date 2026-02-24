@@ -85,13 +85,9 @@ class AssistantRetrieveView(generics.RetrieveUpdateDestroyAPIView):
                 message=_("Faqat mijozlar o'zlarining assistantlarini o'chirishlari mumkin"),
                 code=403
             )
-        assistant_id = instance.assistant_id
         vector_id = instance.vector_id
-        print(f"Assistant ID: {assistant_id}")
-        if assistant_id:
-            assistant_service.delete_assistant(assistant_id)
         if vector_id:
-            assistant_service.delete_vector_store(vector_id)
+            assistant_service.gemini.delete_vectore_store(vector_id)
         self.perform_destroy(instance)
         return success_response(message=_("Assistant muvaffaqiyatli o'chirildi"), code=204)
 
