@@ -385,9 +385,23 @@ class GeminiService:
                         }
 
 
+    def _upload_to_store(self, vectore_name, temp_filename):
+        file = self.client.file_search_stores.upload_to_file_search_store(
+            file_search_store_name=vectore_name,
+            file=temp_filename
+        )
+        while True:
+            file_status = self.client.operations.get(file)
+            print("Waiting for indexing to complete...", file_status)
+            if file_status.done:
+                break
+            time.sleep(3)
+        return file
+
     def create_vectore_store(self, file_url, vectore_name=None, clear_text=None):
         print(f"[+] Creating vectore store: {file_url}")
-        if not vectore_name:
+        is_new_store = not vectore_name
+        if is_new_store:
             vectore_name = self.client.file_search_stores.create().name
             print(f"[+] Created vectore store: {vectore_name}")
 
@@ -396,43 +410,43 @@ class GeminiService:
             print(f"[+] Mime type: {mime_type}")
             if mime_type not in self.mime_types:
                 logging.info(f"Unsupported file format: {mime_type}. Skipping file: {file_url}")
-                return None
+                return None, None
 
+            temp_filename = None
             try:
                 response = requests.get(file_url)
                 response.raise_for_status()
 
                 if not response.content:
                     logging.info(f"File at {file_url} is empty. Skipping upload.")
-                    return None
+                    return None, None
 
-                file_content = BytesIO(response.content)
-                file_content.seek(0)
                 temp_filename = file_url.split("/")[-1]
                 with open(temp_filename, "wb") as f:
-                    f.write(response.content)  
-                file = self.client.file_search_stores.upload_to_file_search_store(
-                    file_search_store_name = vectore_name,
-                    file = temp_filename
-                )
-                while True:
-                    file_status = self.client.operations.get(file)
-                    print("Waiting for indexing to complete...", file_status)
-                    if file_status.done:
-                        break
-                    
-                    time.sleep(3)
-                if os.path.exists(temp_filename):
-                    os.remove(temp_filename)
+                    f.write(response.content)
+
+                try:
+                    file = self._upload_to_store(vectore_name, temp_filename)
+                except Exception as e:
+                    if '404' in str(e) and not is_new_store:
+                        logging.warning(f"Vector store {vectore_name} not found, creating a new one")
+                        vectore_name = self.client.file_search_stores.create().name
+                        file = self._upload_to_store(vectore_name, temp_filename)
+                    else:
+                        raise
+
                 logging.info(f"Uploaded file ID: {file.response.document_name} for URL: {file_url}")
                 return vectore_name, file.response.document_name
 
             except requests.exceptions.RequestException as e:
                 logging.error(f"Connection error when downloading file from {file_url}: {e}")
-                return None
+                return None, None
             except Exception as e:
                 logging.error(f"Error uploading file: {e}")
-                return None
+                return None, None
+            finally:
+                if temp_filename and os.path.exists(temp_filename):
+                    os.remove(temp_filename)
         elif clear_text:
             file_content = BytesIO(clear_text.encode("utf-8"))
             file_content.seek(0)

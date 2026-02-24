@@ -101,7 +101,7 @@ class ConversationSerializer(serializers.ModelSerializer,
         if assistant is None:
             raise_validation_error(message=_("Assistant topilmadi"))
         if assistant.ai_enabled:
-            if not assistant.assistant_id or not assistant.vector_id:
+            if not assistant.vector_id:
                 raise_validation_error(message=_("Assistant uchun fayl yuklash kerak"))
 
         attrs["assistant"] = assistant
@@ -335,16 +335,16 @@ class AssistantFileUploadSerializer(serializers.ModelSerializer, SubscriptionVal
                 )
                 try:
                     file_url = request.build_absolute_uri(upload.file.url) if request else upload.file.url
-                    if not assistant.vector_id:
-                        vectore_name, file_name = assistant_service.gemini.create_vectore_store(file_url=file_url)
+                    vectore_name, file_name = assistant_service.gemini.create_vectore_store(
+                        vectore_name=assistant.vector_id or None,
+                        file_url=file_url
+                    )
+                    if vectore_name and file_name:
                         upload.file_id = file_name
                         upload.save(update_fields=["file_id"])
-                        assistant.vector_id = vectore_name
-                        assistant.save(update_fields=["vector_id"])
-                    else:
-                        vectore_name, file_name = assistant_service.gemini.create_vectore_store(vectore_name=assistant.vector_id, file_url=file_url)
-                        upload.file_id = file_name
-                        upload.save(update_fields=["file_id"])
+                        if assistant.vector_id != vectore_name:
+                            assistant.vector_id = vectore_name
+                            assistant.save(update_fields=["vector_id"])
                 except Exception as e:
                     print(f"[-] Gemini upload/attach failed: {e}")
                 uploaded_files.append(upload)
