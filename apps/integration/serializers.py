@@ -49,7 +49,7 @@ class IntegrationCreateSerializer(serializers.ModelSerializer, SubscriptionValid
         assistant_id = self.context.get("assistant_id", None)
         try:
             assistant = Assistant.objects.filter(id=assistant_id).first()
-            if not assistant.vector_id or not assistant.assistant_id:
+            if not assistant.vector_id:
                 raise_validation_error(message=_("Assistant faol emas, zarur fayl yuklash"))
         except Assistant.DoesNotExist:
             raise_validation_error(message=_("Assistant topilmadi"))
@@ -126,7 +126,7 @@ class IntegrationSerializer(serializers.ModelSerializer, SubscriptionValidationM
             assistant = Assistant.objects.get(id=assistant_id)
             if not assistant.ai_enabled:
                 raise_validation_error(message=_("Assistant AI sizda yoqilmagan"))
-            if not assistant.vector_id or not assistant.assistant_id:
+            if not assistant.vector_id:
                 raise_validation_error(message=_("Assistant faol emas, zarur fayl yuklash"))
         except Assistant.DoesNotExist:
             raise_validation_error(message=_("Assistant topilmadi"))
