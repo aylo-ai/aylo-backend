@@ -110,8 +110,11 @@ class ConversationSerializer(serializers.ModelSerializer,
     def create(self, validated_data):
         assistant = validated_data.get("assistant")
         thread_id = None
-        if assistant.ai_enabled:
-            thread_id = thread_service.get_thread_id(str(assistant.assistant_id), str(assistant.vector_id))
+        if assistant.ai_enabled and assistant.assistant_id:
+            try:
+                thread_id = thread_service.get_thread_id(str(assistant.assistant_id), str(assistant.vector_id))
+            except Exception as e:
+                print(f"[-] Thread creation failed (old assistant): {e}")
         conversation = Conversation.objects.create(
             platform=ConversationPlatforms.WEBSITE.value,
             assistant=assistant,
