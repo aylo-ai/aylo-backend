@@ -360,6 +360,11 @@ class StaffListView(generics.ListAPIView):
     def get_queryset(self):
         return User.objects.filter(created_by=self.request.user, user_role=UserRoles.STAFF.value)
 
+    def list(self, request, *args, **kwargs):
+        queryset = self.get_queryset()
+        serializer = self.get_serializer(queryset, many=True)
+        return success_response(data=serializer.data, message=_("Xodimlar ro'yxati"), code=200)
+
 
 class StaffDeleteView(generics.DestroyAPIView):
     permission_classes = [IsAdminOrCustomer]
