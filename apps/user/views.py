@@ -20,6 +20,7 @@ from shared.addons.verification import send_code
 from apps.user.models import User, PrivacyPolicy, UserAgreement, Notification
 from shared.addons.verification import send_email_code, verify_email_code, verify_code_cache
 from shared.permissions import IsAdmin, IsSuperAdmin, IsCustomer
+from shared.addons.enums import UserRoles
 
 class SendCodeView(generics.GenericAPIView):
     serializer_class = serializers.SendCodeSerializer
@@ -351,6 +352,26 @@ class AddStaffView(generics.CreateAPIView):
             code=status.HTTP_201_CREATED
         )
         
+
+class StaffListView(generics.ListAPIView):
+    serializer_class = serializers.StaffListSerializer
+    permission_classes = [IsCustomer]
+
+    def get_queryset(self):
+        return User.objects.filter(created_by=self.request.user, user_role=UserRoles.STAFF.value)
+
+
+class StaffDeleteView(generics.DestroyAPIView):
+    permission_classes = [IsCustomer]
+
+    def get_queryset(self):
+        return User.objects.filter(created_by=self.request.user, user_role=UserRoles.STAFF.value)
+
+    def destroy(self, request, *args, **kwargs):
+        instance = self.get_object()
+        instance.delete()
+        return success_response(message=_("Hodim muvaffaqiyatli o'chirildi"), code=status.HTTP_200_OK)
+
 
 class NotificationListView(generics.ListAPIView):
     queryset = Notification.objects.all()

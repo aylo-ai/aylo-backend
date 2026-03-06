@@ -399,7 +399,19 @@ class AddStaffSerializer(serializers.ModelSerializer):
         data = super().to_representation(instance)
         data["tokens"] = instance.tokens()
         return data
-    
+
+
+class StaffListSerializer(serializers.ModelSerializer):
+    email_or_phone = serializers.SerializerMethodField()
+
+    class Meta:
+        model = User
+        fields = ['id', 'first_name', 'last_name', 'email_or_phone', 'created_time']
+
+    def get_email_or_phone(self, obj):
+        return obj.email or obj.phone_number or ''
+
+
 class NotificationSerializer(serializers.ModelSerializer):
     user = UserShortSerializer(read_only=True)
     class Meta:

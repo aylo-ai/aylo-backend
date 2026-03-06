@@ -128,6 +128,10 @@ class Message(BaseModel):
         default=MessageStatuses.DELIVERED.value,
     )
     is_read = models.BooleanField(default=False)
+    answered_by = models.ForeignKey(
+        "user.User", null=True, blank=True, on_delete=models.SET_NULL,
+        related_name="answered_messages"
+    )
 
     class Meta:
         db_table = "messages"

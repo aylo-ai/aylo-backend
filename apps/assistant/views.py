@@ -73,9 +73,15 @@ class AssistantRetrieveView(generics.RetrieveUpdateDestroyAPIView):
         serializer.is_valid(raise_exception=True)
         self.perform_update(serializer)
         assistant = instance
-        if assistant and assistant.assistant_id:
-            success, message = assistant_service.update_assistant(assistant.assistant_id, assistant.name, assistant)
-            print(f"Assistant updated successfully: {success}, {message}")
+        # Only update OpenAI assistant when relevant fields change, not for ai_enabled toggle
+        ai_only_fields = {'ai_enabled', 'is_active'}
+        changed_fields = set(request.data.keys())
+        if assistant and assistant.assistant_id and not changed_fields.issubset(ai_only_fields):
+            try:
+                success, message = assistant_service.update_assistant(assistant.assistant_id, assistant.name, assistant)
+                print(f"Assistant updated successfully: {success}, {message}")
+            except Exception as e:
+                print(f"[-] OpenAI assistant update failed: {e}")
         return success_response(message=_("Assistant muvaffaqiyatli o'zgartirildi"), data=serializer.data, code=200)
 
     def destroy(self, request, *args, **kwargs):
@@ -83,6 +89,11 @@ class AssistantRetrieveView(generics.RetrieveUpdateDestroyAPIView):
         if instance.user != request.user:
             return error_response(
                 message=_("Faqat mijozlar o'zlarining assistantlarini o'chirishlari mumkin"),
+                code=403
+            )
+        if request.user.created_by is not None:
+            return error_response(
+                message=_("Xodimlar assistantlarni o'chira olmaydi"),
                 code=403
             )
         vector_id = instance.vector_id
