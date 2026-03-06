@@ -64,9 +64,9 @@ class AssistantSerializer(serializers.ModelSerializer,
         self.validate_subscription(user.subscription)
         company_name = attrs.get("company_name")
         role = attrs.get("role")
-        if len(company_name) > 100:
+        if company_name and len(company_name) > 100:
             raise_validation_error(message=_("Company nomi 100 ta belgidan kam bo'lishi kerak"))
-        if len(role) > 100:
+        if role and len(role) > 100:
             raise_validation_error(message=_("Role 100 ta belgidan kam bo'lishi kerak"))
         return attrs
 
