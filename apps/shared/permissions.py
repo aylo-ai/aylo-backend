@@ -56,3 +56,13 @@ class IsCustomer(IsAuthenticated):
             super().has_permission(request, view)
             and request.user.user_role == UserRoles.CUSTOMER.value
         )
+
+
+class IsAdminOrCustomer(IsAuthenticated):
+    message = "Sizda huquq yo'q!"
+
+    def has_permission(self, request: Request, view):
+        return bool(
+            super().has_permission(request, view)
+            and request.user.user_role in (UserRoles.ADMIN.value, UserRoles.CUSTOMER.value)
+        )
