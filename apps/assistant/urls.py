@@ -4,6 +4,7 @@ import assistant.views as views
 
 urlpatterns = [
     path("assistant/", views.AssistantListCreateView.as_view()),
+    path('assistant/token-stats/', views.AssistantTokenStatsView.as_view(), name='assistant-token-stats'),
     path("assistant/<uuid:pk>/", views.AssistantRetrieveView.as_view()),
     path("assistant/<uuid:pk>/conversation/", views.ConversationListCreateView.as_view()),
     # path("assistant/<uuid:pk>/google-doc/", views.AssistantFileGoogleDocView.as_view()),

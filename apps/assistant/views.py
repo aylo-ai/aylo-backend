@@ -2,7 +2,7 @@ import os
 
 from django.utils.translation import gettext_lazy as _
 from django.http import FileResponse
-from django.db.models import Q
+from django.db.models import Q, Sum, Count
 from rest_framework import permissions, filters, generics, views
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework.exceptions import NotFound
@@ -456,3 +456,38 @@ class ExportLeadsView(views.APIView):
         file_path = serializer.export_leads(assistant_id)
         response = FileResponse(open(file_path, 'rb'), as_attachment=True, filename=os.path.basename(file_path))
         return response
+
+
+class AssistantTokenStatsView(views.APIView):
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get(self, request, *args, **kwargs):
+        user = request.user
+        assistants = Assistant.objects.filter(
+            Q(user=user.created_by) | Q(user=user)
+        ).distinct()
+
+        stats = []
+        for assistant in assistants:
+            token_data = Message.objects.filter(
+                conversation__assistant=assistant,
+                sender='assistant',
+            ).aggregate(
+                total_input_tokens=Sum('input_tokens'),
+                total_output_tokens=Sum('output_tokens'),
+                message_count=Count('id'),
+            )
+            stats.append({
+                'assistant_id': str(assistant.id),
+                'assistant_name': assistant.name,
+                'company_name': assistant.company_name,
+                'total_input_tokens': token_data['total_input_tokens'] or 0,
+                'total_output_tokens': token_data['total_output_tokens'] or 0,
+                'message_count': token_data['message_count'] or 0,
+            })
+
+        return success_response(
+            data=stats,
+            message=_("Assistant token statistikasi"),
+            code=200,
+        )
