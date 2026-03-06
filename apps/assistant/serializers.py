@@ -531,11 +531,13 @@ class LeadSerializer(serializers.ModelSerializer):
             "email",
             "product",
             "status",
+            "platform",
+            "username",
             "metadata",
             "contacted",
             "created_time",
             "updated_time",
-        ]   
+        ]
         read_only_fields = ["created_time", "updated_time"]
 
     
