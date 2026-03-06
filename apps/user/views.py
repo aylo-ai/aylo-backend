@@ -19,7 +19,7 @@ from shared.addons.validations import error_response, success_response
 from shared.addons.verification import send_code
 from apps.user.models import User, PrivacyPolicy, UserAgreement, Notification
 from shared.addons.verification import send_email_code, verify_email_code, verify_code_cache
-from shared.permissions import IsAdmin, IsSuperAdmin, IsCustomer
+from shared.permissions import IsAdmin, IsSuperAdmin, IsCustomer, IsAdminOrCustomer
 from shared.addons.enums import UserRoles
 
 class SendCodeView(generics.GenericAPIView):
@@ -335,9 +335,9 @@ class GoogleAuthCallbackView(APIView):
             return error_response(message=str(e), code=400)
 
 class AddStaffView(generics.CreateAPIView):
-    queryset = User.objects.all()   
+    queryset = User.objects.all()
     serializer_class = serializers.AddStaffSerializer
-    permission_classes = [IsCustomer]   
+    permission_classes = [IsAdminOrCustomer]
 
     def create(self, request, *args, **kwargs):
         if request.user.created_by is not None:
@@ -355,14 +355,14 @@ class AddStaffView(generics.CreateAPIView):
 
 class StaffListView(generics.ListAPIView):
     serializer_class = serializers.StaffListSerializer
-    permission_classes = [IsCustomer]
+    permission_classes = [IsAdminOrCustomer]
 
     def get_queryset(self):
         return User.objects.filter(created_by=self.request.user, user_role=UserRoles.STAFF.value)
 
 
 class StaffDeleteView(generics.DestroyAPIView):
-    permission_classes = [IsCustomer]
+    permission_classes = [IsAdminOrCustomer]
 
     def get_queryset(self):
         return User.objects.filter(created_by=self.request.user, user_role=UserRoles.STAFF.value)
