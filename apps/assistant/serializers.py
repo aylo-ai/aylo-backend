@@ -170,6 +170,8 @@ class ConversationRetrieveSerializer(serializers.ModelSerializer, SubscriptionVa
 
 
 class MessageSerializer(serializers.ModelSerializer, SubscriptionValidationMixin):
+    answered_by_name = serializers.SerializerMethodField()
+
     class Meta:
         model = Message
         fields = [
@@ -181,12 +183,19 @@ class MessageSerializer(serializers.ModelSerializer, SubscriptionValidationMixin
             "audio_file",
             "created_time",
             "updated_time",
+            "answered_by",
+            "answered_by_name",
         ]
-        read_only_fields = ["created_time", "updated_time"]
+        read_only_fields = ["created_time", "updated_time", "answered_by", "answered_by_name"]
         extra_kwargs = {
             "conversation": {"required": False},
             "message_content": {"required": False},
         }
+
+    def get_answered_by_name(self, obj):
+        if obj.answered_by:
+            return f"{obj.answered_by.first_name} {obj.answered_by.last_name}".strip()
+        return None
 
     def validate(self, attrs):
         message_content = attrs.get("message_content")
