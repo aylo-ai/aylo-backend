@@ -303,6 +303,20 @@ LOGGING = {
         },
     },
     "loggers": {
+        "": {
+            "level": "WARNING",
+            "handlers": ["console"],
+        },
+        "django": {
+            "level": "ERROR",
+            "handlers": ["console"],
+            "propagate": False,
+        },
+        "django.request": {
+            "level": "ERROR",
+            "handlers": ["console"],
+            "propagate": False,
+        },
         "api": {
             "level": "DEBUG",
             "handlers": ["console"],
