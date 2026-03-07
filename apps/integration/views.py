@@ -22,18 +22,20 @@ from shared.permissions import IsCustomer
 from apps.shared.ai_service.assistant import assistant_service
 from apps.shared.addons.instagram import instagram_service
 from apps.assistant.models import Assistant
-from .models import Integration, TelegramGroupIntegration, InstagramMedia, CommentTriggerWord, InstagramCommentResponse, Flow, Transition, Step, CommentResponseButton, InstagramUserState
-from .serializers import (IntegrationCreateSerializer, 
-                        IntegrationSerializer, 
-                        SendUserMessageSerializer, 
-                        TelegramGroupSerializer, 
-                        InstagramMediaSerializer, 
-                        CommentTriggerWordSerializer, 
-                        InstagramCommentResponseSerializer, 
-                        InstagramCommentResponseFlowSerializer, 
-                        TransitionSerializer, 
-                        StepSerializer, 
-                        CommentResponseButtonSerializer)
+from apps.assistant.models import Conversation
+from .models import Integration, TelegramGroupIntegration, InstagramMedia, CommentTriggerWord, InstagramCommentResponse, Flow, Transition, Step, CommentResponseButton, InstagramUserState, Broadcast
+from .serializers import (IntegrationCreateSerializer,
+                        IntegrationSerializer,
+                        SendUserMessageSerializer,
+                        TelegramGroupSerializer,
+                        InstagramMediaSerializer,
+                        CommentTriggerWordSerializer,
+                        InstagramCommentResponseSerializer,
+                        InstagramCommentResponseFlowSerializer,
+                        TransitionSerializer,
+                        StepSerializer,
+                        CommentResponseButtonSerializer,
+                        BroadcastSerializer)
 from .tasks import (process_instagram_message,
                     process_voice_task,
                     process_photo_task,
@@ -904,9 +906,85 @@ class CommentResponseButtonRetrieveUpdateDestroyView(generics.RetrieveUpdateDest
         return success_response(message=_("Tugma muvaffaqiyatli o'chirildi"), code=204)
 
 
+class BroadcastListCreateView(generics.ListCreateAPIView):
+    serializer_class = BroadcastSerializer
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get_queryset(self):
+        return Broadcast.objects.filter(user=self.request.user)
+
+    def list(self, request, *args, **kwargs):
+        queryset = self.get_queryset()
+        serializer = self.get_serializer(queryset, many=True)
+        return success_response(message=_("Broadcast ro'yxati"), data=serializer.data, code=200)
+
+    def create(self, request, *args, **kwargs):
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        integration = serializer.validated_data['integration']
+        if integration.user != request.user:
+            return error_response(message=_("Bu integratsiya sizga tegishli emas"), code=403)
+
+        # Count recipients
+        recipients_count = self._get_recipients_count(integration)
+        if recipients_count == 0:
+            return error_response(message=_("Xabar yuborish uchun qabul qiluvchilar topilmadi"), code=400)
+
+        broadcast = serializer.save(user=request.user, total_recipients=recipients_count)
+
+        from .tasks import send_broadcast_task
+        send_broadcast_task.delay(str(broadcast.id))
+
+        return success_response(
+            message=_("Broadcast muvaffaqiyatli yaratildi"),
+            data=BroadcastSerializer(broadcast).data,
+            code=201
+        )
+
+    def _get_recipients_count(self, integration):
+        if integration.assistant:
+            return Conversation.objects.filter(
+                assistant=integration.assistant,
+                platform=integration.integration_type
+            ).count()
+        else:
+            return Conversation.objects.filter(
+                assistant__integrations__instagram_account_id=integration.instagram_account_id,
+                platform='instagram'
+            ).count()
+
+
+class BroadcastRecipientsCountView(APIView):
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get(self, request, integration_id, *args, **kwargs):
+        try:
+            integration = Integration.objects.get(id=integration_id, user=request.user)
+        except Integration.DoesNotExist:
+            return error_response(message=_("Integratsiya topilmadi"), code=404)
+
+        if integration.assistant:
+            count = Conversation.objects.filter(
+                assistant=integration.assistant,
+                platform=integration.integration_type
+            ).count()
+        else:
+            count = Conversation.objects.filter(
+                assistant__integrations__instagram_account_id=integration.instagram_account_id,
+                platform='instagram'
+            ).count()
+
+        return success_response(
+            message=_("Qabul qiluvchilar soni"),
+            data={"count": count},
+            code=200
+        )
+
+
 class AmoCRMOAuthInstallView(APIView):
     permission_classes = [permissions.IsAuthenticated]
-    
+
     def get(self, request):
         try:
             # Get parameters from request

@@ -168,3 +168,20 @@ class InstagramUserState(BaseModel):
 
     def __str__(self):
         return f"{self.account_id}::{self.user_id} -> {self.current_step.message_content if self.current_step else 'END'}"
+
+
+class Broadcast(BaseModel):
+    integration = models.ForeignKey(Integration, on_delete=models.CASCADE, related_name='broadcasts')
+    user = models.ForeignKey('user.User', on_delete=models.CASCADE, related_name='broadcasts')
+    message = models.TextField()
+    total_recipients = models.IntegerField(default=0)
+    sent_count = models.IntegerField(default=0)
+    failed_count = models.IntegerField(default=0)
+    status = models.CharField(max_length=20, default='pending')
+
+    class Meta:
+        db_table = 'broadcast'
+        ordering = ['-created_time']
+
+    def __str__(self):
+        return f"Broadcast to {self.integration.name} - {self.status}"

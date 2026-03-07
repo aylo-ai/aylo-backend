@@ -12,16 +12,17 @@ from apps.shared.ai_service.assistant import assistant_service
 from apps.shared.ai_service.conversation import conversation_service
 from shared.addons.validations import raise_validation_error, success_response
 from shared.mixins import SubscriptionValidationMixin
-from .models import (Integration, 
-                    TelegramGroupIntegration, 
-                    InstagramMedia, 
-                    CommentTriggerWord, 
-                    InstagramCommentResponse, 
-                    CommentResponseButton, 
-                    Step, 
-                    Transition, 
-                    Flow, 
-                    InstagramUserState)
+from .models import (Integration,
+                    TelegramGroupIntegration,
+                    InstagramMedia,
+                    CommentTriggerWord,
+                    InstagramCommentResponse,
+                    CommentResponseButton,
+                    Step,
+                    Transition,
+                    Flow,
+                    InstagramUserState,
+                    Broadcast)
 
 
 class IntegrationCreateSerializer(serializers.ModelSerializer, SubscriptionValidationMixin):
@@ -512,15 +513,27 @@ class InstagramCommentResponseFlowSerializer(serializers.ModelSerializer):
 
 class InstagramUserStateSerializer(serializers.ModelSerializer):
     current_step = StepSerializer(read_only=True)
-    
+
     class Meta:
         model = InstagramUserState
         fields = [
             "id",
-            "account_id", 
-            "user_id", 
-            "current_step", 
-            "created_time", 
+            "account_id",
+            "user_id",
+            "current_step",
+            "created_time",
             "updated_time"
         ]
-    
+
+
+class BroadcastSerializer(serializers.ModelSerializer):
+    integration_name = serializers.CharField(source='integration.name', read_only=True)
+    integration_type = serializers.CharField(source='integration.integration_type', read_only=True)
+
+    class Meta:
+        model = Broadcast
+        fields = [
+            'id', 'message', 'integration', 'integration_name', 'integration_type',
+            'total_recipients', 'sent_count', 'failed_count', 'status', 'created_time'
+        ]
+        read_only_fields = ['total_recipients', 'sent_count', 'failed_count', 'status', 'created_time']

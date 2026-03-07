@@ -19,9 +19,9 @@ from shared.addons.instagram import instagram_service
 from shared.addons.telegram import send_telegram_message, send_telegram_action
 from apps.shared.ai_service.assistant import assistant_service
 from apps.shared.ai_service.conversation import conversation_service
-from .models import (Integration, 
-                    InstagramMedia, InstagramCommentResponse, Flow, 
-                    Step, Transition, InstagramUserState)
+from .models import (Integration,
+                    InstagramMedia, InstagramCommentResponse, Flow,
+                    Step, Transition, InstagramUserState, Broadcast)
 
 logger = logging.getLogger(__name__)
 
@@ -177,6 +177,60 @@ def send_message_integration_task(integration_id, message):
     if integration.integration_type == IntegrationTypes.INSTAGRAM.value:
         for conversation in conversations:
             instagram_service.send_message(account_id=conversation.user_id, access_token=integration.api_token, recipient_id=conversation.user_id, message=message)
+
+
+@shared_task
+def send_broadcast_task(broadcast_id):
+    try:
+        broadcast = Broadcast.objects.select_related('integration').get(id=broadcast_id)
+    except Broadcast.DoesNotExist:
+        logging.error(f"[-] Broadcast not found: {broadcast_id}")
+        return
+
+    integration = broadcast.integration
+    broadcast.status = 'sending'
+    broadcast.save(update_fields=['status'])
+
+    # Get conversations
+    if integration.assistant:
+        conversations = Conversation.objects.filter(
+            assistant=integration.assistant,
+            platform=integration.integration_type
+        )
+    else:
+        conversations = Conversation.objects.filter(
+            assistant__integrations__instagram_account_id=integration.instagram_account_id,
+            platform='instagram'
+        )
+
+    sent = 0
+    failed = 0
+    for conversation in conversations:
+        try:
+            if integration.integration_type == IntegrationTypes.TELEGRAM.value:
+                send_telegram_message(conversation.user_id, broadcast.message, integration.api_token)
+            elif integration.integration_type == IntegrationTypes.INSTAGRAM.value:
+                instagram_service.send_message(
+                    account_id=integration.instagram_account_id,
+                    access_token=integration.api_token,
+                    recipient_id=conversation.user_id,
+                    message=broadcast.message
+                )
+            sent += 1
+        except Exception as e:
+            logging.error(f"[-] Broadcast send failed for {conversation.user_id}: {e}")
+            failed += 1
+
+        # Update counts periodically
+        if (sent + failed) % 10 == 0:
+            broadcast.sent_count = sent
+            broadcast.failed_count = failed
+            broadcast.save(update_fields=['sent_count', 'failed_count'])
+
+    broadcast.sent_count = sent
+    broadcast.failed_count = failed
+    broadcast.status = 'completed'
+    broadcast.save(update_fields=['sent_count', 'failed_count', 'status'])
         
 
 
