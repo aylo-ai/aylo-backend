@@ -923,7 +923,8 @@ class BroadcastListCreateView(generics.ListCreateAPIView):
         serializer.is_valid(raise_exception=True)
 
         integration = serializer.validated_data['integration']
-        if integration.user != request.user:
+        owner = integration.user or (integration.assistant.user if integration.assistant else None)
+        if owner != request.user:
             return error_response(message=_("Bu integratsiya sizga tegishli emas"), code=403)
 
         # Count recipients
@@ -960,7 +961,10 @@ class BroadcastRecipientsCountView(APIView):
 
     def get(self, request, integration_id, *args, **kwargs):
         try:
-            integration = Integration.objects.get(id=integration_id, user=request.user)
+            integration = Integration.objects.get(
+                Q(user=request.user) | Q(assistant__user=request.user),
+                id=integration_id
+            )
         except Integration.DoesNotExist:
             return error_response(message=_("Integratsiya topilmadi"), code=404)
 
