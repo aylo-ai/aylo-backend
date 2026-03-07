@@ -98,6 +98,76 @@ def process_instagram_message(account_id, combined_message, user_message, audio_
 
 
 @shared_task
+def process_shared_post_message(account_id, shared_url, user_text, messaging):
+    """Process a shared Instagram post in DM — fetch post details and include as context for AI."""
+    assistant = Assistant.objects.filter(integrations__instagram_account_id=account_id).first()
+    if not assistant:
+        logging.warning(f"[-] No assistant found for account_id: {account_id}")
+        return
+
+    integration = assistant.integrations.filter(
+        integration_type="instagram", instagram_account_id=account_id
+    ).first()
+    if not integration:
+        logging.warning("[-] No Instagram integration found")
+        return
+
+    sender_id = messaging[0].get("sender", {}).get("id")
+    if not sender_id:
+        return
+
+    # Try to fetch post details
+    post_context = ""
+    if shared_url and integration.api_token:
+        # Try to find media ID from URL and get details
+        media_id = instagram_service.extract_media_id_from_url(
+            shared_url, integration.api_token, account_id
+        )
+        if media_id:
+            media_details = instagram_service.get_media_details(integration.api_token, media_id)
+            if media_details:
+                caption = media_details.get("caption", "")
+                media_type = media_details.get("media_type", "")
+                post_context = f"\n\n[Klient quyidagi Instagram postni yubordi]\nPost turi: {media_type}\nPost matni: {caption}\nPost havolasi: {shared_url}"
+
+    # Build the combined message
+    if user_text and post_context:
+        combined_message = f"{user_text}{post_context}"
+    elif post_context:
+        combined_message = f"Klient quyidagi post haqida so'ramoqda.{post_context}"
+    elif user_text:
+        combined_message = user_text
+    else:
+        combined_message = f"Klient Instagram post yubordi: {shared_url}"
+
+    conversation = conversation_service.get_or_create_conversation(
+        sender_id, assistant, platform="instagram", chat_username=None
+    )
+    if conversation.client_full_name is None:
+        conversation.client_full_name = get_user_info(integration.api_token, sender_id).get("username", None)
+        conversation.save()
+
+    if conversation.status == ConversationStatuses.ESCALATED.value or not assistant.is_active:
+        data = conversation_service.create_message(
+            conversation=conversation, sender=SenderTypes.USER.value, content=combined_message
+        )
+        publish_message_to_ws(conversation.id, combined_message, sender="user", data=data, assistant_id=assistant.id)
+        return
+
+    data = conversation_service.create_message(
+        conversation=conversation, sender=SenderTypes.USER.value, content=combined_message
+    )
+    publish_message_to_ws(conversation.id, combined_message, sender="user", data=data, assistant_id=assistant.id)
+
+    if assistant.ai_enabled:
+        response_message = assistant_service.generate_response(
+            user_input=combined_message, assistent=assistant, conversation=conversation
+        )
+        if response_message:
+            instagram_service.send_message(account_id, integration.api_token, sender_id, response_message)
+
+
+@shared_task
 def send_message_integration_task(integration_id, message):
     integration = Integration.objects.get(id=integration_id)
     conversations = Conversation.objects.filter(assistant=integration.assistant, platform=integration.integration_type)

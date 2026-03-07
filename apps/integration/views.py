@@ -34,14 +34,15 @@ from .serializers import (IntegrationCreateSerializer,
                         TransitionSerializer, 
                         StepSerializer, 
                         CommentResponseButtonSerializer)
-from .tasks import (process_instagram_message, 
-                    process_voice_task, 
+from .tasks import (process_instagram_message,
+                    process_voice_task,
                     process_photo_task,
-                    process_instagram_comment, 
-                    WAIT_SECONDS, 
-                    process_collected_messages, 
+                    process_instagram_comment,
+                    WAIT_SECONDS,
+                    process_collected_messages,
                     handle_postback_event_task,
-                    send_message_integration_task)
+                    send_message_integration_task,
+                    process_shared_post_message)
 
 from shared.addons.redis import redis_client
 
@@ -221,9 +222,19 @@ class InstagramWebhookView(APIView):
             if reaction:
                 print(f"Reaction received: {reaction}")
                 return success_response(message=_("Reaction muvaffaqiyatli olindi"), code=200)
-            if messaging[0].get("message", {}).get("attachments",[{}])[0].get('type') == 'audio':
+            attachment_type = messaging[0].get("message", {}).get("attachments",[{}])[0].get('type')
+            if attachment_type == 'audio':
                 audio_file = messaging[0].get("message", {}).get("attachments", [{}])[0].get("payload", {}).get("url", None)
-            elif messaging[0].get("message", {}).get("attachments",[{}])[0].get('type') in ['ig_reel', 'unsupported_type']:
+            elif attachment_type == 'share':
+                # User shared a post/reel in DM — extract post URL and process with context
+                shared_url = messaging[0].get("message", {}).get("attachments", [{}])[0].get("payload", {}).get("url", None)
+                user_text = messaging[0].get("message", {}).get("text", None)
+                sender_id = messaging[0].get("sender", {}).get("id", None)
+                if sender_id and not Integration.objects.filter(instagram_account_id=sender_id).exists():
+                    if Integration.objects.filter(instagram_account_id=account_id).exists():
+                        process_shared_post_message.delay(account_id, shared_url, user_text, messaging)
+                return success_response(message=_("Shared post xabar muvaffaqiyatli olindi"), code=200)
+            elif attachment_type in ['ig_reel', 'unsupported_type']:
                 return success_response(message=_("Reel yoki qo'shimcha turdagi xabar muvaffaqiyatli olindi"), code=200)
             print(f"Is echo: {is_echo}, Audio file: {audio_file}")
             if is_echo:
