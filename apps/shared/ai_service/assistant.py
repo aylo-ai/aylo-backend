@@ -231,6 +231,7 @@ New Lead Generated! 📢
 
     def format_response(self, response: Response):
         final_text = ""
+        fallback_text = ""
         for item in response.output:
             if item.type == "message" and getattr(item, 'role', None) == "assistant":
                 for content in item.content:
@@ -238,7 +239,12 @@ New Lead Generated! 📢
                         if "{" in content.text and '"reply"' in content.text:
                             final_text = content.text
                             break
+                        elif not fallback_text:
+                            fallback_text = content.text
                 if final_text: break
+
+        if not final_text and fallback_text:
+            return fallback_text.strip()
 
         cleaned = final_text.strip()
         if cleaned.startswith('```json'):
@@ -248,7 +254,7 @@ New Lead Generated! 📢
 
         try:
             parsed_data = json.loads(cleaned)
-            return parsed_data.get("reply", cleaned) 
+            return parsed_data.get("reply", cleaned)
         except json.JSONDecodeError:
             match = re.search(r'"reply":\s*"(.*?)"', cleaned, re.DOTALL)
             if match:
