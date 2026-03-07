@@ -41,8 +41,11 @@ from .tasks import (process_instagram_message,
                     WAIT_SECONDS,
                     process_collected_messages,
                     handle_postback_event_task,
-                    send_message_integration_task,
-                    process_shared_post_message)
+                    send_message_integration_task)
+try:
+    from .tasks import process_shared_post_message
+except ImportError:
+    process_shared_post_message = None
 
 from shared.addons.redis import redis_client
 
@@ -231,7 +234,7 @@ class InstagramWebhookView(APIView):
                 user_text = messaging[0].get("message", {}).get("text", None)
                 sender_id = messaging[0].get("sender", {}).get("id", None)
                 if sender_id and not Integration.objects.filter(instagram_account_id=sender_id).exists():
-                    if Integration.objects.filter(instagram_account_id=account_id).exists():
+                    if Integration.objects.filter(instagram_account_id=account_id).exists() and process_shared_post_message:
                         process_shared_post_message.delay(account_id, shared_url, user_text, messaging)
                 return success_response(message=_("Shared post xabar muvaffaqiyatli olindi"), code=200)
             elif attachment_type in ['ig_reel', 'unsupported_type']:
