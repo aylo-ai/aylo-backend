@@ -229,6 +229,38 @@ class InstagramService:
         print(resp)
         return resp
 
+    # ---- Media details ----
+
+    def get_media_details(self, access_token: str, media_id: str) -> dict | None:
+        """Fetch media details (caption, media_type, etc.) by media ID."""
+        url = f"{self.GRAPH_BASE}/v23.0/{media_id}"
+        params = {
+            "fields": "id,caption,media_type,media_url,timestamp,permalink",
+            "access_token": access_token,
+        }
+        response = requests.get(url, params=params)
+        if response.status_code == 200:
+            return response.json()
+        return None
+
+    def extract_media_id_from_url(self, shared_url: str, access_token: str, account_id: str) -> str | None:
+        """Extract the media ID from a shared Instagram post URL using oEmbed or searching recent media."""
+        import re
+        # Try to get media ID from the URL via the Instagram API
+        # First, search user's recent media to match permalink
+        url = f"{self.GRAPH_BASE}/v23.0/{account_id}/media"
+        params = {
+            "fields": "id,permalink",
+            "limit": 50,
+            "access_token": access_token,
+        }
+        response = requests.get(url, params=params)
+        if response.status_code == 200:
+            for media in response.json().get("data", []):
+                if media.get("permalink") and shared_url and media["permalink"].rstrip("/") in shared_url.rstrip("/"):
+                    return media["id"]
+        return None
+
     # ---- Followers / metadata ----
 
     def checking_followers(self, access_token: str, recipient_id: str) -> dict:
