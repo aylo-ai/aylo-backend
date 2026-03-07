@@ -209,14 +209,18 @@ def send_broadcast_task(broadcast_id):
         try:
             if integration.integration_type == IntegrationTypes.TELEGRAM.value:
                 send_telegram_message(conversation.user_id, broadcast.message, integration.api_token)
+                sent += 1
             elif integration.integration_type == IntegrationTypes.INSTAGRAM.value:
-                instagram_service.send_message(
+                success = instagram_service.send_message(
                     account_id=integration.instagram_account_id,
                     access_token=integration.api_token,
                     recipient_id=conversation.user_id,
                     message=broadcast.message
                 )
-            sent += 1
+                if success:
+                    sent += 1
+                else:
+                    failed += 1
         except Exception as e:
             logging.error(f"[-] Broadcast send failed for {conversation.user_id}: {e}")
             failed += 1
