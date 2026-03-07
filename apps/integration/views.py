@@ -592,7 +592,7 @@ class InstagramPostListView(APIView):
         }
         all_posts = []
         max_pages = 5
-        for _ in range(max_pages):
+        for _page in range(max_pages):
             response = requests.get(url, params=params)
             if response.status_code != 200:
                 break
