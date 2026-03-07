@@ -244,7 +244,12 @@ New Lead Generated! 📢
                 if final_text: break
 
         if not final_text and fallback_text:
-            return fallback_text.strip()
+            result = fallback_text.strip()
+            if result.startswith('"') and result.endswith('"'):
+                result = result[1:-1]
+            elif result.startswith('"'):
+                result = result[1:]
+            return result
 
         cleaned = final_text.strip()
         if cleaned.startswith('```json'):
