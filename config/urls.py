@@ -10,6 +10,7 @@ urlpatterns = [
     path("acer-laptop/samsung-g10/", admin.site.urls),
     path("api/v1/", include("apps.urls")),
     path("", lambda _: JsonResponse({"message": "ok"})),
+    path("health/", lambda _: JsonResponse({"status": "healthy"})),
 ]
 
 urlpatterns += [

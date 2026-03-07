@@ -1,6 +1,6 @@
 name: repliuz
 services:
-  web:
+  web-blue:
     build:
       dockerfile: deployment/Dockerfile
       context: .
@@ -10,12 +10,45 @@ services:
       - /var/www/static:/app/staticfiles
       - /var/www/media:/app/media
     ports:
-      - 8000:8000
+      - 8001:8000
     depends_on:
       - redis
       - postgres
     networks:
       - backend-net
+    profiles:
+      - blue
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health/"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+
+  web-green:
+    build:
+      dockerfile: deployment/Dockerfile
+      context: .
+    env_file: .env
+    command: ./deployment/start.sh
+    volumes:
+      - /var/www/static:/app/staticfiles
+      - /var/www/media:/app/media
+    ports:
+      - 8002:8000
+    depends_on:
+      - redis
+      - postgres
+    networks:
+      - backend-net
+    profiles:
+      - green
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health/"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
 
   celery_beat:
     build:
@@ -41,8 +74,6 @@ services:
       - backend-net
 
   postgres:
-    # ports:
-    #   - 5432:5432
     image: postgres:17
     env_file: .env
     volumes:
@@ -55,8 +86,6 @@ services:
       - backend-net
 
   redis:
-    # ports:
-    #   - 6379:6379
     image: redis:latest
     volumes:
       - redis-data:/data
