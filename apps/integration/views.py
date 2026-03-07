@@ -573,12 +573,24 @@ class InstagramPostListView(APIView):
         url = "https://graph.instagram.com/v23.0/me/media"
         params = {
             "access_token": access_token,
-            "fields": "id,media_type,media_url,username,timestamp,caption,comments_count,like_count,permalink,thumbnail_url,children{media_type,media_url}"
+            "fields": "id,media_type,media_url,username,timestamp,caption,comments_count,like_count,permalink,thumbnail_url,children{media_type,media_url}",
+            "limit": 50
         }
-        response = requests.get(url, params=params)
-        if response.status_code == 200:
-            data = response.json()["data"]
-            return success_response(message=_("Instagram post muvaffaqiyatli olindi"), code=200, data=data)
+        all_posts = []
+        max_pages = 5
+        for _ in range(max_pages):
+            response = requests.get(url, params=params)
+            if response.status_code != 200:
+                break
+            json_data = response.json()
+            all_posts.extend(json_data.get("data", []))
+            next_url = json_data.get("paging", {}).get("next")
+            if not next_url:
+                break
+            url = next_url
+            params = {}
+        if all_posts:
+            return success_response(message=_("Instagram post muvaffaqiyatli olindi"), code=200, data=all_posts)
         else:
             return error_response(message=_("Instagram post topilmadi"), code=400)
         

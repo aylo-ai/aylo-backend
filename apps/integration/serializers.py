@@ -337,17 +337,27 @@ class InstagramCommentResponseSerializer(serializers.ModelSerializer):
 
         instagram_media_objs = []
         for media_data in instagram_media_list:
-            media = InstagramMedia.objects.create(
+            media, created = InstagramMedia.objects.get_or_create(
                 media_id=media_data.get('id'),
-                media_type=media_data.get('media_type', None),
-                media_url=media_data.get('media_url', None),
-                username=media_data.get('username', None),
-                timestamp=media_data.get('timestamp', None),
-                caption=media_data.get('caption', None),
-                comments_count=media_data.get('comments_count', None),
-                like_count=media_data.get('like_count', None),
-                children=media_data.get('children', None)
-                )
+                defaults={
+                    'media_type': media_data.get('media_type', None),
+                    'media_url': media_data.get('media_url', None),
+                    'username': media_data.get('username', None),
+                    'timestamp': media_data.get('timestamp', None),
+                    'caption': media_data.get('caption', None),
+                    'comments_count': media_data.get('comments_count', None),
+                    'like_count': media_data.get('like_count', None),
+                    'children': media_data.get('children', None),
+                }
+            )
+            if not created:
+                media.media_type = media_data.get('media_type', media.media_type)
+                media.media_url = media_data.get('media_url', media.media_url)
+                media.username = media_data.get('username', media.username)
+                media.caption = media_data.get('caption', media.caption)
+                media.comments_count = media_data.get('comments_count', media.comments_count)
+                media.like_count = media_data.get('like_count', media.like_count)
+                media.save()
             instagram_media_objs.append(media)
         
         if instagram_media_objs:
