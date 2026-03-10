@@ -9,7 +9,7 @@ from django.utils.timezone import localtime
 
 
 from shared.addons.google_integrations import process_google_doc
-from apps.assistant.models import Assistant, Conversation, Message, Settings, AssistantFileUpload, Lead
+from apps.assistant.models import Assistant, Conversation, Message, Settings, AssistantFileUpload, Lead, PromptTemplate
 from apps.integration.models import TelegramGroupIntegration
 from shared.ai_service.openai_client import client
 from shared.addons.telegram import send_telegram_message
@@ -21,6 +21,12 @@ from shared.addons.enums import ConversationPlatforms, ConversationStatuses,Mess
 from shared.mixins import SubscriptionValidationMixin
 from shared.addons.redis import publish_message_to_ws_assistant
 from apps.shared.ai_service.assistant import assistant_service
+
+class PromptTemplateListSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = PromptTemplate
+        fields = ['id', 'name', 'description']
+
 
 class AssistantSerializer(serializers.ModelSerializer,
                           SubscriptionValidationMixin):
@@ -46,6 +52,7 @@ class AssistantSerializer(serializers.ModelSerializer,
             "is_active",
             "ai_enabled",
             "integrations",
+            "prompt_template",
         ]
         read_only_fields = ["created_time", "updated_time"]
 

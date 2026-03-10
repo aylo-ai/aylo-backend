@@ -51,6 +51,7 @@ INTERNAL_APPS = [
     "payment",
     "shared",
     "user",
+    "blog",
 ]
 
 INSTALLED_APPS = DEFAULT_APPS + PACKAGES + INTERNAL_APPS

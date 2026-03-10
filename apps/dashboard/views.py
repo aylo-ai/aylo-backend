@@ -5,7 +5,7 @@ from rest_framework.views import APIView
 from apps.user.models import User, Notification
 from apps.user.serializers import UserSerializer, NotificationSerializer
 from apps.assistant.serializers import AssistantSerializer, ConversationSerializer, MessageSerializer, AssistantFileUploadSerializer
-from apps.assistant.models import Assistant, Conversation, Message, AssistantFileUpload
+from apps.assistant.models import Assistant, Conversation, Message, AssistantFileUpload, PromptTemplate
 from apps.payment.models import Transaction, Subscription, Balance, Card, Feature, PricingPackage
 from apps.payment.serializers import TransactionSerializer, BalanceSerializer, CardSerializer, FeatureSerializer, PricingPackageSerializer
 from apps.integration.models import InstagramCommentResponse, Integration
@@ -22,7 +22,8 @@ from apps.dashboard.serializers import (
     DashboardUserSerializer,
     DashboardStatisticsSerializer,
     DashboardUserListSerializer,
-    DashboardSubscriptionSerializer
+    DashboardSubscriptionSerializer,
+    DashboardPromptTemplateSerializer
 )
 
 from apps.shared.addons.validations import success_response, error_response
@@ -559,4 +560,51 @@ class DashboardStatisticsView(APIView):
         serializer = self.serializer_class(data=request.data, context={"date_filter": date_filter, "type_filter": type_filter})
         serializer.is_valid(raise_exception=True)
         return success_response(data=serializer.data, message="Dashboard statistics retrieved successfully", code=200)
+
+
+class DashboardPromptTemplateList(generics.ListCreateAPIView):
+    queryset = PromptTemplate.objects.all()
+    serializer_class = DashboardPromptTemplateSerializer
+    permission_classes = [IsAdmin, IsAuthenticated]
+    pagination_class = StandardResultsSetPagination
+    filter_backends = [filters.SearchFilter, filters.OrderingFilter]
+    search_fields = ['name', 'description']
+
+    def list(self, request, *args, **kwargs):
+        queryset = self.filter_queryset(self.get_queryset())
+        page = self.paginate_queryset(queryset)
+        if page is not None:
+            serializer = self.get_serializer(page, many=True)
+            return self.get_paginated_response(serializer.data)
+        serializer = self.get_serializer(queryset, many=True)
+        return success_response(data=serializer.data, message="Prompt templates retrieved successfully", code=200)
+
+    def create(self, request, *args, **kwargs):
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+        return success_response(data=serializer.data, message="Prompt template created successfully", code=201)
+
+
+class DashboardPromptTemplateDetail(generics.RetrieveUpdateDestroyAPIView):
+    queryset = PromptTemplate.objects.all()
+    serializer_class = DashboardPromptTemplateSerializer
+    permission_classes = [IsAdmin, IsAuthenticated]
+
+    def retrieve(self, request, *args, **kwargs):
+        instance = self.get_object()
+        serializer = self.get_serializer(instance)
+        return success_response(data=serializer.data, message="Prompt template retrieved successfully", code=200)
+
+    def update(self, request, *args, **kwargs):
+        instance = self.get_object()
+        serializer = self.get_serializer(instance, data=request.data, partial=True)
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+        return success_response(data=serializer.data, message="Prompt template updated successfully", code=200)
+
+    def destroy(self, request, *args, **kwargs):
+        instance = self.get_object()
+        instance.delete()
+        return success_response(message="Prompt template deleted successfully", code=200)
 

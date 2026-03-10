@@ -7,22 +7,23 @@ from rest_framework import permissions, filters, generics, views
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework.exceptions import NotFound
 
-from apps.assistant.models import Assistant, AssistantFileUpload, Conversation, Message, Lead
+from apps.assistant.models import Assistant, AssistantFileUpload, Conversation, Message, Lead, PromptTemplate
 from shared.addons.validations import success_response, error_response
 from shared.ai_service.openai_client import client
 from shared.ai_service.assistant import assistant_service
 from shared.addons.redis import publish_new_message_to_ws
 from apps.assistant.filters import LeadFilter
-from apps.assistant.serializers import (AssistantSerializer, 
-    ConversationSerializer, 
-    MessageSerializer, 
-    SettingsSerializer, 
-    AssistantFileUploadSerializer, 
-    ConversationRetrieveSerializer, 
-    UpdateFileUploadSerializer, 
-    MessageBulkReadSerializer, 
-    LeadSerializer, 
-    LeadExportSerializer)
+from apps.assistant.serializers import (AssistantSerializer,
+    ConversationSerializer,
+    MessageSerializer,
+    SettingsSerializer,
+    AssistantFileUploadSerializer,
+    ConversationRetrieveSerializer,
+    UpdateFileUploadSerializer,
+    MessageBulkReadSerializer,
+    LeadSerializer,
+    LeadExportSerializer,
+    PromptTemplateListSerializer)
 
 class AssistantListCreateView(generics.ListCreateAPIView):
     queryset = Assistant.objects.all()
@@ -456,6 +457,12 @@ class ExportLeadsView(views.APIView):
         file_path = serializer.export_leads(assistant_id)
         response = FileResponse(open(file_path, 'rb'), as_attachment=True, filename=os.path.basename(file_path))
         return response
+
+
+class PromptTemplateListView(generics.ListAPIView):
+    queryset = PromptTemplate.objects.filter(is_active=True)
+    serializer_class = PromptTemplateListSerializer
+    permission_classes = [permissions.IsAuthenticated]
 
 
 class AssistantTokenStatsView(views.APIView):

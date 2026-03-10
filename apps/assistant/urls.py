@@ -22,4 +22,5 @@ urlpatterns = [
     path("assistant-files/<uuid:pk>/", views.AssistantFileUploadRetrieveView.as_view()),
 
     path('conversation/<uuid:pk>/messages/bulk-read/', views.MessageBulkReadView.as_view(), name='message-bulk-read'),
+    path('prompt-templates/', views.PromptTemplateListView.as_view(), name='prompt-template-list'),
 ]
