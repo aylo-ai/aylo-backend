@@ -1028,7 +1028,7 @@ BLOG_POSTS = [
         "tags": ["instagram", "sotuv", "strategiya", "chatbot", "marketing"],
         "target_keyword": "instagram sotuv",
         "meta_title": "Instagram orqali sotuvni 3 barobar oshirish yo'llari | Repli AI",
-        "meta_description": "Instagram orqali sotuvni 3 barobarga oshirish strategiyalari. 5 daqiqa qoidasi, DM avtomatlashtirish, kontent strategiya va analitika bo'yicha batafsil qo'llanma.",
+        "meta_description": "Instagram orqali sotuvni 3x oshirish strategiyalari. DM avtomatlashtirish, kontent strategiya va analitika qo'llanmasi.",
         "read_time": 11,
         "internal_links": [
             {"label": "Qanday ishlaydi", "section": "how-it-works"},
@@ -2773,7 +2773,7 @@ BLOG_POSTS = [
         "author": "Repli AI Team",
         "tags": ["online", "dokon", "chatbot", "buyurtma", "ecommerce"],
         "target_keyword": "online dokon chatbot",
-        "meta_title": "Online do'kon uchun chatbot — buyurtmalarni avtomatlashtirish | Repli AI",
+        "meta_title": "Online do'kon uchun chatbot — avtomatlashtirish | Repli AI",
         "meta_description": "Online do'kon uchun chatbot orqali buyurtmalarni avtomatlashtiring. Savatchani tark etishni kamaytiring, sotuvni 40% ga oshiring. Batafsil qo'llanma.",
         "read_time": 11,
         "internal_links": [
