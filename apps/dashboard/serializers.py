@@ -5,7 +5,7 @@ from django.utils import timezone
 from django.db.models.functions import TruncDay, TruncMonth
 from django.db.models import Min
 
-from apps.assistant.models import Conversation, Assistant, Message
+from apps.assistant.models import Conversation, Assistant, Message, PromptTemplate
 from apps.assistant.serializers import AssistantSerializer
 from apps.integration.serializers import IntegrationSerializer
 from apps.payment.models import Transaction, Subscription   
@@ -421,3 +421,17 @@ class DashboardUserListSerializer(serializers.ModelSerializer):
             }
         return None
     
+
+class DashboardPromptTemplateSerializer(serializers.ModelSerializer):
+    assistants_count = serializers.SerializerMethodField()
+
+    class Meta:
+        model = PromptTemplate
+        fields = [
+            'id', 'name', 'description', 'content', 'is_default',
+            'is_active', 'assistants_count', 'created_time', 'updated_time'
+        ]
+        read_only_fields = ['created_time', 'updated_time']
+
+    def get_assistants_count(self, obj):
+        return obj.assistants.count()

@@ -267,13 +267,31 @@ New Lead Generated! 📢
             return cleaned
 
     def format_instructions(self, assistant: Assistant):
+        from apps.assistant.models import PromptTemplate
+        template = assistant.prompt_template or PromptTemplate.objects.filter(is_default=True, is_active=True).first()
+
+        if template:
+            try:
+                return template.content.format(
+                    system_prompt=assistant.system_prompt or '',
+                    personality_style=assistant.personality_style or '',
+                    web_search_tool=assistant.web_search_tool,
+                    company_name=assistant.company_name or '',
+                    assistant_name=assistant.name or '',
+                )
+            except (KeyError, IndexError) as e:
+                logger.warning(f"Template format error: {e}, falling back to default")
+
+        return self._default_instructions(assistant)
+
+    def _default_instructions(self, assistant: Assistant):
         return f"""
             {assistant.system_prompt}
 
             # CORE REQUIREMENTS
 
             ## Language & Style
-            - **LANGUAGE**: Always respond in the same language the user is using. 
+            - **LANGUAGE**: Always respond in the same language the user is using.
             - **TONE**: {assistant.personality_style}
             - **EMOJIS**: Use naturally (😊, 💡, 📦, 📍, ✅, ❌). Only use them when it is relevant.
             - **ACCURACY**: Only provide information from knowledge base. No assumptions or invented details should be given.
@@ -356,7 +374,7 @@ New Lead Generated! 📢
 
             **MANDATORY ORDER FLOW:**
             1. Collect name ✓
-            2. Collect phone ✓  
+            2. Collect phone ✓
             3. Collect product ✓
             4. **ASK FOR CONFIRMATION** → use "collect_order_info"
             Example: "Is this correct? Name: [name], Phone: [phone], Product: [product]"

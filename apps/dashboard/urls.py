@@ -32,4 +32,8 @@ urlpatterns = [
 
     #dashboard statistics
     path("statistics/", views.DashboardStatisticsView.as_view()),
+
+    #prompt templates
+    path("prompts/", views.DashboardPromptTemplateList.as_view()),
+    path("prompts/<uuid:pk>/", views.DashboardPromptTemplateDetail.as_view()),
 ]

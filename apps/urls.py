@@ -6,4 +6,5 @@ urlpatterns = [
     path("integration/", include(("integration.urls", "integration"), namespace="integration")),
     path("chat/", include(("assistant.urls", "assistant"), namespace="assistant")),
     path("dashboard/", include(("dashboard.urls", 'dashboard'), namespace="dashboard")),
+    path("blog/", include(("blog.urls", "blog"), namespace="blog")),
 ]

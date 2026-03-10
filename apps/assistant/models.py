@@ -24,6 +24,26 @@ def assistant_audio_path(instance, filename):
     return f"assistant/{instance.conversation.assistant.id}/conversation/{instance.conversation.id}/audio/{filename}"
 
 
+class PromptTemplate(BaseModel):
+    name = models.CharField(max_length=255)
+    description = models.TextField(null=True, blank=True)
+    content = models.TextField()
+    is_default = models.BooleanField(default=False)
+    is_active = models.BooleanField(default=True)
+
+    class Meta:
+        db_table = "prompt_template"
+        ordering = ['-created_time']
+
+    def __str__(self):
+        return self.name
+
+    def save(self, *args, **kwargs):
+        if self.is_default:
+            PromptTemplate.objects.filter(is_default=True).exclude(pk=self.pk).update(is_default=False)
+        super().save(*args, **kwargs)
+
+
 class Assistant(BaseModel):
     name = models.CharField(max_length=255)
     description = models.TextField(null=True, blank=True)
@@ -64,7 +84,10 @@ class Assistant(BaseModel):
     is_active = models.BooleanField(default=True)
     ai_enabled = models.BooleanField(default=True)
     web_search_tool = models.BooleanField(default=False)
-
+    prompt_template = models.ForeignKey(
+        PromptTemplate, on_delete=models.SET_NULL,
+        null=True, blank=True, related_name='assistants'
+    )
 
     integrations: "models.QuerySet[Integration]"
 
