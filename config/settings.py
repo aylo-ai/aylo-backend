@@ -52,6 +52,7 @@ INTERNAL_APPS = [
     "shared",
     "user",
     "blog",
+    "landing",
 ]
 
 INSTALLED_APPS = DEFAULT_APPS + PACKAGES + INTERNAL_APPS
@@ -66,6 +67,12 @@ REST_FRAMEWORK = {
         "django_filters.rest_framework.DjangoFilterBackend",
         "rest_framework.filters.SearchFilter",
     ),
+    "DEFAULT_THROTTLE_CLASSES": [
+        "rest_framework.throttling.ScopedRateThrottle",
+    ],
+    "DEFAULT_THROTTLE_RATES": {
+        "landing_lead": "10/minute",
+    },
 }
 
 SPECTACULAR_SETTINGS = {
