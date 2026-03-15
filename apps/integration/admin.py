@@ -87,10 +87,12 @@ class InstagramMediaAdmin(admin.ModelAdmin):
 
 @admin.register(TelegramGroupIntegration)
 class TelegramGroupIntegrationAdmin(admin.ModelAdmin):
-    list_display = ["group_id", "group_title", "lead_count", "created_time"]
-    search_fields = ["group_title"]
+    list_display = ["group_title", "group_id", "is_approved", "lead_count", "integration", "created_time"]
+    list_filter = ["is_approved"]
+    list_editable = ["is_approved"]
+    search_fields = ["group_title", "group_id"]
     fieldsets = (
-        (None, {"fields": ("group_id", "group_title", "lead_count")}),
+        (None, {"fields": ("group_id", "group_title", "lead_count", "is_approved")}),
         ("Integration", {"fields": ("integration",)}),
     )
 
