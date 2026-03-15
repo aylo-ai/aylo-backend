@@ -10,6 +10,7 @@ urlpatterns = [
     path(
         "integration/<uuid:pk>/telegram-group/", views.TelegramGroupListView.as_view()
     ),
+    path("telegram-group/<uuid:pk>/", views.TelegramGroupUpdateDestroyView.as_view()),
     path("telegram/webhook/<str:bot_token>/", views.TelegramWebhookView.as_view()),
     path("instagram/webhook/", views.InstagramWebhookView.as_view()),
     path("instagram/callback/", views.InstagramCallbackView.as_view()),

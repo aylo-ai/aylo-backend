@@ -195,7 +195,7 @@ class SupervisorAssistant:
     def generate_lead(self, assistent: Assistant, parameters:Dict[str, Any], conversation: Conversation):
         telegram = assistent.integrations.filter(integration_type=IntegrationTypes.TELEGRAM.value).first()
         print(f"[+] Telegram: {telegram}")
-        telegram_groups = TelegramGroupIntegration.objects.filter(integration=telegram).all()
+        telegram_groups = TelegramGroupIntegration.objects.filter(integration=telegram, is_approved=True)
         print(f"[+] Telegram groups: {telegram_groups}")
         lead = Lead.objects.create(
             assistant=assistent,
