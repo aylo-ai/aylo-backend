@@ -71,6 +71,7 @@ REST_FRAMEWORK = {
         "rest_framework.throttling.ScopedRateThrottle",
     ],
     "DEFAULT_THROTTLE_RATES": {
+        "anon": "10/minute",
         "landing_lead": "10/minute",
     },
 }
