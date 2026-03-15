@@ -144,8 +144,10 @@ class TelegramGroupSerializer(serializers.ModelSerializer):
             "group_id",
             "group_title",
             "lead_count",
+            "is_approved",
             "created_time",
         ]
+        read_only_fields = ["id", "integration", "group_id", "group_title", "lead_count", "created_time"]
 
 
 class SendUserMessageSerializer(serializers.Serializer, SubscriptionValidationMixin):  # noqa

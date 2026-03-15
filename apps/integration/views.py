@@ -575,8 +575,55 @@ class TelegramGroupListView(generics.ListAPIView):
 
     def get_queryset(self):
         integration_id = self.kwargs.get('pk')
-        return self.queryset.filter(integration_id=integration_id)
-    
+        qs = self.queryset.filter(integration_id=integration_id)
+        is_approved = self.request.query_params.get('is_approved')
+        if is_approved is not None:
+            qs = qs.filter(is_approved=is_approved.lower() == 'true')
+        return qs
+
+
+class TelegramGroupUpdateDestroyView(generics.RetrieveUpdateDestroyAPIView):
+    queryset = TelegramGroupIntegration.objects.all()
+    serializer_class = TelegramGroupSerializer
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get_object(self):
+        obj = super().get_object()
+        integration = obj.integration
+        if integration.assistant and integration.assistant.user != self.request.user:
+            from rest_framework.exceptions import PermissionDenied
+            raise PermissionDenied(_("Bu guruhni boshqarish huquqi yo'q"))
+        return obj
+
+    def update(self, request, *args, **kwargs):
+        instance = self.get_object()
+        is_approving = request.data.get('is_approved')
+        if is_approving is True or is_approving == 'true' or is_approving == True:
+            from shared.addons.telegram import check_bot_in_group
+            token = instance.integration.api_token
+            if not check_bot_in_group(instance.group_id, token):
+                return error_response(
+                    message=_("Bot bu guruhda mavjud emas. Avval botni guruhga qo'shing."),
+                    code=400
+                )
+        serializer = self.get_serializer(instance, data=request.data, partial=True)
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+        return success_response(
+            data=serializer.data,
+            message=_("Telegram guruh muvaffaqiyatli yangilandi"),
+            code=200
+        )
+
+    def destroy(self, request, *args, **kwargs):
+        instance = self.get_object()
+        instance.delete()
+        return success_response(
+            message=_("Telegram guruh muvaffaqiyatli o'chirildi"),
+            code=204
+        )
+
+
 class InstagramPostListView(APIView):
     permission_classes = [permissions.IsAuthenticated]
 

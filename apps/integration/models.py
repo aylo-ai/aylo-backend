@@ -44,6 +44,7 @@ class TelegramGroupIntegration(BaseModel):
     group_id = models.CharField(max_length=255)
     group_title = models.CharField(max_length=255)
     lead_count = models.IntegerField(default=0)
+    is_approved = models.BooleanField(default=False)
 
     def __str__(self):
         return f"Telegram Group {self.group_title} for {self.integration.name}"

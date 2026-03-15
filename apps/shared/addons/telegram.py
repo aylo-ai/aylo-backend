@@ -104,11 +104,28 @@ def send_telegram_message(chat_id, text, token, entities=None):
                 print("[+] Message sent successfully after migration.")
             else:
                 print(f"[-] Failed to send message after migration: {response_data}")
+        elif response_data.get("error_code") == 403:
+            print(f"[-] Failed to send message (403 - bot kicked): {response_data}")
+            try:
+                group = TelegramGroupIntegration.objects.filter(group_id=chat_id).first()
+                if group:
+                    group.is_approved = False
+                    group.save(update_fields=["is_approved"])
+                    print(f"[!] Auto-disabled group {chat_id} due to 403 error")
+            except Exception as e:
+                print(f"[-] Error auto-disabling group: {e}")
         else:
             print(f"[-] Failed to send message: {response_data}")
     else:
         print("[+] Message sent successfully.")
     return response
+
+
+def check_bot_in_group(chat_id, token):
+    """Telegram API orqali bot haqiqatan guruhda borligini tekshirish"""
+    url = f"https://api.telegram.org/bot{token}/getChat"
+    response = requests.get(url, params={"chat_id": chat_id})
+    return response.json().get("ok", False)
 
 
 def send_telegram_photo(chat_id, photo_url, token, caption=None):
@@ -164,11 +181,12 @@ def handle_bot_added_to_group(chat_id, chat_title, bot_token):
         print(f"No integration found for bot token: {bot_token}")
         return error_response(message=_("Integration topilmadi"), code=404)
 
-    if not TelegramGroupIntegration.objects.filter(integration=integration).exists():
+    if not TelegramGroupIntegration.objects.filter(integration=integration, group_id=chat_id).exists():
         telegram_group = TelegramGroupIntegration(integration=integration, group_id=chat_id, group_title=chat_title)
         telegram_group.save()
         print(f"Created group: {chat_title} ({chat_id})")
-    print(f"Group already exists for this integration")
+    else:
+        print(f"Group already exists for this integration: {chat_title} ({chat_id})")
 
 
 def handle_bot_removed_from_group(chat_id, chat_title):
