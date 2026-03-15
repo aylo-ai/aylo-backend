@@ -257,14 +257,30 @@ New Lead Generated! 📢
         elif cleaned.startswith('```'):
             cleaned = cleaned.replace('```', '').strip()
 
+        # Try parsing JSON directly
         try:
             parsed_data = json.loads(cleaned)
             return parsed_data.get("reply", cleaned)
+        except json.JSONDecodeError as e:
+            print(f"[!] JSON parse error: {e}, text: {repr(cleaned[:300])}")
+
+        # Try fixing invalid escape sequences (e.g. \' which is not valid JSON)
+        try:
+            fixed = cleaned.replace("\\'", "'")
+            parsed_data = json.loads(fixed)
+            return parsed_data.get("reply", fixed)
         except json.JSONDecodeError:
-            match = re.search(r'"reply":\s*"(.*?)"', cleaned, re.DOTALL)
-            if match:
-                return match.group(1).encode().decode('unicode_escape')
-            return cleaned
+            pass
+
+        # Regex fallback - properly handle escaped quotes in JSON strings
+        match = re.search(r'"reply":\s*"((?:[^"\\]|\\.)*)"', cleaned, re.DOTALL)
+        if match:
+            raw_value = match.group(1)
+            try:
+                return json.loads('"' + raw_value + '"')
+            except (json.JSONDecodeError, Exception):
+                return raw_value.replace('\\n', '\n').replace('\\"', '"').replace('\\\\', '\\')
+        return cleaned
 
     def format_instructions(self, assistant: Assistant):
         from apps.assistant.models import PromptTemplate
