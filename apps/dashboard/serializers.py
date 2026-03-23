@@ -4,7 +4,7 @@ from django.utils import timezone
 from django.db.models.functions import TruncDay, TruncMonth
 from django.db.models import Min
 
-from apps.assistant.models import Conversation, Assistant, Message, PromptTemplate, Lead
+from apps.assistant.models import Conversation, Assistant, Message, PromptTemplate, Lead, AssistantFileUpload
 from apps.assistant.serializers import AssistantSerializer, MessageSerializer
 from apps.integration.serializers import IntegrationSerializer
 from apps.payment.models import Transaction, Subscription, PricingPackage
@@ -743,6 +743,24 @@ class DashboardAssistantListSerializer(serializers.ModelSerializer):
             'is_instagram_integration': obj.integrations.filter(integration_type='instagram').exists(),
             'is_widget_integration': obj.integrations.filter(integration_type='website').exists(),
         }
+
+
+class DashboardAssistantFileUploadSerializer(serializers.ModelSerializer):
+    """Serializer for admin file uploads (no subscription check)."""
+
+    class Meta:
+        model = AssistantFileUpload
+        fields = [
+            'id', 'assistant', 'filename', 'file', 'file_type',
+            'website_url', 'created_time', 'updated_time',
+        ]
+        read_only_fields = ['created_time', 'updated_time']
+
+    def validate(self, attrs):
+        file = attrs.get('file')
+        if file and hasattr(file, 'size') and file.size > 30 * 1024 * 1024:
+            raise serializers.ValidationError("File exceeds the 30MB size limit.")
+        return attrs
 
 
 class DashboardAssistantCreateSerializer(serializers.ModelSerializer):

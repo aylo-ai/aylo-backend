@@ -49,6 +49,7 @@ from apps.dashboard.serializers import (
     DashboardIntegrationListSerializer,
     DashboardAssistantListSerializer,
     DashboardAssistantCreateSerializer,
+    DashboardAssistantFileUploadSerializer,
     DashboardPricingPackageDetailSerializer,
     AuditLogSerializer,
     ChangeRoleSerializer,
@@ -352,10 +353,27 @@ class DashboardAssistantList(generics.ListCreateAPIView):
 
     def list(self, request, *args, **kwargs):
         queryset = self.filter_queryset(self.get_queryset())
+
+        # Global stats (independent of pagination/filters)
+        all_assistants = Assistant.objects.all()
+        total_count = all_assistants.count()
+        active_count = all_assistants.filter(is_active=True).count()
+        ai_enabled_count = all_assistants.filter(ai_enabled=True).count()
+        with_integrations_count = all_assistants.filter(
+            integrations__isnull=False
+        ).distinct().count()
+
         page = self.paginate_queryset(queryset)
         if page is not None:
             serializer = self.get_serializer(page, many=True)
-            return self.get_paginated_response(serializer.data)
+            response = self.get_paginated_response(serializer.data)
+            response.data['stats'] = {
+                'total': total_count,
+                'active': active_count,
+                'ai_enabled': ai_enabled_count,
+                'with_integrations': with_integrations_count,
+            }
+            return response
         serializer = self.get_serializer(queryset, many=True)
         return success_response(data=serializer.data, message="Assistants retrieved successfully", code=200)
 
@@ -457,10 +475,21 @@ class DashboardConversationList(generics.ListAPIView):
 
     def list(self, request, *args, **kwargs):
         queryset = self.filter_queryset(self.get_queryset())
+
+        all_convos = Conversation.objects.all()
+        stats = {
+            'total': all_convos.count(),
+            'open': all_convos.filter(status=ConversationStatuses.OPEN.value).count(),
+            'escalated': all_convos.filter(status=ConversationStatuses.ESCALATED.value).count(),
+            'total_messages': Message.objects.count(),
+        }
+
         page = self.paginate_queryset(queryset)
         if page is not None:
             serializer = self.get_serializer(page, many=True)
-            return self.get_paginated_response(serializer.data)
+            response = self.get_paginated_response(serializer.data)
+            response.data['stats'] = stats
+            return response
         serializer = self.get_serializer(queryset, many=True)
         return success_response(data=serializer.data, message="Conversations retrieved successfully", code=200)
 
@@ -543,10 +572,23 @@ class DashboardTransactionList(generics.ListAPIView):
 
     def list(self, request, *args, **kwargs):
         queryset = self.filter_queryset(self.get_queryset())
+
+        from django.db.models import Sum
+        all_txns = Transaction.objects.all()
+        successful = all_txns.filter(status=PaymentStatuses.SUCCESS.value)
+        stats = {
+            'total': all_txns.count(),
+            'successful_total': float(successful.aggregate(total=Sum('amount'))['total'] or 0),
+            'successful_count': successful.count(),
+            'failed': all_txns.filter(status=PaymentStatuses.FAILED.value).count(),
+        }
+
         page = self.paginate_queryset(queryset)
         if page is not None:
             serializer = self.get_serializer(page, many=True)
-            return self.get_paginated_response(serializer.data)
+            response = self.get_paginated_response(serializer.data)
+            response.data['stats'] = stats
+            return response
         serializer = self.get_serializer(queryset, many=True)
         return success_response(data=serializer.data, message="Transactions retrieved successfully", code=200)
 
@@ -651,10 +693,26 @@ class DashboardSubscriptionList(generics.ListAPIView):
 
     def list(self, request, *args, **kwargs):
         queryset = self.filter_queryset(self.get_queryset())
+
+        all_subs = Subscription.objects.all()
+        today = timezone.now().date()
+        stats = {
+            'total': all_subs.count(),
+            'active': all_subs.filter(status='active').count(),
+            'expiring_soon': all_subs.filter(
+                status='active',
+                end_date__lte=today + timedelta(days=7),
+                end_date__gte=today,
+            ).count(),
+            'cancelled': all_subs.filter(status='cancelled').count(),
+        }
+
         page = self.paginate_queryset(queryset)
         if page is not None:
             serializer = self.get_serializer(page, many=True)
-            return self.get_paginated_response(serializer.data)
+            response = self.get_paginated_response(serializer.data)
+            response.data['stats'] = stats
+            return response
         serializer = self.get_serializer(queryset, many=True)
         return success_response(data=serializer.data, message="Subscriptions retrieved successfully", code=200)
 
@@ -796,10 +854,25 @@ class DashboardIntegrationList(generics.ListAPIView):
 
     def list(self, request, *args, **kwargs):
         queryset = self.filter_queryset(self.get_queryset())
+
+        all_integrations = Integration.objects.all()
+        stats = {
+            'total': all_integrations.count(),
+            'active': all_integrations.filter(is_active=True).count(),
+            'total_conversations': Conversation.objects.filter(
+                assistant__integrations__isnull=False
+            ).distinct().count(),
+            'total_leads': Lead.objects.filter(
+                assistant__integrations__isnull=False
+            ).distinct().count(),
+        }
+
         page = self.paginate_queryset(queryset)
         if page is not None:
             serializer = self.get_serializer(page, many=True)
-            return self.get_paginated_response(serializer.data)
+            response = self.get_paginated_response(serializer.data)
+            response.data['stats'] = stats
+            return response
         serializer = self.get_serializer(queryset, many=True)
         return success_response(data=serializer.data, message="Integrations retrieved successfully", code=200)
 
@@ -1049,9 +1122,9 @@ class DashboardBalanceList(generics.ListAPIView):
         return success_response(data=serializer.data, message="Balances retrieved successfully", code=200)
 
 
-class DashboardAssistantFileUploadList(generics.ListAPIView):
+class DashboardAssistantFileUploadList(generics.ListCreateAPIView):
     queryset = AssistantFileUpload.objects.all()
-    serializer_class = AssistantFileUploadSerializer
+    serializer_class = DashboardAssistantFileUploadSerializer
     permission_classes = [IsDashboardUser]
     pagination_class = StandardResultsSetPagination
 
@@ -1070,6 +1143,18 @@ class DashboardAssistantFileUploadList(generics.ListAPIView):
             return self.get_paginated_response(serializer.data)
         serializer = self.get_serializer(queryset, many=True)
         return success_response(data=serializer.data, message="Assistant file uploads retrieved successfully", code=200)
+
+    def create(self, request, *args, **kwargs):
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        instance = serializer.save()
+        AuditLog.log(
+            user=request.user, action='create', target_type='assistant_file',
+            target_id=instance.id, target_repr=str(instance),
+            details={'assistant': str(request.data.get('assistant'))},
+            ip_address=get_client_ip(request),
+        )
+        return success_response(data=serializer.data, message="File uploaded successfully", code=201)
 
 
 class DashboardAssistantFileUploadDetail(generics.RetrieveUpdateDestroyAPIView):
