@@ -44,6 +44,7 @@ from apps.dashboard.serializers import (
     DashboardPromptTemplateSerializer,
     DashboardTransactionSerializer,
     DashboardLeadSerializer,
+    DashboardIntegrationListSerializer,
     AuditLogSerializer,
     ChangeRoleSerializer,
     RefundSerializer,
@@ -707,8 +708,8 @@ class DashboardSubscriptionExtend(APIView):
 # ──────────────────────────────────────────────
 
 class DashboardIntegrationList(generics.ListAPIView):
-    queryset = Integration.objects.all()
-    serializer_class = IntegrationSerializer
+    queryset = Integration.objects.select_related('assistant', 'assistant__user', 'user').all()
+    serializer_class = DashboardIntegrationListSerializer
     permission_classes = [IsDashboardUser]
     filterset_class = IntegrationFilter
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
