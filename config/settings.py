@@ -53,6 +53,7 @@ INTERNAL_APPS = [
     "user",
     "blog",
     "landing",
+    "dashboard",
 ]
 
 INSTALLED_APPS = DEFAULT_APPS + PACKAGES + INTERNAL_APPS
@@ -399,7 +400,6 @@ AWS_S3_REGION_NAME = os.environ.get("AWS_S3_REGION_NAME")
 
 
 MEDIA_URL = '/media/'
-DEFAULT_FILE_STORAGE = 'storages.backends.s3boto3.S3Boto3Storage'
 
 STORAGES = {
     "default": {
@@ -407,9 +407,6 @@ STORAGES = {
     },
     "staticfiles": {"BACKEND": "django.contrib.staticfiles.storage.StaticFilesStorage"},
 }
-
-# For static files
-STATICFILES_STORAGE = "storages.backends.s3boto3.S3Boto3Storage"
 
 CELERY_BEAT_SCHEDULE = {
     'process-monthly-subscriptions': {
