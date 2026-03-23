@@ -54,7 +54,7 @@ class UserAgreementAdmin(admin.ModelAdmin):
     
 @admin.register(Notification)
 class NotificationAdmin(admin.ModelAdmin):
-    list_display = ("user__username", "title", "type", "is_read")
+    list_display = ("user", "title", "type", "is_read")
     search_fields = ("user__username", "title", "type")
     list_filter = ("type", "is_read")
     readonly_fields = ("created_time", "updated_time")
