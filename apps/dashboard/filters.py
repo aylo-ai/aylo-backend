@@ -59,6 +59,7 @@ class AssistantFilter(filters.FilterSet):
     is_active = filters.BooleanFilter()
     user = filters.UUIDFilter(field_name='user__id')
     language = filters.CharFilter(method='filter_language')
+    has_integrations = filters.BooleanFilter(method='filter_has_integrations')
 
     class Meta:
         model = Assistant
@@ -66,6 +67,11 @@ class AssistantFilter(filters.FilterSet):
 
     def filter_language(self, queryset, name, value):
         return queryset.filter(language__contains=[value])
+
+    def filter_has_integrations(self, queryset, name, value):
+        if value:
+            return queryset.filter(integrations__isnull=False).distinct()
+        return queryset.filter(integrations__isnull=True)
 
 
 class ConversationFilter(filters.FilterSet):

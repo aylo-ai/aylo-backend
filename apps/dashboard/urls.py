@@ -56,6 +56,8 @@ urlpatterns = [
 
     # Leads
     path("leads/", views.DashboardLeadList.as_view()),
+    path("leads/stats/", views.DashboardLeadStats.as_view()),
+    path("leads/export/", views.DashboardLeadExport.as_view()),
     path("leads/<uuid:pk>/", views.DashboardLeadDetail.as_view()),
 
     # Audit Logs

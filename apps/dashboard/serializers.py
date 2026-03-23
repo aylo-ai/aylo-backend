@@ -708,6 +708,64 @@ class DashboardIntegrationListSerializer(serializers.ModelSerializer):
         ]
 
 
+class DashboardAssistantListSerializer(serializers.ModelSerializer):
+    """Assistant serializer with owner contact info for dashboard."""
+    owner_phone = serializers.SerializerMethodField()
+    owner_email = serializers.SerializerMethodField()
+    owner_name = serializers.SerializerMethodField()
+    integrations = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Assistant
+        fields = [
+            'id', 'name', 'description', 'user', 'company_name', 'role',
+            'language', 'personality_style', 'greeting_message',
+            'fallback_message', 'wait_message', 'created_time', 'updated_time',
+            'is_active', 'ai_enabled', 'prompt_template',
+            'owner_phone', 'owner_email', 'owner_name', 'integrations',
+        ]
+
+    def get_owner_phone(self, obj):
+        return obj.user.phone_number if obj.user else None
+
+    def get_owner_email(self, obj):
+        return obj.user.email if obj.user else None
+
+    def get_owner_name(self, obj):
+        if not obj.user:
+            return None
+        name = f"{obj.user.first_name or ''} {obj.user.last_name or ''}".strip()
+        return name or obj.user.username
+
+    def get_integrations(self, obj):
+        return {
+            'is_telegram_integration': obj.integrations.filter(integration_type='telegram').exists(),
+            'is_instagram_integration': obj.integrations.filter(integration_type='instagram').exists(),
+            'is_widget_integration': obj.integrations.filter(integration_type='website').exists(),
+        }
+
+
+class DashboardAssistantCreateSerializer(serializers.ModelSerializer):
+    """Serializer for admin to create assistants for any user (no subscription check)."""
+
+    class Meta:
+        model = Assistant
+        fields = [
+            'name', 'description', 'user', 'company_name', 'role',
+            'language', 'personality_style', 'greeting_message',
+            'fallback_message', 'wait_message',
+        ]
+
+    def validate(self, attrs):
+        company_name = attrs.get('company_name')
+        role = attrs.get('role')
+        if company_name and len(company_name) > 100:
+            raise serializers.ValidationError("Company nomi 100 ta belgidan kam bo'lishi kerak")
+        if role and len(role) > 100:
+            raise serializers.ValidationError("Role 100 ta belgidan kam bo'lishi kerak")
+        return attrs
+
+
 class DashboardPricingPackageDetailSerializer(serializers.ModelSerializer):
     """Pricing package with subscriber stats."""
     subscribers_count = serializers.SerializerMethodField()

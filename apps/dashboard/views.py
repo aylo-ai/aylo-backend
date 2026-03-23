@@ -1,6 +1,8 @@
 import csv
+from datetime import timedelta
 from io import StringIO
 
+from django.db.models import Count, Q
 from django.http import HttpResponse
 from django.utils import timezone
 from rest_framework import generics, filters, status
@@ -45,6 +47,8 @@ from apps.dashboard.serializers import (
     DashboardTransactionSerializer,
     DashboardLeadSerializer,
     DashboardIntegrationListSerializer,
+    DashboardAssistantListSerializer,
+    DashboardAssistantCreateSerializer,
     DashboardPricingPackageDetailSerializer,
     AuditLogSerializer,
     ChangeRoleSerializer,
@@ -331,15 +335,20 @@ class DashboardUserExport(APIView):
 # ASSISTANTS
 # ──────────────────────────────────────────────
 
-class DashboardAssistantList(generics.ListAPIView):
-    queryset = Assistant.objects.all()
-    serializer_class = AssistantSerializer
+class DashboardAssistantList(generics.ListCreateAPIView):
+    queryset = Assistant.objects.select_related('user').all()
+    serializer_class = DashboardAssistantListSerializer
     permission_classes = [IsDashboardUser]
     pagination_class = StandardResultsSetPagination
     filterset_class = AssistantFilter
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
-    search_fields = ["name", "user__username", "company_name"]
-    ordering_fields = ['name', 'created_time', 'company_name', 'is_active']
+    search_fields = ["name", "user__username", "user__phone_number", "user__email", "company_name"]
+    ordering_fields = ['name', 'created_time', 'company_name', 'is_active', 'language', 'personality_style']
+
+    def get_serializer_class(self):
+        if self.request.method == 'POST':
+            return DashboardAssistantCreateSerializer
+        return DashboardAssistantListSerializer
 
     def list(self, request, *args, **kwargs):
         queryset = self.filter_queryset(self.get_queryset())
@@ -349,6 +358,27 @@ class DashboardAssistantList(generics.ListAPIView):
             return self.get_paginated_response(serializer.data)
         serializer = self.get_serializer(queryset, many=True)
         return success_response(data=serializer.data, message="Assistants retrieved successfully", code=200)
+
+    def create(self, request, *args, **kwargs):
+        user_id = request.data.get('user')
+        if not user_id:
+            return error_response(message="User ID is required", code=400)
+        try:
+            target_user = User.objects.get(id=user_id)
+        except User.DoesNotExist:
+            return error_response(message="User not found", code=404)
+
+        serializer = DashboardAssistantCreateSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        assistant = serializer.save(user=target_user, created_by=request.user)
+
+        AuditLog.log(
+            user=request.user, action='create', target_type='assistant',
+            target_id=assistant.id, target_repr=assistant.name,
+            details={'user': str(target_user.id), 'data': request.data},
+            ip_address=get_client_ip(request),
+        )
+        return success_response(data=AssistantSerializer(assistant).data, message="Assistant created successfully", code=201)
 
 
 class DashboardAssistantDetail(generics.RetrieveUpdateDestroyAPIView):
@@ -641,13 +671,59 @@ class DashboardSubscriptionDetail(generics.RetrieveUpdateDestroyAPIView):
 
     def update(self, request, *args, **kwargs):
         instance = self.get_object()
-        serializer = self.get_serializer(instance, data=request.data, partial=True)
-        serializer.is_valid(raise_exception=True)
-        serializer.save()
+        old_data = {
+            'pricing_package': str(instance.pricing_package_id) if instance.pricing_package else None,
+            'start_date': str(instance.start_date) if instance.start_date else None,
+            'end_date': str(instance.end_date) if instance.end_date else None,
+            'status': instance.status,
+            'remained_request_count': instance.remained_request_count,
+            'auto_renew': instance.auto_renew,
+        }
+
+        # Handle pricing_package change by ID
+        new_package_id = request.data.get('pricing_package')
+        if new_package_id:
+            try:
+                new_package = PricingPackage.objects.get(id=new_package_id)
+                instance.pricing_package = new_package
+            except PricingPackage.DoesNotExist:
+                return error_response(message="Pricing package not found", code=404)
+
+        # Update other fields
+        for field in ['start_date', 'end_date', 'status', 'remained_request_count', 'auto_renew', 'next_payment_date']:
+            if field in request.data:
+                setattr(instance, field, request.data[field])
+
+        instance.save()
+        serializer = self.get_serializer(instance)
+
+        new_data = {
+            'pricing_package': str(instance.pricing_package_id) if instance.pricing_package else None,
+            'start_date': str(instance.start_date) if instance.start_date else None,
+            'end_date': str(instance.end_date) if instance.end_date else None,
+            'status': instance.status,
+            'remained_request_count': instance.remained_request_count,
+            'auto_renew': instance.auto_renew,
+        }
+
+        AuditLog.log(
+            user=request.user, action='update', target_type='subscription',
+            target_id=instance.id,
+            target_repr=str(instance),
+            details={'old': old_data, 'new': new_data, 'changes': request.data},
+            ip_address=get_client_ip(request),
+        )
         return success_response(data=serializer.data, message="Subscription updated successfully", code=200)
 
     def destroy(self, request, *args, **kwargs):
-        self.get_object().delete()
+        instance = self.get_object()
+        AuditLog.log(
+            user=request.user, action='delete', target_type='subscription',
+            target_id=instance.id,
+            target_repr=str(instance),
+            ip_address=get_client_ip(request),
+        )
+        instance.delete()
         return success_response(message="Subscription deleted successfully", code=200)
 
 
@@ -792,6 +868,93 @@ class DashboardLeadDetail(generics.RetrieveUpdateAPIView):
         return success_response(data=serializer.data, message="Lead updated successfully", code=200)
 
 
+class DashboardLeadStats(APIView):
+    permission_classes = [IsDashboardUser]
+
+    def get(self, request):
+        now = timezone.now()
+        today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
+        week_start = today_start - timedelta(days=today_start.weekday())
+        month_start = today_start.replace(day=1)
+        prev_month_start = (month_start - timedelta(days=1)).replace(day=1)
+
+        qs = Lead.objects.all()
+        total = qs.count()
+
+        status_counts = dict(qs.values_list('status').annotate(count=Count('id')))
+
+        platform_counts = dict(qs.values_list('platform').annotate(count=Count('id')))
+
+        contacted_count = qs.filter(contacted=True).count()
+
+        today_count = qs.filter(created_time__gte=today_start).count()
+        week_count = qs.filter(created_time__gte=week_start).count()
+        month_count = qs.filter(created_time__gte=month_start).count()
+        prev_month_count = qs.filter(
+            created_time__gte=prev_month_start,
+            created_time__lt=month_start,
+        ).count()
+
+        # Growth percentage
+        if prev_month_count > 0:
+            month_growth = round(((month_count - prev_month_count) / prev_month_count) * 100, 1)
+        else:
+            month_growth = 100.0 if month_count > 0 else 0.0
+
+        contacted_rate = round((contacted_count / total) * 100, 1) if total > 0 else 0.0
+
+        data = {
+            'total': total,
+            'status_counts': status_counts,
+            'platform_counts': platform_counts,
+            'contacted_count': contacted_count,
+            'contacted_rate': contacted_rate,
+            'today_count': today_count,
+            'week_count': week_count,
+            'month_count': month_count,
+            'month_growth': month_growth,
+        }
+        return success_response(data=data, message="Lead stats retrieved successfully")
+
+
+class DashboardLeadExport(APIView):
+    permission_classes = [IsDashboardUser]
+
+    def get(self, request):
+        qs = Lead.objects.select_related('assistant').all().order_by('-created_time')
+
+        # Apply filters
+        lead_status = request.query_params.get('status')
+        if lead_status:
+            qs = qs.filter(status=lead_status)
+        platform = request.query_params.get('platform')
+        if platform:
+            qs = qs.filter(platform=platform)
+        contacted = request.query_params.get('contacted')
+        if contacted is not None:
+            qs = qs.filter(contacted=contacted.lower() == 'true')
+
+        now_str = timezone.now().strftime('%Y-%m-%d')
+        response = HttpResponse(content_type='text/csv')
+        response['Content-Disposition'] = f'attachment; filename="leads_export_{now_str}.csv"'
+        writer = csv.writer(response)
+        writer.writerow(['Name', 'Phone', 'Email', 'Product', 'Platform', 'Status', 'Assistant', 'Contacted', 'Username', 'Created'])
+        for lead in qs:
+            writer.writerow([
+                lead.full_name or '',
+                lead.phone_number or '',
+                lead.email or '',
+                lead.product or '',
+                lead.platform,
+                lead.status,
+                lead.assistant.name if lead.assistant else '',
+                'Yes' if lead.contacted else 'No',
+                lead.username or '',
+                lead.created_time.isoformat(),
+            ])
+        return response
+
+
 # ──────────────────────────────────────────────
 # AUDIT LOGS
 # ──────────────────────────────────────────────
@@ -891,6 +1054,13 @@ class DashboardAssistantFileUploadList(generics.ListAPIView):
     serializer_class = AssistantFileUploadSerializer
     permission_classes = [IsDashboardUser]
     pagination_class = StandardResultsSetPagination
+
+    def get_queryset(self):
+        queryset = super().get_queryset()
+        assistant_id = self.request.query_params.get('assistant')
+        if assistant_id:
+            queryset = queryset.filter(assistant_id=assistant_id)
+        return queryset
 
     def list(self, request, *args, **kwargs):
         queryset = self.filter_queryset(self.get_queryset())
