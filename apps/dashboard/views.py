@@ -45,6 +45,7 @@ from apps.dashboard.serializers import (
     DashboardTransactionSerializer,
     DashboardLeadSerializer,
     DashboardIntegrationListSerializer,
+    DashboardPricingPackageDetailSerializer,
     AuditLogSerializer,
     ChangeRoleSerializer,
     RefundSerializer,
@@ -1314,8 +1315,8 @@ class DashboardFeatureDetail(generics.RetrieveUpdateDestroyAPIView):
 
 
 class DashboardPricingPackageList(generics.ListCreateAPIView):
-    queryset = PricingPackage.objects.all()
-    serializer_class = PricingPackageSerializer
+    queryset = PricingPackage.objects.prefetch_related('features').all()
+    serializer_class = DashboardPricingPackageDetailSerializer
     permission_classes = [IsAdmin]
     pagination_class = StandardResultsSetPagination
 
@@ -1336,8 +1337,8 @@ class DashboardPricingPackageList(generics.ListCreateAPIView):
 
 
 class DashboardPricingPackageDetail(generics.RetrieveUpdateDestroyAPIView):
-    queryset = PricingPackage.objects.all()
-    serializer_class = PricingPackageSerializer
+    queryset = PricingPackage.objects.prefetch_related('features').all()
+    serializer_class = DashboardPricingPackageDetailSerializer
     permission_classes = [IsAdmin]
 
     def retrieve(self, request, *args, **kwargs):
@@ -1347,10 +1348,16 @@ class DashboardPricingPackageDetail(generics.RetrieveUpdateDestroyAPIView):
 
     def update(self, request, *args, **kwargs):
         instance = self.get_object()
-        serializer = self.get_serializer(instance, data=request.data, partial=True)
+        serializer = PricingPackageSerializer(instance, data=request.data, partial=True)
         serializer.is_valid(raise_exception=True)
         serializer.save()
-        return success_response(data=serializer.data, message="Pricing package updated", code=200)
+        AuditLog.log(
+            user=request.user, action='update', target_type='pricing_package',
+            target_id=instance.id, target_repr=instance.name,
+            details={'changes': request.data},
+            ip_address=get_client_ip(request),
+        )
+        return success_response(data=DashboardPricingPackageDetailSerializer(instance).data, message="Pricing package updated", code=200)
 
     def destroy(self, request, *args, **kwargs):
         self.get_object().delete()
