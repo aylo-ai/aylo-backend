@@ -13,7 +13,21 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Deploy via SSH
+      - name: Checkout the repo
+        uses: actions/checkout@v4
+
+      - name: Copy repo to dev server
+        uses: appleboy/scp-action@master
+        with:
+          host: ${{ secrets.SSH_HOST_DEV }}
+          username: ${{ secrets.SSH_HOST_DEV_USERNAME }}
+          key: ${{ secrets.SSH_HOST_PRIVATE_KEY }}
+          port: 22
+          source: "."
+          target: "/opt/repli/backend"
+          overwrite: true
+
+      - name: Deploy using docker compose
         uses: appleboy/ssh-action@master
         with:
           host: ${{ secrets.SSH_HOST_DEV }}
@@ -24,21 +38,11 @@ jobs:
             set -e
             cd /opt/repli/backend
 
-            # Clone or pull latest
-            if [ ! -d ".git" ]; then
-              cd /opt/repli
-              git clone -b dev https://github.com/repli-ai/repli-backend.git backend
-              cd backend
-            else
-              git fetch origin dev
-              git reset --hard origin/dev
-            fi
-
             # Copy env file
             cp /opt/repli/.secrets/backend.env .env
 
             # Deploy with green profile (matching prod)
-            docker compose --profile green down
+            docker compose --profile green down || true
             docker compose --profile green up --build -d
             yes | docker image prune -f || true
 
