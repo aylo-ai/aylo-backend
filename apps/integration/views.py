@@ -1,3 +1,4 @@
+import logging
 import requests
 import base64
 import hashlib
@@ -5,6 +6,8 @@ import hmac
 import time
 import json
 import secrets
+
+logger = logging.getLogger(__name__)
 
 from django.db.models import Q
 from django.conf import settings
@@ -171,23 +174,39 @@ class SendIntegrationMessageView(generics.CreateAPIView):
 
 
 class InstagramWebhookView(APIView):
-    VERIFY_TOKEN = "wqbm2DoK5zfsF28Qb82Z"  # Replace with your actual verify token
+
+    def _verify_signature(self, request):
+        """Verify Instagram X-Hub-Signature-256 header."""
+        app_secret = settings.INSTAGRAM_APP_SECRET
+        if not app_secret:
+            return True  # Skip verification if secret not configured yet
+
+        signature_header = request.META.get('HTTP_X_HUB_SIGNATURE_256', '')
+        if not signature_header:
+            return False
+
+        expected_signature = 'sha256=' + hmac.new(
+            app_secret.encode('utf-8'),
+            request.body,
+            hashlib.sha256
+        ).hexdigest()
+        return hmac.compare_digest(signature_header, expected_signature)
 
     def get(self, request, *args, **kwargs):
-        # Extract query parameters
         mode = request.query_params.get("hub.mode")
         token = request.query_params.get("hub.verify_token")
         challenge = request.query_params.get("hub.challenge")
 
-        # Validate the token
-        if mode == "subscribe" and token == self.VERIFY_TOKEN:
+        if mode == "subscribe" and token == settings.INSTAGRAM_VERIFY_TOKEN:
             return HttpResponse(challenge, content_type="text/plain", status=200)
 
-        # Return 403 if the validation fails
         return error_response(message=_("Token yaroqsiz"), code=403)
 
     def post(self, request, *args, **kwargs):  # noqa
-        print("Instagram webhook data received")
+        if not self._verify_signature(request):
+            return error_response(message=_("Invalid signature"), code=403)
+
+        logger.info("Instagram webhook data received")
         data = request.data
         print(f"Instagram webhook data: {data}")
         if not data:
@@ -221,11 +240,19 @@ class InstagramWebhookView(APIView):
                     handle_postback_event_task.delay(messaging[0], integration.api_token)
                 return success_response(message=_("Postback muvaffaqiyatli olindi"), code=200)
             
+            # Deduplicate: check message ID to prevent processing the same webhook twice
+            msg_mid = messaging[0].get("message", {}).get("mid")
+            if msg_mid:
+                dedup_key = f"ig_dedup:{msg_mid}"
+                if redis_client.get(dedup_key):
+                    logger.info(f"Duplicate Instagram message detected: {msg_mid}")
+                    return success_response(message=_("Duplicate message ignored"), code=200)
+                redis_client.setex(dedup_key, 300, "1")  # 5 min TTL
+
             audio_file = None
             is_echo = messaging[0].get("message", {}).get("is_echo")
             reaction = messaging[0].get("reaction", {}).get("action", None)
             if reaction:
-                print(f"Reaction received: {reaction}")
                 return success_response(message=_("Reaction muvaffaqiyatli olindi"), code=200)
             attachment_type = messaging[0].get("message", {}).get("attachments",[{}])[0].get('type')
             if attachment_type == 'audio':
@@ -498,10 +525,23 @@ class InstagramDataDeletionView(APIView):
 
 class TelegramWebhookView(APIView):
     def post(self, request, bot_token):  # noqa
+        # Verify the bot token exists as an integration
+        if not Integration.objects.filter(api_token=bot_token).exists():
+            return error_response(message=_("Invalid bot token"), code=403)
+
+        # Deduplicate: use Telegram update_id
+        update_id = request.data.get('update_id')
+        if update_id:
+            dedup_key = f"tg_dedup:{update_id}"
+            if redis_client.get(dedup_key):
+                logger.info(f"Duplicate Telegram update detected: {update_id}")
+                return success_response(message=_("Duplicate update ignored"), code=200)
+            redis_client.setex(dedup_key, 300, "1")  # 5 min TTL
+
         data = request.data.get('message')
         if not data:
             return error_response(message=_("No message data received"))
-        print(f"received data: {data}")
+        logger.info(f"Telegram webhook received for bot_token ending ...{bot_token[-6:]}")
         chat_id = data.get("chat", {}).get("id", None)
         chat_title = data.get('chat', {}).get('title', 'Private Chat')
         chat_type = data.get("chat", {}).get("type", None)

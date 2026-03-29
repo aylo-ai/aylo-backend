@@ -25,10 +25,10 @@ from .models import (Integration,
 
 logger = logging.getLogger(__name__)
 
-WAIT_SECONDS = 5
+WAIT_SECONDS = 2
 
-@shared_task
-def process_message_task(chat_id, user_message, bot_token, chat_username=None, username=None, audio_file=None, input_tokens=None, output_tokens=None):
+@shared_task(bind=True, max_retries=3, default_retry_delay=5)
+def process_message_task(self, chat_id, user_message, bot_token, chat_username=None, username=None, audio_file=None, input_tokens=None, output_tokens=None):
     assistant = Assistant.objects.filter(integrations__api_token=bot_token).first()
     if not assistant:
         logging.warning(f"[-] No assistant found for bot_token: {bot_token}")
@@ -57,8 +57,8 @@ def process_message_task(chat_id, user_message, bot_token, chat_username=None, u
         send_telegram_message(chat_id, response_message, bot_token)
         
 
-@shared_task
-def process_instagram_message(account_id, combined_message, user_message, audio_file=None):
+@shared_task(bind=True, max_retries=3, default_retry_delay=5)
+def process_instagram_message(self, account_id, combined_message, user_message, audio_file=None):
     assistant = Assistant.objects.filter(integrations__instagram_account_id=account_id).first()
     if not assistant:
         return
@@ -97,8 +97,8 @@ def process_instagram_message(account_id, combined_message, user_message, audio_
             instagram_service.send_message(account_id, integration.api_token, sender_id, response_message)
 
 
-@shared_task
-def process_shared_post_message(account_id, shared_url, user_text, messaging):
+@shared_task(bind=True, max_retries=3, default_retry_delay=5)
+def process_shared_post_message(self, account_id, shared_url, user_text, messaging):
     """Process a shared Instagram post in DM — fetch post details and include as context for AI."""
     assistant = Assistant.objects.filter(integrations__instagram_account_id=account_id).first()
     if not assistant:
@@ -179,8 +179,8 @@ def send_message_integration_task(integration_id, message):
             instagram_service.send_message(account_id=conversation.user_id, access_token=integration.api_token, recipient_id=conversation.user_id, message=message)
 
 
-@shared_task
-def send_broadcast_task(broadcast_id):
+@shared_task(bind=True, max_retries=2, default_retry_delay=10)
+def send_broadcast_task(self, broadcast_id):
     try:
         broadcast = Broadcast.objects.select_related('integration').get(id=broadcast_id)
     except Broadcast.DoesNotExist:
@@ -210,6 +210,8 @@ def send_broadcast_task(broadcast_id):
             if integration.integration_type == IntegrationTypes.TELEGRAM.value:
                 send_telegram_message(conversation.user_id, broadcast.message, integration.api_token)
                 sent += 1
+                # Rate limit: Telegram allows ~30 msgs/sec, stay safe at ~25/sec
+                time.sleep(0.04)
             elif integration.integration_type == IntegrationTypes.INSTAGRAM.value:
                 success = instagram_service.send_message(
                     account_id=integration.instagram_account_id,
@@ -221,8 +223,10 @@ def send_broadcast_task(broadcast_id):
                     sent += 1
                 else:
                     failed += 1
+                # Rate limit: Instagram messaging API limits
+                time.sleep(0.1)
         except Exception as e:
-            logging.error(f"[-] Broadcast send failed for {conversation.user_id}: {e}")
+            logger.error(f"Broadcast send failed for {conversation.user_id}: {e}")
             failed += 1
 
         # Update counts periodically
@@ -238,8 +242,8 @@ def send_broadcast_task(broadcast_id):
         
 
 
-@shared_task
-def process_voice_task(chat_id, voice_file_id, bot_token):
+@shared_task(bind=True, max_retries=3, default_retry_delay=5)
+def process_voice_task(self, chat_id, voice_file_id, bot_token):
     assistant = Assistant.objects.filter(integrations__api_token=bot_token).first()
     if not assistant:
         logging.warning("[+] Assistant not found")
@@ -258,8 +262,8 @@ def process_voice_task(chat_id, voice_file_id, bot_token):
 
     process_message_task.delay(chat_id=chat_id, user_message=transcribed_text, bot_token=bot_token, audio_file=audio_bytes_mp3, input_tokens=input_tokens, output_tokens=output_tokens)
 
-@shared_task
-def process_photo_task(chat_id, photo_file_id, bot_token, chat_username=None, username=None):
+@shared_task(bind=True, max_retries=3, default_retry_delay=5)
+def process_photo_task(self, chat_id, photo_file_id, bot_token, chat_username=None, username=None):
     assistant = Assistant.objects.filter(integrations__api_token=bot_token).first()
     if not assistant:
         logging.warning("[+] Assistant not found")
@@ -318,8 +322,8 @@ def process_photo_task(chat_id, photo_file_id, bot_token, chat_username=None, us
         logging.error(f"Traceback: {traceback.format_exc()}")
         send_telegram_message(chat_id, "I encountered an error while processing the image. Please try again.", bot_token)
 
-@shared_task
-def process_instagram_comment(account_id, comment_data):
+@shared_task(bind=True, max_retries=2, default_retry_delay=5)
+def process_instagram_comment(self, account_id, comment_data):
     logging.info(f"[+] Processing Instagram comment for account_id: {account_id}")
     
     integration = Integration.objects.filter(instagram_account_id=account_id).first()
@@ -344,7 +348,7 @@ def process_instagram_comment(account_id, comment_data):
             # 1a. Respond to all comments if flag is set
             response = InstagramCommentResponse.objects.filter(instagram_media=media).first()
             if response.is_respond_to_all_comments:
-                print("[+] Media-specific: Respond to all comments")
+                logger.info("Media-specific: Respond to all comments")
                 flow = Flow.objects.filter(comment_response=response)
                 if response.comment_message_template and not integration.is_comment_response:
                     instagram_service.send_comment_reply(integration.api_token, comment_id, response.comment_message_template)
@@ -353,15 +357,15 @@ def process_instagram_comment(account_id, comment_data):
                     instagram_service.send_private_reply(integration.api_token, account_id, comment_id, response.private_message_template)
 
                 if flow.exists():
-                    print("[+] Actual flow exists in that way and integartion is found")
+                    logger.info("Actual flow exists in that way and integartion is found")
                     instagram_service.send_postback(account_id=account_id, access_token=integration.api_token, recipient_comment_id=comment_id, data=flow.first(), commenter_id=commenter_id)
 
 
             else:
-                print("[+] Media-specific: Respond to all comments")
+                logger.info("Media-specific: Respond to all comments")
                 trigger_words = [tw.trigger_word.lower() for tw in response.trigger_words.all()]
                 if comment_text.strip().lower() in trigger_words:
-                    print(f"[+] Media-specific trigger match: {trigger_words}")
+                    logger.info(f"Media-specific trigger match: {trigger_words}")
                     flow = Flow.objects.filter(comment_response=response)
 
                     if response.comment_message_template and not integration.is_comment_response:
@@ -369,11 +373,11 @@ def process_instagram_comment(account_id, comment_data):
                     if response.private_message_template and not flow.exists():
                         instagram_service.send_private_reply(integration.api_token, account_id, comment_id, response.private_message_template)
                     if flow.exists():
-                        print("[+] Actual flow exists in that way and integartion is found")
+                        logger.info("Actual flow exists in that way and integartion is found")
                         instagram_service.send_postback(account_id=account_id, access_token=integration.api_token, recipient_comment_id=comment_id, data=flow.first(), commenter_id=commenter_id)
-        else:       
+        else:
             latest_response = InstagramCommentResponse.objects.filter(integration=integration).order_by("-created_time").first()
-            print("[+ Incoming new lasted post for comment response]")
+            logger.info("Incoming new lasted post for comment response")
             if latest_response and not latest_response.instagram_media.exists():
                 access_token = integration.api_token
                 url = "https://graph.instagram.com/v23.0/me/media"
@@ -388,7 +392,7 @@ def process_instagram_comment(account_id, comment_data):
                     media_ts = datetime.strptime(media_ts_str, "%Y-%m-%dT%H:%M:%S%z")
                     # Convert to Asia/Tashkent timezone
                     media_ts_tashkent = media_ts.astimezone(pytz.timezone("Asia/Tashkent"))
-                    print(f"Time {media_ts_tashkent} and {latest_response.created_time}")
+                    logger.info(f"Time {media_ts_tashkent} and {latest_response.created_time}")
                     if media_ts_tashkent > latest_response.created_time:
                         if latest_response.is_respond_to_all_comments:
 
@@ -399,22 +403,22 @@ def process_instagram_comment(account_id, comment_data):
                             if latest_response.private_message_template and not flow.exists():
                                     instagram_service.send_private_reply(integration.api_token, account_id, comment_id, latest_response.private_message_template)
                             if flow.exists():
-                                print("[+] Actual flow exists in that way and integartion is found")
+                                logger.info("Actual flow exists in that way and integartion is found")
                                 instagram_service.send_postback(account_id=account_id, access_token=integration.api_token, recipient_comment_id=comment_id, data=flow.first(),commenter_id=commenter_id)
 
                         else:
-                            print("[+] Media comment response only for specific comment")
+                            logger.info("Media comment response only for specific comment")
                             trigger_words = [tw.trigger_word.lower() for tw in latest_response.trigger_words.all()]
                             if comment_text.strip().lower() in trigger_words:
 
                                 flow = Flow.objects.filter(comment_response=latest_response)
-                                print(f"[✓] Media-specific trigger match: {trigger_words}")
+                                logger.info(f"Media-specific trigger match: {trigger_words}")
                                 if latest_response.comment_message_template and not integration.is_comment_response:
                                     instagram_service.send_instagram_comment_reply(integration.api_token, comment_id, latest_response.comment_message_template)
                                 if latest_response.private_message_template and not flow.exists():
                                     instagram_service.send_instagram_private_reply(integration.api_token, account_id, comment_id, latest_response.private_message_template)
                                 if flow.exists():
-                                    print("[+] Actual flow exists in that way and integartion is found")
+                                    logger.info("Actual flow exists in that way and integartion is found")
                                     instagram_service.send_instagram_postback(account_id=account_id, access_token=integration.api_token, recipient_comment_id=comment_id, data=flow.first(),commenter_id=commenter_id)
                         media_data = InstagramMedia.objects.create(
                             media_id=media_first.get('id'),
@@ -429,10 +433,10 @@ def process_instagram_comment(account_id, comment_data):
                         )
                         latest_response.instagram_media.add(media_data)
         if integration.is_comment_response:
-            print("[+] Integration is comment response and new media is received")
+            logger.info("Integration is comment response and new media is received")
             process_instagram_comment_message.delay(account_id=account_id, message=comment_text, comment_id=comment_id, integration_id=integration.id, media_id=media_id)
             return
-    print(f"[+] Media {media_id} has parent_id: {parent_id}")
+    logger.info(f"Media {media_id} has parent_id: {parent_id}")
 
 @shared_task
 def process_collected_messages(chat_id, bot_token=None, messaging=None, chat_username=None, username=None, account_id=None):
@@ -484,16 +488,16 @@ def handle_postback_event_task(msg, access_token):
     postback = msg.get("postback", {}) or {}
     payload = postback.get("payload") 
 
-    print(f"[+] Handling postback event: {payload} from user: {sender_id}")
+    logger.info(f"Handling postback event: {payload} from user: {sender_id}")
 
     if not payload or not sender_id:
-        print("[-] Missing payload or sender_id")
+        logger.warning("Missing payload or sender_id")
         return
     inline_button_id = payload.split(":")[1]
-    print(f"[+] incomming inline_button {inline_button_id}")
+    logger.info(f"incomming inline_button {inline_button_id}")
     user_state = InstagramUserState.objects.filter(account_id=account_id, user_id=sender_id).first()
     if user_state is None:
-        print(f"[-] User state was not initialized yet {user_state}")
+        logger.warning(f"User state was not initialized yet {user_state}")
         return 
     
     #checking user that he subscribed or not
@@ -502,10 +506,10 @@ def handle_postback_event_task(msg, access_token):
     transition = Transition.objects.filter(from_to=user_state.current_step, action_subscription=status_subscription['is_user_follow_business'], 
                                            button_text__id=inline_button_id).first()
     if transition is None:
-        print(f"[-] Transicition was not create or not found for this step {transition}")
+        logger.warning(f"Transicition was not create or not found for this step {transition}")
         return
     if transition.to_step is None:
-        print("[-]Transition to step is not given")
+        logger.warning("Transition to step is not given")
         return
     try:
         with transaction.atomic():
@@ -517,7 +521,7 @@ def handle_postback_event_task(msg, access_token):
             transition.to_step.flow.total_count += 1
             transition.to_step.flow.save()
     except Exception as e:
-        print(f"[-] Error updating user state: {e}")
+        logger.warning(f"Error updating user state: {e}")
     send_step_message_task.delay(transition.to_step.id, account_id, sender_id, access_token)
 
 
@@ -526,7 +530,7 @@ def send_step_message_task(step_id, account_id, recipient_id, access_token):
     try:
         step = Step.objects.get(id=step_id)
     except Step.DoesNotExist:
-        print(f"[-] Step {step_id} not found")
+        logger.warning(f"Step {step_id} not found")
         return
 
     buttons = list(step.extra_button.all())
@@ -548,9 +552,9 @@ def send_step_message_task(step_id, account_id, recipient_id, access_token):
                 recipient_id=recipient_id,
                 message=step.message_content
             )
-        print(f"[+] Sent step message: {step.message_content}, status: {getattr(resp, 'status_code', None)}")
+        logger.info(f"Sent step message: {step.message_content}, status: {getattr(resp, 'status_code', None)}")
     except Exception as e:
-        print(f"[-] Error sending step message: {e}")
+        logger.warning(f"Error sending step message: {e}")
 
 def send_instagram_postback_next(account_id: str, access_token: str, recipient_comment_id: str, step_id: int):
     url = "https://graph.instagram.com/v23.0/me/messages"
@@ -565,7 +569,7 @@ def send_instagram_postback_next(account_id: str, access_token: str, recipient_c
         for b in next_step.extra_button.all():
             btns_payload.append(instagram_service.build_button_payload(b))
 
-        print(f"All buttons are ready {btns_payload}")
+        logger.info(f"All buttons are ready {btns_payload}")
         image_url = None
         if next_step.message_image:
             image_url = next_step.message_image.url
@@ -596,24 +600,24 @@ def send_instagram_postback_next(account_id: str, access_token: str, recipient_c
                                             account_id=account_id,
                                             user_id=recipient_comment_id
                                             ).update(current_step=next_step)
-        print(resp.json())
-        print("[+] Sending instagram message for postback")
-        print(resp)
+        logger.info(resp.json())
+        logger.info("Sending instagram message for postback")
+        logger.info(resp)
 
 
 
 @shared_task
 def process_instagram_comment_message(account_id, message, comment_id, integration_id, media_id=None):
-    print("[+] Process instagram comment message")
+    logger.info("Process instagram comment message")
     integration = Integration.objects.filter(id=integration_id).first()
     if not integration:
-        print("[-] Integration not found")
+        logger.warning("Integration not found")
         return
-    
+
     try:
         assistant = integration.assistant
         if not assistant:
-            print("[-] No assistant found for integration ")
+            logger.warning("No assistant found for integration")
             return
             
         # Get or create conversation for this comment
@@ -637,7 +641,7 @@ def process_instagram_comment_message(account_id, message, comment_id, integrati
             instagram_service.send_private_reply(access_token=integration.api_token, account_id=account_id, comment_id=comment_id, message=response_message)
             
     except Exception as e:
-        print(f"[-] Error processing Instagram comment: {e}")
+        logger.warning(f"Error processing Instagram comment: {e}")
         import traceback
         traceback.print_exc()
 
@@ -645,12 +649,12 @@ def process_instagram_comment_message(account_id, message, comment_id, integrati
 @shared_task
 def create_amocrm_lead(lead_id, integration_id):
     try:
-        print(f"[+] Creating amoCRM lead for Lead ID: {lead_id}")
+        logger.info(f"Creating amoCRM lead for Lead ID: {lead_id}")
         
         # Get the lead
         lead = Lead.objects.filter(id=lead_id).first()
         if not lead:
-            print(f"[-] Lead {lead_id} not found")
+            logger.warning(f"Lead {lead_id} not found")
             return
         
         # Get the amoCRM integration
@@ -663,12 +667,12 @@ def create_amocrm_lead(lead_id, integration_id):
         ).first()
         
         if not integration:
-            print(f"[-] amoCRM integration {integration_id} not found")
+            logger.warning(f"amoCRM integration {integration_id} not found")
             return
         
         pipeline_id = int(integration.metadata.get('pipeline_id'))
         if not pipeline_id:
-            print(f"[-] Pipeline not set for integration {integration_id}")
+            logger.warning(f"Pipeline not set for integration {integration_id}")
             return
         
         subdomain = integration.metadata.get('subdomain','repli.amocrm.ru') if integration.metadata else 'repli.amocrm.ru'
@@ -729,12 +733,12 @@ def create_amocrm_lead(lead_id, integration_id):
             lead.metadata['amocrm_pipeline_id'] = pipeline_id
             lead.save()
             
-            print(f"[+] Lead created in amoCRM with ID: {amocrm_lead_id}")
+            logger.info(f"Lead created in amoCRM with ID: {amocrm_lead_id}")
         else:
-            print(f"[-] Failed to create lead in amoCRM: {response.text}")
+            logger.warning(f"Failed to create lead in amoCRM: {response.text}")
             
     except Exception as e:
-        print(f"[-] Error creating amoCRM lead: {e}")
+        logger.warning(f"Error creating amoCRM lead: {e}")
         import traceback
         traceback.print_exc()
 
@@ -796,7 +800,7 @@ def get_all_billz_products(access_token):
         "Content-Type": "application/json"
     }
     
-    print("[+] Fetching all Billz products...")
+    logger.info("Fetching all Billz products...")
     
     while True:
         params = {
@@ -819,7 +823,7 @@ def get_all_billz_products(access_token):
                 simplified_product = extract_relevant_fields(product)
                 all_products.append(simplified_product)
             
-            print(f"[+] Fetched page {page}: {len(products)} products (Total: {len(all_products)})")
+            logger.info(f"Fetched page {page}: {len(products)} products (Total: {len(all_products)})")
             
             # Check if there are more pages
             # If we got fewer products than the limit, we've reached the last page
@@ -829,7 +833,7 @@ def get_all_billz_products(access_token):
             page += 1
             
         except requests.exceptions.RequestException as e:
-            print(f"[-] Error fetching page {page}: {str(e)}")
+            logger.warning(f"Error fetching page {page}: {str(e)}")
             break
     
     return all_products
@@ -844,11 +848,11 @@ def fetch_and_save_billz_products(integration_id: str):
     try:
         integration = Integration.objects.filter(id=integration_id).first()
         if not integration or integration.integration_type != IntegrationTypes.BILLZ.value:
-            print(f"[-] Integration {integration_id} not found or not Billz type")
+            logger.warning(f"Integration {integration_id} not found or not Billz type")
             return
-        
+
         if not integration.api_token or not integration.assistant:
-            print(f"[-] Integration {integration_id} missing api_token or assistant")
+            logger.warning(f"Integration {integration_id} missing api_token or assistant")
             return
         
         assistant = integration.assistant
@@ -857,10 +861,10 @@ def fetch_and_save_billz_products(integration_id: str):
         all_products = get_all_billz_products(integration.api_token)
         
         if not all_products:
-            print(f"[-] No products fetched for integration {integration_id}")
+            logger.warning(f"No products fetched for integration {integration_id}")
             return
         
-        print(f"[+] Fetched {len(all_products)} products for integration {integration_id}")
+        logger.info(f"Fetched {len(all_products)} products for integration {integration_id}")
         
         # Convert products to JSON string
         products_json = json.dumps(all_products, ensure_ascii=False, indent=2)
@@ -875,13 +879,13 @@ def fetch_and_save_billz_products(integration_id: str):
         with open(temp_file_path, 'w', encoding='utf-8') as f:
             f.write(products_json)
         
-        print(f"[+] Saved products to temp file: {temp_file_path}")
+        logger.info(f"Saved products to temp file: {temp_file_path}")
         
         # Ensure assistant has a vector store
         if not assistant.vector_id:
             success, message = assistant_service.create_assistant_and_vector_id(assistant, request=None)
             if not success:
-                print(f"[-] Failed to create vector store for assistant {assistant.id}: {message}")
+                logger.warning(f"Failed to create vector store for assistant {assistant.id}: {message}")
                 # Clean up temp file
                 if os.path.exists(temp_file_path):
                     os.remove(temp_file_path)
@@ -894,26 +898,26 @@ def fetch_and_save_billz_products(integration_id: str):
         # Delete previous file from vector store if it exists
         if previous_file_id and assistant.vector_id:
             try:
-                print(f"[+] Deleting previous Billz products file (file_id: {previous_file_id}) from vector store")
+                logger.info(f"Deleting previous Billz products file (file_id: {previous_file_id}) from vector store")
                 client.vector_stores.files.delete(
                     vector_store_id=assistant.vector_id,
                     file_id=previous_file_id
                 )
-                print(f"[+] Successfully deleted previous Billz products file from vector store")
+                logger.info(f"Successfully deleted previous Billz products file from vector store")
             except Exception as e:
                 # If file doesn't exist anymore, that's okay - just log it
-                print(f"[!] Could not delete previous file (may not exist): {e}")
+                logger.warning(f"Could not delete previous file (may not exist): {e}")
         
         openai_file_id = assistant_service.upload_knowledge_base_file(file_url=None, clear_text=products_json)
         
         if not openai_file_id:
-            print(f"[-] Failed to upload products to OpenAI for integration {integration_id}")
+            logger.warning(f"Failed to upload products to OpenAI for integration {integration_id}")
             # Clean up temp file
             if os.path.exists(temp_file_path):
                 os.remove(temp_file_path)
             return
         
-        print(f"[+] Uploaded products to OpenAI with file_id: {openai_file_id}")
+        logger.info(f"Uploaded products to OpenAI with file_id: {openai_file_id}")
         
         # Add file to vector store
         if assistant.vector_id:
@@ -934,7 +938,7 @@ def fetch_and_save_billz_products(integration_id: str):
                     time.sleep(0.5)
                 
                 if status.status == "completed":
-                    print(f"[+] Products successfully added to vector store for assistant {assistant.id}")
+                    logger.info(f"Products successfully added to vector store for assistant {assistant.id}")
                     
                     # Update integration metadata with new file_id
                     if not integration.metadata:
@@ -942,19 +946,19 @@ def fetch_and_save_billz_products(integration_id: str):
                     integration.metadata['billz_products_file_id'] = openai_file_id
                     integration.metadata['billz_products_updated_at'] = time.time()
                     integration.save(update_fields=['metadata'])
-                    print(f"[+] Updated integration metadata with new file_id: {openai_file_id}")
+                    logger.info(f"Updated integration metadata with new file_id: {openai_file_id}")
                 else:
-                    print(f"[-] Failed to add products to vector store: {status.status}")
+                    logger.warning(f"Failed to add products to vector store: {status.status}")
             except Exception as e:
-                print(f"[-] Error adding products to vector store: {e}")
+                logger.warning(f"Error adding products to vector store: {e}")
         
         # Clean up temp file
         if os.path.exists(temp_file_path):
             os.remove(temp_file_path)
-            print(f"[+] Cleaned up temp file: {temp_file_path}")
+            logger.info(f"Cleaned up temp file: {temp_file_path}")
             
     except Exception as e:
-        print(f"[-] Error in fetch_and_save_billz_products: {e}")
+        logger.warning(f"Error in fetch_and_save_billz_products: {e}")
         import traceback
         traceback.print_exc()
 
@@ -968,16 +972,16 @@ def update_billz_products_hourly():
             assistant__isnull=False
         ).select_related('assistant')
         
-        print(f"[+] Found {billz_integrations.count()} active Billz integrations to update")
+        logger.info(f"Found {billz_integrations.count()} active Billz integrations to update")
         
         for integration in billz_integrations:
             if integration.api_token and integration.assistant:
-                print(f"[+] Updating products for integration {integration.id} (assistant {integration.assistant.id})")
+                logger.info(f"Updating products for integration {integration.id} (assistant {integration.assistant.id})")
                 fetch_and_save_billz_products.delay(str(integration.id))
             else:
-                print(f"[-] Skipping integration {integration.id} - missing api_token or assistant")
+                logger.warning(f"Skipping integration {integration.id} - missing api_token or assistant")
                 
     except Exception as e:
-        print(f"[-] Error in update_billz_products_hourly: {e}")
+        logger.warning(f"Error in update_billz_products_hourly: {e}")
         import traceback
         traceback.print_exc()

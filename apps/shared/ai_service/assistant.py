@@ -83,7 +83,7 @@ class SupervisorAssistant:
         
     def generate_response(self, user_input: str, assistent: Assistant, conversation: Conversation):
         lastest_response_id = redis_client.get(f"assistant:{assistent.id}:conversation_id:{conversation.id}") or None
-        print(f"[+] Lastest response ID: {lastest_response_id}")
+        logger.info(f"Lastest response ID: {lastest_response_id}")
         if lastest_response_id:
             response = self.client.responses.create(
                 model = self.model_open_ai,
@@ -99,9 +99,9 @@ class SupervisorAssistant:
                 if tool_call.type == "function_call":
                     if tool_call.name == "search_vectore_store":
                         args = json.loads(tool_call.arguments)
-                        print(f"[+] Args: {args}")
+                        logger.info(f"Args: {args}")
                         gemini_result = self.gemini.search_file_vectore_store(
-                                query=args.get('query', user_input), 
+                                query=args.get('query', user_input),
                                 vectore_store_name=assistent.vector_id
                             )
                         tool_outputs.append({
@@ -111,9 +111,9 @@ class SupervisorAssistant:
                         })
                     if tool_call.name == "generate_lead":
                         args = json.loads(tool_call.arguments)
-                        print(f"[+] Args: {args}")
+                        logger.info(f"Args: {args}")
                         lead_response = self.generate_lead(assistent=assistent, parameters=args, conversation=conversation)
-                        print(f"[+] Lead response: {lead_response}")
+                        logger.info(f"Lead response: {lead_response}")
                         tool_outputs.append({
                             "type": "function_call_output",
                             "call_id": tool_call.call_id,
@@ -121,14 +121,14 @@ class SupervisorAssistant:
                         })
             # Only create a new response if there are tool outputs
             if tool_outputs:
-                print(f"[+] Tool outputs: {tool_outputs}")
+                logger.info(f"Tool outputs: {tool_outputs}")
                 response = self.client.responses.create(
                     model = self.model_open_ai,
                     previous_response_id=response.id,
                     input=tool_outputs,
                     store=True
                 )
-                print(f"[+] Final response: {response}")
+                logger.info(f"Final response: {response}")
             redis_client.set(f"assistant:{assistent.id}:conversation_id:{conversation.id}", response.id, ex=60*60*24)
         else:
             instructions = self.format_instructions(assistant = assistent)
@@ -141,9 +141,9 @@ class SupervisorAssistant:
                 tool_choice="auto",
                 tools = self.tools
             )
-            print(f"[+] Response: {response}")
+            logger.info(f"Response: {response}")
             tool_outputs = []
-            print(f"[+] Tool outputs: {response.output}")
+            logger.info(f"Tool outputs: {response.output}")
             for tool_call in response.output:
                 if tool_call.type == "function_call":
                     if tool_call.name == "search_vectore_store":
@@ -161,31 +161,31 @@ class SupervisorAssistant:
                     if tool_call.name == "generate_lead":
                         args = json.loads(tool_call.arguments)
                         lead_response = self.generate_lead(assistent=assistent, parameters=args, conversation=conversation)
-                        print(f"[+] Response: {lead_response}")
+                        logger.info(f"Response: {lead_response}")
                         tool_outputs.append({
                             "type": "function_call_output",
                             "call_id": tool_call.call_id,
                             "output": json.dumps(lead_response)
                         })
-            print(f"[+] Tool outputs: {tool_outputs}")
+            logger.info(f"Tool outputs: {tool_outputs}")
             # Only create a new response if there are tool outputs
             if tool_outputs:
-                print(f"[+] Tool outputs: {tool_outputs}")
+                logger.info(f"Tool outputs: {tool_outputs}")
                 response = self.client.responses.create(
                     model = self.model_open_ai,
                     previous_response_id=response.id,
                     input=tool_outputs,
                     store=True
                 )
-                print(f"[+] Final response: {response}")
+                logger.info(f"Final response: {response}")
             redis_client.set(f"assistant:{assistent.id}:conversation_id:{conversation.id}", response.id, ex=60*60*24)
             response_message = self.format_response(response)
-            print(f"[+] Response message: {response_message}")
+            logger.info(f"Response message: {response_message}")
             data = self.conversation.create_message(conversation=conversation, sender=SenderTypes.ASSISTANT.value, audio_file=None, 
                     content=response_message, output_tokens=response.usage.output_tokens, input_tokens=(response.usage.input_tokens - response.usage.input_tokens_details.cached_tokens))
             publish_message_to_ws(conversation.id, response_message, sender="assistant", assistant_id=assistent.id, data=data)
             return response_message
-        print(f"[+] Response: {response}")
+        logger.info(f"Response: {response}")
         response_message = self.format_response(response)
         data = self.conversation.create_message(conversation=conversation, sender=SenderTypes.ASSISTANT.value, audio_file=None, 
                     content=response_message, output_tokens=response.usage.output_tokens, input_tokens=(response.usage.input_tokens - response.usage.input_tokens_details.cached_tokens))
@@ -194,9 +194,9 @@ class SupervisorAssistant:
 
     def generate_lead(self, assistent: Assistant, parameters:Dict[str, Any], conversation: Conversation):
         telegram = assistent.integrations.filter(integration_type=IntegrationTypes.TELEGRAM.value).first()
-        print(f"[+] Telegram: {telegram}")
+        logger.info(f"Telegram: {telegram}")
         telegram_groups = TelegramGroupIntegration.objects.filter(integration=telegram, is_approved=True)
-        print(f"[+] Telegram groups: {telegram_groups}")
+        logger.info(f"Telegram groups: {telegram_groups}")
         lead = Lead.objects.create(
             assistant=assistent,
             full_name=parameters.get('full_name', None),
@@ -205,7 +205,7 @@ class SupervisorAssistant:
             metadata=parameters,
             platform=conversation.platform
         )
-        print(f"[+] Lead: {lead}")
+        logger.info(f"Lead: {lead}")
         username = conversation.username if conversation.platform == 'telegram' else conversation.client_full_name
         platform = conversation.platform if conversation.platform else None
         username_link = None
@@ -262,7 +262,7 @@ New Lead Generated! 📢
             parsed_data = json.loads(cleaned)
             return parsed_data.get("reply", cleaned)
         except json.JSONDecodeError as e:
-            print(f"[!] JSON parse error: {e}, text: {repr(cleaned[:300])}")
+            logger.warning(f"JSON parse error: {e}, text: {repr(cleaned[:300])}")
 
         # Try fixing invalid escape sequences (e.g. \' which is not valid JSON)
         try:
@@ -437,22 +437,22 @@ class GeminiService:
         )
         while True:
             file_status = self.client.operations.get(file)
-            print("Waiting for indexing to complete...", file_status)
+            logger.info(f"Waiting for indexing to complete... {file_status}")
             if file_status.done:
                 break
             time.sleep(3)
         return file
 
     def create_vectore_store(self, file_url, vectore_name=None, clear_text=None):
-        print(f"[+] Creating vectore store: {file_url}")
+        logger.info(f"Creating vectore store: {file_url}")
         is_new_store = not vectore_name
         if is_new_store:
             vectore_name = self.client.file_search_stores.create().name
-            print(f"[+] Created vectore store: {vectore_name}")
+            logger.info(f"Created vectore store: {vectore_name}")
 
         if file_url:
             mime_type, _ = mimetypes.guess_type(file_url)
-            print(f"[+] Mime type: {mime_type}")
+            logger.info(f"Mime type: {mime_type}")
             if mime_type not in self.mime_types:
                 logging.info(f"Unsupported file format: {mime_type}. Skipping file: {file_url}")
                 return None, None
@@ -501,7 +501,7 @@ class GeminiService:
                 file_search_store_name = vectore_name,
             )
             while not file.done:
-                print("Waiting for indexing to complete...")
+                logger.info("Waiting for indexing to complete...")
                 time.sleep(3)
                 file = self.client.operations.get(file)
             logging.info(f"Uploaded file ID: {file.id} for clear text")
@@ -536,7 +536,7 @@ class GeminiService:
                     for chunk in grounding.grounding_chunks 
                     if hasattr(chunk, 'retrieved_context')
                 })
-                print(f"📚 Grounding sources: {sources}")
+                logger.info(f"Grounding sources: {sources}")
 
         response = self.format_response(response.text)
         return response
@@ -548,7 +548,7 @@ class GeminiService:
             )
             return True
         except Exception as e:
-            print(f"[-] Failed deleting vectore store: {e}")
+            logger.warning(f"Failed deleting vectore store: {e}")
             return False
 
     def delete_vectore_store_file(self, file_id: str):
@@ -559,7 +559,7 @@ class GeminiService:
             )
             return True
         except Exception as e:
-            print(f"[-] Failed deleting vectore store file: {e}")
+            logger.warning(f"Failed deleting vectore store file: {e}")
             return False
 
     def format_response(self, response):
@@ -611,7 +611,7 @@ class GeminiService:
             )
             
             analysis = gemini_response.text.strip()
-            print(f"[picture_analysis] Analysis result: {analysis}")
+            logger.info(f"[picture_analysis] Analysis result: {analysis}")
             return analysis 
             
         except requests.exceptions.RequestException as e:

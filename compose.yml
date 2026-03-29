@@ -65,7 +65,20 @@ services:
       dockerfile: deployment/Dockerfile
       context: .
     env_file: .env
-    command: celery -A config worker --loglevel=info
+    command: celery -A config worker --loglevel=info -Q default,ai,billing --concurrency=4
+    restart: unless-stopped
+    volumes:
+      - /var/www/static:/app/staticfiles
+      - /var/www/media:/app/media
+    networks:
+      - backend-net
+
+  celery_worker_low:
+    build:
+      dockerfile: deployment/Dockerfile
+      context: .
+    env_file: .env
+    command: celery -A config worker --loglevel=info -Q broadcast,sync --concurrency=2
     restart: unless-stopped
     volumes:
       - /var/www/static:/app/staticfiles

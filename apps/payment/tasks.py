@@ -1,3 +1,5 @@
+import logging
+
 from django.db.models import Q
 from celery import shared_task
 from django.utils import timezone
@@ -9,12 +11,14 @@ from shared.addons.utils import notify_user_about_failed_payment, restrict_user_
 from apps.payment.models import RetryPayment
 from django.db import transaction
 
+logger = logging.getLogger(__name__)
+
 
 @shared_task
 def process_monthly_subscriptions():
     """Process subscription payments for all active users."""
     users = User.objects.filter(Q(subscription__next_payment_date__lte=timezone.now().date()))
-    print(f"[+] Found {len(users)} users to process monthly subscriptions")
+    logger.info(f"Found {len(users)} users to process monthly subscriptions")
 
     for user in users:
         try:
@@ -25,21 +29,20 @@ def process_monthly_subscriptions():
                     subscription.remained_request_count = user.subscription.pricing_package.request_count
                     subscription.save()
                     continue
-                if user.subscription.auto_renew == False:
-                    if user.subscription.retry_count <= 3:
+                subscription = user.subscription
+                if subscription.auto_renew == False:
+                    if subscription.retry_count <= 3:
                         create_notification(user, "Obuna tarifingiz tugadi. Iltimos, platformaga kirib, to'lovni qo'lda kiriting.")
                 else:
                     success, message = process_subscription_payment(user)
-                    print(f"Success: {success}, Message: {message}")
+                    logger.info(f"Subscription payment result for user {user.id}: success={success}, message={message}")
                     if not success:
                         if subscription.retry_count > 3:
                             restrict_user_account(user)
                         if subscription.retry_count <= 3:
                             notify_user_about_failed_payment(user)
-                            print("Failed to process subscription payment")
+                            logger.warning(f"Failed to process subscription payment for user {user.id}")
                             create_notification(user, f"Obuna tarifingiz tugadi. Sizda {message} xatolik yuz berdi.")
-                            # Increment retry count and set next payment date to the next day
-                            subscription = user.subscription
                             subscription.retry_count += 1
                             subscription.save()
 
@@ -51,8 +54,8 @@ def process_monthly_subscriptions():
                                 error_message=message
                             )
                     else:
-                        print("Successfully processed subscription payment")
+                        logger.info(f"Successfully processed subscription payment for user {user.id}")
                         create_notification(user, "Obuna tarifingiz muvaffaqiyatli amalga oshirildi.")
         except Exception as e:
-            print(f"Error processing subscription for user {user.id}: {e}")
+            logger.error(f"Error processing subscription for user {user.id}: {e}", exc_info=True)
             # Optionally, notify admin or log error
