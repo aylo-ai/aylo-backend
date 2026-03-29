@@ -1,30 +1,45 @@
-name: Deployment for development
+name: Deploy Dev Backend
 
 on:
   push:
     branches:
       - dev
-
     paths-ignore:
       - "README.md"
 
 jobs:
   deploy:
-    name: Deploy
-
-    runs-on: [self-hosted, dev-runner]
-
-    defaults:
-      run:
-        working-directory: ${{ github.workspace }}
+    name: Deploy to Dev Server
+    runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout the repo
-        uses: actions/checkout@v4
+      - name: Deploy via SSH
+        uses: appleboy/ssh-action@master
+        with:
+          host: ${{ secrets.SSH_HOST_DEV }}
+          username: ${{ secrets.SSH_HOST_DEV_USERNAME }}
+          key: ${{ secrets.SSH_HOST_PRIVATE_KEY }}
+          port: 22
+          script: |
+            set -e
+            cd /opt/repli/backend
 
-      - name: Deploy using docker compose
-        run: |
-            cp /home/shahzod/.secrets/.env .
-            docker compose down
-            docker compose up --build -d
-            yes | docker image prune
+            # Clone or pull latest
+            if [ ! -d ".git" ]; then
+              cd /opt/repli
+              git clone -b dev https://github.com/repli-ai/repli-backend.git backend
+              cd backend
+            else
+              git fetch origin dev
+              git reset --hard origin/dev
+            fi
+
+            # Copy env file
+            cp /opt/repli/.secrets/backend.env .env
+
+            # Deploy with green profile (matching prod)
+            docker compose --profile green down
+            docker compose --profile green up --build -d
+            yes | docker image prune -f || true
+
+            echo "Backend dev deployment complete"
