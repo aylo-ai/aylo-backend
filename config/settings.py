@@ -96,6 +96,7 @@ if not DEBUG:
 
 
 MIDDLEWARE = [
+    "corsheaders.middleware.CorsMiddleware",
     "config.middleware.LanguageMiddleware",
     "django.middleware.security.SecurityMiddleware",
     "django.contrib.sessions.middleware.SessionMiddleware",
