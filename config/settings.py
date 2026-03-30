@@ -181,8 +181,12 @@ CORS_ALLOWED_ORIGINS = [
     "http://localhost:3000",
     "http://localhost:5173",
     "http://localhost:5500",
-    "https://*.repli.uz",
     "https://repli.uz",
+    "https://app.repli.uz",
+    "https://admin.repli.uz",
+    "https://dashboard.repli.uz",
+    "https://dev-app.repli.uz",
+    "https://dev-api.repli.uz",
 ]
 
 CORS_ALLOWED_METHODS = [
