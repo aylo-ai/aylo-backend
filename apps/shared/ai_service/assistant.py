@@ -100,10 +100,14 @@ class SupervisorAssistant:
                     if tool_call.name == "search_vectore_store":
                         args = json.loads(tool_call.arguments)
                         logger.info(f"Args: {args}")
-                        gemini_result = self.gemini.search_file_vectore_store(
-                                query=args.get('query', user_input),
-                                vectore_store_name=assistent.vector_id
-                            )
+                        if assistent.vector_id:
+                            gemini_result = self.gemini.search_file_vectore_store(
+                                    query=args.get('query', user_input),
+                                    vectore_store_name=assistent.vector_id
+                                )
+                        else:
+                            gemini_result = "Knowledge base is not configured for this assistant. No product information available."
+                            logger.warning(f"Assistant {assistent.id} has no vector_id, skipping file search")
                         tool_outputs.append({
                             "type": "function_call_output",
                             "call_id": tool_call.call_id,
