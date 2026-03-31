@@ -383,8 +383,7 @@ class AssistantFileUploadSerializer(serializers.ModelSerializer, SubscriptionVal
         assistant = getattr(instance, "assistant", None)
         response = super().to_representation(instance)
         if assistant:
-            is_new = True if assistant.assistant_id is None else False
-            print("is_new: ", is_new)
+            is_new = assistant.vector_id is None
             response["is_new"] = is_new
         return response
 

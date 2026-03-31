@@ -33,7 +33,6 @@ app.conf.task_routes = {
     'apps.integration.tasks.create_amocrm_lead': {'queue': 'sync'},
     # Assistant file tasks
     'apps.assistant.tasks.save_uploaded_file': {'queue': 'sync'},
-    'apps.assistant.tasks.finalize_assistant_files': {'queue': 'sync'},
     'apps.assistant.tasks.daily_statistics_assistant': {'queue': 'sync'},
 }
 
