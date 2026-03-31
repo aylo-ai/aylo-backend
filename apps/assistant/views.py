@@ -518,7 +518,7 @@ class FollowUpConfigView(generics.RetrieveUpdateAPIView):
         ).first()
         if not assistant:
             raise NotFound(_("Assistant topilmadi"))
-        config, _ = FollowUpConfig.objects.get_or_create(
+        config, _created = FollowUpConfig.objects.get_or_create(
             assistant=assistant,
             defaults={'target_statuses': ['open', 'pending']},
         )
@@ -564,7 +564,7 @@ class FollowUpStageListCreateView(generics.ListCreateAPIView):
         ).first()
         if not assistant:
             raise NotFound(_("Assistant topilmadi"))
-        config, _ = FollowUpConfig.objects.get_or_create(
+        config, _created = FollowUpConfig.objects.get_or_create(
             assistant=assistant,
             defaults={'target_statuses': ['open', 'pending']},
         )
