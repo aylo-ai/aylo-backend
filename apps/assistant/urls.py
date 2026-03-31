@@ -23,4 +23,10 @@ urlpatterns = [
 
     path('conversation/<uuid:pk>/messages/bulk-read/', views.MessageBulkReadView.as_view(), name='message-bulk-read'),
     path('prompt-templates/', views.PromptTemplateListView.as_view(), name='prompt-template-list'),
+
+    # Follow-up configuration
+    path("assistant/<uuid:pk>/follow-up/", views.FollowUpConfigView.as_view(), name='follow-up-config'),
+    path("assistant/<uuid:pk>/follow-up/stages/", views.FollowUpStageListCreateView.as_view(), name='follow-up-stages'),
+    path("follow-up/stage/<uuid:pk>/", views.FollowUpStageDetailView.as_view(), name='follow-up-stage-detail'),
+    path("assistant/<uuid:pk>/follow-up/logs/", views.FollowUpLogListView.as_view(), name='follow-up-logs'),
 ]

@@ -426,9 +426,12 @@ CELERY_BEAT_SCHEDULE = {
     },
     'daily_statistics_assistant':{
         'task': 'apps.assistant.tasks.daily_statistics_assistant',
-        'schedule': crontab(minute=0, hour=21),  # Run every day at 00:41
-
-    }
+        'schedule': crontab(minute=0, hour=21),  # Run every day at 21:00
+    },
+    'process-follow-ups': {
+        'task': 'apps.assistant.tasks.process_follow_ups',
+        'schedule': crontab(minute='*/30'),  # Run every 30 minutes
+    },
 }
 
 # Modeltranslation settings

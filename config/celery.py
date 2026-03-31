@@ -34,6 +34,7 @@ app.conf.task_routes = {
     # Assistant file tasks
     'apps.assistant.tasks.save_uploaded_file': {'queue': 'sync'},
     'apps.assistant.tasks.daily_statistics_assistant': {'queue': 'sync'},
+    'apps.assistant.tasks.process_follow_ups': {'queue': 'sync'},
 }
 
 # Default task settings

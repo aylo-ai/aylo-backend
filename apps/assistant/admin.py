@@ -1,5 +1,8 @@
 from django.contrib import admin
-from apps.assistant.models import Assistant, Message, Conversation, AssistantFileUpload, Lead, Integration
+from apps.assistant.models import (
+    Assistant, Message, Conversation, AssistantFileUpload, Lead, Integration,
+    FollowUpConfig, FollowUpStage, FollowUpLog,
+)
 
 
 
@@ -139,3 +142,36 @@ class AssistantFileUploadAdmin(admin.ModelAdmin):
             'fields': ('assistant', 'file')
         }),
     )
+
+
+class FollowUpStageInline(admin.TabularInline):
+    model = FollowUpStage
+    extra = 0
+    fields = ('stage_number', 'delay_hours', 'message_template', 'is_active')
+    ordering = ('stage_number',)
+
+
+@admin.register(FollowUpConfig)
+class FollowUpConfigAdmin(admin.ModelAdmin):
+    list_display = ('assistant', 'is_enabled', 'target_statuses', 'created_time')
+    list_filter = ('is_enabled',)
+    search_fields = ('assistant__name',)
+    readonly_fields = ('created_time', 'updated_time')
+    inlines = [FollowUpStageInline]
+
+
+@admin.register(FollowUpStage)
+class FollowUpStageAdmin(admin.ModelAdmin):
+    list_display = ('config', 'stage_number', 'delay_hours', 'is_active', 'created_time')
+    list_filter = ('is_active',)
+    ordering = ('config', 'stage_number')
+    readonly_fields = ('created_time', 'updated_time')
+
+
+@admin.register(FollowUpLog)
+class FollowUpLogAdmin(admin.ModelAdmin):
+    list_display = ('conversation', 'stage', 'status', 'scheduled_at', 'sent_at', 'cancelled_at')
+    list_filter = ('status',)
+    search_fields = ('conversation__username',)
+    ordering = ('-scheduled_at',)
+    readonly_fields = ('created_time', 'updated_time')

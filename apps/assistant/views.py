@@ -7,7 +7,10 @@ from rest_framework import permissions, filters, generics, views
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework.exceptions import NotFound
 
-from apps.assistant.models import Assistant, AssistantFileUpload, Conversation, Message, Lead, PromptTemplate
+from apps.assistant.models import (
+    Assistant, AssistantFileUpload, Conversation, Message, Lead, PromptTemplate,
+    FollowUpConfig, FollowUpStage, FollowUpLog,
+)
 from shared.addons.validations import success_response, error_response
 from shared.ai_service.openai_client import client
 from shared.ai_service.assistant import assistant_service
@@ -23,7 +26,10 @@ from apps.assistant.serializers import (AssistantSerializer,
     MessageBulkReadSerializer,
     LeadSerializer,
     LeadExportSerializer,
-    PromptTemplateListSerializer)
+    PromptTemplateListSerializer,
+    FollowUpConfigSerializer,
+    FollowUpStageSerializer,
+    FollowUpLogSerializer)
 
 class AssistantListCreateView(generics.ListCreateAPIView):
     queryset = Assistant.objects.all()
@@ -498,3 +504,133 @@ class AssistantTokenStatsView(views.APIView):
             message=_("Assistant token statistikasi"),
             code=200,
         )
+
+
+class FollowUpConfigView(generics.RetrieveUpdateAPIView):
+    serializer_class = FollowUpConfigSerializer
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get_object(self):
+        assistant_id = self.kwargs.get('pk')
+        assistant = Assistant.objects.filter(
+            Q(user=self.request.user) | Q(user=self.request.user.created_by),
+            id=assistant_id,
+        ).first()
+        if not assistant:
+            raise NotFound(_("Assistant topilmadi"))
+        config, _ = FollowUpConfig.objects.get_or_create(
+            assistant=assistant,
+            defaults={'target_statuses': ['open', 'pending']},
+        )
+        return config
+
+    def retrieve(self, request, *args, **kwargs):
+        instance = self.get_object()
+        serializer = self.get_serializer(instance)
+        return success_response(data=serializer.data, message=_("Follow-up konfiguratsiyasi"), code=200)
+
+    def update(self, request, *args, **kwargs):
+        instance = self.get_object()
+        serializer = self.get_serializer(instance, data=request.data, partial=True)
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+        return success_response(
+            message=_("Follow-up konfiguratsiyasi yangilandi"),
+            data=serializer.data, code=200,
+        )
+
+
+class FollowUpStageListCreateView(generics.ListCreateAPIView):
+    serializer_class = FollowUpStageSerializer
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get_queryset(self):
+        assistant_id = self.kwargs.get('pk')
+        return FollowUpStage.objects.filter(
+            config__assistant_id=assistant_id,
+            config__assistant__user__in=[self.request.user, self.request.user.created_by],
+        ).order_by('stage_number')
+
+    def list(self, request, *args, **kwargs):
+        queryset = self.get_queryset()
+        serializer = self.get_serializer(queryset, many=True)
+        return success_response(data=serializer.data, message=_("Follow-up bosqichlari"), code=200)
+
+    def create(self, request, *args, **kwargs):
+        assistant_id = self.kwargs.get('pk')
+        assistant = Assistant.objects.filter(
+            Q(user=request.user) | Q(user=request.user.created_by),
+            id=assistant_id,
+        ).first()
+        if not assistant:
+            raise NotFound(_("Assistant topilmadi"))
+        config, _ = FollowUpConfig.objects.get_or_create(
+            assistant=assistant,
+            defaults={'target_statuses': ['open', 'pending']},
+        )
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        serializer.save(config=config)
+        return success_response(
+            message=_("Follow-up bosqichi yaratildi"),
+            data=serializer.data, code=201,
+        )
+
+
+class FollowUpStageDetailView(generics.RetrieveUpdateDestroyAPIView):
+    serializer_class = FollowUpStageSerializer
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get_queryset(self):
+        return FollowUpStage.objects.filter(
+            config__assistant__user__in=[self.request.user, self.request.user.created_by],
+        )
+
+    def retrieve(self, request, *args, **kwargs):
+        instance = self.get_object()
+        serializer = self.get_serializer(instance)
+        return success_response(data=serializer.data, message=_("Follow-up bosqichi"), code=200)
+
+    def update(self, request, *args, **kwargs):
+        instance = self.get_object()
+        serializer = self.get_serializer(instance, data=request.data, partial=True)
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+        return success_response(
+            message=_("Follow-up bosqichi yangilandi"),
+            data=serializer.data, code=200,
+        )
+
+    def destroy(self, request, *args, **kwargs):
+        instance = self.get_object()
+        self.perform_destroy(instance)
+        return success_response(message=_("Follow-up bosqichi o'chirildi"), code=204)
+
+
+class FollowUpLogListView(generics.ListAPIView):
+    serializer_class = FollowUpLogSerializer
+    permission_classes = [permissions.IsAuthenticated]
+    filter_backends = [DjangoFilterBackend, filters.OrderingFilter]
+    ordering_fields = ['scheduled_at', 'sent_at', 'created_time']
+    ordering = ['-scheduled_at']
+
+    def get_queryset(self):
+        assistant_id = self.kwargs.get('pk')
+        queryset = FollowUpLog.objects.filter(
+            conversation__assistant_id=assistant_id,
+            conversation__assistant__user__in=[self.request.user, self.request.user.created_by],
+        ).select_related('stage', 'conversation')
+
+        status = self.request.query_params.get('status')
+        if status:
+            queryset = queryset.filter(status=status)
+        return queryset
+
+    def list(self, request, *args, **kwargs):
+        queryset = self.get_queryset()
+        page = self.paginate_queryset(queryset)
+        if page is not None:
+            serializer = self.get_serializer(page, many=True)
+            return self.get_paginated_response(serializer.data)
+        serializer = self.get_serializer(queryset, many=True)
+        return success_response(data=serializer.data, message=_("Follow-up loglari"), code=200)

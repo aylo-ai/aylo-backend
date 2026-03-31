@@ -14,6 +14,7 @@ from shared.addons.enums import (
     ConversationPlatforms,
     FileTypes,
     LeadStatuses,
+    FollowUpLogStatus,
 )
 
 def assistant_file_path(instance, filename):
@@ -262,3 +263,66 @@ class Lead(BaseModel):
 
     def __str__(self):
         return f"{self.full_name} - {self.product}"
+
+
+class FollowUpConfig(BaseModel):
+    assistant = models.OneToOneField(
+        Assistant, on_delete=models.CASCADE, related_name="follow_up_config"
+    )
+    is_enabled = models.BooleanField(default=False)
+    target_statuses = ArrayField(
+        models.CharField(max_length=15),
+        default=list,
+        blank=True,
+    )
+
+    class Meta:
+        db_table = "follow_up_config"
+
+    def __str__(self):
+        return f"FollowUpConfig for {self.assistant.name} (enabled={self.is_enabled})"
+
+
+class FollowUpStage(BaseModel):
+    config = models.ForeignKey(
+        FollowUpConfig, on_delete=models.CASCADE, related_name="stages"
+    )
+    stage_number = models.PositiveIntegerField()
+    delay_hours = models.PositiveIntegerField()
+    message_template = models.TextField()
+    is_active = models.BooleanField(default=True)
+
+    class Meta:
+        db_table = "follow_up_stage"
+        ordering = ["stage_number"]
+        unique_together = [("config", "stage_number")]
+
+    def __str__(self):
+        return f"Stage {self.stage_number} ({self.delay_hours}h) - {self.config.assistant.name}"
+
+
+class FollowUpLog(BaseModel):
+    conversation = models.ForeignKey(
+        Conversation, on_delete=models.CASCADE, related_name="follow_up_logs"
+    )
+    stage = models.ForeignKey(
+        FollowUpStage, on_delete=models.CASCADE, related_name="logs"
+    )
+    status = models.CharField(
+        max_length=15,
+        choices=FollowUpLogStatus.choices(),
+        default=FollowUpLogStatus.PENDING.value,
+    )
+    scheduled_at = models.DateTimeField()
+    sent_at = models.DateTimeField(null=True, blank=True)
+    cancelled_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        db_table = "follow_up_log"
+        indexes = [
+            models.Index(fields=["status", "scheduled_at"]),
+        ]
+        unique_together = [("conversation", "stage")]
+
+    def __str__(self):
+        return f"FollowUp [{self.status}] conv={self.conversation_id} stage={self.stage.stage_number}"

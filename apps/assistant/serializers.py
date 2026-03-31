@@ -9,7 +9,10 @@ from django.utils.timezone import localtime
 
 
 from shared.addons.google_integrations import process_google_doc
-from apps.assistant.models import Assistant, Conversation, Message, Settings, AssistantFileUpload, Lead, PromptTemplate
+from apps.assistant.models import (
+    Assistant, Conversation, Message, Settings, AssistantFileUpload, Lead, PromptTemplate,
+    FollowUpConfig, FollowUpStage, FollowUpLog,
+)
 from apps.integration.models import TelegramGroupIntegration
 from shared.ai_service.openai_client import client
 from shared.addons.telegram import send_telegram_message
@@ -572,3 +575,41 @@ class LeadExportSerializer(serializers.Serializer):
         file_path = f"leads_export_{datetime.now().strftime('%Y-%m-%d')}.xlsx"
         wb.save(file_path)
         return file_path
+
+
+class FollowUpStageSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = FollowUpStage
+        fields = [
+            "id", "config", "stage_number", "delay_hours",
+            "message_template", "is_active", "created_time",
+        ]
+        read_only_fields = ["created_time", "config"]
+
+
+class FollowUpConfigSerializer(serializers.ModelSerializer):
+    stages = FollowUpStageSerializer(many=True, read_only=True)
+
+    class Meta:
+        model = FollowUpConfig
+        fields = [
+            "id", "assistant", "is_enabled", "target_statuses",
+            "stages", "created_time", "updated_time",
+        ]
+        read_only_fields = ["created_time", "updated_time", "assistant"]
+
+
+class FollowUpLogSerializer(serializers.ModelSerializer):
+    stage_number = serializers.IntegerField(source="stage.stage_number", read_only=True)
+    conversation_username = serializers.CharField(source="conversation.username", read_only=True)
+    conversation_platform = serializers.CharField(source="conversation.platform", read_only=True)
+
+    class Meta:
+        model = FollowUpLog
+        fields = [
+            "id", "conversation", "stage", "stage_number",
+            "conversation_username", "conversation_platform",
+            "status", "scheduled_at", "sent_at", "cancelled_at",
+            "created_time",
+        ]
+        read_only_fields = fields

@@ -49,6 +49,11 @@ def process_message_task(self, chat_id, user_message, bot_token, chat_username=N
 
     data = conversation_service.create_message(conversation=conversation, sender=SenderTypes.USER.value, content=user_message, audio_file=audio_file, input_tokens=input_tokens, output_tokens=output_tokens)
     publish_message_to_ws(conversation_id=conversation.id, message=user_message, sender='user', data=data, assistant_id=assistant.id)
+
+    # Cancel any pending follow-ups since user responded
+    from apps.assistant.utils import cancel_pending_follow_ups
+    cancel_pending_follow_ups(conversation.id)
+
     response_message = assistant_service.generate_response(user_input=user_message, assistent=assistant, conversation=conversation)
     
     logger.info(f"[+] Response message: {response_message}")
@@ -88,9 +93,14 @@ def process_instagram_message(self, account_id, combined_message, user_message, 
                               audio_file=audio_file, input_tokens=input_tokens, output_tokens=output_tokens)
         publish_message_to_ws(conversation.id, combined_message, sender="user", data=data, assistant_id=assistant.id)
         return
-    data = conversation_service.create_message(conversation=conversation, sender=SenderTypes.USER.value, content=combined_message, 
+    data = conversation_service.create_message(conversation=conversation, sender=SenderTypes.USER.value, content=combined_message,
                           audio_file=audio_file, input_tokens=input_tokens, output_tokens=output_tokens)
     publish_message_to_ws(conversation.id, combined_message, sender="user", data=data, assistant_id=assistant.id)
+
+    # Cancel any pending follow-ups since user responded
+    from apps.assistant.utils import cancel_pending_follow_ups
+    cancel_pending_follow_ups(conversation.id)
+
     if assistant.ai_enabled:
         response_message = assistant_service.generate_response(user_input=combined_message, assistent=assistant, conversation=conversation)
         if response_message:

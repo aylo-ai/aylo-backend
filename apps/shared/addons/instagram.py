@@ -61,7 +61,7 @@ class InstagramService:
     # ---- Messaging ----
 
     def send_message(
-        self, account_id: str, access_token: str, recipient_id: str, message: str
+        self, account_id: str, access_token: str, recipient_id: str, message: str, tag: str = None
     ) -> bool:
         url = f"{self.GRAPH_BASE}/v22.0/{account_id}/messages"
         headers = {
@@ -77,6 +77,8 @@ class InstagramService:
         success = True
         for part in message_parts:
             payload = {"recipient": {"id": recipient_id}, "message": {"text": part}}
+            if tag:
+                payload["tag"] = tag
             response = requests.post(url, json=payload, headers=headers)
 
             if response.status_code != 200:
