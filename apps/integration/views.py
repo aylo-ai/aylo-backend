@@ -1031,16 +1031,8 @@ class BroadcastListCreateView(generics.ListCreateAPIView):
         )
 
     def _get_recipients_count(self, integration):
-        if integration.assistant:
-            return Conversation.objects.filter(
-                assistant=integration.assistant,
-                platform=integration.integration_type
-            ).count()
-        else:
-            return Conversation.objects.filter(
-                assistant__integrations__instagram_account_id=integration.instagram_account_id,
-                platform='instagram'
-            ).count()
+        from .tasks import get_broadcast_recipients
+        return get_broadcast_recipients(integration).count()
 
 
 class BroadcastRecipientsCountView(APIView):
@@ -1055,20 +1047,36 @@ class BroadcastRecipientsCountView(APIView):
         except Integration.DoesNotExist:
             return error_response(message=_("Integratsiya topilmadi"), code=404)
 
-        if integration.assistant:
-            count = Conversation.objects.filter(
-                assistant=integration.assistant,
-                platform=integration.integration_type
-            ).count()
-        else:
-            count = Conversation.objects.filter(
-                assistant__integrations__instagram_account_id=integration.instagram_account_id,
-                platform='instagram'
-            ).count()
+        from .tasks import get_broadcast_recipients
+        recipients = get_broadcast_recipients(integration)
 
         return success_response(
             message=_("Qabul qiluvchilar soni"),
-            data={"count": count},
+            data={"count": recipients.count()},
+            code=200
+        )
+
+
+class BroadcastRecipientsListView(APIView):
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get(self, request, integration_id, *args, **kwargs):
+        try:
+            integration = Integration.objects.get(
+                Q(user=request.user) | Q(assistant__user=request.user),
+                id=integration_id
+            )
+        except Integration.DoesNotExist:
+            return error_response(message=_("Integratsiya topilmadi"), code=404)
+
+        from .tasks import get_broadcast_recipients
+        recipients = get_broadcast_recipients(integration).values(
+            'id', 'user_id', 'username', 'client_full_name', 'platform', 'updated_time'
+        )
+
+        return success_response(
+            message=_("Qabul qiluvchilar ro'yxati"),
+            data=list(recipients),
             code=200
         )
 

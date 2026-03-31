@@ -51,6 +51,7 @@ urlpatterns = [
     # Broadcast endpoints
     path("broadcast/", views.BroadcastListCreateView.as_view()),
     path("broadcast/recipients-count/<uuid:integration_id>/", views.BroadcastRecipientsCountView.as_view()),
+    path("broadcast/recipients/<uuid:integration_id>/", views.BroadcastRecipientsListView.as_view()),
     # amoCRM OAuth integration endpoints
     path("amocrm/", views.AmoCRMOAuthHandlerView.as_view()),
     path("amocrm/install/", views.AmoCRMOAuthInstallView.as_view()),

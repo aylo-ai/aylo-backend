@@ -201,17 +201,7 @@ def send_broadcast_task(self, broadcast_id):
     broadcast.status = 'sending'
     broadcast.save(update_fields=['status'])
 
-    # Get conversations
-    if integration.assistant:
-        conversations = Conversation.objects.filter(
-            assistant=integration.assistant,
-            platform=integration.integration_type
-        )
-    else:
-        conversations = Conversation.objects.filter(
-            assistant__integrations__instagram_account_id=integration.instagram_account_id,
-            platform='instagram'
-        )
+    conversations = get_broadcast_recipients(integration)
 
     sent = 0
     failed = 0
@@ -227,7 +217,8 @@ def send_broadcast_task(self, broadcast_id):
                     account_id=integration.instagram_account_id,
                     access_token=integration.api_token,
                     recipient_id=conversation.user_id,
-                    message=broadcast.message
+                    message=broadcast.message,
+                    tag="HUMAN_AGENT",
                 )
                 if success:
                     sent += 1
@@ -249,6 +240,32 @@ def send_broadcast_task(self, broadcast_id):
     broadcast.failed_count = failed
     broadcast.status = 'completed'
     broadcast.save(update_fields=['sent_count', 'failed_count', 'status'])
+
+
+def get_broadcast_recipients(integration):
+    """Get eligible recipients for a broadcast.
+    Instagram: only conversations with activity in last 7 days (Human Agent policy).
+    Telegram: all conversations.
+    """
+    if integration.assistant:
+        conversations = Conversation.objects.filter(
+            assistant=integration.assistant,
+            platform=integration.integration_type
+        )
+    else:
+        conversations = Conversation.objects.filter(
+            assistant__integrations__instagram_account_id=integration.instagram_account_id,
+            platform='instagram'
+        )
+
+    # Instagram: filter to last 7 days only (Human Agent tag limit)
+    if integration.integration_type == IntegrationTypes.INSTAGRAM.value:
+        from django.utils.timezone import now
+        from datetime import timedelta
+        seven_days_ago = now() - timedelta(days=7)
+        conversations = conversations.filter(updated_time__gte=seven_days_ago)
+
+    return conversations
         
 
 
