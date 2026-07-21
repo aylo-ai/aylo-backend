@@ -22,7 +22,6 @@ from shared.addons.enums import IntegrationTypes
 from shared.addons.telegram import handle_bot_added_to_group, handle_bot_removed_from_group
 from shared.addons.validations import success_response, error_response
 from shared.permissions import IsCustomer
-from apps.shared.ai_service.assistant import assistant_service
 from apps.shared.addons.instagram import instagram_service
 from apps.assistant.models import Assistant
 from apps.assistant.models import Conversation
@@ -30,6 +29,7 @@ from .models import Integration, TelegramGroupIntegration, InstagramMedia, Comme
 from .serializers import (IntegrationCreateSerializer,
                         IntegrationSerializer,
                         SendUserMessageSerializer,
+                        SendIntegrationMessageSerializer,
                         TelegramGroupSerializer,
                         InstagramMediaSerializer,
                         CommentTriggerWordSerializer,
@@ -153,6 +153,7 @@ class SendUserMessageView(generics.CreateAPIView):
 
 
 class SendIntegrationMessageView(generics.CreateAPIView):
+    serializer_class = SendIntegrationMessageSerializer
     permission_classes = [permissions.IsAuthenticated]
 
     def create(self, request, *args, **kwargs):
@@ -998,6 +999,8 @@ class BroadcastListCreateView(generics.ListCreateAPIView):
     permission_classes = [permissions.IsAuthenticated]
 
     def get_queryset(self):
+        if getattr(self, "swagger_fake_view", False):
+            return Broadcast.objects.none()
         return Broadcast.objects.filter(user=self.request.user)
 
     def list(self, request, *args, **kwargs):
@@ -1487,7 +1490,6 @@ class BillzSecretTokenHandlerView(generics.CreateAPIView):
             return error_response(message=_("Billz access token topilmadi"), code=400)
         request.data['refresh_token'] = api_token
         request.data['api_token'] = access_token
-        assistant_service.update_assistant(assistant.assistant_id, assistant.name, assistant, tools=tools)
         serializer.is_valid(raise_exception=True)
         integration = serializer.save()
         

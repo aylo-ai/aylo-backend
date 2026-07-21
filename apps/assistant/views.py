@@ -12,8 +12,7 @@ from apps.assistant.models import (
     FollowUpConfig, FollowUpStage, FollowUpLog,
 )
 from shared.addons.validations import success_response, error_response
-from shared.ai_service.openai_client import client
-from shared.ai_service.assistant import assistant_service
+from shared.ai_service import knowledge_base
 from shared.addons.redis import publish_new_message_to_ws
 from apps.assistant.filters import LeadFilter
 from apps.assistant.serializers import (AssistantSerializer,
@@ -79,16 +78,8 @@ class AssistantRetrieveView(generics.RetrieveUpdateDestroyAPIView):
         serializer = self.get_serializer(instance, data=request.data, partial=True, context={'request': request})
         serializer.is_valid(raise_exception=True)
         self.perform_update(serializer)
-        assistant = instance
-        # Only update OpenAI assistant when relevant fields change, not for ai_enabled toggle
-        ai_only_fields = {'ai_enabled', 'is_active'}
-        changed_fields = set(request.data.keys())
-        if assistant and assistant.assistant_id and not changed_fields.issubset(ai_only_fields):
-            try:
-                success, message = assistant_service.update_assistant(assistant.assistant_id, assistant.name, assistant)
-                print(f"Assistant updated successfully: {success}, {message}")
-            except Exception as e:
-                print(f"[-] OpenAI assistant update failed: {e}")
+        # Nothing to sync remotely: the agent reads the assistant's prompt and
+        # settings on every turn, so an edit applies to the next message.
         return success_response(message=_("Assistant muvaffaqiyatli o'zgartirildi"), data=serializer.data, code=200)
 
     def destroy(self, request, *args, **kwargs):
@@ -103,9 +94,8 @@ class AssistantRetrieveView(generics.RetrieveUpdateDestroyAPIView):
                 message=_("Xodimlar assistantlarni o'chira olmaydi"),
                 code=403
             )
-        vector_id = instance.vector_id
-        if vector_id:
-            assistant_service.gemini.delete_vectore_store(vector_id)
+        if instance.vector_id:
+            knowledge_base.delete_store(instance.vector_id)
         self.perform_destroy(instance)
         return success_response(message=_("Assistant muvaffaqiyatli o'chirildi"), code=204)
 
@@ -303,7 +293,7 @@ class AssistantFileUploadListCreateView(generics.ListCreateAPIView):
 
         serializer.save()
         # if assistant and not assistant.vector_id:
-        #     success, message = assistant_service.create_assistant_and_vector_id(assistant, request)
+        #     the assistant's knowledge base is created lazily on first file upload
         #     if not success:
             #     return error_response(message=message, code=400)
             # print("saved assistant data")
@@ -362,7 +352,7 @@ class AssistantFileUploadRetrieveView(generics.RetrieveUpdateDestroyAPIView):
         except AssistantFileUpload.DoesNotExist:
             return error_response(message=_("Fayl topilmadi"), code=404)
 
-        assistant_service.gemini.delete_vectore_store_file(instance.file_id)
+        knowledge_base.delete_file(instance.assistant.vector_id, instance.file_id)
         instance.delete()
         return success_response(message=_("Fayl muvaffaqiyatli o'chirildi"), code=200)
 
@@ -545,6 +535,8 @@ class FollowUpStageListCreateView(generics.ListCreateAPIView):
     permission_classes = [permissions.IsAuthenticated]
 
     def get_queryset(self):
+        if getattr(self, "swagger_fake_view", False):
+            return FollowUpStage.objects.none()
         assistant_id = self.kwargs.get('pk')
         return FollowUpStage.objects.filter(
             config__assistant_id=assistant_id,
@@ -615,6 +607,8 @@ class FollowUpLogListView(generics.ListAPIView):
     ordering = ['-scheduled_at']
 
     def get_queryset(self):
+        if getattr(self, "swagger_fake_view", False):
+            return FollowUpLog.objects.none()
         assistant_id = self.kwargs.get('pk')
         queryset = FollowUpLog.objects.filter(
             conversation__assistant_id=assistant_id,

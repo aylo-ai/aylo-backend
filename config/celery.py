@@ -1,6 +1,7 @@
 from __future__ import absolute_import, unicode_literals
 import os
 from celery import Celery
+from kombu import Queue
 
 # Set the default Django settings module for the 'celery' program.
 os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'config.settings')
@@ -36,6 +37,14 @@ app.conf.task_routes = {
     'apps.assistant.tasks.daily_statistics_assistant': {'queue': 'sync'},
     'apps.assistant.tasks.process_follow_ups': {'queue': 'sync'},
 }
+
+# Every queue task_routes can target. Declaring them means a worker started
+# without -Q consumes all of them, so routed work is never silently stranded in
+# a queue nobody is listening to. Production still splits them across workers
+# with an explicit -Q (see compose.yml).
+app.conf.task_queues = tuple(
+    Queue(name) for name in ('celery', 'default', 'ai', 'billing', 'broadcast', 'sync')
+)
 
 # Default task settings
 app.conf.task_default_queue = 'default'

@@ -3,6 +3,7 @@ from rest_framework_simplejwt.tokens import RefreshToken, TokenError
 from django.utils.translation import gettext_lazy as _
 
 from shared.addons.validations import raise_validation_error, check_number, check_email_phone_number
+from shared.addons.verification import check_verification_status, is_email_verified
 from apps.user.models import User, PrivacyPolicy, UserAgreement, Notification
 from shared.addons.enums import AuthTypes, UserRoles
 
@@ -32,49 +33,49 @@ class VerifyCodeSerializer(serializers.Serializer): # noqa
         phone_number = attrs.get('phone_number')
         email = attrs.get('email')
         code = attrs.get('code')
-        
+
         if not phone_number and not email:
             raise_validation_error(message=_("Telefon raqam yoki email kiritilmagan"))
         if not code:
             raise_validation_error(message=_("Kod kiritilmagan"))
-        
-        if email:
-            user = User.objects.filter(email=email).first()
-            if not user:
-                user = User.objects.create(email=email, auth_type=AuthTypes.EMAIL.value)
-        if phone_number:
-            user = User.objects.filter(phone_number=phone_number).first()
-            if not user:
-                user = User.objects.create(phone_number=phone_number, auth_type=AuthTypes.PHONE.value)
         return attrs
 
-    def get_tokens(self): # noqa
-        phone_number = self.validated_data.get('phone_number', None)
-        email = self.validated_data.get('email', None)
-        if phone_number:
-            user = User.objects.filter(phone_number=phone_number).first()
-        elif email:
-            user = User.objects.filter(email=email).first()
-        if user:
-            return user.tokens()
-        return None
+    def get_or_create_user(self):
+        """Return the account for the verified identifier, creating it on first login.
 
-    def to_representation(self, instance):
-        data = super().to_representation(instance)
-        data['tokens'] = self.get_tokens()
-        return data
+        Called by the view only after the OTP has been confirmed, so an account is
+        never created for an unverified — or brute-forced — identifier.
+        """
+        phone_number = self.validated_data.get('phone_number')
+        email = self.validated_data.get('email')
+
+        if phone_number:
+            user, _created = User.objects.get_or_create(
+                phone_number=phone_number,
+                defaults={"auth_type": AuthTypes.PHONE.value},
+            )
+            return user
+
+        user = User.objects.filter(email=email).order_by("created_time").first()
+        if user is None:
+            user = User.objects.create(email=email, auth_type=AuthTypes.EMAIL.value)
+        return user
 
 
 class RegisterUserSerializer(serializers.ModelSerializer):
-    """Serializer for creating user objects."""
+    """Serializer for creating user objects.
+
+    Registration is only allowed for an identifier that has already passed the
+    OTP step (`/auth/verify-otp/`), so the endpoint cannot be used to mint
+    accounts for phones or emails the caller does not control.
+    """
 
     tokens = serializers.SerializerMethodField()
 
     class Meta:
         model = User
-        fields = ('id', 'first_name', 'last_name', 'password', 'phone_number', 'email', 'tokens')
+        fields = ('id', 'first_name', 'last_name', 'phone_number', 'email', 'tokens')
         extra_kwargs = {
-            'password': {'required': False},
             'phone_number': {'required': False},
             'email': {'required': False},
             'first_name': {'required': True},
@@ -91,21 +92,31 @@ class RegisterUserSerializer(serializers.ModelSerializer):
         last_name = attrs.get('last_name', None)
         phone_number = attrs.get('phone_number')
         email = attrs.get('email')
-        
+
         if not phone_number and not email:
             raise_validation_error(message=_("Telefon raqam yoki email kiritilmagan"))
-            
+
         # validate first name and last name to get only one word
         if len(first_name.split()) > 1:
             raise_validation_error(message=_("Ism faqat bir so'z bo'lishi kerak"))
         if len(last_name.split()) > 1:
             raise_validation_error(message=_("Familya faqat bir so'z bo'lishi kerak"))
-        return attrs
 
-    def validate_password(self, value): # noqa
-        if len(value) < 8:
-            raise_validation_error(message=_("Parol kamida 8 ta belgidan iborat bo'lishi kerak"))
-        return value
+        # Reject duplicates with a clean 400 instead of a database IntegrityError.
+        if phone_number and User.objects.filter(phone_number=phone_number).exists():
+            raise_validation_error(message=_("Bu telefon raqam allaqachon ro'yxatdan o'tgan"))
+        if email and User.objects.filter(email=email).exists():
+            raise_validation_error(message=_("Bu email allaqachon ro'yxatdan o'tgan"))
+
+        # The identifier must have been OTP-verified in the last few minutes.
+        if phone_number:
+            verified, message = check_verification_status(phone_number)
+            if not verified:
+                raise_validation_error(message=_("Telefon raqam tasdiqlanmagan"))
+        if email and not is_email_verified(email):
+            raise_validation_error(message=_("Email tasdiqlanmagan"))
+
+        return attrs
 
     def validate_phone_number(self, value): # noqa
         if value and not check_number(value):
@@ -113,11 +124,13 @@ class RegisterUserSerializer(serializers.ModelSerializer):
         return value
 
     def create(self, validated_data):
+        phone_number = validated_data.get("phone_number")
         user = User(
             first_name=validated_data.get("first_name"),
             last_name=validated_data.get("last_name"),
-            phone_number=validated_data.get("phone_number"),
+            phone_number=phone_number,
             email=validated_data.get("email"),
+            auth_type=AuthTypes.PHONE.value if phone_number else AuthTypes.EMAIL.value,
             is_active=True,
         )
         user.save()

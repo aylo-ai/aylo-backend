@@ -1,8 +1,8 @@
 import requests
 import time
 import json
-import os
-import tempfile
+
+
 import logging
 import pytz
 from datetime import datetime
@@ -11,13 +11,13 @@ from django.db import transaction
 from celery import shared_task
 
 
-from apps.shared.ai_service.openai_client import client
 from apps.shared.addons.enums import SenderTypes, ConversationStatuses, IntegrationTypes
 from apps.assistant.models import Assistant, Lead, Conversation
 from shared.addons.redis import publish_message_to_ws, redis_client
 from shared.addons.instagram import instagram_service
 from shared.addons.telegram import send_telegram_message, send_telegram_action
-from apps.shared.ai_service.assistant import assistant_service
+from apps.shared.ai_service import knowledge_base, media
+from apps.shared.ai_service.agent import respond
 from apps.shared.ai_service.conversation import conversation_service
 from .models import (Integration,
                     InstagramMedia, InstagramCommentResponse, Flow,
@@ -54,8 +54,8 @@ def process_message_task(self, chat_id, user_message, bot_token, chat_username=N
     from apps.assistant.utils import cancel_pending_follow_ups
     cancel_pending_follow_ups(conversation.id)
 
-    response_message = assistant_service.generate_response(user_input=user_message, assistent=assistant, conversation=conversation)
-    
+    response_message = respond(assistant, conversation, user_message)
+
     logger.info(f"[+] Response message: {response_message}")
 
     if response_message:
@@ -102,7 +102,7 @@ def process_instagram_message(self, account_id, combined_message, user_message, 
     cancel_pending_follow_ups(conversation.id)
 
     if assistant.ai_enabled:
-        response_message = assistant_service.generate_response(user_input=combined_message, assistent=assistant, conversation=conversation)
+        response_message = respond(assistant, conversation, combined_message)
         if response_message:
             instagram_service.send_message(account_id, integration.api_token, sender_id, response_message)
 
@@ -170,9 +170,7 @@ def process_shared_post_message(self, account_id, shared_url, user_text, messagi
     publish_message_to_ws(conversation.id, combined_message, sender="user", data=data, assistant_id=assistant.id)
 
     if assistant.ai_enabled:
-        response_message = assistant_service.generate_response(
-            user_input=combined_message, assistent=assistant, conversation=conversation
-        )
+        response_message = respond(assistant, conversation, combined_message)
         if response_message:
             instagram_service.send_message(account_id, integration.api_token, sender_id, response_message)
 
@@ -284,8 +282,10 @@ def process_voice_task(self, chat_id, voice_file_id, bot_token):
     audio_bytes_ogg = requests.get(file_url).content
     audio_bytes_mp3 = conversation_service.convert_ogg_to_mp3(audio_bytes_ogg)
 
-    language_code = assistant.language or "uz"
-    transcribed_text, input_tokens, output_tokens = conversation_service.speech_to_text(audio_bytes_mp3, language=language_code)
+    transcribed_text, input_tokens, output_tokens = media.transcribe_audio(audio_bytes_mp3)
+    if transcribed_text == media.TRANSCRIBE_FAILED:
+        send_telegram_message(chat_id, "I couldn't hear that clearly. Could you try again?", bot_token)
+        return
 
     process_message_task.delay(chat_id=chat_id, user_message=transcribed_text, bot_token=bot_token, audio_file=audio_bytes_mp3, input_tokens=input_tokens, output_tokens=output_tokens)
 
@@ -304,9 +304,9 @@ def process_photo_task(self, chat_id, photo_file_id, bot_token, chat_username=No
         file_path = file_info_resp.json()["result"]["file_path"]
         file_url = f"https://api.telegram.org/file/bot{bot_token}/{file_path}"
         
-        image_analysis = assistant_service.gemini.picture_analysis(file_url, language=assistant.language)
-        
-        if not image_analysis or image_analysis.startswith("I couldn't") or image_analysis.startswith("I encountered"):
+        image_analysis = media.analyze_image(file_url)
+
+        if image_analysis == media.IMAGE_FAILED:
             send_telegram_message(chat_id, "I couldn't analyze the image. Please try again.", bot_token)
             return
         
@@ -332,12 +332,8 @@ def process_photo_task(self, chat_id, photo_file_id, bot_token, chat_username=No
         )
         publish_message_to_ws(conversation_id=conversation.id, message=image_analysis, sender='user', data=data, assistant_id=assistant.id)
         
-        response_message = assistant_service.generate_response(
-            user_input=image_analysis, 
-            assistent=assistant, 
-            conversation=conversation
-        )
-        
+        response_message = respond(assistant, conversation, image_analysis)
+
         logger.info(f"[+] Photo response message: {response_message}")
         
         if response_message:
@@ -661,10 +657,8 @@ def process_instagram_comment_message(account_id, message, comment_id, integrati
                 
         # Process the comment message through AI if enabled
         if assistant.ai_enabled and assistant.is_active:
-            response_message = assistant_service.generate_response(
-                user_input=message, assistent=assistant, conversation=conversation
-            )
-            
+            response_message = respond(assistant, conversation, message)
+
             instagram_service.send_private_reply(access_token=integration.api_token, account_id=account_id, comment_id=comment_id, message=response_message)
             
     except Exception as e:
@@ -896,94 +890,29 @@ def fetch_and_save_billz_products(integration_id: str):
         # Convert products to JSON string
         products_json = json.dumps(all_products, ensure_ascii=False, indent=2)
         
-        # Create a unique filename for this assistant's products
-        filename = f"billz_products_{assistant.id}_{int(time.time())}.json"
-        
-        # Save to temp file first
-        temp_dir = tempfile.gettempdir()
-        temp_file_path = os.path.join(temp_dir, filename)
-        
-        with open(temp_file_path, 'w', encoding='utf-8') as f:
-            f.write(products_json)
-        
-        logger.info(f"Saved products to temp file: {temp_file_path}")
-        
-        # Ensure assistant has a vector store
-        if not assistant.vector_id:
-            success, message = assistant_service.create_assistant_and_vector_id(assistant, request=None)
-            if not success:
-                logger.warning(f"Failed to create vector store for assistant {assistant.id}: {message}")
-                # Clean up temp file
-                if os.path.exists(temp_file_path):
-                    os.remove(temp_file_path)
-                return
-        
-        # Get previous file_id from metadata if it exists
+        store_id = knowledge_base.ensure_store(assistant)
+
+        # Drop last run's catalogue so the store holds one copy, not a growing pile.
         metadata = integration.metadata or {}
         previous_file_id = metadata.get('billz_products_file_id')
-        
-        # Delete previous file from vector store if it exists
-        if previous_file_id and assistant.vector_id:
-            try:
-                logger.info(f"Deleting previous Billz products file (file_id: {previous_file_id}) from vector store")
-                client.vector_stores.files.delete(
-                    vector_store_id=assistant.vector_id,
-                    file_id=previous_file_id
-                )
-                logger.info(f"Successfully deleted previous Billz products file from vector store")
-            except Exception as e:
-                # If file doesn't exist anymore, that's okay - just log it
-                logger.warning(f"Could not delete previous file (may not exist): {e}")
-        
-        openai_file_id = assistant_service.upload_knowledge_base_file(file_url=None, clear_text=products_json)
-        
-        if not openai_file_id:
-            logger.warning(f"Failed to upload products to OpenAI for integration {integration_id}")
-            # Clean up temp file
-            if os.path.exists(temp_file_path):
-                os.remove(temp_file_path)
+        if previous_file_id:
+            knowledge_base.delete_file(store_id, previous_file_id)
+
+        filename = f"billz_products_{assistant.id}.json"
+        file_id = knowledge_base.add_text(store_id, products_json, filename)
+
+        if not file_id:
+            logger.warning(f"Failed to index Billz products for integration {integration_id}")
             return
-        
-        logger.info(f"Uploaded products to OpenAI with file_id: {openai_file_id}")
-        
-        # Add file to vector store
-        if assistant.vector_id:
-            try:
-                batch = client.vector_stores.file_batches.create(
-                    vector_store_id=assistant.vector_id,
-                    file_ids=[openai_file_id]
-                )
-                
-                # Poll until completion
-                while True:
-                    status = client.vector_stores.file_batches.retrieve(
-                        vector_store_id=assistant.vector_id,
-                        batch_id=batch.id
-                    )
-                    if status.status in ["completed", "failed"]:
-                        break
-                    time.sleep(0.5)
-                
-                if status.status == "completed":
-                    logger.info(f"Products successfully added to vector store for assistant {assistant.id}")
-                    
-                    # Update integration metadata with new file_id
-                    if not integration.metadata:
-                        integration.metadata = {}
-                    integration.metadata['billz_products_file_id'] = openai_file_id
-                    integration.metadata['billz_products_updated_at'] = time.time()
-                    integration.save(update_fields=['metadata'])
-                    logger.info(f"Updated integration metadata with new file_id: {openai_file_id}")
-                else:
-                    logger.warning(f"Failed to add products to vector store: {status.status}")
-            except Exception as e:
-                logger.warning(f"Error adding products to vector store: {e}")
-        
-        # Clean up temp file
-        if os.path.exists(temp_file_path):
-            os.remove(temp_file_path)
-            logger.info(f"Cleaned up temp file: {temp_file_path}")
-            
+
+        integration.metadata = {
+            **metadata,
+            'billz_products_file_id': file_id,
+            'billz_products_updated_at': time.time(),
+        }
+        integration.save(update_fields=['metadata'])
+        logger.info(f"Indexed {len(all_products)} Billz products for assistant {assistant.id} as {file_id}")
+
     except Exception as e:
         logger.warning(f"Error in fetch_and_save_billz_products: {e}")
         import traceback

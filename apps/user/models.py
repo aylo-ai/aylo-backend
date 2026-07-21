@@ -2,6 +2,7 @@ from random import randint
 
 from django.contrib.auth.models import AbstractUser
 from django.db import models
+from django.db.models import Q
 from rest_framework_simplejwt.tokens import RefreshToken
 
 from apps.payment.models import Subscription
@@ -42,6 +43,15 @@ class User(AbstractUser, BaseModel):
 
     class Meta:
         db_table = "user"
+        constraints = [
+            # One account per email. NULL/blank emails (OAuth users, phone-only
+            # accounts) are excluded so they don't collide with each other.
+            models.UniqueConstraint(
+                fields=["email"],
+                condition=Q(email__isnull=False) & ~Q(email=""),
+                name="uniq_user_email_not_blank",
+            ),
+        ]
         indexes = [
             models.Index(fields=['username']),
             models.Index(fields=['first_name']),

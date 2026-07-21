@@ -100,6 +100,8 @@ class CardListView(generics.ListAPIView):
     permission_classes = (permissions.IsAuthenticated,)
 
     def get_queryset(self):
+        if getattr(self, "swagger_fake_view", False):
+            return Card.objects.none()
         return Card.objects.filter(user=self.request.user)
 
     def list(self, request, *args, **kwargs):

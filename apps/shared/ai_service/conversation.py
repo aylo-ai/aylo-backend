@@ -1,192 +1,152 @@
-import requests
-import io
-from shutil import which
-from io import BytesIO
-from pydub import AudioSegment
-import logging
-from google import genai
-from google.genai import types
+"""Conversation and message plumbing that sits between the platforms and the agent.
 
-from django.db import transaction
+This is the Django-model side of the AI service: it turns webhook payloads into
+`Conversation` and `Message` rows, converts voice notes to a format Whisper can
+read, and hands transcription off to `media`. The agent itself lives in
+`agent.py`; this module never calls the model directly except through `media`.
+"""
+import io
+import logging
+from io import BytesIO
+from shutil import which
+
+import requests
+from pydub import AudioSegment
+
+from django.core.files.base import ContentFile
+from django.utils.text import slugify
 from django.utils.translation import gettext_lazy as _
 
-from apps.assistant.models import  Message, Conversation, Lead
-from shared.addons.validations import success_response
-from config import settings
-
-from shared.addons.telegram import send_telegram_message
+from apps.assistant.models import Conversation, Message
+from shared.addons.enums import ConversationStatuses, MessageTypes, SenderTypes
 from shared.addons.redis import publish_message_to_ws_assistant
-
+from shared.addons.telegram import send_telegram_message
+from shared.addons.validations import success_response
+from shared.ai_service import media
 
 logger = logging.getLogger(__name__)
 
 
 class ConversationService:
-    def __init__(self):
-        self.client = genai.Client(api_key=settings.GOOGLE_GEMINI_API_KEY)
 
+    # -- audio -----------------------------------------------------------
 
     def convert_ogg_to_mp3(self, audio_bytes: bytes) -> bytes:
-        AudioSegment.converter = which("ffmpeg")    # mp3 konvertatsiyasi uchun
-        AudioSegment.ffprobe = which("ffprobe")     # fayl formatini o'qish uchun
+        """Transcode an OGG voice note to MP3 so Whisper can read it."""
+        AudioSegment.converter = which("ffmpeg")
+        AudioSegment.ffprobe = which("ffprobe")
         audio = AudioSegment.from_file(io.BytesIO(audio_bytes), format="ogg")
-        logger.info(f"Audio: {audio}")
-        mp3_io = io.BytesIO()
-        logger.info(f"Mp3 io: {mp3_io}")
-        audio.export(mp3_io, format="mp3")
-        logger.info(f"Mp3 io: {mp3_io}")
-        return mp3_io.getvalue()
+        out = io.BytesIO()
+        audio.export(out, format="mp3")
+        return out.getvalue()
 
-
-    def speech_to_text(self, audio_bytes: bytes, language: str = "uz") -> str:
+    def get_audio_from_url(self, url: str):
+        """Download an audio file and return it as MP3 bytes, or None on failure."""
         try:
-            client = genai.Client(api_key=settings.GOOGLE_GEMINI_API_KEY)
-            logger.info(f"Client: {client}")
-            prompt = f"""
-                Transcribe the following audio in plain {language} text. 
-                Do not include timestamps or any explanations. 
-                Only return the raw transcription.
-                """
-            logger.info(f"Prompt: {prompt}")
-            response = client.models.generate_content(
-                model="gemini-2.5-flash",
-                contents=[
-                    prompt,
-                    types.Part.from_bytes(data=audio_bytes, mime_type="audio/mp3")
-                ],
-                config=types.GenerateContentConfig(
-                    thinking_config=types.ThinkingConfig(
-                        include_thoughts=False
-                    ),
-                ),
-            )
-            input_tokens = response.usage_metadata.prompt_token_count
-            output_tokens = response.usage_metadata.candidates_token_count
+            response = requests.get(url, timeout=30)
+            response.raise_for_status()
+            audio = AudioSegment.from_file(BytesIO(response.content))
+            out = BytesIO()
+            audio.export(out, format="mp3")
+            return out.getvalue()
+        except Exception as exc:
+            logger.warning("Could not fetch audio from %s: %s", url, exc)
+            return None
 
-            logger.info(f"[speech_to_text] Response received: {response}")
-            result = response.text.strip()
-            logger.info(f"[speech_to_text] Final result: {result}")
-            return result, input_tokens, output_tokens
-        except Exception as e:
-            logger.warning(f"[speech_to_text] Error: {str(e)}")
-            logger.warning(f"[speech_to_text] Error type: {type(e)}")
-            import traceback
-            logger.warning(f"[speech_to_text] Traceback: {traceback.format_exc()}")
-            return "Sorry, I couldn't understand the audio.", 0, 0
+    def process_instagram_audio(self, audio_url: str, language: str = "uz"):
+        """Transcribe an Instagram voice note. Returns (text, input_tokens, output_tokens)."""
+        audio_bytes = self.get_audio_from_url(audio_url)
+        if not audio_bytes:
+            return media.TRANSCRIBE_FAILED, 0, 0
+        return media.transcribe_audio(audio_bytes)
 
-    def create_message(self, conversation, sender, content, audio_file=None, input_tokens=None, output_tokens=None):
-        message_type = 'audio' if audio_file else 'text'
+    # -- messages --------------------------------------------------------
+
+    def create_message(self, conversation, sender, content, audio_file=None,
+                       input_tokens=None, output_tokens=None):
+        """Persist one message and return its id (and audio url, if any)."""
         if isinstance(audio_file, str) and audio_file.startswith("https://"):
             audio_file = self.get_audio_from_url(audio_file)
-        
-        if audio_file:
-            input_tokens = input_tokens
-            output_tokens = output_tokens
-        else:
-            input_tokens = input_tokens if input_tokens else 0
-            output_tokens = output_tokens if output_tokens else 0
-        
+
         message = Message.objects.create(
             conversation=conversation,
             sender=sender,
             message_content=content,
-            message_type=message_type,
-            input_tokens=input_tokens,
-            output_tokens=output_tokens
+            message_type=MessageTypes.AUDIO.value if audio_file else MessageTypes.TEXT.value,
+            input_tokens=input_tokens or 0,
+            output_tokens=output_tokens or 0,
         )
 
-        if audio_file:
-            from django.core.files.base import ContentFile
-            from django.utils.text import slugify
+        if not audio_file:
+            return {"id": message.id, "audio_file": None}
 
-            file_name = f"audio_{slugify(conversation.id)}_{message.id}.mp3"
-            message.audio_file.save(file_name, ContentFile(audio_file))
-            message.save()
-            return {
-                "id": message.id,
-                "audio_file": message.audio_file.url
-            }
-        else:
-            return {
-                "id": message.id,
-                "audio_file": None
-            }
+        file_name = f"audio_{slugify(conversation.id)}_{message.id}.mp3"
+        message.audio_file.save(file_name, ContentFile(audio_file))
+        return {"id": message.id, "audio_file": message.audio_file.url}
 
-    def create_update_lead(self, full_name, phone_number, email, product, assistant, platform, username, metadata=None):
-        try:
-            with transaction.atomic():
-                lead = Lead.objects.create(
-                    full_name=full_name,
-                    phone_number=phone_number,
-                    email=email,
-                    product=product,
-                    assistant=assistant,
-                    platform=platform,
-                    username=username,
-                    metadata=metadata,
-                )
-                return lead
-        except Exception as e:
-            logger.warning(f"[create_lead] Error: {e}")
-            return None
-        
-    def get_or_create_conversation(self, user_id, assistant, reset=False, token=None, platform='telegram', chat_username=None, username=None):
+    # -- conversations ---------------------------------------------------
+
+    def get_or_create_conversation(self, user_id, assistant, reset=False, token=None,
+                                  platform="telegram", chat_username=None, username=None):
+        """Return the open conversation for this user, creating one if needed.
+
+        `reset=True` (a `/start`) begins a genuinely fresh chat on an existing
+        conversation: the agent's memory is dropped and a closed chat is reopened.
+        """
         conversation = Conversation.objects.filter(
+            assistant=assistant, user_id=user_id, token=token
+        ).first()
+        if conversation is not None:
+            if reset:
+                self.reset_conversation(conversation)
+            return conversation
+
+        conversation = Conversation.objects.create(
             assistant=assistant,
             user_id=user_id,
-            token=token).first()
-        if conversation is None:
-            logger.info(f"conversation is None, creating new conversation")
-            conversation = Conversation.objects.create(
-                assistant=assistant,
-                user_id=user_id,
-                status='open',
-                token=token,
-                platform=platform,
-                username=username if username else None,
-                client_full_name=chat_username,
-                client_phone_email=f"@{username}" if username else None
-            )
+            status=ConversationStatuses.OPEN.value,
+            token=token,
+            platform=platform,
+            username=username or None,
+            client_full_name=chat_username,
+            client_phone_email=f"@{username}" if username else None,
+        )
+        logger.info("Created conversation %s for assistant %s", conversation.id, assistant.id)
+
+        try:
             publish_message_to_ws_assistant(conversation)
-            logger.info(f"Conversation created: {conversation}")
+        except Exception as exc:
+            logger.warning("Failed to publish new conversation %s: %s", conversation.id, exc)
 
-        else:
-            logger.info(f"Conversation already exists: {conversation}")
         return conversation
-    
+
+    def reset_conversation(self, conversation):
+        """Start the conversation over: drop the agent chain and reopen it.
+
+        Called on `/start`. Clearing the chain (`previous_response_id`) is what
+        makes the next message a fresh context with the latest instructions,
+        rather than a continuation of the old one. An escalated chat is left
+        alone so a human colleague keeps ownership.
+        """
+        from shared.ai_service.agent import clear_chain
+
+        clear_chain(conversation)
+
+        if conversation.status == ConversationStatuses.CLOSED.value:
+            conversation.status = ConversationStatuses.OPEN.value
+            conversation.save(update_fields=["status", "updated_time"])
+            logger.info("Reopened conversation %s on /start", conversation.id)
+
     def handle_start_command(self, chat_id, assistant, bot_token, chat_username, username):
-        logger.info(f"Handling start command for chat_id: {chat_id}, assistant: {assistant}, bot_token: {bot_token}")
-        greeting_message = assistant.greeting_message
-        logger.info(f"Greeting message: {greeting_message}")
-        send_telegram_message(chat_id, greeting_message, bot_token)
+        """Greet the customer and open (or reopen) their conversation."""
+        send_telegram_message(chat_id, assistant.greeting_message, bot_token)
+        self.get_or_create_conversation(
+            chat_id, assistant, reset=True, token=bot_token,
+            chat_username=chat_username, username=username,
+        )
+        return success_response(
+            message=_("Salomlashish va yangi chat muvaffaqiyatli bajarildi"), code=200
+        )
 
-        # Start a new or reopen an existing conversation
-        conversation = self.get_or_create_conversation(chat_id, assistant, reset=True, token=bot_token, chat_username=chat_username, username=username)
-        logger.info(f"Conversation get_create: {conversation}")
-        return success_response(message=_("Salomlashish va yangi chat muvaffaqiyatli bajarildi"), code=200)
-    
-    def process_instagram_audio(self, audio_url: str, language: str = "uz"):
-        try:
-            audio_bytes = self.get_audio_from_url(audio_url)
-            if not audio_bytes:
-                return "Sorry, I couldn't process the audio.", 0, 0
-
-            data, input_tokens, output_tokens = self.speech_to_text(audio_bytes, language)
-            return data, input_tokens, output_tokens
-        except Exception as e:
-            logger.error(f"[process_instagram_audio] Error: {e}")
-            return "Sorry, I couldn't process the audio.", 0, 0
-        
-    def get_audio_from_url(self, url: str) -> bytes:
-        try:
-            response = requests.get(url)
-            response.raise_for_status()
-            audio = AudioSegment.from_file(BytesIO(response.content))
-            mp3_buffer = BytesIO()
-            audio.export(mp3_buffer, format="mp3")
-            return mp3_buffer.getvalue()
-        except Exception as e:
-            logger.warning(f"[get_audio_from_url] Error: {e}")
-            return None
 
 conversation_service = ConversationService()

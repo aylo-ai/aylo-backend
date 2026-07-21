@@ -1,13 +1,15 @@
-import base64
-import json
+import secrets
 import requests
 from urllib.parse import urlencode
 from django.shortcuts import redirect
 from django.db.models import Q
 
+from google.oauth2 import id_token as google_id_token
+from google.auth.transport import requests as google_requests
+
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework import generics, status, permissions
-from rest_framework.throttling import AnonRateThrottle
+from rest_framework.throttling import ScopedRateThrottle
 from rest_framework.views import APIView
 from rest_framework_simplejwt.exceptions import TokenError
 from rest_framework_simplejwt.tokens import RefreshToken
@@ -20,14 +22,15 @@ from shared.addons.verification import send_code
 from apps.user.models import User, PrivacyPolicy, UserAgreement, Notification
 from shared.addons.verification import send_email_code, verify_email_code, verify_code_cache
 from shared.permissions import IsAdmin, IsSuperAdmin, IsCustomer, IsAdminOrCustomer
-from shared.addons.enums import UserRoles
+from shared.addons.enums import UserRoles, AuthTypes
 
 class SendCodeView(generics.GenericAPIView):
     serializer_class = serializers.SendCodeSerializer
-    throttle_classes = (AnonRateThrottle,)
+    throttle_classes = (ScopedRateThrottle,)
+    throttle_scope = "otp_send"
 
     def post(self, request, *args, **kwargs):
-        
+
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         
@@ -49,26 +52,35 @@ class SendCodeView(generics.GenericAPIView):
 
 class VerifyCodeView(generics.GenericAPIView):
     serializer_class = serializers.VerifyCodeSerializer
+    throttle_classes = (ScopedRateThrottle,)
+    throttle_scope = "otp_verify"
 
     def post(self, request, *args, **kwargs):
-        action = request.query_params.get("action")
-        serializer = self.get_serializer(data=request.data, context={"action": action})
+        serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
-        
-        phone_number = serializer.data.get("phone_number")
-        email = serializer.data.get("email")
-        code = serializer.data.get("code")
-        
+
+        phone_number = serializer.validated_data.get("phone_number")
+        email = serializer.validated_data.get("email")
+        code = serializer.validated_data.get("code")
+
         if phone_number:
             success, message = verify_code_cache(phone_number, code)
         elif email:
             success, message = verify_email_code(email, code)
-            # success, message = True, "Code verified successfully"
         else:
             return error_response(message=_("Telefon raqam yoki email kiritilmagan"), code=status.HTTP_400_BAD_REQUEST)
-        if success:
-            return success_response(data=serializer.data, message=message, code=status.HTTP_200_OK)
-        return error_response(message=message, code=status.HTTP_400_BAD_REQUEST)
+
+        if not success:
+            return error_response(message=message, code=status.HTTP_400_BAD_REQUEST)
+
+        # Only now that the code is confirmed do we touch the database.
+        user = serializer.get_or_create_user()
+        data = {
+            "phone_number": phone_number,
+            "email": email,
+            "tokens": user.tokens(),
+        }
+        return success_response(data=data, message=message, code=status.HTTP_200_OK)
 
 
 class UserRegisterView(generics.CreateAPIView):
@@ -171,7 +183,7 @@ class LogoutView(APIView):
 class PrivacyPolicyListCreateView(generics.ListCreateAPIView):
     queryset = PrivacyPolicy.objects.all()
     serializer_class = serializers.PrivacyPolicySerializer
-    permission_classes = [IsAdmin, IsSuperAdmin]
+    permission_classes = [IsAdmin]
     filter_backends = [DjangoFilterBackend]
     filterset_fields = ["language", "is_active"]
 
@@ -194,7 +206,7 @@ class PrivacyPolicyListCreateView(generics.ListCreateAPIView):
 class PrivacyPolicyRetrieveView(generics.RetrieveUpdateDestroyAPIView):
     queryset = PrivacyPolicy.objects.all()
     serializer_class = serializers.PrivacyPolicySerializer
-    permission_classes = [IsAdmin, IsSuperAdmin]
+    permission_classes = [IsAdmin]
 
     def get_permissions(self):
         if self.request.method == "GET":
@@ -216,7 +228,7 @@ class PrivacyPolicyRetrieveView(generics.RetrieveUpdateDestroyAPIView):
 class UserAgreementListCreateView(generics.ListCreateAPIView):
     queryset = UserAgreement.objects.all()
     serializer_class = serializers.UserAgreementSerializer
-    permission_classes = [IsAdmin, IsSuperAdmin]
+    permission_classes = [IsAdmin]
     filter_backends = [DjangoFilterBackend]
     filterset_fields = ["language", "is_active"]
 
@@ -239,7 +251,7 @@ class UserAgreementListCreateView(generics.ListCreateAPIView):
 class UserAgreementRetrieveView(generics.RetrieveUpdateDestroyAPIView):
     queryset = UserAgreement.objects.all()
     serializer_class = serializers.UserAgreementSerializer
-    permission_classes = [IsAdmin, IsSuperAdmin]
+    permission_classes = [IsAdmin]
 
     def get_permissions(self):
         if self.request.method == "GET":
@@ -258,27 +270,37 @@ class UserAgreementRetrieveView(generics.RetrieveUpdateDestroyAPIView):
         )
     
     
+GOOGLE_STATE_TTL = 600  # seconds a login attempt's state token stays valid
+
+
 class GoogleLoginView(APIView):
     def get(self, request):
         google_auth_url = "https://accounts.google.com/o/oauth2/v2/auth"
+        # A one-time state token defends the callback against login-CSRF: only a
+        # code that comes back with a state we issued is accepted.
+        state = secrets.token_urlsafe(32)
+        redis_connection.setex(f"google_oauth_state:{state}", GOOGLE_STATE_TTL, "1")
         params = {
             "client_id": GOOGLE_CLIENT_ID,
             "redirect_uri": GOOGLE_REDIRECT_URI,
             "response_type": "code",
             "scope": "openid email profile",
             "access_type": "offline",
-            "prompt": "consent"
+            "prompt": "consent",
+            "state": state,
         }
         url = f"{google_auth_url}?{urlencode(params)}"
-        print(f"google_auth_url: {url}")
         return redirect(url)
-    
-    
+
+
 class GoogleAuthCallbackView(APIView):
     def get(self, request):
         try:
+            state = request.GET.get("state")
+            if not state or not redis_connection.delete(f"google_oauth_state:{state}"):
+                return error_response(message=_("Invalid or expired OAuth state"), code=400)
+
             code = request.GET.get("code")
-            print(f"code: {code}")
             if not code:
                 return error_response(message=_("Authorization code topilmadi"), code=400)
 
@@ -291,44 +313,48 @@ class GoogleAuthCallbackView(APIView):
                 "redirect_uri": GOOGLE_REDIRECT_URI,
                 "grant_type": "authorization_code",
             }
-            token_response = requests.post(token_url, data=data)
-            token_json = token_response.json()
-            print(f"token_json: {token_json}")
-            id_token = token_json.get("id_token")
-            if not id_token:
+            token_response = requests.post(token_url, data=data, timeout=30)
+            raw_id_token = token_response.json().get("id_token")
+            if not raw_id_token:
                 return error_response(message=_("ID token topilmadi"), code=400)
+
+            # Verify the signature, issuer, audience and expiry rather than trusting
+            # a self-decoded payload.
             try:
-                payload = id_token.split('.')[1]
-                padded = payload + '=' * (-len(payload) % 4)
-                decoded = base64.urlsafe_b64decode(padded)
-                user_info = json.loads(decoded)
-            except Exception as decode_error:
-                return error_response(message=f"{_('Invalid ID token')}: {str(decode_error)}", code=400)
-            print(f"user_info: {user_info}")
+                user_info = google_id_token.verify_oauth2_token(
+                    raw_id_token, google_requests.Request(), GOOGLE_CLIENT_ID
+                )
+            except ValueError as verify_error:
+                return error_response(
+                    message=f"{_('Invalid ID token')}: {verify_error}", code=400
+                )
+
             sub = user_info.get("sub")
-            print(f"sub: {sub}")
             if not sub:
                 return error_response(message=_("Sub topilmadi"), code=400)
-            print("sub topildi")
 
-            user = User.objects.filter(Q(email=user_info.get("email", "")) | Q(sub=sub)).first()
-            print(f"user: {user}")
+            email = user_info.get("email") or None
+            user = User.objects.filter(Q(sub=sub) | Q(email=email)).first() if email \
+                else User.objects.filter(sub=sub).first()
             if not user:
-                # create user
-                full_name = user_info.get("name").split(" ")
+                full_name = (user_info.get("name") or "").split(" ")
                 if len(full_name) > 1:
-                    first_name = full_name[0]
-                    last_name = full_name[1]
+                    first_name, last_name = full_name[0], full_name[1]
                 else:
                     first_name = user_info.get("given_name", "")
                     last_name = user_info.get("family_name", "")
                 user = User.objects.create(
                     sub=sub,
-                    email=user_info.get("email", ""),
+                    email=email,
                     first_name=first_name,
                     last_name=last_name,
+                    auth_type=AuthTypes.GOOGLE.value,
                 )
-                print(f"user created: {user}")
+            elif not user.sub:
+                # Link an existing email account to this Google identity.
+                user.sub = sub
+                user.save(update_fields=["sub", "updated_time"])
+
             tokens = user.tokens()
             return success_response(message=_("Foydalanuvchi muvaffaqiyatli autentifikatsiya qilindi"), data=tokens, code=status.HTTP_200_OK)
         except Exception as e:
@@ -358,6 +384,8 @@ class StaffListView(generics.ListAPIView):
     permission_classes = [IsAdminOrCustomer]
 
     def get_queryset(self):
+        if getattr(self, "swagger_fake_view", False):
+            return User.objects.none()
         return User.objects.filter(created_by=self.request.user, user_role=UserRoles.STAFF.value)
 
     def list(self, request, *args, **kwargs):
@@ -367,9 +395,12 @@ class StaffListView(generics.ListAPIView):
 
 
 class StaffDeleteView(generics.DestroyAPIView):
+    serializer_class = serializers.StaffListSerializer
     permission_classes = [IsAdminOrCustomer]
 
     def get_queryset(self):
+        if getattr(self, "swagger_fake_view", False):
+            return User.objects.none()
         return User.objects.filter(created_by=self.request.user, user_role=UserRoles.STAFF.value)
 
     def destroy(self, request, *args, **kwargs):
@@ -388,13 +419,14 @@ class NotificationListView(generics.ListAPIView):
     
 
 class NotificationUpdateView(generics.UpdateAPIView):
-    queryset = Notification.objects.all()
     serializer_class = serializers.NotificationSerializer
     permission_classes = [permissions.IsAuthenticated]
-    
-    def get_object(self):
-        return self.queryset.filter(id=self.kwargs.get("pk")).first()
-    
+
+    def get_queryset(self):
+        # Scope to the caller so one user cannot read or modify another's
+        # notifications by guessing an id.
+        return Notification.objects.filter(user=self.request.user)
+
     def update(self, request, *args, **kwargs):
         instance = self.get_object()
         serializer = self.get_serializer(instance, data=request.data, partial=True)

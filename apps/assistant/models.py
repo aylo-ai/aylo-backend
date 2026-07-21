@@ -117,6 +117,11 @@ class Conversation(BaseModel):
     username = models.CharField(max_length=255, null=True, blank=True)
     token = models.CharField(max_length=255, null=True, blank=True)
     thread_id = models.CharField(max_length=255, null=True, blank=True)
+    # Agent state. previous_response_id continues the OpenAI response chain;
+    # instructions_version records the assistant's updated_time when the chain
+    # started, so editing the prompt restarts it on the next message.
+    previous_response_id = models.CharField(max_length=255, null=True, blank=True)
+    instructions_version = models.DateTimeField(null=True, blank=True)
     start_time = models.DateTimeField(default=timezone.now)
     end_time = models.DateTimeField(null=True, blank=True)
     client_full_name = models.CharField(max_length=255, null=True, blank=True)

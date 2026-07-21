@@ -5,7 +5,6 @@ from pathlib import Path
 from dotenv import load_dotenv
 from datetime import timedelta
 from django.utils.translation import gettext_lazy as _
-from openai import AzureOpenAI
 from celery.schedules import crontab
 
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -74,6 +73,8 @@ REST_FRAMEWORK = {
     "DEFAULT_THROTTLE_RATES": {
         "anon": "10/minute",
         "landing_lead": "10/minute",
+        "otp_send": "5/minute",
+        "otp_verify": "10/minute",
     },
 }
 
@@ -85,7 +86,7 @@ SPECTACULAR_SETTINGS = {
     "SWAGGER_UI_DIST": "SIDECAR",
     "SWAGGER_UI_FAVICON_HREF": "SIDECAR",
     "REDOC_DIST": "SIDECAR",
-    "SCHEMA_PATH_PREFIX": r"/api/",
+    "SCHEMA_PATH_PREFIX": r"/api/v1/",
 }
 
 if not DEBUG:
@@ -367,10 +368,6 @@ OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY")
 GOOGLE_CLIENT_ID = os.environ.get("GOOGLE_CLIENT_ID")
 GOOGLE_CLIENT_SECRET = os.environ.get("GOOGLE_CLIENT_SECRET")
 GOOGLE_REDIRECT_URI = os.environ.get("GOOGLE_REDIRECT_URI")
-
-client = AzureOpenAI(api_key=OPENAI_API_KEY,
-                     azure_endpoint=AZURE_OPENAI_ENDPOINT,
-                     api_version="2024-05-01-preview")
 
 GOOGLE_GEMINI_API_KEY = os.environ.get("GOOGLE_GEMINI_API_KEY")
 

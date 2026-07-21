@@ -1,3 +1,4 @@
+import logging
 import os
 import requests
 from random import randint
@@ -11,15 +12,46 @@ from django.core.mail import send_mail
 from django.conf import settings
 from django.utils.translation import gettext_lazy as _
 
+logger = logging.getLogger(__name__)
 
 PLAY_MOBILE_URL: str = os.environ['PLAY_MOBILE_URL']
 PLAY_MOBILE_LOGIN: str = os.environ['PLAY_MOBILE_LOGIN']
 PLAY_MOBILE_PASSWORD: str = os.environ['PLAY_MOBILE_PASSWORD']
 originator: str = os.environ['PLAY_MOBILE_ORIGINATOR']
 
+# After this many wrong guesses the code is thrown away, so a leaked or
+# brute-forced OTP cannot be tried indefinitely within its validity window.
+MAX_VERIFY_ATTEMPTS = 5
+
 
 def generate_code():
     return randint(100000, 999999)
+
+
+def _register_failed_attempt(key):
+    """Count a wrong guess; drop the code once too many have piled up.
+
+    Returns True if the code is still live, False if this attempt exhausted it.
+    """
+    attempts_key = f"{key}_attempts"
+    attempts = redis_connection.incr(attempts_key)
+    if attempts == 1:
+        # Tie the counter's lifetime to the code so it cannot outlive it.
+        redis_connection.expire(attempts_key, time=300)
+    if attempts >= MAX_VERIFY_ATTEMPTS:
+        redis_connection.delete(key)
+        redis_connection.delete(attempts_key)
+        return False
+    return True
+
+
+def _clear_attempts(key):
+    redis_connection.delete(f"{key}_attempts")
+
+
+def clear_verified_flag(identifier):
+    """Drop the 'verified' marker once it has been consumed by registration."""
+    redis_connection.delete(f"{identifier}_verified")
 
 
 def send_playmobile_sms(phone_number, message):
@@ -72,11 +104,14 @@ def verify_code_cache(phone_number, code):
     if not data:
         return False, "Code expired"
     stored_code = data.decode('utf-8')
-    if stored_code == code:
+    if stored_code == str(code):
         redis_connection.set(f"{phone_number}_verified", "True")
         redis_connection.expire(f"{phone_number}_verified", time=180)
         redis_connection.delete(phone_number)
+        _clear_attempts(phone_number)
         return True, "Code verified successfully"
+    if not _register_failed_attempt(phone_number):
+        return False, "Too many incorrect attempts, request a new code"
     return False, "Code is incorrect"
 
 
@@ -95,15 +130,12 @@ def send_sms_text(phone_number, text):
 def send_email_code(email):
     try:
         code = generate_code()
-        print(f"code generated: {code}")
-        # code = "000000"
         # Store code in Redis with 5 minute expiration
         redis_connection.setex(email, 300, code)
-        
+
         subject = _("Verification Code")
         message = _("Your verification code is: {}").format(code)
         from_email = settings.EMAIL_HOST_USER
-        print(f"from_email: {from_email}")
         from django.template.loader import render_to_string
 
         html_message = render_to_string(
@@ -115,8 +147,7 @@ def send_email_code(email):
                 'subject': "Verification Code"
             }
         )
-        print(f"html_message: {html_message}")
-        
+
         send_mail(
             subject=subject,
             message=message,
@@ -141,7 +172,7 @@ def verify_email_code(email, code):
             return False, _("Verification code expired or not found")
             
         # Compare codes
-        if stored_code.decode('utf-8') == code:
+        if stored_code.decode('utf-8') == str(code):
             # Mark email as verified
             redis_connection.setex(
                 f"{email}_verified",
@@ -150,8 +181,11 @@ def verify_email_code(email, code):
             )
             # Delete the code
             redis_connection.delete(email)
+            _clear_attempts(email)
             return True, _("Email verified successfully")
-            
+
+        if not _register_failed_attempt(email):
+            return False, _("Too many incorrect attempts, request a new code")
         return False, _("Invalid verification code")
         
     except Exception as e:

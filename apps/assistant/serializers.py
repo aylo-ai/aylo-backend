@@ -1,5 +1,5 @@
-import time
 import json
+import logging
 from openpyxl import Workbook
 from datetime import datetime
 
@@ -14,16 +14,18 @@ from apps.assistant.models import (
     FollowUpConfig, FollowUpStage, FollowUpLog,
 )
 from apps.integration.models import TelegramGroupIntegration
-from shared.ai_service.openai_client import client
 from shared.addons.telegram import send_telegram_message
-from shared.ai_service.conversation import conversation_service
-from shared.ai_service.thread import thread_service
-from shared.ai_service.conversation import conversation_service
+from shared.ai_service import knowledge_base, media
+from shared.ai_service.agent import agent
 from shared.addons.validations import raise_validation_error
-from shared.addons.enums import ConversationPlatforms, ConversationStatuses,MessageTypes
+from shared.addons.enums import (
+    ConversationPlatforms, ConversationStatuses, MessageTypes, SenderTypes,
+)
 from shared.mixins import SubscriptionValidationMixin
 from shared.addons.redis import publish_message_to_ws_assistant
-from apps.shared.ai_service.assistant import assistant_service
+
+logger = logging.getLogger(__name__)
+
 
 class PromptTemplateListSerializer(serializers.ModelSerializer):
     class Meta:
@@ -123,16 +125,11 @@ class ConversationSerializer(serializers.ModelSerializer,
 
     def create(self, validated_data):
         assistant = validated_data.get("assistant")
-        thread_id = None
-        if assistant.ai_enabled and assistant.assistant_id:
-            try:
-                thread_id = thread_service.get_thread_id(str(assistant.assistant_id), str(assistant.vector_id))
-            except Exception as e:
-                print(f"[-] Thread creation failed (old assistant): {e}")
+        # The agent tracks its own state per conversation, so there is nothing
+        # to set up here beyond the row itself.
         conversation = Conversation.objects.create(
             platform=ConversationPlatforms.WEBSITE.value,
             assistant=assistant,
-            thread_id=thread_id
         )
         publish_message_to_ws_assistant(conversation)
         return conversation
@@ -225,7 +222,6 @@ class MessageSerializer(serializers.ModelSerializer, SubscriptionValidationMixin
         if not message_content and not audio_file:
             raise_validation_error(message=_("Xabar matni yoki audio fayl kerak"))
         attrs["conversation"] = conversation
-        print(f"validate: conversation: {conversation}")
         return attrs
 
     def create(self, validated_data):
@@ -238,7 +234,7 @@ class MessageSerializer(serializers.ModelSerializer, SubscriptionValidationMixin
         sender = validated_data.get("sender")
         if audio_file:
             audio_bytes = audio_file.read()
-            transcribed_text, _, _ = conversation_service.speech_to_text(audio_bytes, language=assistant.language or "uz")
+            transcribed_text, _, _ = media.transcribe_audio(audio_bytes, filename=audio_file.name)
             validated_data["message_content"] = transcribed_text
             validated_data["message_type"] = MessageTypes.AUDIO.value
         else:
@@ -248,39 +244,16 @@ class MessageSerializer(serializers.ModelSerializer, SubscriptionValidationMixin
         message = Message.objects.create(**validated_data)
         if conversation.status == ConversationStatuses.ESCALATED.value or not assistant.is_active:
             return message
-        response, run_status, response_data = assistant_service.get_assistant_response_ai(
-            message=transcribed_text,
-            assistant_id=assistant.assistant_id,
-            thread_id=conversation.thread_id,
-            conversation=conversation
-        )
-        if response_data and response_data.full_name and response_data.phone_number:
-            response_lines = [
-                "🎉 *New Lead Created!*\n",
-                f"👤 *Full Name:* {response_data.full_name}  " if getattr(response_data, 'full_name', None) else None,
-                f"📞 *Phone Number:* {response_data.phone_number}  " if getattr(response_data, 'phone_number', None) not in [None, ""] else None,
-                f"📧 *Email:* {response_data.email}  " if getattr(response_data, 'email', None) not in [None, ""] else None,
-                f"📦 *Interested Product:* {response_data.product}\n" if getattr(response_data, 'product', None) else None,
-                "\n✅ Please follow up accordingly."
-            ]
-            response_text = "\n".join([line for line in response_lines if line])
-            telegram_integration = assistant.integrations.filter(integration_type="telegram").first()
-            telegram_groups = TelegramGroupIntegration.objects.filter(
-                integration=telegram_integration, is_approved=True
-            )
-            for telegram_group in telegram_groups:
-                send_telegram_message(telegram_group.group_id, response_text, telegram_integration.api_token)
-                telegram_group.lead_count += 1
-                telegram_group.save()
-        response_message = Message.objects.create(
+
+        result = agent.run(assistant, conversation, transcribed_text)
+        return Message.objects.create(
             conversation=conversation,
-            sender=sender,
-            message_content=response,
+            sender=SenderTypes.ASSISTANT.value,
+            message_content=result.text,
             message_type=MessageTypes.TEXT.value,
-            input_tokens = run_status.usage.prompt_tokens or 0,
-            output_tokens = run_status.usage.completion_tokens or 0
+            input_tokens=result.input_tokens,
+            output_tokens=result.output_tokens,
         )
-        return response_message
 
 
 class SettingsSerializer(serializers.ModelSerializer):
@@ -320,7 +293,6 @@ class AssistantFileUploadSerializer(serializers.ModelSerializer, SubscriptionVal
     def validate(self, attrs):
         files = self.context.get("files")
         assistant = self.context.get("assistant")
-        print(f"validate: assistant: {assistant}")
         self.validate_subscription(assistant.user.subscription)
         if not assistant.ai_enabled:
             raise_validation_error(message=_("Assistant AI sizda yoqilmagan"))
@@ -365,18 +337,13 @@ class AssistantFileUploadSerializer(serializers.ModelSerializer, SubscriptionVal
                 )
                 try:
                     file_url = request.build_absolute_uri(upload.file.url) if request else upload.file.url
-                    vectore_name, file_name = assistant_service.gemini.create_vectore_store(
-                        vectore_name=assistant.vector_id or None,
-                        file_url=file_url
-                    )
-                    if vectore_name and file_name:
-                        upload.file_id = file_name
+                    store_id = knowledge_base.ensure_store(assistant)
+                    file_id = knowledge_base.add_file(store_id, file_url)
+                    if file_id:
+                        upload.file_id = file_id
                         upload.save(update_fields=["file_id"])
-                        if assistant.vector_id != vectore_name:
-                            assistant.vector_id = vectore_name
-                            assistant.save(update_fields=["vector_id"])
-                except Exception as e:
-                    print(f"[-] Gemini upload/attach failed: {e}")
+                except Exception as exc:
+                    logger.exception("Failed to index %s for assistant %s: %s", filename, assistant.id, exc)
                 uploaded_files.append(upload)
 
 
@@ -457,25 +424,13 @@ class UpdateFileUploadSerializer(serializers.ModelSerializer, SubscriptionValida
             )
             try:
                 file_url = request.build_absolute_uri(upload.file.url)
-                openai_file_id = assistant_service.upload_knowledge_base_file(file_url)
-                if openai_file_id:
-                    upload.file_id = openai_file_id
+                store_id = knowledge_base.ensure_store(assistant)
+                file_id = knowledge_base.add_file(store_id, file_url)
+                if file_id:
+                    upload.file_id = file_id
                     upload.save(update_fields=["file_id"])
-                    if getattr(assistant, 'vector_id', None):
-                        batch = client.vector_stores.file_batches.create(
-                            vector_store_id=assistant.vector_id,
-                            file_ids=[openai_file_id]
-                        )
-                        while True:
-                            status = client.vector_stores.file_batches.retrieve(
-                                vector_store_id=assistant.vector_id,
-                                batch_id=batch.id
-                            )
-                            if status.status in ["completed", "failed"]:
-                                break
-                            time.sleep(0.5)
-            except Exception as e:
-                print(f"[-] OpenAI upload/attach failed: {e}")
+            except Exception as exc:
+                logger.exception("Failed to index %s for assistant %s: %s", filename, assistant.id, exc)
             uploaded_files.append(upload)
 
         return uploaded_files[0] if len(uploaded_files) == 1 else uploaded_files
@@ -518,14 +473,12 @@ class AssistantFileGoogleDocSerializer(serializers.Serializer):
         sheet_doc_url = validated_data.get('sheet_doc_url')
         assistant = validated_data.get('assistant')
         response = process_google_doc(sheet_doc_url, assistant)
-        if assistant and assistant.vector_id:
-            file_url = response.get("file_url")
-            print(f"file_url: {file_url}")
-            assistant_service.update_vector_store_files(assistant.vector_id, [file_url])
-        
-        print(f"response: {response}")
+        file_url = response.get("file_url")
+        if assistant and file_url:
+            store_id = knowledge_base.ensure_store(assistant)
+            knowledge_base.add_file(store_id, file_url)
+
         validated_data["file_type"] = response.get("file_type")
-        print(f"validated_data: {validated_data}")
         return validated_data
 
 
