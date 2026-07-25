@@ -1,3 +1,4 @@
+import logging
 import random
 from datetime import timedelta, datetime
 
@@ -8,21 +9,65 @@ from apps.user.models import Notification
 from config import settings
 from shared.addons.enums import TransactionTypes, PaymentStatuses, SubscriptionStatuses, NotificationTypes
 
+logger = logging.getLogger(__name__)
+
+
+def _json_body(response):
+    """The decoded JSON of a reply, or `{}` when there isn't any."""
+    try:
+        body = response.json()
+    except ValueError:
+        return {}
+    return body if isinstance(body, dict) else {}
+
+
+def _payme_body(response, method):
+    """Return the JSON-RPC body of a Payme reply, or `None` if it failed.
+
+    Payme is JSON-RPC over HTTP: a refusal comes back as HTTP 200 with an
+    `error` member, so the status code on its own says nothing about whether
+    the call succeeded.
+    """
+    body = _json_body(response)
+    if response.status_code != 200:
+        logger.error("Payme %s returned HTTP %s", method, response.status_code)
+        return None
+    if body.get("error"):
+        logger.error("Payme %s was refused: %s", method, body["error"])
+        return None
+    return body or None
+
+
+def payme_error_message(body, default="Payme bilan bog'lanishda xatolik yuz berdi"):
+    """Extract a readable message from a Payme JSON-RPC error body.
+
+    Payme localises `error.message`: it is sometimes a plain string and
+    sometimes `{"ru": ..., "uz": ..., "en": ...}`. Falls back to `default`
+    rather than raising when the body has no usable error at all.
+    """
+    message = (body.get("error") or {}).get("message") if isinstance(body, dict) else None
+    if isinstance(message, dict):
+        message = message.get("uz") or message.get("en") or next(iter(message.values()), None)
+    return message or default
+
 
 def check_payme_card_token(token):
     """Call Payme API to verify card token."""
     param_data = {"method": "cards.check", "params": {"token": token}}
     headers = {"X-Auth": f"{settings.PAYME_ID}:{settings.PAYME_KEY}"}
-    print(param_data, headers)
     response = requests.post(
         settings.PAYME_API_URL, json=param_data, headers=headers
     )
-    print(f"check_payme_card_token: {response.json()}")
-    return response if response.status_code == 200 else None
+    return response if _payme_body(response, "cards.check") is not None else None
 
 
 def remove_payme_card(card_token):
-    """Call Payme API to remove a card."""
+    """Call Payme API to remove a card.
+
+    Returns the response only when Payme actually removed the card. Trusting
+    the HTTP status alone used to let the caller delete the local row while the
+    recurrent token stayed live and chargeable on Payme's side.
+    """
     param_data = {
         "method": "cards.remove",
         "params": {"token": card_token},
@@ -31,8 +76,7 @@ def remove_payme_card(card_token):
     response = requests.post(
         settings.PAYME_API_URL, json=param_data, headers=headers
     )
-    print(f"remove_payme_card: {response.json()}")
-    return response if response.status_code == 200 else None
+    return response if _payme_body(response, "cards.remove") is not None else None
 
 
 def create_payme_receipt(amount):
@@ -49,12 +93,13 @@ def create_payme_receipt(amount):
     response = requests.post(
         settings.PAYME_API_URL, json=payload, headers=headers
     )
-    print(f"create_payme_receipt: {response.json()}")
-    try:
-        return True, "successfull", response.json()["result"]["receipt"]["_id"]
-    except Exception:
-        return False, response.json()["error"]["message"], None
-    
+    body = _payme_body(response, "receipts.create")
+    receipt_id = (((body or {}).get("result") or {}).get("receipt") or {}).get("_id")
+    if not receipt_id:
+        return False, payme_error_message(_json_body(response)), None
+    return True, "successfull", receipt_id
+
+
 def send_create_card_request(card_number, card_expiry):
     """Create a card token in Payme."""
     payload = {
@@ -67,13 +112,10 @@ def send_create_card_request(card_number, card_expiry):
         }
     }
     headers = {"X-Auth": f"{settings.PAYME_ID}"}
-    print(payload, headers)
     response = requests.post(
         settings.PAYME_API_URL, json=payload, headers=headers
     )
-    print(f"send_create_card_request: {response.json()}")
-
-    return response.json()
+    return _json_body(response)
 
     
 def send_verify_code_request(card_token):
@@ -86,9 +128,7 @@ def send_verify_code_request(card_token):
     response = requests.post(
         settings.PAYME_API_URL, json=payload, headers=headers
     )
-    print(f"send_verify_code_request: {response.json()}")
-
-    return response.json()
+    return _json_body(response)
     
 def verify_payme_card_token(card_token, verify_code):
     """Verify a card in Payme."""
@@ -100,8 +140,7 @@ def verify_payme_card_token(card_token, verify_code):
     response = requests.post(
         settings.PAYME_API_URL, json=payload, headers=headers
     )
-    print(f"verify_payme_card_token: {response.json()}")
-    return response.json()
+    return _json_body(response)
     
 
 def commit_payme_receipt(card_token, receipt_id):
@@ -118,11 +157,11 @@ def commit_payme_receipt(card_token, receipt_id):
     response = requests.post(
         settings.PAYME_API_URL, json=payload, headers=headers
     )
-    print(f"commit_payme_receipt: {response.json()}")
-    try:
-        return True, "successfull", response.json()["result"]["receipt"]["_id"]
-    except Exception:
-        return False, response.json()["error"]["message"], None
+    body = _payme_body(response, "receipts.pay")
+    receipt_id = (((body or {}).get("result") or {}).get("receipt") or {}).get("_id")
+    if not receipt_id:
+        return False, payme_error_message(_json_body(response)), None
+    return True, "successfull", receipt_id
 
 
 def update_user_balance(user, amount):

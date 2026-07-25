@@ -1,3 +1,4 @@
+import logging
 import secrets
 import requests
 from urllib.parse import urlencode
@@ -15,14 +16,16 @@ from rest_framework_simplejwt.exceptions import TokenError
 from rest_framework_simplejwt.tokens import RefreshToken
 from django.utils.translation import gettext_lazy as _
 
-from config.settings import redis_connection, GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, GOOGLE_REDIRECT_URI, SECRET_KEY
+from config.settings import redis_connection, GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, GOOGLE_REDIRECT_URI
 import user.serializers as serializers
 from shared.addons.validations import error_response, success_response
 from shared.addons.verification import send_code
 from apps.user.models import User, PrivacyPolicy, UserAgreement, Notification
 from shared.addons.verification import send_email_code, verify_email_code, verify_code_cache
-from shared.permissions import IsAdmin, IsSuperAdmin, IsCustomer, IsAdminOrCustomer
+from shared.permissions import IsAdmin, IsAdminOrCustomer
 from shared.addons.enums import UserRoles, AuthTypes
+
+logger = logging.getLogger(__name__)
 
 class SendCodeView(generics.GenericAPIView):
     serializer_class = serializers.SendCodeSerializer
@@ -174,7 +177,7 @@ class LogoutView(APIView):
             return error_response(
                 code=status.HTTP_400_BAD_REQUEST, message=_("TokenEror - Noto'g'ri refresh token")
             )
-        except Exception as e:
+        except Exception:
             return error_response(
                 code=status.HTTP_400_BAD_REQUEST, message=_("Exception - Noto'g'ri refresh token")
             )
@@ -333,8 +336,12 @@ class GoogleAuthCallbackView(APIView):
             if not sub:
                 return error_response(message=_("Sub topilmadi"), code=400)
 
+            # Only trust the email claim for account matching/linking when Google
+            # confirms it is verified — otherwise an attacker with an unverified
+            # email equal to a victim's account email gets linked to the victim.
             email = user_info.get("email") or None
-            user = User.objects.filter(Q(sub=sub) | Q(email=email)).first() if email \
+            email_verified = user_info.get("email_verified") is True
+            user = User.objects.filter(Q(sub=sub) | Q(email=email)).first() if email and email_verified \
                 else User.objects.filter(sub=sub).first()
             if not user:
                 full_name = (user_info.get("name") or "").split(" ")
@@ -345,7 +352,7 @@ class GoogleAuthCallbackView(APIView):
                     last_name = user_info.get("family_name", "")
                 user = User.objects.create(
                     sub=sub,
-                    email=email,
+                    email=email if email_verified else None,
                     first_name=first_name,
                     last_name=last_name,
                     auth_type=AuthTypes.GOOGLE.value,
@@ -357,8 +364,9 @@ class GoogleAuthCallbackView(APIView):
 
             tokens = user.tokens()
             return success_response(message=_("Foydalanuvchi muvaffaqiyatli autentifikatsiya qilindi"), data=tokens, code=status.HTTP_200_OK)
-        except Exception as e:
-            return error_response(message=str(e), code=400)
+        except Exception:
+            logger.exception("Google OAuth callback failed")
+            return error_response(message=_("Autentifikatsiya amalga oshmadi. Iltimos, qaytadan urinib ko'ring"), code=400)
 
 class AddStaffView(generics.CreateAPIView):
     queryset = User.objects.all()

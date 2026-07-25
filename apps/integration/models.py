@@ -1,6 +1,13 @@
 from django.db import models
 
-from shared.addons.enums import IntegrationTypes, ActionType, ButtonType, ConditionType, FlowType
+from shared.addons.enums import (
+    ActionType,
+    BroadcastStatuses,
+    ButtonType,
+    ConditionType,
+    FlowType,
+    IntegrationTypes,
+)
 from shared.models import BaseModel
 
 
@@ -178,7 +185,7 @@ class Broadcast(BaseModel):
     total_recipients = models.IntegerField(default=0)
     sent_count = models.IntegerField(default=0)
     failed_count = models.IntegerField(default=0)
-    status = models.CharField(max_length=20, default='pending')
+    status = models.CharField(max_length=20, default=BroadcastStatuses.PENDING.value)
 
     class Meta:
         db_table = 'broadcast'

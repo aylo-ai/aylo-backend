@@ -132,13 +132,6 @@ class TransactionTypes(EnumBaseModel):
     WITHDRAW = 'withdraw'
 
 
-class LeadStatuses(EnumBaseModel):
-    NEW = 'new'
-    REGISTERED = 'registered'
-    DELIVERED = 'delivered'
-    LOST = 'lost'
-
-
 class PricingPackageType(EnumBaseModel):
     FREE = 'free'
     CUSTOM = 'custom'
@@ -166,6 +159,14 @@ class FileTypes(EnumBaseModel):
     GOOGLE_DOCUMENT = 'google_document'
 
 class LeadStatuses(EnumBaseModel):
+    """Lifecycle of a captured lead.
+
+    An earlier `new/registered/delivered/lost` version of this class used to sit
+    further up the file and was silently shadowed by this one — Python keeps the
+    last definition, so those four values were never the ones in effect. The
+    duplicate has been removed; these are the real values, and the ones
+    `assistant/tasks.py` writes.
+    """
     NEW = 'new'
     ENGAGED = 'engaged'
     PARTIAL_INFO = 'partial_info'
@@ -192,3 +193,8 @@ class FollowUpLogStatus(EnumBaseModel):
     SENT = 'sent'
     CANCELLED = 'cancelled'
     FAILED = 'failed'
+
+class BroadcastStatuses(EnumBaseModel):
+    PENDING = 'pending'
+    SENDING = 'sending'
+    COMPLETED = 'completed'

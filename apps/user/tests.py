@@ -7,6 +7,7 @@ touching the network.
 """
 from unittest import mock
 
+from django.core import mail
 from django.test import TestCase, override_settings
 from rest_framework.test import APIClient
 
@@ -123,6 +124,150 @@ class VerifyOtpViewTests(TestCase):
         self.assertEqual(second.status_code, 200)
 
 
+LOCMEM_EMAIL = override_settings(
+    EMAIL_BACKEND="django.core.mail.backends.locmem.EmailBackend",
+    EMAIL_HOST_USER="noreply@example.com",
+)
+
+
+@LOCMEM_EMAIL
+class EmailCodeDeliveryTests(TestCase):
+    """Sign-up by email: the code must only exist once the mail is out."""
+
+    def setUp(self):
+        self.redis = FakeRedis()
+        patch = mock.patch.object(verification, "redis_connection", self.redis)
+        patch.start()
+        self.addCleanup(patch.stop)
+        mail.outbox = []
+
+    def test_code_is_emailed_and_stored(self):
+        ok, _message = verification.send_email_code("signup@example.com")
+
+        self.assertTrue(ok)
+        self.assertEqual(len(mail.outbox), 1)
+        self.assertEqual(mail.outbox[0].to, ["signup@example.com"])
+
+        stored = self.redis.get("signup@example.com").decode()
+        # The code the user was emailed is the code the cache will accept.
+        self.assertIn(stored, mail.outbox[0].body)
+        self.assertEqual(len(stored), 6)
+
+    def test_a_failed_send_stores_no_code_and_leaks_no_smtp_detail(self):
+        self.redis.setex("signup@example.com", 300, 111111)
+
+        with mock.patch.object(
+            verification, "send_mail",
+            side_effect=Exception("SMTP auth failed for user@smtppro.zoho.com"),
+        ):
+            ok, message = verification.send_email_code("signup@example.com")
+
+        self.assertFalse(ok)
+        self.assertNotIn("smtppro", str(message))
+        # The previously issued code survives — a failed send must not replace
+        # a code the user is still holding with one they never received.
+        self.assertEqual(self.redis.get("signup@example.com").decode(), "111111")
+
+    def test_correct_code_verifies_and_is_burned(self):
+        self.redis.setex("signup@example.com", 300, 654321)
+
+        ok, _message = verification.verify_email_code("signup@example.com", "654321")
+
+        self.assertTrue(ok)
+        self.assertEqual(self.redis.get("signup@example.com_verified"), b"true")
+        self.assertIsNone(self.redis.get("signup@example.com"))
+        # Replaying the same code now fails.
+        self.assertFalse(verification.verify_email_code("signup@example.com", "654321")[0])
+
+    def test_wrong_email_code_is_thrown_away_after_the_attempt_cap(self):
+        self.redis.setex("signup@example.com", 300, 654321)
+
+        for _ in range(verification.MAX_VERIFY_ATTEMPTS - 1):
+            self.assertFalse(
+                verification.verify_email_code("signup@example.com", "000000")[0]
+            )
+
+        ok, message = verification.verify_email_code("signup@example.com", "000000")
+
+        self.assertFalse(ok)
+        self.assertIn("Too many", str(message))
+        self.assertIsNone(self.redis.get("signup@example.com"))
+        # Even the right code is dead once the cap burned it.
+        self.assertFalse(verification.verify_email_code("signup@example.com", "654321")[0])
+
+
+@NO_THROTTLE
+class EmailSignUpFlowTests(TestCase):
+    """The two endpoints the email sign-up screen calls, end to end."""
+
+    def setUp(self):
+        self.client = APIClient()
+
+    def test_send_otp_accepts_an_email(self):
+        with mock.patch("user.views.send_email_code", return_value=(True, "sent")) as send:
+            response = self.client.post(
+                "/api/v1/user/auth/send-otp/", {"email": "new@example.com"},
+            )
+
+        self.assertEqual(response.status_code, 200)
+        send.assert_called_once_with("new@example.com")
+
+    def test_send_otp_rejects_a_malformed_email(self):
+        with mock.patch("user.views.send_email_code") as send:
+            response = self.client.post(
+                "/api/v1/user/auth/send-otp/", {"email": "not-an-email"},
+            )
+
+        self.assertEqual(response.status_code, 400)
+        send.assert_not_called()
+
+    def test_verifying_an_email_code_creates_the_account_once(self):
+        with mock.patch("user.views.verify_email_code", return_value=(True, "ok")):
+            first = self.client.post(
+                "/api/v1/user/auth/verify-otp/",
+                {"email": "new@example.com", "code": "123456"},
+            )
+            second = self.client.post(
+                "/api/v1/user/auth/verify-otp/",
+                {"email": "new@example.com", "code": "123456"},
+            )
+
+        self.assertEqual(first.status_code, 200)
+        self.assertIn("access", first.data["data"]["tokens"])
+        self.assertEqual(second.status_code, 200)
+
+        users = User.objects.filter(email="new@example.com")
+        self.assertEqual(users.count(), 1)
+        self.assertEqual(users.first().auth_type, "email")
+
+    def test_a_wrong_email_code_creates_no_account(self):
+        with mock.patch("user.views.verify_email_code", return_value=(False, "Invalid verification code")):
+            response = self.client.post(
+                "/api/v1/user/auth/verify-otp/",
+                {"email": "new@example.com", "code": "000000"},
+            )
+
+        self.assertEqual(response.status_code, 400)
+        self.assertFalse(User.objects.filter(email="new@example.com").exists())
+
+    def test_a_brand_new_account_starts_with_no_name_and_no_subscription(self):
+        """What the frontend keys the 'complete profile' and 'choose a plan'
+        onboarding steps off — both must be empty for a first-time sign-up."""
+        with mock.patch("user.views.verify_email_code", return_value=(True, "ok")):
+            self.client.post(
+                "/api/v1/user/auth/verify-otp/",
+                {"email": "new@example.com", "code": "123456"},
+            )
+
+        user = User.objects.get(email="new@example.com")
+        self.client.force_authenticate(user)
+        profile = self.client.get("/api/v1/user/auth/profile/")
+
+        self.assertEqual(profile.status_code, 200)
+        self.assertIsNone(profile.data["first_name"])
+        self.assertIsNone(profile.data["subscription"])
+
+
 class RegisterGateTests(TestCase):
     def setUp(self):
         self.client = APIClient()
@@ -198,3 +343,48 @@ class GoogleOAuthCsrfTests(TestCase):
                 "/api/v1/user/accounts/google/login/callback/?code=abc&state=forged"
             )
         self.assertEqual(response.status_code, 400)
+
+
+class GoogleOAuthEmailVerificationTests(TestCase):
+    """H1 (2026-07-22) — an unverified Google email claim must not match or
+    link to an existing account with that email (account-takeover vector)."""
+
+    def setUp(self):
+        self.client = APIClient()
+        self.victim = User.objects.create(
+            username="victim", auth_type="email", email="victim@example.com",
+        )
+
+    def callback(self, claims):
+        redis = mock.MagicMock()
+        redis.delete.return_value = 1  # state found and consumed
+        token_response = mock.Mock()
+        token_response.json.return_value = {"id_token": "raw-token"}
+        with mock.patch("user.views.redis_connection", redis), \
+                mock.patch("user.views.requests.post", return_value=token_response), \
+                mock.patch("user.views.google_id_token.verify_oauth2_token",
+                           return_value=claims):
+            return self.client.get(
+                "/api/v1/user/accounts/google/login/callback/?code=abc&state=ok"
+            )
+
+    def test_unverified_email_does_not_link_to_the_existing_account(self):
+        response = self.callback({
+            "sub": "attacker-sub", "email": "victim@example.com",
+            "email_verified": False, "name": "Att Acker",
+        })
+        self.assertEqual(response.status_code, 200)
+        self.victim.refresh_from_db()
+        self.assertIsNone(self.victim.sub)
+        attacker = User.objects.get(sub="attacker-sub")
+        self.assertNotEqual(attacker.id, self.victim.id)
+        self.assertIsNone(attacker.email)
+
+    def test_verified_email_links_to_the_existing_account(self):
+        response = self.callback({
+            "sub": "google-sub", "email": "victim@example.com",
+            "email_verified": True, "name": "Vic Tim",
+        })
+        self.assertEqual(response.status_code, 200)
+        self.victim.refresh_from_db()
+        self.assertEqual(self.victim.sub, "google-sub")

@@ -11,10 +11,27 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 sys.path.append(os.path.join(BASE_DIR, "apps"))
 load_dotenv()
 
-SECRET_KEY = os.environ.get("SECRET_KEY", "django-insecure-j_27^f$x$3_q^)-3vn6!ps*9apa$nshm)202rq98y^fhf+ydz=")
 DEBUG: bool = os.environ.get("DEBUG") in ["True", "true"]
 
-ALLOWED_HOSTS = ["*"]
+SECRET_KEY = os.environ.get("SECRET_KEY")
+if not SECRET_KEY:
+    if DEBUG or "test" in sys.argv:
+        SECRET_KEY = "django-insecure-dev-only-key-do-not-use-in-production"
+    else:
+        from django.core.exceptions import ImproperlyConfigured
+
+        raise ImproperlyConfigured("SECRET_KEY environment variable is required when DEBUG is off")
+
+ALLOWED_HOSTS = os.environ.get("ALLOWED_HOSTS", ".repli.uz,localhost,127.0.0.1").split(",")
+
+# Tests intentionally simulate outages (OpenAI down, Redis down, …) and the
+# fail-soft code logs them. Silence logging during test runs so a green run
+# reads green — only real test failures show up.
+TESTING = "test" in sys.argv
+if TESTING:
+    import logging
+
+    logging.disable(logging.CRITICAL)
 
 AZURE_OPENAI_ENDPOINT = os.environ.get("AZURE_OPENAI_ENDPOINT")
 AZURE_OPENAI_DEPLOYMENT = os.environ.get("AZURE_OPENAI_DEPLOYMENT")
@@ -170,15 +187,6 @@ SECURE_HSTS_SECONDS = 3600
 
 CORS_ORIGIN_ALLOW_ALL = False
 
-CORS_ALLOWED_HEADERS = [
-    'content-type',
-    'authorization',
-    'x-requested-with',
-    'accept',
-    'origin',
-    'accept-language',
-]
-
 CORS_ALLOWED_ORIGINS = [
     "http://localhost:3000",
     "http://localhost:5173",
@@ -189,9 +197,10 @@ CORS_ALLOWED_ORIGINS = [
     "https://dashboard.repli.uz",
     "https://dev-app.repli.uz",
     "https://dev-api.repli.uz",
+    "https://df04-82-215-100-92.ngrok-free.app",
 ]
 
-CORS_ALLOWED_METHODS = [
+CORS_ALLOW_METHODS = [
     "GET",
     "POST",
     "PUT",
@@ -216,6 +225,7 @@ CSRF_TRUSTED_ORIGINS = [
     "https://*.repli.uz",
     "http://127.0.0.1:8000",
     "http://localhost:5173",
+    "https://df04-82-215-100-92.ngrok-free.app",
 ]
 
 SIMPLE_JWT = {
@@ -302,43 +312,43 @@ CELERY_TASK_SERIALIZER = 'json'
 CELERY_BROKER_CONNECTION_RETRY_ON_STARTUP = True
 
 
-LOGGING = {
-    "version": 1,
-    "disable_existing_loggers": False,
-    "formatters": {
-        "default-formatter": {
-            "format": "[%(levelname)s] %(asctime)s %(filename)s:%(lineno)s:%(funcName)s: %(message)s",
-            "datefmt": "%m/%d/%Y %H:%M:%S",
-        },
-    },
-    "handlers": {
-        "console": {
-            "level": "DEBUG",
-            "class": "logging.StreamHandler",
-            "formatter": "default-formatter",
-        },
-    },
-    "loggers": {
-        "": {
-            "level": "WARNING",
-            "handlers": ["console"],
-        },
-        "django": {
-            "level": "ERROR",
-            "handlers": ["console"],
-            "propagate": False,
-        },
-        "django.request": {
-            "level": "ERROR",
-            "handlers": ["console"],
-            "propagate": False,
-        },
-        "api": {
-            "level": "DEBUG",
-            "handlers": ["console"],
-        },
-    },
-}
+# LOGGING = {
+#     "version": 1,
+#     "disable_existing_loggers": False,
+#     "formatters": {
+#         "default-formatter": {
+#             "format": "[%(levelname)s] %(asctime)s %(filename)s:%(lineno)s:%(funcName)s: %(message)s",
+#             "datefmt": "%m/%d/%Y %H:%M:%S",
+#         },
+#     },
+#     "handlers": {
+#         "console": {
+#             "level": "DEBUG",
+#             "class": "logging.StreamHandler",
+#             "formatter": "default-formatter",
+#         },
+#     },
+#     "loggers": {
+#         "": {
+#             "level": "WARNING",
+#             "handlers": ["console"],
+#         },
+#         "django": {
+#             "level": "ERROR",
+#             "handlers": ["console"],
+#             "propagate": False,
+#         },
+#         "django.request": {
+#             "level": "ERROR",
+#             "handlers": ["console"],
+#             "propagate": False,
+#         },
+#         "api": {
+#             "level": "DEBUG",
+#             "handlers": ["console"],
+#         },
+#     },
+# }
 
 REDIS_DB: int = int(os.environ.get("REDIS_DB", default=0))
 REDIS_HOST: str = os.environ.get("REDIS_HOST", default="localhost")
@@ -372,7 +382,12 @@ GOOGLE_REDIRECT_URI = os.environ.get("GOOGLE_REDIRECT_URI")
 GOOGLE_GEMINI_API_KEY = os.environ.get("GOOGLE_GEMINI_API_KEY")
 
 # Email settings
-EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
+# Overridable so a local environment can print the OTP email to the console
+# (`EMAIL_BACKEND=django.core.mail.backends.console.EmailBackend`) instead of
+# needing live Zoho SMTP credentials to exercise the email sign-up flow.
+EMAIL_BACKEND = os.environ.get(
+    "EMAIL_BACKEND", "django.core.mail.backends.smtp.EmailBackend"
+)
 EMAIL_HOST = 'smtppro.zoho.com'
 EMAIL_PORT = 465
 EMAIL_USE_SSL = True
@@ -385,7 +400,7 @@ DEFAULT_FROM_EMAIL = os.environ.get("EMAIL_HOST_USER")
 INSTAGRAM_CLIENT_ID = os.environ.get("INSTAGRAM_CLIENT_ID")
 INSTAGRAM_CLIENT_SECRET = os.environ.get("INSTAGRAM_CLIENT_SECRET")
 INSTAGRAM_REDIRECT_URI = os.environ.get("INSTAGRAM_REDIRECT_URI")
-INSTAGRAM_VERIFY_TOKEN = os.environ.get("INSTAGRAM_VERIFY_TOKEN", "wqbm2DoK5zfsF28Qb82Z")
+INSTAGRAM_VERIFY_TOKEN = os.environ.get("INSTAGRAM_VERIFY_TOKEN", "")
 INSTAGRAM_APP_SECRET = os.environ.get("INSTAGRAM_APP_SECRET", "")
 
 DATA_UPLOAD_MAX_MEMORY_SIZE = 104857600  # 100 MB
@@ -442,14 +457,6 @@ LANGUAGES = (
     ('ar', 'Arabic'),
 )
 MODELTRANSLATION_LANGUAGES = ('en', 'uz', 'ru', 'kk', 'ar')
-
-
-import sentry_sdk # Sentry SDK for error tracking and monitoring
-
-# sentry_sdk.init(
-#     dsn="https://cb6c7ba11d9da224011674295fef19a0@o4506302611980288.ingest.us.sentry.io/4510062349189120",
-#     send_default_pii=True,
-# )
 
 BITRIX_CLIENT_ID='local.68fa1c012ca095.04783670'
 BITRIX_CLIENT_KEY='8Jpee3uOJnVgQQzBNtHmzqhWufqxIfm7fzjiohFjK3RS2cpqqP'

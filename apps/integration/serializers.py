@@ -24,6 +24,16 @@ from .models import (Integration,
                     Broadcast)
 
 
+def _non_null_int(value, default=0):
+    """Instagram omits the counters on some media types and sends them as null.
+
+    `InstagramMedia.comments_count` / `like_count` are NOT NULL with a default,
+    so an explicit ``None`` has to be turned back into that default instead of
+    blowing up with an IntegrityError.
+    """
+    return default if value is None else value
+
+
 class IntegrationCreateSerializer(serializers.ModelSerializer, SubscriptionValidationMixin):
     class Meta:
         model = Integration
@@ -39,6 +49,9 @@ class IntegrationCreateSerializer(serializers.ModelSerializer, SubscriptionValid
         ]
         extra_kwargs = {
             "assistant": {"required": False},
+            # A bot token is a credential: accepted on write, never echoed back.
+            # It was previously returned on every read of an integration.
+            "api_token": {"write_only": True},
         }
 
     def validate(self, attrs):
@@ -47,12 +60,11 @@ class IntegrationCreateSerializer(serializers.ModelSerializer, SubscriptionValid
         user = self.context.get("request").user
         base_url = self.context.get("base_url")
         assistant_id = self.context.get("assistant_id", None)
-        try:
-            assistant = Assistant.objects.filter(id=assistant_id).first()
-            if not assistant.vector_id:
-                raise_validation_error(message=_("Assistant faol emas, zarur fayl yuklash"))
-        except Assistant.DoesNotExist:
-            raise_validation_error(message=_("Assistant topilmadi"))
+        assistant = Assistant.objects.filter(id=assistant_id).first()
+        if not assistant:
+            raise_validation_error(message=_("Assistant topilmadi"), code=404)
+        if not assistant.vector_id:
+            raise_validation_error(message=_("Assistant faol emas, zarur fayl yuklash"))
         self.validate_subscription(user.subscription)
         self.validate_intergation_count(user, assistant_id)
 
@@ -82,19 +94,14 @@ class IntegrationCreateSerializer(serializers.ModelSerializer, SubscriptionValid
 
     def create(self, validated_data):
         api_token = validated_data.get('api_token')
-        assistant_id = self.context.get('assistant_id')
-        assistant = Assistant.objects.get(id=assistant_id)
-        if not assistant:
-            raise_validation_error(message=_("Assistant topilmadi"))
-        type = validated_data.get('integration_type')
-        if type == IntegrationTypes.BILLZ.value:
+        integration_type = validated_data.get('integration_type')
+        if integration_type == IntegrationTypes.BILLZ.value:
             if not api_token:
                 raise_validation_error(message=_("Billz API token kerak"))
-            response = requests.post(f"https://api-admin.billz.ai/v1/auth/login", json={"secret_token": api_token})
+            response = requests.post("https://api-admin.billz.ai/v1/auth/login", json={"secret_token": api_token})
             if response.status_code != 200:
                 raise_validation_error(message=_("Billz API token yaroqli emas"))
 
-            print(f"response: {response.json()}")
             access_token = response.json().get('data').get('access_token')
             if not access_token:
                 raise_validation_error(message=_("Billz access token topilmadi"))
@@ -118,7 +125,11 @@ class IntegrationSerializer(serializers.ModelSerializer, SubscriptionValidationM
             "integration_type",
             "api_token",
         ]
-    
+        extra_kwargs = {
+            # Bot / access tokens are credentials: accept them, never hand them back.
+            "api_token": {"write_only": True},
+        }
+
     def validate(self, attrs):
         assistant_id = self.context.get("assistant_id")
         try:
@@ -163,10 +174,10 @@ class SendUserMessageSerializer(serializers.Serializer, SubscriptionValidationMi
         if not conversation_id or not message:
             raise_validation_error(message=_("Muloqot ID va xabar mavjud emas"))
         conversation = Conversation.objects.filter(id=conversation_id, assistant__user=user).first()
-        self.validate_subscription(conversation.assistant.user.subscription)
-        
         if not conversation:
-            raise_validation_error(message=_("Muloqot topilmadi"))
+            raise_validation_error(message=_("Muloqot topilmadi"), code=404)
+        self.validate_subscription(conversation.assistant.user.subscription)
+
         if conversation.status != ConversationStatuses.ESCALATED.value:
             raise_validation_error(message=_("Muloqot xabar yuborish mumkin emas"))
         platform = conversation.platform
@@ -270,6 +281,10 @@ class InstagramMediaSerializer(serializers.ModelSerializer):
                 
 
 class CommentTriggerWordSerializer(serializers.ModelSerializer):
+    # The column is `blank=True`, which would make DRF treat it as optional and
+    # skip `validate_trigger_word` entirely — allowing empty trigger words.
+    trigger_word = serializers.CharField(required=True, allow_blank=False, max_length=255)
+
     class Meta:
         model = CommentTriggerWord
         fields = [

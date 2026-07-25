@@ -1,5 +1,5 @@
 from django.contrib.postgres.fields import ArrayField
-from django.db import models, transaction
+from django.db import models
 from django.utils import timezone
 from django.utils.timezone import now
 from shared.models import BaseModel
@@ -173,26 +173,38 @@ class Message(BaseModel):
 
     def save(self, *args, **kwargs):
         from shared.addons.utils import notify_user_about_low_tokens
-        with transaction.atomic():
-            if self.conversation:
-                self.conversation.updated_time = now()
-                self.conversation.save(update_fields=["updated_time"])
+        from apps.payment.models import Subscription
 
-            assistant_user = (
-                getattr(self.conversation.assistant, "user", None)
-                if self.conversation
-                else None
-            )
-            if assistant_user and self.sender == SenderTypes.ASSISTANT.value:
-                subscription = assistant_user.subscription
-                if subscription.remained_request_count > 0:
-                    subscription.remained_request_count -= 1
+        if self.conversation:
+            # Bump conversation activity with a single UPDATE, no full save.
+            Conversation.objects.filter(pk=self.conversation.pk).update(updated_time=now())
+
+        assistant_user = (
+            getattr(self.conversation.assistant, "user", None)
+            if self.conversation
+            else None
+        )
+        # Charge the owner's quota only when a NEW assistant reply is inserted:
+        # edits/re-saves must not charge again, and an owner without a
+        # subscription must not crash the reply.
+        subscription = getattr(assistant_user, "subscription", None)
+        if (
+            self._state.adding
+            and subscription is not None
+            and self.sender == SenderTypes.ASSISTANT.value
+        ):
+            # Race-free decrement that can never go negative.
+            charged = Subscription.objects.filter(
+                pk=subscription.pk, remained_request_count__gt=0
+            ).update(remained_request_count=models.F("remained_request_count") - 1)
+            if charged:
+                subscription.refresh_from_db(fields=["remained_request_count"])
+                # Warn the owner only when a request was actually consumed.
                 if subscription.remained_request_count in [0, 10, 20]:
                     notify_user_about_low_tokens(
                         assistant_user, subscription.remained_request_count
                     )
-                subscription.save(update_fields=["remained_request_count"])
-            super().save(*args, **kwargs)
+        super().save(*args, **kwargs)
 
 
 class Settings(BaseModel):

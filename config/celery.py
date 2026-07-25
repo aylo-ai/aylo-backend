@@ -31,7 +31,6 @@ app.conf.task_routes = {
     # Sync jobs — low priority, background
     'apps.integration.tasks.update_billz_products_hourly': {'queue': 'sync'},
     'apps.integration.tasks.fetch_and_save_billz_products': {'queue': 'sync'},
-    'apps.integration.tasks.create_amocrm_lead': {'queue': 'sync'},
     # Assistant file tasks
     'apps.assistant.tasks.save_uploaded_file': {'queue': 'sync'},
     'apps.assistant.tasks.daily_statistics_assistant': {'queue': 'sync'},

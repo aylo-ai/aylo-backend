@@ -1,5 +1,7 @@
 from rest_framework import serializers
 from rest_framework_simplejwt.tokens import RefreshToken, TokenError
+from drf_spectacular.utils import extend_schema_field
+from drf_spectacular.types import OpenApiTypes
 from django.utils.translation import gettext_lazy as _
 
 from shared.addons.validations import raise_validation_error, check_number, check_email_phone_number
@@ -84,6 +86,7 @@ class RegisterUserSerializer(serializers.ModelSerializer):
             'pricing_package': {'required': False},
         }
 
+    @extend_schema_field(OpenApiTypes.OBJECT)
     def get_tokens(self, user): # noqa
         return user.tokens()
 
@@ -197,6 +200,7 @@ class UserSerializer(serializers.ModelSerializer):
             "integrations",
         ]
     
+    @extend_schema_field(OpenApiTypes.OBJECT)
     def get_integrations(self, obj): # noqa
         integrations = obj.integrations.filter(assistant__isnull=True)
         integrations_data = []
@@ -210,12 +214,14 @@ class UserSerializer(serializers.ModelSerializer):
         return integrations_data
 
 
+    @extend_schema_field(OpenApiTypes.INT)
     def get_total_used_token_count(self, obj): # noqa
         subscription = obj.subscription
         if subscription:
             return subscription.pricing_package.request_count - subscription.remained_request_count
         return 0
     
+    @extend_schema_field(OpenApiTypes.OBJECT)
     def get_subscription(self, obj): # noqa
         subscription = obj.subscription
         if subscription:
@@ -274,10 +280,12 @@ class UpdateProfileSerializer(serializers.ModelSerializer):
     def validate(self, attrs):
         first_name = attrs.get('first_name', None)
         last_name = attrs.get('last_name', None)
-        # validate first name and last name to get only one word
-        if len(first_name.split()) > 1:
+        # The view always updates partially, so either name may be absent —
+        # `.split()` on the resulting None raised AttributeError (a 500) for an
+        # empty body or any request that only changed the username.
+        if first_name and len(first_name.split()) > 1:
             raise_validation_error(message=_("Ism bir so'zdan iborat bo'lishi kerak"))
-        if len(last_name.split()) > 1:
+        if last_name and len(last_name.split()) > 1:
             raise_validation_error(message=_("Familya bir so'zdan iborat bo'lishi kerak"))
         return attrs
 
@@ -421,6 +429,7 @@ class StaffListSerializer(serializers.ModelSerializer):
         model = User
         fields = ['id', 'first_name', 'last_name', 'email_or_phone', 'created_time']
 
+    @extend_schema_field(OpenApiTypes.STR)
     def get_email_or_phone(self, obj):
         return obj.email or obj.phone_number or ''
 

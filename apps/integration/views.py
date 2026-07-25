@@ -24,8 +24,7 @@ from shared.addons.validations import success_response, error_response
 from shared.permissions import IsCustomer
 from apps.shared.addons.instagram import instagram_service
 from apps.assistant.models import Assistant
-from apps.assistant.models import Conversation
-from .models import Integration, TelegramGroupIntegration, InstagramMedia, CommentTriggerWord, InstagramCommentResponse, Flow, Transition, Step, CommentResponseButton, InstagramUserState, Broadcast
+from .models import Integration, TelegramGroupIntegration, InstagramMedia, CommentTriggerWord, InstagramCommentResponse, Flow, Transition, Step, CommentResponseButton, Broadcast
 from .serializers import (IntegrationCreateSerializer,
                         IntegrationSerializer,
                         SendUserMessageSerializer,
@@ -84,8 +83,14 @@ class IntegrationListCreateView(generics.ListCreateAPIView):
         return IntegrationSerializer
 
     def get_queryset(self):
+        # Filtering by the URL's assistant alone let any authenticated user
+        # list another tenant's integrations — including their Telegram bot
+        # `api_token`, i.e. full takeover of the victim's bot.
         assistant_id = self.kwargs.get('pk')
-        return self.queryset.filter(assistant_id=assistant_id)
+        return self.queryset.filter(
+            Q(assistant__user=self.request.user) | Q(user=self.request.user),
+            assistant_id=assistant_id,
+        ).distinct()
 
     def create(self, request, *args, **kwargs):
         base_url = f"{request.scheme}://{request.get_host()}"
@@ -106,16 +111,16 @@ class IntegrationRetrieveUpdateDestroyView(generics.RetrieveUpdateDestroyAPIView
     serializer_class = IntegrationCreateSerializer
     permission_classes = [permissions.IsAuthenticated]
 
-    def get_object(self):
-        # check if the integration belongs to the assistant
-        obj = super().get_object()
-        if obj.assistant:
-            if obj.assistant.user != self.request.user:
-                return error_response(message=_("Integration topilmadi"))
-        else:
-            if obj.user != self.request.user:
-                return error_response(message=_("Integration topilmadi"))
-        return obj
+    def get_queryset(self):
+        # Scope at the queryset so retrieve/update/destroy all 404 on another
+        # tenant's integration. The previous `get_object` *returned* an
+        # `error_response(...)` — a DRF `Response` — which the handlers then
+        # used as if it were a model instance, so every cross-tenant request
+        # blew up with a 500 (`'Response' object has no attribute 'delete'`)
+        # rather than being refused.
+        return self.queryset.filter(
+            Q(assistant__user=self.request.user) | Q(user=self.request.user),
+        ).distinct()
 
     def retrieve(self, request, *args, **kwargs):
         instance = self.get_object()
@@ -166,7 +171,6 @@ class SendIntegrationMessageView(generics.CreateAPIView):
         try:
             integration = Integration.objects.get(id=integration_id)
             if integration.assistant.user != request.user:
-                print(f"Integration user: {integration.user}, Request user: {request.user}")
                 return error_response(message=_("Sizda bu integration mavjud emas"), code=400)
         except Integration.DoesNotExist:
             return error_response(message=_("Integration topilmadi"), code=404)
@@ -180,7 +184,10 @@ class InstagramWebhookView(APIView):
         """Verify Instagram X-Hub-Signature-256 header."""
         app_secret = settings.INSTAGRAM_APP_SECRET
         if not app_secret:
-            return True  # Skip verification if secret not configured yet
+            # Fail closed: without a configured secret we cannot authenticate
+            # the sender, so reject rather than accept forged events.
+            logger.error("INSTAGRAM_APP_SECRET is not configured; rejecting webhook")
+            return False
 
         signature_header = request.META.get('HTTP_X_HUB_SIGNATURE_256', '')
         if not signature_header:
@@ -198,7 +205,7 @@ class InstagramWebhookView(APIView):
         token = request.query_params.get("hub.verify_token")
         challenge = request.query_params.get("hub.challenge")
 
-        if mode == "subscribe" and token == settings.INSTAGRAM_VERIFY_TOKEN:
+        if mode == "subscribe" and settings.INSTAGRAM_VERIFY_TOKEN and token == settings.INSTAGRAM_VERIFY_TOKEN:
             return HttpResponse(challenge, content_type="text/plain", status=200)
 
         return error_response(message=_("Token yaroqsiz"), code=403)
@@ -209,14 +216,11 @@ class InstagramWebhookView(APIView):
 
         logger.info("Instagram webhook data received")
         data = request.data
-        print(f"Instagram webhook data: {data}")
         if not data:
             return error_response(message=_("Ma'lumot topilmadi"), code=400)
-        
+
         entry = data.get("entry")[0]
-        print(f"Entry: {entry}")
         account_id = entry.get("id") # IG Professional Account ID (instagram_user_id)
-        print(f"Account ID: {account_id}")
 
         # Handle comments
         if "changes" in entry:
@@ -224,7 +228,6 @@ class InstagramWebhookView(APIView):
                 if change.get("field") == "comments":
                     comment_data = change.get("value", {})
                     if comment_data:
-                        print(f"Comment data: {comment_data}, Account ID: {account_id}")
                         # Get access token from integration
                         integration = Integration.objects.filter(instagram_account_id=account_id).first()
                         if integration and integration.api_token:
@@ -269,16 +272,12 @@ class InstagramWebhookView(APIView):
                 return success_response(message=_("Shared post xabar muvaffaqiyatli olindi"), code=200)
             elif attachment_type in ['ig_reel', 'unsupported_type']:
                 return success_response(message=_("Reel yoki qo'shimcha turdagi xabar muvaffaqiyatli olindi"), code=200)
-            print(f"Is echo: {is_echo}, Audio file: {audio_file}")
             if is_echo:
-                print("Echo message received")
                 return success_response(message=_("Echo xabar muvaffaqiyatli olindi"), code=200)
-            print(f"Messaging: {messaging}")
             sender_id = messaging[0].get("sender", {}).get("id", None)
-            print(f"Sender ID: {sender_id}")
             if not Integration.objects.filter(instagram_account_id=sender_id).exists():
                 if not Integration.objects.filter(instagram_account_id=account_id).exists():
-                    print(f"Integration not found for account ID: {account_id}")
+                    logger.warning("Integration not found for Instagram account %s", account_id)
                     return error_response(message="Integration not found", code=404)
                 # Start celery task to process the incoming message
                 if audio_file:
@@ -296,7 +295,7 @@ class InstagramWebhookView(APIView):
                         process_collected_messages.apply_async((sender_id, None, messaging, None, None, account_id), countdown=WAIT_SECONDS)
                 return success_response(message=_("Xabar webhook ma'lumotlar muvaffaqiyatli olindi"), code=200)
             else:
-                print("Integration same found with the integration:", account_id)
+                logger.info("Instagram sender %s is itself an integrated account; skipping", account_id)
                 return success_response(message=_("Integratsiya boshqa foydalanuvchida ham topildi"), code=400)
 
         return success_response(message=_("Webhook ma'lumotlar muvaffaqiyatli olindi"), code=200)
@@ -327,28 +326,22 @@ class InstagramCallbackView(APIView):
             "redirect_uri": self.REDIRECT_URI,
             "code": code,
         }
-        print(f"Data: {data}")
 
         response = requests.post(token_url, data=data)
         if response.status_code == 400:
             return error_response(message=response.json().get("error_message"), code=400)
-        print(f"Response: {response.text}")
         if response.status_code == 200:
             token_data = response.json()
             short_lived_access_token = token_data.get("access_token")
-            user_id = token_data.get("user_id")
-            print(f"Short lived Access Token: {short_lived_access_token}, User ID: {user_id}")
             # Fetch Instagram Business Accounts
             access_token = instagram_service.get_long_lived_access_token(short_lived_access_token)
-            print(f"Long lived Access Token: {access_token}")
         else:
             return error_response(message=("Access token topilmadi"), code=400)
         # get instagram user profile
         user_profile = instagram_service.get_user_profile(access_token)
         if user_profile:
-            print(f"User Profile: {user_profile}")
             if Integration.objects.filter(instagram_account_id=user_profile.get("instagram_account_id")).exists():
-                print("Sizda instagram integratsiyasi mavjud")
+                logger.info("Instagram integration already exists for account %s", user_profile.get("instagram_account_id"))
                 return error_response(message=("Instagram integratsiyasi sizda mavjud"), code=400)
             integration, created = Integration.objects.get_or_create(
                 instagram_user_id=user_profile.get("instagram_user_id"),
@@ -365,21 +358,15 @@ class InstagramCallbackView(APIView):
             )
             if not created:
                 return error_response(message=("Instagram integratsiyasi sizda mavjud"), code=200)
-            print(f"Integration is successfully created: {integration}")
-            # enqueue background build of Instagram knowledge base
-            try:
-                if assistant_id:
-                    # transaction.on_commit(lambda: build_instagram_kb.delay(str(integration.id)))
-                    print(f"Enqueued build_instagram_kb for integration: {integration.id}")
-            except Exception as e:
-                print(f"Failed to enqueue build_instagram_kb: {e}")
+            logger.info("Instagram integration %s created", integration.id)
         else:
             return error_response(message=("Foydalanuvchi profili topilmadi"), code=400)
         
         # enable webhook for the integration
         url = f"https://graph.instagram.com/v22.0/me/subscribed_apps?access_token={access_token}&subscribed_fields=messages,comments"
         response = requests.post(url)
-        print(f"Response: {response.text}")
+        if response.status_code != 200:
+            logger.warning("Instagram webhook subscription failed with status %s", response.status_code)
         if response.status_code == 200:
             return success_response(message=("Integration muvaffaqiyatli yaratildi"), code=200)
         else:
@@ -389,7 +376,6 @@ class InstagramDeauthorizeView(APIView):
     def post(self, request, *args, **kwargs): # noqa
         # Facebook sends a signed request
         signed_request = request.data.get("signed_request")
-        print(f"Deauthorize Signed request: {signed_request}")
         if not signed_request:
             return error_response(message="Signed request not found", code=400)
         def parse_signed_request(signed_request: str, app_secret: str):
@@ -414,23 +400,21 @@ class InstagramDeauthorizeView(APIView):
 
                 # Validate signature
                 if not hmac.compare_digest(decoded_sig, expected_sig):
-                    print("Invalid signature!")
+                    logger.warning("Instagram deauthorize: invalid signed request signature")
                     return None
 
                 return data
 
-            except Exception as e:
-                print("Error parsing signed request:", str(e))
+            except Exception:
+                logger.exception("Error parsing Instagram signed request")
                 return None
-                
+
 
         data = parse_signed_request(signed_request, INSTAGRAM_CLIENT_SECRET)
-        print(f"Deauthorize Data: {data}")
         if not data:
             return error_response(message="Invalid signed request", code=400)
 
         user_id = data.get("user_id")
-        print(f"Deauthorize User ID: {user_id}")
         if user_id:
             # Find and remove the user's Instagram integration
             try:
@@ -438,24 +422,22 @@ class InstagramDeauthorizeView(APIView):
                     integration_type=IntegrationTypes.INSTAGRAM.value,
                     instagram_account_id=user_id
                 ).first()
-                print(f"Deauthorize Integration: {integration}")
                 if integration:
                     # Delete all related InstagramCommentResponse and their InstagramMedia
                     comment_responses = InstagramCommentResponse.objects.filter(integration=integration)
                     for response in comment_responses:
                         old_media = list(response.instagram_media.all())
-                        print(f"Old media: {old_media}")
                         for media in old_media:
                             media.delete()
                         response.delete()
                     # Delete the integration itself
                     integration.delete()
-                    print(f"User {user_id} deauthorized the app and their integration and related data were removed.")
+                    logger.info("Instagram user %s deauthorized the app; integration removed", user_id)
                 else:
-                    print(f"User {user_id} deauthorized the app but no integration was found.")
+                    logger.info("Instagram user %s deauthorized the app but no integration was found", user_id)
                 return success_response(message=_("Foydalanuvchi appni deauthorized qildi"), code=200)
-            except Exception as e:
-                print(f"Error during deauthorization: {str(e)}")
+            except Exception:
+                logger.exception("Error during Instagram deauthorization")
                 return error_response(message=_("Deauthorization xatolik"), code=500)
         else:
             return error_response(message=_("Foydalanuvchi ID topilmadi"), code=400)
@@ -499,13 +481,13 @@ class InstagramDataDeletionView(APIView):
 
                 # Validate signature
                 if not hmac.compare_digest(decoded_sig, expected_sig):
-                    print("Invalid signature!")
+                    logger.warning("Instagram data deletion: invalid signed request signature")
                     return None
 
                 return data
 
-            except Exception as e:
-                print("Error parsing signed request:", str(e))
+            except Exception:
+                logger.exception("Error parsing Instagram signed request")
                 return None
 
         data = parse_signed_request(signed_request, INSTAGRAM_CLIENT_SECRET)
@@ -515,7 +497,7 @@ class InstagramDataDeletionView(APIView):
         user_id = data.get("user_id")
         if user_id:
             # Process data deletion for the user
-            print(f"Deleting data for user: {user_id}")
+            logger.info("Instagram data deletion requested for user %s", user_id)
             return success_response(data={
                 "url": "https://api.repli.uz/integration/instagram/data-deletion-status/",
                 "confirmation_code": user_id
@@ -560,22 +542,16 @@ class TelegramWebhookView(APIView):
         user_message = data.get('text', None)
         chat_group_id = data.get('chat', {}).get('id', None)
         if user_message or chat_group_id:
-            print(f"Chat ID: {chat_id}, Message: {user_message}")
             if chat_type in ['group', 'supergroup']:
-                # if "reply_to_message" in data and data["reply_to_message"]["from"]["is_bot"]:
-                print("Ignoring group messages and replies to the bot.")
-                
                 if data.get('new_chat_member', {}).get('is_bot'):
                     handle_bot_added_to_group(chat_id, chat_title, bot_token)
                 elif data.get('left_chat_member', {}).get('is_bot'):
                     handle_bot_removed_from_group(chat_id, chat_title)
             else:
                 if "sticker" in data:
-                    print("[-] Cannot handle sticker messages")
                     return success_response(message=_("Sticker message muvaffaqiyatli olindi"), code=200)
-                
+
                 if "document" in data:
-                    print("[-] Cannot handle document messages")
                     return success_response(message=_("Document message muvaffaqiyatli olindi"), code=200)
 
                 # Photo message handling
@@ -600,12 +576,8 @@ class TelegramWebhookView(APIView):
                 redis_client.set(f"last_seen:{chat_id}", time.time())
 
                 # Schedule collector task only if not already scheduled
-                print(f"chat_username: {chat_username}")
-                print(f"contact username: {username}")
                 redis_client.setex(f"collecting:{chat_id}", WAIT_SECONDS + 1, "1")  # Prevent overlap
                 process_collected_messages.apply_async((chat_id, bot_token, None, chat_username, username, None), countdown=WAIT_SECONDS)
-                # Start the Celery task
-                print("celery task started")
         return success_response(message=_("Xabar muvaffaqiyatli olindi"), code=200)
 
 
@@ -716,6 +688,15 @@ class CommentTriggerWordRetrieveView(generics.RetrieveUpdateDestroyAPIView):
     serializer_class = CommentTriggerWordSerializer
     permission_classes = [permissions.IsAuthenticated]
 
+    def get_queryset(self):
+        # Without this the view was `objects.all()` + IsAuthenticated:
+        # any logged-in user could read, edit and DELETE another
+        # tenant's automation objects.
+        user = self.request.user
+        return self.queryset.filter(
+            Q(instagram_comment_responses__integration__assistant__user=user) | Q(instagram_comment_responses__integration__user=user),
+        ).distinct()
+
     def retrieve(self, request, *args, **kwargs):
         instance = self.get_object()
         serializer = self.get_serializer(instance)
@@ -767,6 +748,15 @@ class InstagramCommentResponseRetrieveView(generics.RetrieveUpdateDestroyAPIView
     serializer_class = InstagramCommentResponseSerializer
     permission_classes = [permissions.IsAuthenticated]
 
+    def get_queryset(self):
+        # Without this the view was `objects.all()` + IsAuthenticated:
+        # any logged-in user could read, edit and DELETE another
+        # tenant's automation objects.
+        user = self.request.user
+        return self.queryset.filter(
+            Q(integration__assistant__user=user) | Q(integration__user=user),
+        ).distinct()
+
     def retrieve(self, request, *args, **kwargs):
         instance = self.get_object()
         serializer = self.get_serializer(instance)
@@ -788,6 +778,15 @@ class InstagramMediaRetrieveView(generics.RetrieveUpdateDestroyAPIView):
     queryset = InstagramMedia.objects.all()
     serializer_class = InstagramMediaSerializer
     permission_classes = [permissions.IsAuthenticated]
+
+    def get_queryset(self):
+        # Without this the view was `objects.all()` + IsAuthenticated:
+        # any logged-in user could read, edit and DELETE another
+        # tenant's automation objects.
+        user = self.request.user
+        return self.queryset.filter(
+            Q(instagram_comment_responses__integration__assistant__user=user) | Q(instagram_comment_responses__integration__user=user),
+        ).distinct()
 
     def get_serializer_context(self):
         context = super().get_serializer_context()
@@ -883,6 +882,15 @@ class TransitionRetrieveUpdateDestroyView(generics.RetrieveUpdateDestroyAPIView)
     serializer_class = TransitionSerializer
     permission_classes = [permissions.IsAuthenticated]
 
+    def get_queryset(self):
+        # Without this the view was `objects.all()` + IsAuthenticated:
+        # any logged-in user could read, edit and DELETE another
+        # tenant's automation objects.
+        user = self.request.user
+        return self.queryset.filter(
+            Q(from_to__flow__comment_response__integration__assistant__user=user) | Q(from_to__flow__comment_response__integration__user=user),
+        ).distinct()
+
     def update(self, request, *args, **kwargs):
         instance = self.get_object()
         serializer = self.get_serializer(instance, data=request.data, partial=True)
@@ -906,6 +914,15 @@ class FlowRetrieveUpdateDestroyView(generics.RetrieveUpdateDestroyAPIView):
     serializer_class = InstagramCommentResponseFlowSerializer
     permission_classes = [permissions.IsAuthenticated]
 
+    def get_queryset(self):
+        # Without this the view was `objects.all()` + IsAuthenticated:
+        # any logged-in user could read, edit and DELETE another
+        # tenant's automation objects.
+        user = self.request.user
+        return self.queryset.filter(
+            Q(comment_response__integration__assistant__user=user) | Q(comment_response__integration__user=user),
+        ).distinct()
+
     def retrieve(self, request, *args, **kwargs):
         instance = self.get_object()
         serializer = self.get_serializer(instance)
@@ -928,6 +945,15 @@ class StepRetrieveUpdateDestroyView(generics.RetrieveUpdateDestroyAPIView):
     queryset = Step.objects.all()
     serializer_class = StepSerializer
     permission_classes = [permissions.IsAuthenticated]
+
+    def get_queryset(self):
+        # Without this the view was `objects.all()` + IsAuthenticated:
+        # any logged-in user could read, edit and DELETE another
+        # tenant's automation objects.
+        user = self.request.user
+        return self.queryset.filter(
+            Q(flow__comment_response__integration__assistant__user=user) | Q(flow__comment_response__integration__user=user),
+        ).distinct()
 
     def retrieve(self, request, *args, **kwargs):
         instance = self.get_object()
@@ -975,6 +1001,15 @@ class CommentResponseButtonRetrieveUpdateDestroyView(generics.RetrieveUpdateDest
     queryset = CommentResponseButton.objects.all()
     serializer_class = CommentResponseButtonSerializer
     permission_classes = [permissions.IsAuthenticated]
+
+    def get_queryset(self):
+        # Without this the view was `objects.all()` + IsAuthenticated:
+        # any logged-in user could read, edit and DELETE another
+        # tenant's automation objects.
+        user = self.request.user
+        return self.queryset.filter(
+            Q(steps__flow__comment_response__integration__assistant__user=user) | Q(steps__flow__comment_response__integration__user=user),
+        ).distinct()
 
     def retrieve(self, request, *args, **kwargs):
         instance = self.get_object()
@@ -1145,9 +1180,10 @@ class AmoCRMOAuthInstallView(APIView):
                 code=200
             )
             
-        except Exception as e:
+        except Exception:
+            logger.exception("Error generating amoCRM OAuth URL")
             return error_response(
-                message=f"Error generating amoCRM OAuth URL: {str(e)}",
+                message="Error generating amoCRM OAuth URL",
                 code=500
             )
 
@@ -1199,30 +1235,20 @@ class AmoCRMOAuthHandlerView(APIView):
             }
             
             token_response = requests.post(token_url, data=token_data)
-            
+
             if token_response.status_code != 200:
+                logger.warning("amoCRM token exchange failed with status %s", token_response.status_code)
                 return error_response(
-                    message=f"Failed to exchange code for token: {token_response.text}",
+                    message="Failed to exchange code for token",
                     code=400
                 )
-            
-            print(f"[DEBUG] Token response status: {token_response.status_code}")
-            print(f"[DEBUG] Token response: {token_response.text}")
-            
-            if token_response.status_code != 200:
-                return error_response(
-                    message=f"Failed to exchange code for token: {token_response.text}",
-                    code=400
-                )
-            
+
             token_info = token_response.json()
             access_token = token_info.get('access_token')
-            print(f"[DEBUG] Access token: {access_token}")
             refresh_token = token_info.get('refresh_token')
             expires_in = token_info.get('expires_in')
-            print(f"[DEBUG] Refresh token: {refresh_token}")
-            print(f"[DEBUG] Expires in: {expires_in}")
-            
+
+
             if not access_token:
                 return error_response(
                     message="No access token received from amoCRM",
@@ -1235,7 +1261,6 @@ class AmoCRMOAuthHandlerView(APIView):
                 'Content-Type': 'application/json'
             }
             user_response = requests.get(user_info_url, headers=headers)
-            print(f"[DEBUG] User response: {user_response.text}")
             if user_response.status_code != 200:
                 return error_response(
                     message="Failed to get user information from amoCRM",
@@ -1244,7 +1269,6 @@ class AmoCRMOAuthHandlerView(APIView):
             
             user_info = user_response.json()
             account_id = user_info.get('id')
-            print(f"[DEBUG] Account ID: {account_id}")
             # Create or update integration
             from apps.assistant.models import Assistant
             assistant = Assistant.objects.filter(user_id=user_id).first()
@@ -1299,9 +1323,10 @@ class AmoCRMOAuthHandlerView(APIView):
                 code=200
             )
             
-        except Exception as e:
+        except Exception:
+            logger.exception("Error processing amoCRM OAuth callback")
             return error_response(
-                message=f"Error processing amoCRM OAuth callback: {str(e)}",
+                message="Error processing amoCRM OAuth callback",
                 code=500
             )
 
@@ -1354,7 +1379,7 @@ class AmoCRMTokenRefreshView(APIView):
             
             if token_response.status_code != 200:
                 return error_response(
-                    message=f"Failed to refresh token: {token_response.text}",
+                    message="Failed to refresh token",
                     code=400
                 )
             
@@ -1381,9 +1406,10 @@ class AmoCRMTokenRefreshView(APIView):
                 code=200
             )
             
-        except Exception as e:
+        except Exception:
+            logger.exception("Error refreshing amoCRM token")
             return error_response(
-                message=f"Error refreshing token: {str(e)}",
+                message="Error refreshing token",
                 code=500
             )
 
@@ -1413,9 +1439,7 @@ class AmoCRMSetPipelineView(APIView):
                 )
             
             # Get pipeline info from amoCRM
-            print(f"[DEBUG] Integration metadata: {integration.metadata}")
             subdomain = integration.metadata.get('subdomain') if integration.metadata else 'repli.amocrm.ru'
-            print(f"[DEBUG] Subdomain: {subdomain}")
             access_token = integration.api_token
             
             # Get pipeline details
@@ -1429,7 +1453,7 @@ class AmoCRMSetPipelineView(APIView):
             
             if pipeline_response.status_code != 200:
                 return error_response(
-                    message=f"Failed to get pipeline info: {pipeline_response.text}",
+                    message="Failed to get pipeline info",
                     code=400
                 )
             
@@ -1454,9 +1478,10 @@ class AmoCRMSetPipelineView(APIView):
                 code=200
             )
             
-        except Exception as e:
+        except Exception:
+            logger.exception("Error setting amoCRM pipeline")
             return error_response(
-                message=f"Error setting pipeline: {str(e)}",
+                message="Error setting pipeline",
                 code=500
             )
         
@@ -1474,17 +1499,14 @@ class BillzSecretTokenHandlerView(generics.CreateAPIView):
         serializer = self.get_serializer(data=request.data)
         api_token = request.data.get('api_token')
         assistant_id = self.kwargs.get('pk')
-        try:
-            assistant = Assistant.objects.get(id=assistant_id)
-        except Assistant.DoesNotExist:
+        if not Assistant.objects.filter(id=assistant_id).exists():
             return error_response(message=_("Assistant topilmadi"), code=404)
         if not api_token:
             return error_response(message=_("Billz API token kerak"), code=400)
-        response = requests.post(f"https://api-admin.billz.ai/v1/auth/login", json={"secret_token": api_token})
+        response = requests.post("https://api-admin.billz.ai/v1/auth/login", json={"secret_token": api_token})
         if response.status_code != 200:
             return error_response(message=_("Billz API token yaroqli emas"), code=400)
 
-        print(f"response: {response.json()}")
         access_token = response.json().get('data').get('access_token')
         if not access_token:
             return error_response(message=_("Billz access token topilmadi"), code=400)

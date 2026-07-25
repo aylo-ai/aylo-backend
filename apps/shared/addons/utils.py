@@ -3,6 +3,8 @@
 This module used to also hold the Assistants-API chat pipeline. That has been
 replaced by `shared.ai_service.agent`; only the notification helpers remain.
 """
+import logging
+
 from django.utils.translation import gettext_lazy as _
 from django.conf import settings
 from django.core.mail import send_mail
@@ -13,25 +15,27 @@ from shared.addons.verification import send_playmobile_sms
 # Re-exported: several modules import send_telegram_message from here.
 from shared.addons.telegram import send_telegram_message  # noqa: F401
 
+logger = logging.getLogger(__name__)
+
 
 def notify_user_about_failed_payment(user):
     message = (
         f"Hurmatli {user.first_name}, sizning repli.uz dagi obuna tugadi. "
         "Iltimos, platformaga kirib, to'lovni qayta amalga oshiring."
     )
-    print(f"Payment failure notification message: {user.phone_number} or {user.email}, {message}")
+    logger.info("Sending payment failure notification to user %s", user.id)
 
     if user.phone_number:
         response = send_playmobile_sms(user.phone_number, message)
-        print(f"Sms response: {response}")
+        logger.info("Sms response: %s", response)
     elif user.email:
         response = send_email_message(user.email, user)
-        print(f"Email response: {response}")
+        logger.info("Email response: %s", response)
 
 
 def send_email_message(email, user):
     try:
-        print(f"Sending email message to: {email}")
+        logger.info("Sending subscription warning email to user %s", user.id)
         subject = _("Warning: Your subscription has expired")
         message = _(
             "Hurmatli {user.first_name}, sizning repli.uz dagi obuna to'lovingiz "
@@ -39,7 +43,6 @@ def send_email_message(email, user):
             "to'lovni qayta amalga oshiring."
         ).format(user=user)
         from_email = settings.EMAIL_HOST_USER
-        print(f"from_email: {from_email}")
         from django.template.loader import render_to_string
 
         html_message = render_to_string('warning_notification.html', {'user': user})
@@ -78,4 +81,4 @@ def notify_user_about_low_tokens(user, count):
         ),
         type=NotificationTypes.WARNING.value,
     )
-    print("Notification created to notify user about low request token count")
+    logger.info("Low request token notification created for user %s", user.id)
