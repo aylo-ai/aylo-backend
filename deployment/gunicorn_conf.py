@@ -1,7 +1,7 @@
+import os
 import sys
 import threading
 import traceback
-from multiprocessing import cpu_count  # noqa: F401
 
 # Server socket
 
@@ -29,7 +29,8 @@ backlog = 2048
 #       range. You'll want to vary this a bit to find the best
 #       for your particular application's work load.
 
-workers = 4 #cpu_count() + 1
+#       Overridable per host via WEB_CONCURRENCY so small boxes don't OOM.
+workers = int(os.environ.get("WEB_CONCURRENCY", 4))
 
 #   worker_class - The type of workers to use. The default
 #       sync class should handle most 'normal' types of work

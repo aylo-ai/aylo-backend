@@ -1,0 +1,36 @@
+# Compose overlay for the small dev host (1 vCPU / 2 GB).
+#
+# The defaults in compose.yml are sized for the production box: 4 gunicorn
+# workers + 4 + 2 celery processes will exhaust memory on a 2 GB VM and get
+# OOM-killed mid-request. The dev deploy workflow copies this file to
+# compose.override.yml so docker compose picks it up automatically.
+#
+# Web concurrency itself comes from WEB_CONCURRENCY in the env file.
+
+services:
+  web-green:
+    restart: unless-stopped
+    mem_limit: 640m
+
+  celery_worker:
+    command: celery -A config worker --loglevel=info -Q celery,default,ai,billing --concurrency=2
+    mem_limit: 512m
+
+  celery_worker_low:
+    command: celery -A config worker --loglevel=info -Q broadcast,sync --concurrency=1
+    mem_limit: 320m
+
+  celery_beat:
+    mem_limit: 256m
+
+  postgres:
+    restart: unless-stopped
+    mem_limit: 384m
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    mem_limit: 192m

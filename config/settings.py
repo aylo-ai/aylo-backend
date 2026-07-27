@@ -22,7 +22,10 @@ if not SECRET_KEY:
 
         raise ImproperlyConfigured("SECRET_KEY environment variable is required when DEBUG is off")
 
-ALLOWED_HOSTS = os.environ.get("ALLOWED_HOSTS", ".repli.uz,localhost,127.0.0.1,d737-94-158-58-128.ngrok-free.app",).split(",")
+ALLOWED_HOSTS = os.environ.get(
+    "ALLOWED_HOSTS",
+    ".aylo.uz,.repli.uz,localhost,127.0.0.1",
+).split(",")
 
 # Tests intentionally simulate outages (OpenAI down, Redis down, …) and the
 # fail-soft code logs them. Silence logging during test runs so a green run
@@ -191,6 +194,11 @@ CORS_ALLOWED_ORIGINS = [
     "http://localhost:3000",
     "http://localhost:5173",
     "http://localhost:5500",
+    "https://aylo.uz",
+    "https://api.aylo.uz",
+    "https://app.aylo.uz",
+    "https://admin.aylo.uz",
+    "https://dashboard.aylo.uz",
     "https://repli.uz",
     "https://app.repli.uz",
     "https://admin.repli.uz",
@@ -222,6 +230,7 @@ CORS_ALLOW_HEADERS = [
 ]
 
 CSRF_TRUSTED_ORIGINS = [
+    "https://*.aylo.uz",
     "https://*.repli.uz",
     "http://127.0.0.1:8000",
     "http://localhost:5173",
