@@ -482,3 +482,165 @@ class IntegrationTenancyTests(TestCase):
         )
         self.assertEqual(response.status_code, 200)
         self.assertNotContains(response, "SECRET-BOT-TOKEN")
+
+
+class CommentResponseUpdateTests(TestCase):
+    """Regressions for `InstagramCommentResponseSerializer.update`.
+
+    The old implementation ran `instance.instagram_media.all().delete()` — a hard
+    delete of the `InstagramMedia` **rows**, not just the M2M links — and then
+    re-created each incoming media with `objects.create()`. Because `media_id` is
+    `unique=True`, editing a trigger that referenced a post another trigger also
+    used raised an uncaught `IntegrityError` (HTTP 500). The same delete also
+    destroyed that other trigger's media, ran before `current_media_ids` was
+    read from the relation (making the update-in-place branch dead code), and
+    fired even when the request never mentioned media at all.
+    """
+
+    MEDIA_ID = "shared-media-1"
+
+    def setUp(self):
+        from rest_framework.test import APIClient
+
+        from apps.assistant.models import Assistant
+        from apps.user.models import User
+        from shared.addons.enums import IntegrationTypes
+
+        self.owner = User.objects.create(username="cr-update-owner", auth_type="email")
+        self.assistant = Assistant.objects.create(
+            name="Owned", company_name="C", user=self.owner, vector_id="vs_x",
+        )
+        self.integration = Integration.objects.create(
+            assistant=self.assistant, user=self.owner, name="IG",
+            integration_type=IntegrationTypes.INSTAGRAM.value,
+        )
+        self.client = APIClient()
+        self.client.force_authenticate(self.owner)
+
+    def media_payload(self):
+        return [{
+            "id": self.MEDIA_ID,
+            "media_id": self.MEDIA_ID,
+            "media_type": "IMAGE",
+            "media_url": "https://example.com/1.jpg",
+            "username": "shop",
+            "caption": "shared post",
+            "comments_count": 4,
+            "like_count": 9,
+        }]
+
+    def create_trigger(self, word, media=None):
+        response = self.client.post(
+            f"/api/v1/integration/{self.integration.id}/instagram/comment-responses/",
+            {
+                "comment_message_template": f"reply {word}",
+                "private_message_template": f"dm {word}",
+                "trigger_words_list": [word],
+                "instagram_media_list": media if media is not None else [],
+                "is_respond_to_all_comments": False,
+            },
+            format="json",
+        )
+        self.assertEqual(response.status_code, 201, response.data)
+        return response.data["data"]["id"] if "data" in response.data else response.data["id"]
+
+    def patch_trigger(self, trigger_id, body):
+        return self.client.patch(
+            f"/api/v1/integration/instagram/comment-responses/{trigger_id}/",
+            body,
+            format="json",
+        )
+
+    def test_editing_a_trigger_whose_media_another_trigger_holds(self):
+        """This is the case that used to be a 500 `UniqueViolation`."""
+        from apps.integration.models import InstagramCommentResponse, InstagramMedia
+
+        other = self.create_trigger("beta", self.media_payload())
+        mine = self.create_trigger("alpha")
+
+        response = self.patch_trigger(mine, {
+            "comment_message_template": "reply alpha",
+            "private_message_template": "dm alpha",
+            "instagram_media_list": self.media_payload(),
+        })
+        self.assertEqual(response.status_code, 200, response.data)
+
+        # One row, shared by both triggers — not duplicated, not re-created.
+        self.assertEqual(InstagramMedia.objects.filter(media_id=self.MEDIA_ID).count(), 1)
+        for trigger_id in (mine, other):
+            trigger = InstagramCommentResponse.objects.get(id=trigger_id)
+            self.assertEqual(
+                [m.media_id for m in trigger.instagram_media.all()], [self.MEDIA_ID],
+            )
+
+    def test_a_partial_patch_keeps_relations_it_never_mentions(self):
+        from apps.integration.models import InstagramCommentResponse
+
+        trigger_id = self.create_trigger("alpha", self.media_payload())
+
+        response = self.patch_trigger(trigger_id, {
+            "comment_message_template": "edited",
+            "private_message_template": "dm alpha",
+        })
+        self.assertEqual(response.status_code, 200, response.data)
+
+        trigger = InstagramCommentResponse.objects.get(id=trigger_id)
+        self.assertEqual(
+            [w.trigger_word for w in trigger.trigger_words.all()], ["alpha"],
+        )
+        self.assertEqual(
+            [m.media_id for m in trigger.instagram_media.all()], [self.MEDIA_ID],
+        )
+
+    def test_an_explicit_empty_media_list_unlinks_without_touching_other_triggers(self):
+        from apps.integration.models import InstagramCommentResponse, InstagramMedia
+
+        other = self.create_trigger("beta", self.media_payload())
+        mine = self.create_trigger("alpha", self.media_payload())
+
+        response = self.patch_trigger(mine, {
+            "comment_message_template": "no media",
+            "private_message_template": "dm alpha",
+            "instagram_media_list": [],
+        })
+        self.assertEqual(response.status_code, 200, response.data)
+
+        self.assertEqual(
+            InstagramCommentResponse.objects.get(id=mine).instagram_media.count(), 0,
+        )
+        # The row survives because the other trigger still points at it.
+        self.assertTrue(InstagramMedia.objects.filter(media_id=self.MEDIA_ID).exists())
+        self.assertEqual(
+            InstagramCommentResponse.objects.get(id=other).instagram_media.count(), 1,
+        )
+
+    def test_dropping_the_last_reference_deletes_the_orphaned_row(self):
+        from apps.integration.models import InstagramMedia
+
+        trigger_id = self.create_trigger("alpha", self.media_payload())
+
+        response = self.patch_trigger(trigger_id, {
+            "comment_message_template": "no media",
+            "private_message_template": "dm alpha",
+            "instagram_media_list": [],
+        })
+        self.assertEqual(response.status_code, 200, response.data)
+        self.assertFalse(InstagramMedia.objects.filter(media_id=self.MEDIA_ID).exists())
+
+    def test_trigger_words_are_replaced_not_appended(self):
+        from apps.integration.models import InstagramCommentResponse
+
+        trigger_id = self.create_trigger("alpha")
+
+        response = self.patch_trigger(trigger_id, {
+            "comment_message_template": "reply",
+            "private_message_template": "dm",
+            "trigger_words_list": ["gamma", "delta"],
+        })
+        self.assertEqual(response.status_code, 200, response.data)
+
+        trigger = InstagramCommentResponse.objects.get(id=trigger_id)
+        self.assertEqual(
+            sorted(w.trigger_word for w in trigger.trigger_words.all()),
+            ["delta", "gamma"],
+        )

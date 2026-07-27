@@ -387,46 +387,83 @@ class InstagramCommentResponseSerializer(serializers.ModelSerializer):
         return instance
     
     def update(self, instance, validated_data):
-        trigger_words_list = validated_data.pop('trigger_words_list', [])
-        instagram_media_list = validated_data.pop('instagram_media_list', [])
-        instance = super().update(instance, validated_data)
-        instance.trigger_words.clear()
-        instance.instagram_media.all().delete()
+        """Replace the trigger's words / media **links**, not the shared rows.
 
-        if trigger_words_list:
+        Three bugs used to live here:
+
+        1. `instance.instagram_media.all().delete()` hard-deleted the
+           `InstagramMedia` rows themselves. Because `media_id` is
+           `unique=True`, the re-create loop below then raised an uncaught
+           `IntegrityError` (**HTTP 500**) for any post that still existed —
+           e.g. one attached to a second trigger. It also silently destroyed
+           that other trigger's media.
+        2. The delete ran *before* `current_media_ids` was read from the same
+           relation, so `current_media_ids` was always empty and the "update in
+           place" branch was dead code — every media took the `create` path.
+        3. Both relations were cleared unconditionally, so a `PATCH` that didn't
+           mention `trigger_words_list` / `instagram_media_list` wiped them.
+           A partial update must only touch what it actually sends.
+        """
+        trigger_words_list = validated_data.pop('trigger_words_list', None)
+        instagram_media_list = validated_data.pop('instagram_media_list', None)
+        instance = super().update(instance, validated_data)
+
+        if trigger_words_list is not None:
             trigger_word_objs = []
             for word in trigger_words_list:
-                obj, _ = CommentTriggerWord.objects.get_or_create(trigger_word=word)
+                if not word.strip():
+                    continue
+                obj, _ = CommentTriggerWord.objects.get_or_create(trigger_word=word.strip())
                 trigger_word_objs.append(obj)
-            instance.trigger_words.add(*trigger_word_objs)
-        
+            instance.trigger_words.set(trigger_word_objs)
+
         if instagram_media_list is not None:
-            current_media_ids = set(instance.instagram_media.values_list('media_id', flat=True))
-            new_media_ids = set(media.get('media_id') or media.get('id') for media in instagram_media_list)
+            previous_media = list(instance.instagram_media.all())
 
-            for media in instance.instagram_media.filter(media_id__in=current_media_ids - new_media_ids):
-                media.delete()
-
+            media_objs = []
             for media_data in instagram_media_list:
-                media_id = media_data.get('media_id')
-                if media_id in current_media_ids:
-                    media_obj = instance.instagram_media.get(media_id=media_id)
-                    for field, value in media_data.items():
-                        setattr(media_obj, field, value)
-                    media_obj.save()
-                else:
-                    obj = InstagramMedia.objects.create(
-                        media_id=media_data.get('media_id') or media_data.get('id'),
-                        media_type=media_data.get('media_type'),
-                        media_url=media_data.get('media_url'),
-                        username=media_data.get('username'),
-                        caption=media_data.get('caption'),
-                        timestamp=media_data.get('timestamp'),
-                        comments_count=media_data.get('comments_count'),
-                        like_count=media_data.get('like_count'),
-                        children=media_data.get('children')
-                    )
-                    instance.instagram_media.add(obj)
+                media_id = media_data.get('media_id') or media_data.get('id')
+                if not media_id:
+                    continue
+                # Keyed on `media_id` (the unique column) so re-selecting a post
+                # reuses its row instead of colliding with it.
+                media, created = InstagramMedia.objects.get_or_create(
+                    media_id=media_id,
+                    defaults={
+                        'media_type': media_data.get('media_type'),
+                        'media_url': media_data.get('media_url'),
+                        'username': media_data.get('username'),
+                        'timestamp': media_data.get('timestamp'),
+                        'caption': media_data.get('caption'),
+                        'comments_count': media_data.get('comments_count') or 0,
+                        'like_count': media_data.get('like_count') or 0,
+                        'children': media_data.get('children'),
+                    }
+                )
+                if not created:
+                    # Refresh the cached Graph fields, but never blank one out
+                    # just because this payload omitted it.
+                    media.media_type = media_data.get('media_type', media.media_type)
+                    media.media_url = media_data.get('media_url', media.media_url)
+                    media.username = media_data.get('username', media.username)
+                    media.caption = media_data.get('caption', media.caption)
+                    media.timestamp = media_data.get('timestamp', media.timestamp)
+                    media.comments_count = media_data.get('comments_count', media.comments_count)
+                    media.like_count = media_data.get('like_count', media.like_count)
+                    media.save()
+                media_objs.append(media)
+
+            instance.instagram_media.set(media_objs)
+
+            # Clean up rows this trigger dropped, but only when no other
+            # comment-response still points at them.
+            kept_ids = {media.id for media in media_objs}
+            for media in previous_media:
+                if media.id in kept_ids:
+                    continue
+                if not media.instagram_comment_responses.exists():
+                    media.delete()
+
         return instance
     
     def to_representation(self, instance):

@@ -217,26 +217,34 @@ class UserSerializer(serializers.ModelSerializer):
     @extend_schema_field(OpenApiTypes.INT)
     def get_total_used_token_count(self, obj): # noqa
         subscription = obj.subscription
-        if subscription:
+        # `pricing_package` is a SET_NULL FK, so a live subscription can have no
+        # package (the package row was deleted). Without it there is no
+        # allowance to subtract from, so "used" is unknowable — report 0 rather
+        # than raising, which used to 500 this whole endpoint.
+        if subscription and subscription.pricing_package:
             return subscription.pricing_package.request_count - subscription.remained_request_count
         return 0
-    
+
     @extend_schema_field(OpenApiTypes.OBJECT)
     def get_subscription(self, obj): # noqa
         subscription = obj.subscription
         if subscription:
+            package = subscription.pricing_package
             return {
                 "id": subscription.id,
+                # Null when the package was deleted out from under the
+                # subscription; the key is always present so clients can read
+                # it without guarding for its absence.
                 "pricing_package": {
-                    "id": subscription.pricing_package.id,
-                    "name": subscription.pricing_package.name,
-                    "type": subscription.pricing_package.type,
-                    "price": subscription.pricing_package.price,
-                    "request_count": subscription.pricing_package.request_count,
-                    "duration_days": subscription.pricing_package.duration_days,
-                    "discount_price": subscription.pricing_package.discount_price,
-                    "currency": subscription.pricing_package.currency,
-                },
+                    "id": package.id,
+                    "name": package.name,
+                    "type": package.type,
+                    "price": package.price,
+                    "request_count": package.request_count,
+                    "duration_days": package.duration_days,
+                    "discount_price": package.discount_price,
+                    "currency": package.currency,
+                } if package else None,
                 "start_date": subscription.start_date,
                 "end_date": subscription.end_date,
                 "status": subscription.status,
@@ -405,6 +413,15 @@ class AddStaffSerializer(serializers.ModelSerializer):
                 data = {
                     "email": email_or_phone_number,
                 }
+        else:
+            # Neither a valid email nor a valid phone number (or the field was
+            # omitted entirely — it is declared `required=False`). Without this
+            # branch `data` stays unbound and the next line raises
+            # UnboundLocalError, turning a plain bad request into a 500.
+            raise_validation_error(
+                message=_("Email yoki telefon raqam noto'g'ri kiritilgan")
+            )
+
         data["first_name"] = first_name
         data["last_name"] = last_name
         data["created_by"] = self.context['request'].user
@@ -445,4 +462,7 @@ class NotificationSerializer(serializers.ModelSerializer):
             'is_read',
             'type',
             'user',
+            # Without this a notification row has nothing to timestamp itself
+            # with, so clients can't show "2h ago" or order by recency.
+            'created_time',
         ]

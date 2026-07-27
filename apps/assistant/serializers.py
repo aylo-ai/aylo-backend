@@ -190,6 +190,11 @@ class MessageSerializer(serializers.ModelSerializer, SubscriptionValidationMixin
             "message_content",
             "message_type",
             "audio_file",
+            # Exposed so an inbox can render unread badges/counts. The column
+            # already existed and `messages/bulk-read/` already maintained it —
+            # it was simply never serialized, leaving clients unable to tell a
+            # read message from an unread one.
+            "is_read",
             "created_time",
             "updated_time",
             "answered_by",

@@ -148,8 +148,11 @@ class Subscription(BaseModel):
         ordering = ["-created_time"]
 
     def __str__(self):
-        return f"{self.pricing_package.name} - {self.start_date} - {self.end_date}"
-    
+        # `pricing_package` is SET_NULL, so it can legitimately be missing —
+        # don't let that raise in the admin or in any log line.
+        package = self.pricing_package.name if self.pricing_package else "No package"
+        return f"{package} - {self.start_date} - {self.end_date}"
+
 class RetryPayment(BaseModel):
     subscription = models.ForeignKey(Subscription, on_delete=models.CASCADE, related_name="retry_payments")
     amount = models.DecimalField(max_digits=20, decimal_places=2)
@@ -162,4 +165,6 @@ class RetryPayment(BaseModel):
         ordering = ["-created_time"]
 
     def __str__(self):
-        return f"{self.subscription.pricing_package.name} - {self.amount} - {self.status}"
+        package = self.subscription.pricing_package
+        name = package.name if package else "No package"
+        return f"{name} - {self.amount} - {self.status}"

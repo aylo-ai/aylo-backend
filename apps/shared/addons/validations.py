@@ -70,6 +70,13 @@ def check_email_phone_number(email_phone_number):
     """
     Check if the provided email or phone number is valid.
     """
+    # `re.match` raises TypeError on None, so an omitted identifier used to
+    # crash the caller with a 500 instead of being reported as invalid input.
+    # Anything that isn't a string is simply not a valid email or phone.
+    if not isinstance(email_phone_number, str):
+        return {
+            "message": "Invalid email or phone number format."
+        }
     if re.match(r"^\+?[1-9]\d{1,14}$", email_phone_number):
         return "phone"
     elif re.match(r"^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$", email_phone_number):
