@@ -218,25 +218,46 @@ class InstagramWebhookView(APIView):
         if not self._verify_signature(request):
             return error_response(message=_("Invalid signature"), code=403)
 
-        logger.info("Instagram webhook data received")
         data = request.data
         if not data:
             return error_response(message=_("Ma'lumot topilmadi"), code=400)
 
-        entry = data.get("entry")[0]
+        entries = data.get("entry") or []
+        if not entries:
+            logger.warning("Instagram webhook carried no entry")
+            return success_response(message=_("Ma'lumot topilmadi"), code=200)
+        if len(entries) > 1:
+            # Meta batches deliveries; only the first is handled below.
+            logger.warning("Instagram webhook carried %s entries — only the first is processed", len(entries))
+
+        entry = entries[0]
         account_id = entry.get("id") # IG Professional Account ID (instagram_user_id)
+
+        # Shape only — never the message body, which is customer content.
+        logger.info(
+            "Instagram webhook received for account %s: keys=%s changes=%s",
+            account_id, sorted(entry.keys()),
+            [c.get("field") for c in entry.get("changes", [])],
+        )
 
         # Handle comments
         if "changes" in entry:
             for change in entry["changes"]:
                 if change.get("field") == "comments":
                     comment_data = change.get("value", {})
-                    if comment_data:
-                        # Get access token from integration
-                        integration = Integration.instagram_by_id(account_id).first()
-                        if integration and integration.api_token:
-                            process_instagram_comment.delay(account_id, comment_data)
-                            return success_response(message=_("Comment webhook ma'lumotlar muvaffaqiyatli olindi"), code=200)
+                    if not comment_data:
+                        logger.warning("Instagram comment change for %s had an empty value", account_id)
+                        continue
+                    # Get access token from integration
+                    integration = Integration.instagram_by_id(account_id).first()
+                    if not integration:
+                        logger.warning("Instagram comment for unknown account %s", account_id)
+                        continue
+                    if not integration.api_token:
+                        logger.warning("Instagram integration %s has no api_token; comment dropped", integration.id)
+                        continue
+                    process_instagram_comment.delay(account_id, comment_data)
+                    return success_response(message=_("Comment webhook ma'lumotlar muvaffaqiyatli olindi"), code=200)
 
         # Handle messages
         messaging = entry.get("messaging")
@@ -304,6 +325,14 @@ class InstagramWebhookView(APIView):
                 logger.info("Instagram sender %s is itself an integrated account; skipping", account_id)
                 return success_response(message=_("Integratsiya boshqa foydalanuvchida ham topildi"), code=400)
 
+        # Nothing above claimed this delivery. Ack it — Meta disables a
+        # subscription that keeps failing — but say so, because this used to be
+        # indistinguishable from a handled event in the logs.
+        logger.warning(
+            "Instagram webhook for %s was not handled: keys=%s changes=%s",
+            account_id, sorted(entry.keys()),
+            [c.get("field") for c in entry.get("changes", [])],
+        )
         return success_response(message=_("Webhook ma'lumotlar muvaffaqiyatli olindi"), code=200)
 
 
@@ -354,29 +383,57 @@ class InstagramCallbackView(APIView):
             logger.warning("Instagram profile returned no user_id; refusing to create an unroutable integration")
             return error_response(message=("Foydalanuvchi profili topilmadi"), code=400)
 
-        # Check both identifiers — an existing row may hold either one.
-        if Integration.instagram_by_id(instagram_account_id).exists() or Integration.instagram_by_id(instagram_user_id).exists():
+        # A row for this identity may already exist. Matched explicitly rather
+        # than with update_or_create, which raises MultipleObjectsReturned when
+        # instagram_user_id and user are both NULL on more than one row — the
+        # callback runs unauthenticated, so user is regularly NULL.
+        existing = None
+        if instagram_user_id:
+            existing = Integration.objects.filter(
+                instagram_user_id=instagram_user_id,
+                user=user,
+                integration_type=IntegrationTypes.INSTAGRAM.value,
+            ).first()
+
+        if existing and existing.instagram_account_id:
             logger.info("Instagram integration already exists for account %s", instagram_account_id)
             return error_response(message=("Instagram integratsiyasi sizda mavjud"), code=400)
 
-        # update_or_create, not get_or_create: a row left behind by an earlier
-        # failed attempt would otherwise keep its blank identity columns (the
-        # defaults are skipped on a match), staying invisible to every webhook.
-        integration, _ = Integration.objects.update_or_create(
-            instagram_user_id=instagram_user_id,
-            user=user,
-            integration_type=IntegrationTypes.INSTAGRAM.value,
-            defaults={
-                "assistant_id": assistant_id,
-                "name": user_profile.get("instagram_username"),
-                "api_token": access_token,
-                "refresh_token": short_lived_access_token,
-                "instagram_account_id": instagram_account_id,
-                "instagram_username": user_profile.get("instagram_username"),
-            }
-        )
-        logger.info("Instagram integration %s created", integration.id)
+        # Any *other* row holding either identifier is a genuine duplicate.
+        duplicates = Integration.instagram_by_id(instagram_account_id)
+        if instagram_user_id:
+            duplicates = duplicates | Integration.instagram_by_id(instagram_user_id)
+        if existing:
+            duplicates = duplicates.exclude(pk=existing.pk)
+        if duplicates.exists():
+            logger.info("Instagram integration already exists for account %s", instagram_account_id)
+            return error_response(message=("Instagram integratsiyasi sizda mavjud"), code=400)
 
+        fields = {
+            "assistant_id": assistant_id,
+            "name": user_profile.get("instagram_username"),
+            "api_token": access_token,
+            "refresh_token": short_lived_access_token,
+            "instagram_account_id": instagram_account_id,
+            "instagram_username": user_profile.get("instagram_username"),
+        }
+        # Repair rather than get_or_create: a row left behind by an earlier failed
+        # attempt keeps its blank identity columns (get_or_create skips its defaults
+        # on a match), staying invisible to every webhook lookup.
+        if existing:
+            for field, value in fields.items():
+                setattr(existing, field, value)
+            existing.save()
+            integration = existing
+            logger.info("Instagram integration %s relinked", integration.id)
+        else:
+            integration = Integration.objects.create(
+                instagram_user_id=instagram_user_id,
+                user=user,
+                integration_type=IntegrationTypes.INSTAGRAM.value,
+                **fields,
+            )
+            logger.info("Instagram integration %s created", integration.id)
 
         # enable webhook for the integration
         url = f"https://graph.instagram.com/v22.0/me/subscribed_apps?access_token={access_token}&subscribed_fields=messages,comments"

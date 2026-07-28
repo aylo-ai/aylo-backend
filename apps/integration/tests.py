@@ -388,36 +388,169 @@ class InstagramAccountResolutionTests(ChannelTestCase):
         self.assertEqual(response.status_code, 200)
 
 
+class InstagramWebhookFallThroughTests(ChannelTestCase):
+    """A delivery no branch claims used to answer 200 with the same generic body
+    as a handled one, and log nothing — indistinguishable in production."""
+
+    URL = "/api/v1/integration/instagram/webhook/"
+    APP_SECRET = "app-secret"
+    LOGGER = "apps.integration.views"
+
+    def setUp(self):
+        super().setUp()
+        # settings.py disables logging under `manage.py test` so a green run
+        # reads green; these assertions are *about* the log output, so lift it
+        # for the duration of each test.
+        import logging
+
+        logging.disable(logging.NOTSET)
+        self.addCleanup(logging.disable, logging.CRITICAL)
+
+    def post_webhook(self, payload):
+        import hashlib
+        import hmac as hmac_lib
+        import json as json_lib
+
+        body = json_lib.dumps(payload)
+        signature = "sha256=" + hmac_lib.new(
+            self.APP_SECRET.encode(), body.encode(), hashlib.sha256,
+        ).hexdigest()
+        with self.settings(INSTAGRAM_APP_SECRET=self.APP_SECRET):
+            return self.client.post(
+                self.URL, data=body, content_type="application/json",
+                HTTP_X_HUB_SIGNATURE_256=signature,
+            )
+
+    def test_unhandled_change_field_is_logged(self):
+        with self.assertLogs(self.LOGGER, level="WARNING") as logs:
+            response = self.post_webhook({
+                "entry": [{"id": ACCOUNT_ID,
+                           "changes": [{"field": "story_insights", "value": {}}]}]
+            })
+
+        self.assertEqual(response.status_code, 200)
+        self.assertIn("was not handled", "".join(logs.output))
+        self.assertIn("story_insights", "".join(logs.output))
+
+    def test_comment_for_an_unknown_account_is_logged_not_silently_dropped(self):
+        with self.assertLogs(self.LOGGER, level="WARNING") as logs:
+            response = self.post_webhook({
+                "entry": [{"id": "99999999999999999",
+                           "changes": [{"field": "comments",
+                                        "value": {"id": "c1", "text": "hi"}}]}]
+            })
+
+        self.assertEqual(response.status_code, 200)
+        self.assertIn("comment for unknown account", "".join(logs.output))
+
+    def test_comment_on_an_integration_without_a_token_is_logged(self):
+        Integration.objects.filter(
+            instagram_account_id=ACCOUNT_ID,
+            integration_type=IntegrationTypes.INSTAGRAM.value,
+        ).update(api_token="")
+
+        with self.assertLogs(self.LOGGER, level="WARNING") as logs:
+            response = self.post_webhook({
+                "entry": [{"id": ACCOUNT_ID,
+                           "changes": [{"field": "comments",
+                                        "value": {"id": "c1", "text": "hi"}}]}]
+            })
+
+        self.assertEqual(response.status_code, 200)
+        self.assertIn("no api_token", "".join(logs.output))
+
+    def test_a_batched_delivery_reports_the_dropped_entries(self):
+        with self.assertLogs(self.LOGGER, level="WARNING") as logs:
+            response = self.post_webhook({
+                "entry": [
+                    {"id": ACCOUNT_ID, "changes": [{"field": "mentions", "value": {}}]},
+                    {"id": ACCOUNT_ID, "changes": [{"field": "mentions", "value": {}}]},
+                ]
+            })
+
+        self.assertEqual(response.status_code, 200)
+        self.assertIn("only the first is processed", "".join(logs.output))
+
+    def test_an_empty_entry_list_does_not_500(self):
+        """`data["entry"][0]` used to raise IndexError on an entry-less payload."""
+        with self.assertLogs(self.LOGGER, level="WARNING") as logs:
+            response = self.post_webhook({"entry": []})
+
+        self.assertEqual(response.status_code, 200)
+        self.assertIn("carried no entry", "".join(logs.output))
+
+
 class InstagramIntegrationLifecycleTests(TestCase):
     """The OAuth callback must always land both identifiers, and deleting an
     integration must drop the Meta subscription that feeds it."""
 
-    def test_callback_repairs_a_row_left_without_an_account_id(self):
+    CALLBACK_URL = "/api/v1/integration/instagram/callback/"
+
+    def call_callback(self, profile):
+        """Drive InstagramCallbackView with Meta's side of the exchange faked."""
+        token_response = mock.MagicMock(status_code=200)
+        token_response.json.return_value = {"access_token": "short-lived"}
+
+        with mock.patch("apps.integration.views.requests") as requests_mock, \
+                mock.patch("apps.integration.views.instagram_service") as service:
+            requests_mock.post.return_value = token_response
+            service.get_long_lived_access_token.return_value = "long-lived"
+            service.get_user_profile.return_value = profile
+            return self.client.get(
+                self.CALLBACK_URL, {"code": "auth-code", "is_automation_only": "true"},
+            )
+
+    def test_callback_survives_several_rows_with_null_identifiers(self):
+        """The callback runs unauthenticated (user=None). Keying an
+        update_or_create on two NULL columns matches every such row and raises
+        MultipleObjectsReturned — a 500 on the OAuth callback."""
+        for name in ("orphan-1", "orphan-2"):
+            Integration.objects.create(
+                user=None, name=name,
+                integration_type=IntegrationTypes.INSTAGRAM.value,
+                instagram_user_id=None, instagram_account_id=None,
+            )
+
+        response = self.call_callback({
+            "instagram_user_id": None,
+            "instagram_account_id": "17841400375124995",
+            "instagram_username": "shop",
+        })
+
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(Integration.instagram_by_id("17841400375124995").exists())
+
+    def test_callback_relinks_a_row_that_lost_its_account_id(self):
         """get_or_create skipped its defaults when a row from an earlier failed
         attempt already matched, leaving instagram_account_id NULL forever."""
-        from apps.user.models import User
-
-        user = User.objects.create(phone_number="+998900000001")
         Integration.objects.create(
-            user=user,
-            name="half-written",
+            user=None, name="half-written",
             integration_type=IntegrationTypes.INSTAGRAM.value,
-            instagram_user_id="app-scoped-1",
-            instagram_account_id=None,
+            instagram_user_id="app-scoped-1", instagram_account_id=None,
         )
 
-        integration, _ = Integration.objects.update_or_create(
-            instagram_user_id="app-scoped-1",
-            user=user,
-            integration_type=IntegrationTypes.INSTAGRAM.value,
-            defaults={
-                "name": "ig", "api_token": "t",
-                "instagram_account_id": "17841400375124995",
-            },
-        )
+        response = self.call_callback({
+            "instagram_user_id": "app-scoped-1",
+            "instagram_account_id": "17841400375124995",
+            "instagram_username": "shop",
+        })
 
-        self.assertEqual(integration.instagram_account_id, "17841400375124995")
+        self.assertEqual(response.status_code, 200)
         self.assertEqual(Integration.objects.count(), 1)
+        self.assertEqual(
+            Integration.objects.get().instagram_account_id, "17841400375124995"
+        )
+
+    def test_callback_refuses_a_profile_without_an_account_id(self):
+        """A row with no account ID can never be reached by a webhook."""
+        response = self.call_callback({
+            "instagram_user_id": "app-scoped-1",
+            "instagram_account_id": None,
+            "instagram_username": "shop",
+        })
+
+        self.assertEqual(response.status_code, 400)
+        self.assertFalse(Integration.objects.exists())
 
     def test_instagram_by_id_ignores_other_integration_types(self):
         Integration.objects.create(
