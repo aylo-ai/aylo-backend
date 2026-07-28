@@ -1,4 +1,5 @@
 from django.db import models
+from django.db.models import Q
 
 from shared.addons.enums import (
     ActionType,
@@ -40,6 +41,27 @@ class Integration(BaseModel):
 
     def __str__(self):
         return self.name
+
+    @classmethod
+    def instagram_by_id(cls, instagram_id):
+        """Instagram integrations matching ``instagram_id`` on either ID column.
+
+        OAuth stores two distinct identifiers: ``/me.id`` in ``instagram_user_id``
+        and ``/me.user_id`` in ``instagram_account_id``. Webhook payloads carry
+        one or the other in ``entry.id`` depending on the event, so matching a
+        single column silently drops traffic for accounts where the two differ.
+        """
+        if not instagram_id:
+            return cls.objects.none()
+        return cls.objects.filter(
+            Q(instagram_account_id=instagram_id) | Q(instagram_user_id=instagram_id),
+            integration_type=IntegrationTypes.INSTAGRAM.value,
+        )
+
+    @property
+    def instagram_send_id(self):
+        """Account ID to address in outbound Graph calls."""
+        return self.instagram_account_id or self.instagram_user_id
 
     class Meta:
         db_table = 'integration'

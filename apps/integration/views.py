@@ -142,6 +142,10 @@ class IntegrationRetrieveUpdateDestroyView(generics.RetrieveUpdateDestroyAPIView
 
     def destroy(self, request, *args, **kwargs):
         instance = self.get_object()
+        # Drop the Meta subscription first, otherwise Instagram keeps delivering
+        # webhooks for an account that no longer resolves to an integration.
+        if instance.integration_type == IntegrationTypes.INSTAGRAM.value:
+            instagram_service.unsubscribe_webhooks(instance.api_token)
         instance.delete()
         return success_response(message=_("Integration muvaffaqiyatli o'chirildi"), code=204)
 
@@ -229,7 +233,7 @@ class InstagramWebhookView(APIView):
                     comment_data = change.get("value", {})
                     if comment_data:
                         # Get access token from integration
-                        integration = Integration.objects.filter(instagram_account_id=account_id).first()
+                        integration = Integration.instagram_by_id(account_id).first()
                         if integration and integration.api_token:
                             process_instagram_comment.delay(account_id, comment_data)
                             return success_response(message=_("Comment webhook ma'lumotlar muvaffaqiyatli olindi"), code=200)
@@ -239,7 +243,7 @@ class InstagramWebhookView(APIView):
         if messaging:
             # Handle postback events (button clicks)
             if "postback" in messaging[0]:
-                integration = Integration.objects.filter(instagram_account_id=account_id).first()
+                integration = Integration.instagram_by_id(account_id).first()
                 if integration and integration.api_token:
                     handle_postback_event_task.delay(messaging[0], integration.api_token)
                 return success_response(message=_("Postback muvaffaqiyatli olindi"), code=200)
@@ -266,8 +270,8 @@ class InstagramWebhookView(APIView):
                 shared_url = messaging[0].get("message", {}).get("attachments", [{}])[0].get("payload", {}).get("url", None)
                 user_text = messaging[0].get("message", {}).get("text", None)
                 sender_id = messaging[0].get("sender", {}).get("id", None)
-                if sender_id and not Integration.objects.filter(instagram_account_id=sender_id).exists():
-                    if Integration.objects.filter(instagram_account_id=account_id).exists() and process_shared_post_message:
+                if sender_id and not Integration.instagram_by_id(sender_id).exists():
+                    if Integration.instagram_by_id(account_id).exists() and process_shared_post_message:
                         process_shared_post_message.delay(account_id, shared_url, user_text, messaging)
                 return success_response(message=_("Shared post xabar muvaffaqiyatli olindi"), code=200)
             elif attachment_type in ['ig_reel', 'unsupported_type']:
@@ -275,10 +279,12 @@ class InstagramWebhookView(APIView):
             if is_echo:
                 return success_response(message=_("Echo xabar muvaffaqiyatli olindi"), code=200)
             sender_id = messaging[0].get("sender", {}).get("id", None)
-            if not Integration.objects.filter(instagram_account_id=sender_id).exists():
-                if not Integration.objects.filter(instagram_account_id=account_id).exists():
+            if not Integration.instagram_by_id(sender_id).exists():
+                if not Integration.instagram_by_id(account_id).exists():
+                    # Ack unknown accounts: repeated non-2xx replies make Meta
+                    # throttle and eventually disable the webhook subscription.
                     logger.warning("Integration not found for Instagram account %s", account_id)
-                    return error_response(message="Integration not found", code=404)
+                    return success_response(message=_("Integratsiya topilmadi"), code=200)
                 # Start celery task to process the incoming message
                 if audio_file:
                     process_instagram_message.delay(account_id, None, messaging,audio_file)
@@ -339,29 +345,39 @@ class InstagramCallbackView(APIView):
             return error_response(message=("Access token topilmadi"), code=400)
         # get instagram user profile
         user_profile = instagram_service.get_user_profile(access_token)
-        if user_profile:
-            if Integration.objects.filter(instagram_account_id=user_profile.get("instagram_account_id")).exists():
-                logger.info("Instagram integration already exists for account %s", user_profile.get("instagram_account_id"))
-                return error_response(message=("Instagram integratsiyasi sizda mavjud"), code=400)
-            integration, created = Integration.objects.get_or_create(
-                instagram_user_id=user_profile.get("instagram_user_id"),
-                user=user,
-                integration_type=IntegrationTypes.INSTAGRAM.value,
-                defaults={
-                    "assistant_id": assistant_id,
-                    "name": user_profile.get("instagram_username"),
-                    "api_token": access_token,
-                    "refresh_token": short_lived_access_token,
-                    "instagram_account_id": user_profile.get("instagram_account_id"),
-                    "instagram_username": user_profile.get("instagram_username"),
-                }
-            )
-            if not created:
-                return error_response(message=("Instagram integratsiyasi sizda mavjud"), code=200)
-            logger.info("Instagram integration %s created", integration.id)
-        else:
+        if not user_profile:
             return error_response(message=("Foydalanuvchi profili topilmadi"), code=400)
-        
+
+        instagram_account_id = user_profile.get("instagram_account_id")
+        instagram_user_id = user_profile.get("instagram_user_id")
+        if not instagram_account_id:
+            logger.warning("Instagram profile returned no user_id; refusing to create an unroutable integration")
+            return error_response(message=("Foydalanuvchi profili topilmadi"), code=400)
+
+        # Check both identifiers — an existing row may hold either one.
+        if Integration.instagram_by_id(instagram_account_id).exists() or Integration.instagram_by_id(instagram_user_id).exists():
+            logger.info("Instagram integration already exists for account %s", instagram_account_id)
+            return error_response(message=("Instagram integratsiyasi sizda mavjud"), code=400)
+
+        # update_or_create, not get_or_create: a row left behind by an earlier
+        # failed attempt would otherwise keep its blank identity columns (the
+        # defaults are skipped on a match), staying invisible to every webhook.
+        integration, _ = Integration.objects.update_or_create(
+            instagram_user_id=instagram_user_id,
+            user=user,
+            integration_type=IntegrationTypes.INSTAGRAM.value,
+            defaults={
+                "assistant_id": assistant_id,
+                "name": user_profile.get("instagram_username"),
+                "api_token": access_token,
+                "refresh_token": short_lived_access_token,
+                "instagram_account_id": instagram_account_id,
+                "instagram_username": user_profile.get("instagram_username"),
+            }
+        )
+        logger.info("Instagram integration %s created", integration.id)
+
+
         # enable webhook for the integration
         url = f"https://graph.instagram.com/v22.0/me/subscribed_apps?access_token={access_token}&subscribed_fields=messages,comments"
         response = requests.post(url)
@@ -418,10 +434,9 @@ class InstagramDeauthorizeView(APIView):
         if user_id:
             # Find and remove the user's Instagram integration
             try:
-                integration = Integration.objects.filter(
-                    integration_type=IntegrationTypes.INSTAGRAM.value,
-                    instagram_account_id=user_id
-                ).first()
+                # The signed request carries the app-scoped ID, which OAuth
+                # stores in instagram_user_id — match either column.
+                integration = Integration.instagram_by_id(user_id).first()
                 if integration:
                     # Delete all related InstagramCommentResponse and their InstagramMedia
                     comment_responses = InstagramCommentResponse.objects.filter(integration=integration)

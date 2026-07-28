@@ -3,13 +3,14 @@ import logging
 
 from celery import shared_task
 
-from apps.assistant.models import Assistant
 from apps.assistant.utils import cancel_pending_follow_ups
 from apps.shared.ai_service.agent import respond
 from apps.shared.ai_service.conversation import conversation_service
 from apps.shared.addons.enums import ConversationStatuses, SenderTypes
 from shared.addons.instagram import instagram_service
 from shared.addons.redis import publish_message_to_ws
+
+from ..models import Integration
 
 logger = logging.getLogger(__name__)
 
@@ -23,15 +24,13 @@ def process_instagram_message(self, account_id, combined_message, user_message, 
     raw webhook messaging payload used to resolve the sender. Voice notes arrive
     as ``audio_file`` and are transcribed here.
     """
-    assistant = Assistant.objects.filter(integrations__instagram_account_id=account_id).first()
-    if not assistant:
+    integration = Integration.instagram_by_id(account_id).first()
+    if not integration:
+        logger.warning("[-] No Instagram integration found for account_id %s", account_id)
         return
 
-    integration = assistant.integrations.filter(
-        integration_type="instagram", instagram_account_id=account_id
-    ).first()
-    if not integration:
-        logger.warning("[-] No Instagram integration found for the given account_id")
+    assistant = integration.assistant
+    if not assistant:
         return
 
     sender_id = user_message[0].get("sender", {}).get("id")
@@ -80,23 +79,21 @@ def process_instagram_message(self, account_id, combined_message, user_message, 
     if assistant.ai_enabled:
         response_message = respond(assistant, conversation, combined_message)
         if response_message:
-            instagram_service.send_message(account_id, integration.api_token, sender_id, response_message)
+            instagram_service.send_message(integration.instagram_send_id, integration.api_token, sender_id, response_message)
 
 
 @shared_task(bind=True, max_retries=3, default_retry_delay=5,
              name="apps.integration.tasks.process_shared_post_message")
 def process_shared_post_message(self, account_id, shared_url, user_text, messaging):
     """Process a shared Instagram post in DM — fetch post details and include as context for AI."""
-    assistant = Assistant.objects.filter(integrations__instagram_account_id=account_id).first()
-    if not assistant:
-        logger.warning("[-] No assistant found for account_id: %s", account_id)
+    integration = Integration.instagram_by_id(account_id).first()
+    if not integration:
+        logger.warning("[-] No Instagram integration found for account_id: %s", account_id)
         return
 
-    integration = assistant.integrations.filter(
-        integration_type="instagram", instagram_account_id=account_id
-    ).first()
-    if not integration:
-        logger.warning("[-] No Instagram integration found")
+    assistant = integration.assistant
+    if not assistant:
+        logger.warning("[-] No assistant found for account_id: %s", account_id)
         return
 
     sender_id = messaging[0].get("sender", {}).get("id")
@@ -107,7 +104,7 @@ def process_shared_post_message(self, account_id, shared_url, user_text, messagi
     post_context = ""
     if shared_url and integration.api_token:
         media_id = instagram_service.extract_media_id_from_url(
-            shared_url, integration.api_token, account_id
+            shared_url, integration.api_token, integration.instagram_send_id
         )
         if media_id:
             media_details = instagram_service.get_media_details(integration.api_token, media_id)
@@ -155,4 +152,4 @@ def process_shared_post_message(self, account_id, shared_url, user_text, messagi
     if assistant.ai_enabled:
         response_message = respond(assistant, conversation, combined_message)
         if response_message:
-            instagram_service.send_message(account_id, integration.api_token, sender_id, response_message)
+            instagram_service.send_message(integration.instagram_send_id, integration.api_token, sender_id, response_message)

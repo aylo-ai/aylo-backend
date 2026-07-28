@@ -124,9 +124,9 @@ def process_instagram_comment(self, account_id, comment_data):
     """Entry point for Instagram comment webhooks."""
     logger.info("[+] Processing Instagram comment for account_id: %s", account_id)
 
-    integration = Integration.objects.filter(instagram_account_id=account_id).first()
+    integration = Integration.instagram_by_id(account_id).first()
     if not integration:
-        logger.warning("[-] Integration not found")
+        logger.warning("[-] Integration not found for Instagram account %s", account_id)
         return
 
     media_id = comment_data.get("media", {}).get("id")

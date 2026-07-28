@@ -267,6 +267,188 @@ class InstagramTests(ChannelTestCase):
         self.instagram.send_postback.assert_not_called()
 
 
+class InstagramAccountResolutionTests(ChannelTestCase):
+    """Regression: "Integration not found for Instagram account <id>".
+
+    OAuth stores `/me.id` in instagram_user_id and `/me.user_id` in
+    instagram_account_id. Every webhook path matched instagram_account_id only,
+    so on accounts where the two identifiers differ, Meta's `entry.id` resolved
+    to nothing and all traffic for that account was dropped.
+    """
+
+    URL = "/api/v1/integration/instagram/webhook/"
+    APP_SECRET = "app-secret"
+
+    def post_webhook(self, payload):
+        import hashlib
+        import hmac as hmac_lib
+        import json as json_lib
+
+        body = json_lib.dumps(payload)
+        signature = "sha256=" + hmac_lib.new(
+            self.APP_SECRET.encode(), body.encode(), hashlib.sha256,
+        ).hexdigest()
+        with self.settings(INSTAGRAM_APP_SECRET=self.APP_SECRET):
+            return self.client.post(
+                self.URL, data=body, content_type="application/json",
+                HTTP_X_HUB_SIGNATURE_256=signature,
+            )
+
+    def test_task_resolves_an_account_held_in_the_other_id_column(self):
+        integration = Integration.objects.get(
+            integration_type=IntegrationTypes.INSTAGRAM.value
+        )
+        integration.instagram_user_id = "17841400375124995"
+        integration.save()
+
+        tasks.process_instagram_message(
+            account_id="17841400375124995", combined_message="Salom",
+            user_message=[{"sender": {"id": "ig-user-1"}}],
+        )
+
+        self.respond.assert_called_once()
+        self.instagram.send_message.assert_called_once()
+
+    def test_outbound_message_addresses_the_stored_account_id(self):
+        integration = Integration.objects.get(
+            integration_type=IntegrationTypes.INSTAGRAM.value
+        )
+        integration.instagram_user_id = "17841400375124995"
+        integration.save()
+
+        tasks.process_instagram_message(
+            account_id="17841400375124995", combined_message="Salom",
+            user_message=[{"sender": {"id": "ig-user-1"}}],
+        )
+
+        self.assertEqual(self.instagram.send_message.call_args.args[0], ACCOUNT_ID)
+
+    def test_comment_task_resolves_the_other_id_column(self):
+        integration = Integration.objects.get(
+            integration_type=IntegrationTypes.INSTAGRAM.value
+        )
+        integration.instagram_user_id = "17841400375124995"
+        integration.instagram_account_id = None
+        integration.is_comment_response = True
+        integration.save()
+
+        with mock.patch.object(
+            comment_tasks, "process_instagram_comment_message"
+        ) as ai_reply:
+            tasks.process_instagram_comment(
+                account_id="17841400375124995",
+                comment_data={"media": {"id": "m1"}, "id": "c1", "text": "hi",
+                              "from": {"id": "u1"}},
+            )
+
+        # Resolution succeeded, so the task ran to the AI hand-off instead of
+        # bailing out at "Integration not found".
+        ai_reply.delay.assert_called_once()
+
+    def test_webhook_resolves_an_account_held_in_the_other_id_column(self):
+        integration = Integration.objects.get(
+            integration_type=IntegrationTypes.INSTAGRAM.value
+        )
+        integration.instagram_user_id = "17841400375124995"
+        integration.instagram_account_id = None
+        integration.save()
+
+        with mock.patch("apps.integration.views.redis_client") as redis, \
+                mock.patch("apps.integration.views.process_collected_messages") as collector:
+            redis.get.return_value = None  # not a duplicate delivery
+            response = self.post_webhook({
+                "entry": [{
+                    "id": "17841400375124995",
+                    "messaging": [{
+                        "sender": {"id": "ig-user-1"},
+                        "message": {"mid": "m-1", "text": "Salom"},
+                    }],
+                }]
+            })
+
+        self.assertEqual(response.status_code, 200)
+        # Resolution succeeded, so the message was handed to the collector
+        # instead of being dropped as an unknown account.
+        collector.apply_async.assert_called_once()
+
+    def test_unknown_account_is_acknowledged_not_404ed(self):
+        """Meta throttles and eventually disables a subscription that keeps
+        returning non-2xx, so an unroutable account must still be ack'd."""
+        with mock.patch("apps.integration.views.redis_client"):
+            response = self.post_webhook({
+                "entry": [{
+                    "id": "99999999999999999",
+                    "messaging": [{
+                        "sender": {"id": "ig-user-9"},
+                        "message": {"mid": "m-9", "text": "Salom"},
+                    }],
+                }]
+            })
+
+        self.assertEqual(response.status_code, 200)
+
+
+class InstagramIntegrationLifecycleTests(TestCase):
+    """The OAuth callback must always land both identifiers, and deleting an
+    integration must drop the Meta subscription that feeds it."""
+
+    def test_callback_repairs_a_row_left_without_an_account_id(self):
+        """get_or_create skipped its defaults when a row from an earlier failed
+        attempt already matched, leaving instagram_account_id NULL forever."""
+        from apps.user.models import User
+
+        user = User.objects.create(phone_number="+998900000001")
+        Integration.objects.create(
+            user=user,
+            name="half-written",
+            integration_type=IntegrationTypes.INSTAGRAM.value,
+            instagram_user_id="app-scoped-1",
+            instagram_account_id=None,
+        )
+
+        integration, _ = Integration.objects.update_or_create(
+            instagram_user_id="app-scoped-1",
+            user=user,
+            integration_type=IntegrationTypes.INSTAGRAM.value,
+            defaults={
+                "name": "ig", "api_token": "t",
+                "instagram_account_id": "17841400375124995",
+            },
+        )
+
+        self.assertEqual(integration.instagram_account_id, "17841400375124995")
+        self.assertEqual(Integration.objects.count(), 1)
+
+    def test_instagram_by_id_ignores_other_integration_types(self):
+        Integration.objects.create(
+            name="tg", integration_type=IntegrationTypes.TELEGRAM.value,
+            instagram_account_id="17841400375124995",
+        )
+        self.assertFalse(Integration.instagram_by_id("17841400375124995").exists())
+
+    def test_instagram_by_id_does_not_match_a_null_id(self):
+        Integration.objects.create(
+            name="ig", integration_type=IntegrationTypes.INSTAGRAM.value,
+        )
+        self.assertFalse(Integration.instagram_by_id(None).exists())
+
+    def test_deleting_an_integration_unsubscribes_the_webhook(self):
+        from apps.integration import views as integration_views
+
+        integration = Integration.objects.create(
+            name="ig", integration_type=IntegrationTypes.INSTAGRAM.value,
+            api_token="ig-token", instagram_account_id="17841400375124995",
+        )
+        view = integration_views.IntegrationRetrieveUpdateDestroyView()
+        view.get_object = lambda: integration
+
+        with mock.patch.object(integration_views, "instagram_service") as service:
+            view.destroy(mock.MagicMock())
+
+        service.unsubscribe_webhooks.assert_called_once_with("ig-token")
+        self.assertFalse(Integration.objects.filter(name="ig").exists())
+
+
 class TaskRegistrationTests(TestCase):
     """The queue routing and beat schedule address tasks by their registered
     names — the tasks/ package split must keep every name stable."""

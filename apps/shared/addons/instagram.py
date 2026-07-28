@@ -84,6 +84,27 @@ class InstagramService:
             }
         return None
 
+    def unsubscribe_webhooks(self, access_token: str) -> bool:
+        """Drop this app's webhook subscription for the token's account.
+
+        Fail-soft: without this, Meta keeps delivering events for accounts whose
+        integration has been removed and every one is logged as unroutable.
+        """
+        if not access_token:
+            return False
+        url = f"{self.GRAPH_BASE}/v22.0/me/subscribed_apps"
+        try:
+            response = requests.delete(url, params={"access_token": access_token})
+            if response.status_code != 200:
+                logger.warning(
+                    "Instagram webhook unsubscribe returned %s", response.status_code
+                )
+                return False
+            return True
+        except requests.RequestException as e:
+            logger.warning("Instagram webhook unsubscribe failed: %s", e)
+            return False
+
     # ---- Messaging ----
 
     def send_message(
