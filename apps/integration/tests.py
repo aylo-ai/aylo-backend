@@ -371,6 +371,55 @@ class InstagramAccountResolutionTests(ChannelTestCase):
         # instead of being dropped as an unknown account.
         collector.apply_async.assert_called_once()
 
+    def test_a_dm_delivered_as_a_changes_entry_is_processed(self):
+        """Regression: the Instagram-Login product delivers DMs as
+        changes[field="messages"] rather than messaging[], with entry.id "0".
+        The view only understood messaging[], so every DM fell through to the
+        generic 200 and no reply was ever produced."""
+        with mock.patch("apps.integration.views.redis_client") as redis, \
+                mock.patch("apps.integration.views.process_collected_messages") as collector:
+            redis.get.return_value = None
+            response = self.post_webhook({
+                "entry": [{
+                    "id": "0",
+                    "time": 1769000000,
+                    "changes": [{
+                        "field": "messages",
+                        "value": {
+                            "sender": {"id": "ig-user-1"},
+                            "recipient": {"id": ACCOUNT_ID},
+                            "message": {"mid": "m-changes-1", "text": "Salom"},
+                        },
+                    }],
+                }]
+            })
+
+        self.assertEqual(response.status_code, 200)
+        collector.apply_async.assert_called_once()
+        # The account must come off the recipient, not the placeholder entry.id.
+        self.assertEqual(collector.apply_async.call_args.args[0][5], ACCOUNT_ID)
+
+    def test_an_echo_in_a_changes_entry_is_not_answered(self):
+        with mock.patch("apps.integration.views.redis_client") as redis, \
+                mock.patch("apps.integration.views.process_collected_messages") as collector:
+            redis.get.return_value = None
+            response = self.post_webhook({
+                "entry": [{
+                    "id": "0",
+                    "changes": [{
+                        "field": "messages",
+                        "value": {
+                            "sender": {"id": "ig-user-1"},
+                            "recipient": {"id": ACCOUNT_ID},
+                            "message": {"mid": "m-echo", "text": "Hi", "is_echo": True},
+                        },
+                    }],
+                }]
+            })
+
+        self.assertEqual(response.status_code, 200)
+        collector.apply_async.assert_not_called()
+
     def test_unknown_account_is_acknowledged_not_404ed(self):
         """Meta throttles and eventually disables a subscription that keeps
         returning non-2xx, so an unroutable account must still be ack'd."""

@@ -259,8 +259,22 @@ class InstagramWebhookView(APIView):
                     process_instagram_comment.delay(account_id, comment_data)
                     return success_response(message=_("Comment webhook ma'lumotlar muvaffaqiyatli olindi"), code=200)
 
-        # Handle messages
+        # Instagram delivers DMs in one of two shapes. The classic one is
+        # entry[].messaging[]; the Instagram-Login product instead sends a
+        # changes[] entry with field "messages" whose `value` mirrors a
+        # messaging item (sender / recipient / message). In that shape entry.id
+        # is "0", so the account has to be read off the recipient.
         messaging = entry.get("messaging")
+        if not messaging:
+            messaging = [
+                change.get("value")
+                for change in entry.get("changes", [])
+                if change.get("field") == "messages" and change.get("value")
+            ]
+        if messaging and account_id in (None, "", "0", 0):
+            account_id = (messaging[0].get("recipient") or {}).get("id")
+            logger.info("Instagram account resolved from the message recipient: %s", account_id)
+
         if messaging:
             # Handle postback events (button clicks)
             if "postback" in messaging[0]:

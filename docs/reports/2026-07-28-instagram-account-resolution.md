@@ -56,6 +56,22 @@ ma'lumotlar muvaffaqiyatli olindi","data":null}` — the terminal fall-through, 
 | 9 | Medium | `data.get("entry")[0]` raises `IndexError` → 500 on an entry-less payload | Guarded, acked with a warning |
 | 10 | Medium | Meta batches deliveries but only `entry[0]` was ever processed — the rest vanished with no trace | Still processes only the first, but now warns with the count (full multi-entry handling left as an open item) |
 
+## Third round — the actual cause of "no replies"
+
+The diagnostics from round two answered it on the first delivery:
+
+```
+Instagram webhook for 0 was not handled: keys=['changes', 'id', 'time'] changes=['messages']
+```
+
+| # | Severity | Issue | Fix |
+|---|---|---|---|
+| 11 | **Critical** | Instagram delivers DMs in **two** shapes. The view only understood `entry[].messaging[]`; the Instagram-Login product instead sends `entry[].changes[]` with `field: "messages"`, whose `value` mirrors a messaging item. Every DM fell through to the generic 200 — no reply was ever produced | `changes[field="messages"].value` is normalised into the `messaging` list, after which the existing pipeline runs unchanged |
+| 12 | High | In that shape `entry.id` is the literal `"0"`, not an account ID — so even once normalised, routing would fail | Account is read from `value.recipient.id` when `entry.id` is absent or `"0"` |
+
+This is why comments behaved differently from DMs: comment events carry a real
+`entry.id` and were already handled.
+
 ## Files changed
 
 | File | Change |
@@ -65,7 +81,7 @@ ma'lumotlar muvaffaqiyatli olindi","data":null}` — the terminal fall-through, 
 | `apps/integration/tasks/instagram_messaging.py` | Resolver-based lookup, assistant derived from the integration, outbound calls use `instagram_send_id`, dead `Assistant` import removed |
 | `apps/integration/tasks/instagram_comments.py` | Resolver-based lookup; warning now names the account |
 | `apps/shared/addons/instagram.py` | New fail-soft `unsubscribe_webhooks()` |
-| `apps/integration/tests.py` | 16 new tests |
+| `apps/integration/tests.py` | 18 new tests |
 
 ## Tests
 
@@ -77,11 +93,14 @@ the fix was restored.
 
 ```
 $ .venv/bin/python manage.py test apps.integration apps.shared --keepdb
-Found 111 test(s).
-Ran 111 tests in 2.701s
+Found 113 test(s).
+Ran 113 tests in 3.402s
 
 OK
 ```
+
+`test_a_dm_delivered_as_a_changes_entry_is_processed` was verified to **fail** without
+the normalisation, so the critical path is regression-locked.
 
 Two things worth knowing for future test work:
 
@@ -126,11 +145,11 @@ rather than blocking the delete.
 3. **`INSTAGRAM_CLIENT_SECRET` was exposed** in an agent transcript on 2026-07-28 while
    reading `.env`. Rotate at Meta, update `/opt/aylo/.secrets/backend.env`, redeploy.
    This compounds the rotation already pending from the 2026-07-22 report.
-4. **What the new log line will say.** After deploying, one delivery produces
-   `Instagram webhook received for <id>: keys=[...] changes=[...]`. That single line
-   settles which of A/B/C is happening. If `changes=['messages']` appears, Meta is
-   delivering DMs through `changes` rather than `messaging` and the view needs a new
-   branch — **this is not handled today**.
+4. **A second account still does not resolve.** After the round-two deploy the logs
+   showed `Integration not found for Instagram account 17841408103243288` — a
+   *different* account from the originally reported one, arriving in the
+   `messaging[]` shape. The either-column resolver is already live, so this one has no
+   matching row at all. Needs the DB query from item 1 run against it.
 5. **Batched entries are still dropped.** Only `entry[0]` is processed; the rest are now
    counted in a warning but not handled. Worth fixing once the logs show whether Meta
    actually batches for this app.
