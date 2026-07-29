@@ -316,10 +316,11 @@ class InstagramWebhookView(APIView):
             if is_echo:
                 return success_response(message=_("Echo xabar muvaffaqiyatli olindi"), code=200)
             sender_id = messaging[0].get("sender", {}).get("id", None)
-            if not Integration.instagram_by_id(sender_id).exists():
-                if not Integration.instagram_by_id(account_id).exists():
+            if not Integration.objects.filter(sender_id=sender_id).exists():
+                if not Integration.objects.filter(account_id=account_id).exists():
                     # Ack unknown accounts: repeated non-2xx replies make Meta
                     # throttle and eventually disable the webhook subscription.
+                    logger.warning(f"Instagram webhook received for unknown account:{messaging}")
                     logger.warning("Integration not found for Instagram account %s", account_id)
                     return success_response(message=_("Integratsiya topilmadi"), code=200)
                 # Start celery task to process the incoming message
