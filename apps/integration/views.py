@@ -233,6 +233,8 @@ class InstagramWebhookView(APIView):
         entry = entries[0]
         account_id = entry.get("id") # IG Professional Account ID (instagram_user_id)
 
+        logger.info(f"Instagram webhook received for account: {account_id}, {entry}")
+
         # Shape only — never the message body, which is customer content.
         logger.info(
             "Instagram webhook received for account %s: keys=%s changes=%s",
@@ -249,7 +251,7 @@ class InstagramWebhookView(APIView):
                         logger.warning("Instagram comment change for %s had an empty value", account_id)
                         continue
                     # Get access token from integration
-                    integration = Integration.instagram_by_id(account_id).first()
+                    integration = Integration.objects.filter(account_id=account_id).first()
                     if not integration:
                         logger.warning("Instagram comment for unknown account %s", account_id)
                         continue
