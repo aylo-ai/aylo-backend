@@ -10,6 +10,7 @@ from io import BytesIO
 from typing import Iterable, List, Optional, Tuple
 
 import requests
+from apps.shared import http
 
 from .client import get_client
 from .tools import is_openai_store
@@ -129,7 +130,7 @@ def _download(file_url: str) -> Tuple[Optional[bytes], str]:
         return None, filename
 
     try:
-        response = requests.get(file_url, timeout=30)
+        response = http.get(file_url, timeout=30)
         response.raise_for_status()
     except requests.RequestException as exc:
         logger.error("Could not download %s: %s", file_url, exc)

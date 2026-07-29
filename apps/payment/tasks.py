@@ -6,8 +6,8 @@ from django.utils import timezone
 from datetime import timedelta
 from apps.user.models import User
 from apps.shared.addons.enums import PricingPackageType
-from shared.addons.payment import process_subscription_payment, create_notification
-from shared.addons.utils import notify_user_about_failed_payment, restrict_user_account
+from apps.shared.addons.payment import process_subscription_payment, create_notification
+from apps.shared.addons.utils import notify_user_about_failed_payment, restrict_user_account
 from apps.payment.models import RetryPayment
 from django.db import transaction
 

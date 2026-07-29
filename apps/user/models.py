@@ -6,8 +6,8 @@ from django.db.models import Q
 from rest_framework_simplejwt.tokens import RefreshToken
 
 from apps.payment.models import Subscription
-from shared.addons.enums import AuthTypes, UserRoles, NotificationTypes
-from shared.models import BaseModel
+from apps.shared.addons.enums import AuthTypes, UserRoles, NotificationTypes
+from apps.shared.models import BaseModel
 
 from faker import Faker
 fake = Faker()

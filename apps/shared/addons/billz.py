@@ -7,6 +7,7 @@ assistant's knowledge base actually needs. Used by the Billz sync tasks in
 import logging
 
 import requests
+from apps.shared import http
 
 logger = logging.getLogger(__name__)
 
@@ -73,7 +74,7 @@ def fetch_all_products(access_token):
     while True:
         params = {"limit": PAGE_LIMIT, "page": page}
         try:
-            response = requests.get(PRODUCTS_URL, headers=headers, params=params, timeout=30)
+            response = http.get(PRODUCTS_URL, headers=headers, params=params, timeout=30)
             response.raise_for_status()
             data = response.json()
         except requests.exceptions.RequestException as e:

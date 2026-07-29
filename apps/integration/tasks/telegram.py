@@ -1,7 +1,7 @@
 """Telegram channel tasks: text, voice and photo messages from bot webhooks."""
 import logging
 
-import requests
+from apps.shared import http
 from celery import shared_task
 
 from apps.assistant.models import Assistant
@@ -10,8 +10,8 @@ from apps.shared.ai_service import media
 from apps.shared.ai_service.agent import respond
 from apps.shared.ai_service.conversation import conversation_service
 from apps.shared.addons.enums import ConversationStatuses, SenderTypes
-from shared.addons.redis import publish_message_to_ws
-from shared.addons.telegram import send_telegram_action, send_telegram_message
+from apps.shared.addons.redis import publish_message_to_ws
+from apps.shared.addons.telegram import send_telegram_action, send_telegram_message
 
 logger = logging.getLogger(__name__)
 
@@ -76,11 +76,11 @@ def process_voice_task(self, chat_id, voice_file_id, bot_token):
         return
 
     file_info_url = f"https://api.telegram.org/bot{bot_token}/getFile?file_id={voice_file_id}"
-    file_info_resp = requests.get(file_info_url)
+    file_info_resp = http.get(file_info_url)
     file_path = file_info_resp.json()["result"]["file_path"]
     file_url = f"https://api.telegram.org/file/bot{bot_token}/{file_path}"
 
-    audio_bytes_ogg = requests.get(file_url).content
+    audio_bytes_ogg = http.get(file_url).content
     audio_bytes_mp3 = conversation_service.convert_ogg_to_mp3(audio_bytes_ogg)
 
     transcribed_text, input_tokens, output_tokens = media.transcribe_audio(audio_bytes_mp3)
@@ -105,7 +105,7 @@ def process_photo_task(self, chat_id, photo_file_id, bot_token, chat_username=No
     try:
         # Resolve the file URL from Telegram, then let vision describe it.
         file_info_url = f"https://api.telegram.org/bot{bot_token}/getFile?file_id={photo_file_id}"
-        file_info_resp = requests.get(file_info_url)
+        file_info_resp = http.get(file_info_url)
         file_info_resp.raise_for_status()
         file_path = file_info_resp.json()["result"]["file_path"]
         file_url = f"https://api.telegram.org/file/bot{bot_token}/{file_path}"

@@ -1,6 +1,6 @@
 import os
 import json
-import requests
+from apps.shared import http
 from datetime import datetime
 from rest_framework import status
 from rest_framework.permissions import AllowAny
@@ -10,8 +10,8 @@ from django.views.decorators.csrf import csrf_exempt
 from django.utils.decorators import method_decorator
 from django.http import JsonResponse, HttpResponse
 
-from landing.models import LandingLead, LeadNotificationGroup
-from landing.serializers import LandingLeadSerializer
+from apps.landing.models import LandingLead, LeadNotificationGroup
+from apps.landing.serializers import LandingLeadSerializer
 
 LEAD_BOT_TOKEN = os.environ.get("LEAD_BOT_TOKEN", "")
 LEAD_BOT_PASSWORD = os.environ.get("LEAD_BOT_PASSWORD", "repli2024")
@@ -59,7 +59,7 @@ def notify_telegram_groups(lead: LandingLead):
 
     for group in groups:
         try:
-            requests.post(
+            http.post(
                 f"https://api.telegram.org/bot{LEAD_BOT_TOKEN}/sendMessage",
                 json={
                     "chat_id": group.group_id,
@@ -155,7 +155,7 @@ class LeadBotWebhookView(APIView):
         if not LEAD_BOT_TOKEN:
             return
         try:
-            requests.post(
+            http.post(
                 f"https://api.telegram.org/bot{LEAD_BOT_TOKEN}/sendMessage",
                 json={"chat_id": chat_id, "text": text, "parse_mode": "HTML"},
                 timeout=5,

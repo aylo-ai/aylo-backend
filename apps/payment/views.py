@@ -6,11 +6,11 @@ from rest_framework import generics, permissions
 from rest_framework.views import APIView
 
 from apps.payment.models import Feature, PricingPackage, Card, Subscription, Transaction, RetryPayment  
-from shared.addons.enums import SubscriptionStatuses
+from apps.shared.addons.enums import SubscriptionStatuses
 import apps.payment.serializers as serializers
-from shared.addons.payment import remove_payme_card
-from shared.addons.validations import success_response, error_response
-from shared.permissions import IsAdmin
+from apps.shared.addons.payment import remove_payme_card
+from apps.shared.addons.validations import success_response, error_response
+from apps.shared.permissions import IsAdmin
 from django.utils.translation import gettext_lazy as _
 
 class FeatureListCreateView(generics.ListCreateAPIView):

@@ -11,7 +11,7 @@ from django.core.management.base import BaseCommand
 from django.db import transaction
 
 from apps.payment.models import Feature, PricingPackage
-from shared.addons.enums import CurrencyType, PricingPackageType
+from apps.shared.addons.enums import CurrencyType, PricingPackageType
 
 FEATURES = [
     {"name": "AI agent", "icon": "sparkles"},

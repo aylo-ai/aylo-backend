@@ -11,7 +11,7 @@ from unittest import mock
 
 from django.test import TestCase
 
-from shared.addons.telegram import get_webhook_info, set_telegram_webhook
+from apps.shared.addons.telegram import get_webhook_info, set_telegram_webhook
 
 BOT_TOKEN = "1234567:AAHsecrettokenvalue"
 WEBHOOK_URL = f"https://api.aylo.uz/api/v1/integration/telegram/webhook/{BOT_TOKEN}/"
@@ -23,7 +23,7 @@ class TelegramWebhookLoggingTests(TestCase):
         response.json.return_value = {"ok": True}
 
         buffer = io.StringIO()
-        with mock.patch("shared.addons.telegram.requests.post", return_value=response):
+        with mock.patch("apps.shared.addons.telegram.http.post", return_value=response):
             with redirect_stdout(buffer):
                 code = set_telegram_webhook(BOT_TOKEN, WEBHOOK_URL)
 
@@ -35,7 +35,7 @@ class TelegramWebhookLoggingTests(TestCase):
         response.json.return_value = {"ok": False, "description": WEBHOOK_URL}
 
         buffer = io.StringIO()
-        with mock.patch("shared.addons.telegram.requests.post", return_value=response):
+        with mock.patch("apps.shared.addons.telegram.http.post", return_value=response):
             with redirect_stdout(buffer):
                 code = set_telegram_webhook(BOT_TOKEN, WEBHOOK_URL)
 
@@ -47,7 +47,7 @@ class TelegramWebhookLoggingTests(TestCase):
         response.json.return_value = {"ok": True, "result": {"url": WEBHOOK_URL}}
 
         buffer = io.StringIO()
-        with mock.patch("shared.addons.telegram.requests.get", return_value=response):
+        with mock.patch("apps.shared.addons.telegram.http.get", return_value=response):
             with redirect_stdout(buffer):
                 code = get_webhook_info(BOT_TOKEN)
 
@@ -59,7 +59,7 @@ class TelegramWebhookLoggingTests(TestCase):
         response.json.return_value = {"ok": False, "description": WEBHOOK_URL}
 
         buffer = io.StringIO()
-        with mock.patch("shared.addons.telegram.requests.get", return_value=response):
+        with mock.patch("apps.shared.addons.telegram.http.get", return_value=response):
             with redirect_stdout(buffer):
                 code = get_webhook_info(BOT_TOKEN)
 

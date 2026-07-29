@@ -13,7 +13,7 @@ import inspect
 
 from django.test import SimpleTestCase
 
-from shared.addons import enums
+from apps.shared.addons import enums
 
 
 class EnumModuleStructureTests(SimpleTestCase):

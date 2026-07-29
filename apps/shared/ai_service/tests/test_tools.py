@@ -6,8 +6,8 @@ from django.utils import timezone
 
 from apps.assistant.models import FollowUpConfig, FollowUpLog, FollowUpStage, Message
 from apps.integration.models import Integration, TelegramGroupIntegration
-from shared.addons.enums import ConversationStatuses, IntegrationTypes, SenderTypes
-from shared.ai_service import tools
+from apps.shared.addons.enums import ConversationStatuses, IntegrationTypes, SenderTypes
+from apps.shared.ai_service import tools
 
 from .factories import make_assistant, make_conversation
 

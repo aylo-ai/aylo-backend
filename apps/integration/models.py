@@ -1,7 +1,7 @@
 from django.db import models
 from django.db.models import Q
 
-from shared.addons.enums import (
+from apps.shared.addons.enums import (
     ActionType,
     BroadcastStatuses,
     ButtonType,
@@ -9,7 +9,7 @@ from shared.addons.enums import (
     FlowType,
     IntegrationTypes,
 )
-from shared.models import BaseModel
+from apps.shared.models import BaseModel
 
 
 class Integration(BaseModel):
@@ -33,7 +33,8 @@ class Integration(BaseModel):
     integration_type = models.CharField(max_length=50, choices=IntegrationTypes.choices())
     is_comment_response = models.BooleanField(default=False)
 
-    # Instagram-specific fields
+    # Instagram-specific fields. Both columns are indexed via Meta.indexes below
+    # rather than db_index=True, so the migration can build them CONCURRENTLY.
     instagram_user_id = models.CharField(max_length=50, null=True, blank=True)  # IG user ID
     instagram_account_id = models.CharField(max_length=50, null=True, blank=True)  # IG account ID
     instagram_username = models.CharField(max_length=100, null=True, blank=True)  # IG username
@@ -66,6 +67,12 @@ class Integration(BaseModel):
     class Meta:
         db_table = 'integration'
         ordering = ['-created_time']
+        indexes = [
+            # ``instagram_by_id`` ORs across both columns on every inbound
+            # webhook; Postgres needs one index per branch of the OR.
+            models.Index(fields=["instagram_user_id"], name="integration_ig_user_idx"),
+            models.Index(fields=["instagram_account_id"], name="integration_ig_acct_idx"),
+        ]
 
 
 class TelegramGroupIntegration(BaseModel):

@@ -1,6 +1,7 @@
 import logging
-import requests
+from apps.shared import http
 import base64
+import functools
 import hashlib
 import hmac
 import time
@@ -9,6 +10,7 @@ import secrets
 
 logger = logging.getLogger(__name__)
 
+from django.db import transaction
 from django.db.models import Q
 from django.conf import settings
 from urllib.parse import urlencode
@@ -18,10 +20,10 @@ from rest_framework import generics, permissions
 from django.utils.translation import gettext_lazy as _
 
 from config.settings import INSTAGRAM_CLIENT_ID, INSTAGRAM_CLIENT_SECRET, INSTAGRAM_REDIRECT_URI
-from shared.addons.enums import IntegrationTypes
-from shared.addons.telegram import handle_bot_added_to_group, handle_bot_removed_from_group
-from shared.addons.validations import success_response, error_response
-from shared.permissions import IsCustomer
+from apps.shared.addons.enums import IntegrationTypes
+from apps.shared.addons.telegram import handle_bot_added_to_group, handle_bot_removed_from_group
+from apps.shared.addons.validations import success_response, error_response
+from apps.shared.permissions import IsCustomer
 from apps.shared.addons.instagram import instagram_service
 from apps.assistant.models import Assistant
 from .models import Integration, TelegramGroupIntegration, InstagramMedia, CommentTriggerWord, InstagramCommentResponse, Flow, Transition, Step, CommentResponseButton, Broadcast
@@ -51,7 +53,7 @@ try:
 except ImportError:
     process_shared_post_message = None
 
-from shared.addons.redis import redis_client
+from apps.shared.addons.redis import redis_client
 
 
 
@@ -178,7 +180,8 @@ class SendIntegrationMessageView(generics.CreateAPIView):
                 return error_response(message=_("Sizda bu integration mavjud emas"), code=400)
         except Integration.DoesNotExist:
             return error_response(message=_("Integration topilmadi"), code=404)
-        send_message_integration_task.delay(integration_id, message)
+        transaction.on_commit(functools.partial(
+            send_message_integration_task.delay, integration_id, message))
         return success_response(message=_("Xabar muvaffaqiyatli yuborildi"), code=200)
 
 
@@ -258,7 +261,8 @@ class InstagramWebhookView(APIView):
                     if not integration.api_token:
                         logger.warning("Instagram integration %s has no api_token; comment dropped", integration.id)
                         continue
-                    process_instagram_comment.delay(account_id, comment_data)
+                    transaction.on_commit(functools.partial(
+                        process_instagram_comment.delay, account_id, comment_data))
                     return success_response(message=_("Comment webhook ma'lumotlar muvaffaqiyatli olindi"), code=200)
 
         # Instagram delivers DMs in one of two shapes. The classic one is
@@ -282,7 +286,8 @@ class InstagramWebhookView(APIView):
             if "postback" in messaging[0]:
                 integration = Integration.instagram_by_id(account_id).first()
                 if integration and integration.api_token:
-                    handle_postback_event_task.delay(messaging[0], integration.api_token)
+                    transaction.on_commit(functools.partial(
+                        handle_postback_event_task.delay, messaging[0], integration.api_token))
                 return success_response(message=_("Postback muvaffaqiyatli olindi"), code=200)
             
             # Deduplicate: check message ID to prevent processing the same webhook twice
@@ -309,7 +314,8 @@ class InstagramWebhookView(APIView):
                 sender_id = messaging[0].get("sender", {}).get("id", None)
                 if sender_id and not Integration.instagram_by_id(sender_id).exists():
                     if Integration.instagram_by_id(account_id).exists() and process_shared_post_message:
-                        process_shared_post_message.delay(account_id, shared_url, user_text, messaging)
+                        transaction.on_commit(functools.partial(
+                            process_shared_post_message.delay, account_id, shared_url, user_text, messaging))
                 return success_response(message=_("Shared post xabar muvaffaqiyatli olindi"), code=200)
             elif attachment_type in ['ig_reel', 'unsupported_type']:
                 return success_response(message=_("Reel yoki qo'shimcha turdagi xabar muvaffaqiyatli olindi"), code=200)
@@ -325,7 +331,8 @@ class InstagramWebhookView(APIView):
                     return success_response(message=_("Integratsiya topilmadi"), code=200)
                 # Start celery task to process the incoming message
                 if audio_file:
-                    process_instagram_message.delay(account_id, None, messaging,audio_file)
+                    transaction.on_commit(functools.partial(
+                        process_instagram_message.delay, account_id, None, messaging, audio_file))
                 else:
                     message = messaging[0].get("message", {}).get("text",None)
                     if message is not None:  # Only push if message is not None
@@ -336,7 +343,10 @@ class InstagramWebhookView(APIView):
                         # Schedule collector task only if not already scheduled for this sender
                         redis_client.setex(f"collecting:{sender_id}", WAIT_SECONDS + 1, "1")  # Prevent overlap
                         # Pass sender_id as chat_id, and include account_id for routing
-                        process_collected_messages.apply_async((sender_id, None, messaging, None, None, account_id), countdown=WAIT_SECONDS)
+                        transaction.on_commit(functools.partial(
+                            process_collected_messages.apply_async,
+                            (sender_id, None, messaging, None, None, account_id),
+                            countdown=WAIT_SECONDS))
                 return success_response(message=_("Xabar webhook ma'lumotlar muvaffaqiyatli olindi"), code=200)
             else:
                 logger.info("Instagram sender %s is itself an integrated account; skipping", account_id)
@@ -379,7 +389,7 @@ class InstagramCallbackView(APIView):
             "code": code,
         }
 
-        response = requests.post(token_url, data=data)
+        response = http.post(token_url, data=data)
         if response.status_code == 400:
             return error_response(message=response.json().get("error_message"), code=400)
         if response.status_code == 200:
@@ -454,7 +464,7 @@ class InstagramCallbackView(APIView):
 
         # enable webhook for the integration
         url = f"https://graph.instagram.com/v22.0/me/subscribed_apps?access_token={access_token}&subscribed_fields=messages,comments"
-        response = requests.post(url)
+        response = http.post(url)
         if response.status_code != 200:
             logger.warning("Instagram webhook subscription failed with status %s", response.status_code)
         if response.status_code == 200:
@@ -651,13 +661,15 @@ class TelegramWebhookView(APIView):
                         largest_photo = photos[-1]
                         photo_file_id = largest_photo.get("file_id")
                         if photo_file_id:
-                            process_photo_task.delay(chat_id, photo_file_id, bot_token, chat_username, username)
+                            transaction.on_commit(functools.partial(
+                                process_photo_task.delay, chat_id, photo_file_id, bot_token, chat_username, username))
                             return success_response(message=_("Photo message muvaffaqiyatli olindi"), code=200)
 
                 # Voice message handling
                 if "voice" in data:
                     voice_file_id = data["voice"]["file_id"]
-                    process_voice_task.delay(chat_id, voice_file_id, bot_token)
+                    transaction.on_commit(functools.partial(
+                        process_voice_task.delay, chat_id, voice_file_id, bot_token))
                     return success_response(message=_("Voice message muvaffaqiyatli olindi"), code=200)
                 # --- Redis Message Queuing ---
                 if user_message:  # Only push if user_message is not None
@@ -666,7 +678,10 @@ class TelegramWebhookView(APIView):
 
                 # Schedule collector task only if not already scheduled
                 redis_client.setex(f"collecting:{chat_id}", WAIT_SECONDS + 1, "1")  # Prevent overlap
-                process_collected_messages.apply_async((chat_id, bot_token, None, chat_username, username, None), countdown=WAIT_SECONDS)
+                transaction.on_commit(functools.partial(
+                    process_collected_messages.apply_async,
+                    (chat_id, bot_token, None, chat_username, username, None),
+                    countdown=WAIT_SECONDS))
         return success_response(message=_("Xabar muvaffaqiyatli olindi"), code=200)
 
 
@@ -701,7 +716,7 @@ class TelegramGroupUpdateDestroyView(generics.RetrieveUpdateDestroyAPIView):
         instance = self.get_object()
         is_approving = request.data.get('is_approved')
         if is_approving is True or is_approving == 'true' or is_approving == True:
-            from shared.addons.telegram import check_bot_in_group
+            from apps.shared.addons.telegram import check_bot_in_group
             token = instance.integration.api_token
             if not check_bot_in_group(instance.group_id, token):
                 return error_response(
@@ -744,7 +759,7 @@ class InstagramPostListView(APIView):
         all_posts = []
         max_pages = 5
         for _page in range(max_pages):
-            response = requests.get(url, params=params)
+            response = http.get(url, params=params)
             if response.status_code != 200:
                 break
             json_data = response.json()
@@ -1148,8 +1163,12 @@ class BroadcastListCreateView(generics.ListCreateAPIView):
 
         broadcast = serializer.save(user=request.user, total_recipients=recipients_count)
 
+        # ATOMIC_REQUESTS keeps this row uncommitted until the response is
+        # returned. Dispatching directly lets the worker look the broadcast up
+        # before it exists, and the task's DoesNotExist branch then drops it
+        # silently — the customer sees 201 and nothing is ever sent.
         from .tasks import send_broadcast_task
-        send_broadcast_task.delay(str(broadcast.id))
+        transaction.on_commit(functools.partial(send_broadcast_task.delay, str(broadcast.id)))
 
         return success_response(
             message=_("Broadcast muvaffaqiyatli yaratildi"),
@@ -1323,7 +1342,7 @@ class AmoCRMOAuthHandlerView(APIView):
                 'code': code
             }
             
-            token_response = requests.post(token_url, data=token_data)
+            token_response = http.post(token_url, data=token_data)
 
             if token_response.status_code != 200:
                 logger.warning("amoCRM token exchange failed with status %s", token_response.status_code)
@@ -1349,7 +1368,7 @@ class AmoCRMOAuthHandlerView(APIView):
                 'Authorization': f'Bearer {access_token}',
                 'Content-Type': 'application/json'
             }
-            user_response = requests.get(user_info_url, headers=headers)
+            user_response = http.get(user_info_url, headers=headers)
             if user_response.status_code != 200:
                 return error_response(
                     message="Failed to get user information from amoCRM",
@@ -1464,7 +1483,7 @@ class AmoCRMTokenRefreshView(APIView):
                 'refresh_token': refresh_token
             }
             
-            token_response = requests.post(token_url, data=token_data)
+            token_response = http.post(token_url, data=token_data)
             
             if token_response.status_code != 200:
                 return error_response(
@@ -1538,7 +1557,7 @@ class AmoCRMSetPipelineView(APIView):
                 'Content-Type': 'application/json'
             }
             
-            pipeline_response = requests.get(pipeline_url, headers=headers)
+            pipeline_response = http.get(pipeline_url, headers=headers)
             
             if pipeline_response.status_code != 200:
                 return error_response(
@@ -1592,7 +1611,7 @@ class BillzSecretTokenHandlerView(generics.CreateAPIView):
             return error_response(message=_("Assistant topilmadi"), code=404)
         if not api_token:
             return error_response(message=_("Billz API token kerak"), code=400)
-        response = requests.post("https://api-admin.billz.ai/v1/auth/login", json={"secret_token": api_token})
+        response = http.post("https://api-admin.billz.ai/v1/auth/login", json={"secret_token": api_token})
         if response.status_code != 200:
             return error_response(message=_("Billz API token yaroqli emas"), code=400)
 
@@ -1604,8 +1623,11 @@ class BillzSecretTokenHandlerView(generics.CreateAPIView):
         serializer.is_valid(raise_exception=True)
         integration = serializer.save()
         
-        # Trigger async task to fetch and save Billz products
+        # Trigger async task to fetch and save Billz products, once the
+        # integration row this id points at is actually visible to the worker.
         from apps.integration.tasks import fetch_and_save_billz_products
-        fetch_and_save_billz_products.delay(str(integration.id))
+        transaction.on_commit(
+            functools.partial(fetch_and_save_billz_products.delay, str(integration.id))
+        )
         
         return success_response(message=_("Billz secret token muvaffaqiyatli yaratildi"), data=serializer.data, code=201)

@@ -1,5 +1,5 @@
 from django.db import models
-from shared.models import BaseModel
+from apps.shared.models import BaseModel
 
 
 class LandingLead(BaseModel):

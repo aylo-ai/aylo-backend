@@ -10,21 +10,21 @@ from django.utils.translation import gettext_lazy as _
 from django.utils.timezone import localtime
 
 
-from shared.addons.google_integrations import process_google_doc
+from apps.shared.addons.google_integrations import process_google_doc
 from apps.assistant.models import (
     Assistant, Conversation, Message, Settings, AssistantFileUpload, Lead, PromptTemplate,
     FollowUpConfig, FollowUpStage, FollowUpLog,
 )
 from apps.integration.models import TelegramGroupIntegration
-from shared.addons.telegram import send_telegram_message
-from shared.ai_service import knowledge_base, media
-from shared.ai_service.agent import agent
-from shared.addons.validations import raise_validation_error
-from shared.addons.enums import (
+from apps.shared.addons.telegram import send_telegram_message
+from apps.shared.ai_service import knowledge_base, media
+from apps.shared.ai_service.agent import agent
+from apps.shared.addons.validations import raise_validation_error
+from apps.shared.addons.enums import (
     ConversationPlatforms, ConversationStatuses, MessageTypes, SenderTypes,
 )
-from shared.mixins import SubscriptionValidationMixin
-from shared.addons.redis import publish_message_to_ws_assistant
+from apps.shared.mixins import SubscriptionValidationMixin
+from apps.shared.addons.redis import publish_message_to_ws_assistant
 
 logger = logging.getLogger(__name__)
 

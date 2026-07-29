@@ -16,7 +16,7 @@ from rest_framework.test import APIClient
 
 from apps.payment.models import Card, PricingPackage, RetryPayment, Subscription
 from apps.user.models import User
-from shared.addons.enums import (
+from apps.shared.addons.enums import (
     PaymentStatuses,
     PricingPackageType,
     SubscriptionStatuses,
@@ -38,7 +38,7 @@ class CardScopingTests(TestCase):
         self.client.force_authenticate(self.attacker)
 
     def test_cannot_delete_another_users_card(self):
-        with mock.patch("payment.views.remove_payme_card") as remove:
+        with mock.patch("apps.payment.views.remove_payme_card") as remove:
             response = self.client.delete(f"/api/v1/payment/cards/{self.card.id}/remove/")
         self.assertEqual(response.status_code, 400)
         remove.assert_not_called()
@@ -46,7 +46,7 @@ class CardScopingTests(TestCase):
 
     def test_owner_can_delete_their_own_card(self):
         self.client.force_authenticate(self.owner)
-        with mock.patch("payment.views.remove_payme_card", return_value=True):
+        with mock.patch("apps.payment.views.remove_payme_card", return_value=True):
             response = self.client.delete(f"/api/v1/payment/cards/{self.card.id}/remove/")
         self.assertEqual(response.status_code, 200)
         self.assertFalse(Card.objects.filter(id=self.card.id).exists())

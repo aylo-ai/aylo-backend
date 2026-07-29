@@ -2,12 +2,12 @@ import logging
 import random
 from datetime import timedelta, datetime
 
-import requests
+from apps.shared import http
 
 from apps.payment.models import Balance, Transaction
 from apps.user.models import Notification
 from config import settings
-from shared.addons.enums import TransactionTypes, PaymentStatuses, SubscriptionStatuses, NotificationTypes
+from apps.shared.addons.enums import TransactionTypes, PaymentStatuses, SubscriptionStatuses, NotificationTypes
 
 logger = logging.getLogger(__name__)
 
@@ -55,7 +55,7 @@ def check_payme_card_token(token):
     """Call Payme API to verify card token."""
     param_data = {"method": "cards.check", "params": {"token": token}}
     headers = {"X-Auth": f"{settings.PAYME_ID}:{settings.PAYME_KEY}"}
-    response = requests.post(
+    response = http.post(
         settings.PAYME_API_URL, json=param_data, headers=headers
     )
     return response if _payme_body(response, "cards.check") is not None else None
@@ -73,7 +73,7 @@ def remove_payme_card(card_token):
         "params": {"token": card_token},
     }
     headers = {"X-Auth": f"{settings.PAYME_ID}:{settings.PAYME_KEY}"}
-    response = requests.post(
+    response = http.post(
         settings.PAYME_API_URL, json=param_data, headers=headers
     )
     return response if _payme_body(response, "cards.remove") is not None else None
@@ -90,7 +90,7 @@ def create_payme_receipt(amount):
     }
 
     headers = {"X-Auth": f"{settings.PAYME_ID}"}
-    response = requests.post(
+    response = http.post(
         settings.PAYME_API_URL, json=payload, headers=headers
     )
     body = _payme_body(response, "receipts.create")
@@ -112,7 +112,7 @@ def send_create_card_request(card_number, card_expiry):
         }
     }
     headers = {"X-Auth": f"{settings.PAYME_ID}"}
-    response = requests.post(
+    response = http.post(
         settings.PAYME_API_URL, json=payload, headers=headers
     )
     return _json_body(response)
@@ -125,7 +125,7 @@ def send_verify_code_request(card_token):
         "params": {"token": card_token}
     }
     headers = {"X-Auth": f"{settings.PAYME_ID}"}
-    response = requests.post(
+    response = http.post(
         settings.PAYME_API_URL, json=payload, headers=headers
     )
     return _json_body(response)
@@ -137,7 +137,7 @@ def verify_payme_card_token(card_token, verify_code):
         "params": {"token": card_token, "code": verify_code}
     }
     headers = {"X-Auth": f"{settings.PAYME_ID}"}
-    response = requests.post(
+    response = http.post(
         settings.PAYME_API_URL, json=payload, headers=headers
     )
     return _json_body(response)
@@ -154,7 +154,7 @@ def commit_payme_receipt(card_token, receipt_id):
         },
     }
     headers = {"X-Auth": f"{settings.PAYME_ID}:{settings.PAYME_KEY}"}
-    response = requests.post(
+    response = http.post(
         settings.PAYME_API_URL, json=payload, headers=headers
     )
     body = _payme_body(response, "receipts.pay")

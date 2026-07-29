@@ -3,7 +3,7 @@ from django_filters.rest_framework import DjangoFilterBackend
 
 from apps.blog.models import BlogPost
 import apps.blog.serializers as serializers
-from shared.addons.validations import success_response
+from apps.shared.addons.validations import success_response
 
 
 class BlogPostListView(generics.ListAPIView):

@@ -78,10 +78,11 @@ As part of every change, leave the tree cleaner than you found it:
   `apps/shared/ai_service/tests/` and `apps/integration/tests.py` for the patterns.
 - Cover the happy path, the bug being fixed (as a regression test), and failure
   degradation.
-- **Dual import paths:** modules are importable as both `shared.x` and
-  `apps.shared.x` (and `user.views` vs `apps.user.views`), producing two distinct
-  module objects. When patching in tests, patch the path the running code actually
-  uses — e.g. `user.views.foo`, since `user/urls.py` does `import user.views`.
+- **One import path:** every internal module is importable only as `apps.<app>.x`
+  (`apps.shared.addons.redis`, `apps.user.views`). The bare `shared.x` /
+  `user.views` form no longer resolves — `apps/` is not on `sys.path` and
+  `INSTALLED_APPS` is fully qualified. Patch targets must use the `apps.` prefix.
+  `apps/shared/tests/test_import_paths.py` enforces this.
 
 ## 6. Change reports
 

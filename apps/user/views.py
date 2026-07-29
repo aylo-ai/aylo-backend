@@ -17,13 +17,13 @@ from rest_framework_simplejwt.tokens import RefreshToken
 from django.utils.translation import gettext_lazy as _
 
 from config.settings import redis_connection, GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, GOOGLE_REDIRECT_URI
-import user.serializers as serializers
-from shared.addons.validations import error_response, success_response
-from shared.addons.verification import send_code
+import apps.user.serializers as serializers
+from apps.shared.addons.validations import error_response, success_response
+from apps.shared.addons.verification import send_code
 from apps.user.models import User, PrivacyPolicy, UserAgreement, Notification
-from shared.addons.verification import send_email_code, verify_email_code, verify_code_cache
-from shared.permissions import IsAdmin, IsAdminOrCustomer
-from shared.addons.enums import UserRoles, AuthTypes
+from apps.shared.addons.verification import send_email_code, verify_email_code, verify_code_cache
+from apps.shared.permissions import IsAdmin, IsAdminOrCustomer
+from apps.shared.addons.enums import UserRoles, AuthTypes
 
 logger = logging.getLogger(__name__)
 

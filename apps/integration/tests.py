@@ -15,7 +15,7 @@ from apps.integration.tasks import (
     instagram_messaging as instagram_tasks,
     telegram as telegram_tasks,
 )
-from shared.addons.enums import ConversationStatuses, IntegrationTypes, SenderTypes
+from apps.shared.addons.enums import ConversationStatuses, IntegrationTypes, SenderTypes
 
 BOT_TOKEN = "test-bot-token"
 ACCOUNT_ID = "ig-account-1"
@@ -68,8 +68,8 @@ class ChannelTestCase(TestCase):
             mock.patch.object(module, "instagram_service", self.instagram).start()
         for module in (telegram_tasks, instagram_tasks):
             mock.patch.object(module, "publish_message_to_ws").start()
-        mock.patch("shared.addons.redis.publish_message_to_ws").start()
-        mock.patch("shared.addons.redis.publish_message_to_ws_assistant").start()
+        mock.patch("apps.shared.addons.redis.publish_message_to_ws").start()
+        mock.patch("apps.shared.addons.redis.publish_message_to_ws_assistant").start()
 
 
 class TelegramTests(ChannelTestCase):
@@ -152,7 +152,7 @@ class TelegramPhotoTests(ChannelTestCase):
         self.analyze = mock.patch.object(
             telegram_tasks.media, "analyze_image", return_value="A black iPhone 15 Pro."
         ).start()
-        get = mock.patch.object(telegram_tasks.requests, "get").start()
+        get = mock.patch.object(telegram_tasks.http, "get").start()
         get.return_value.json.return_value = {"result": {"file_path": "photos/a.jpg"}}
 
     def test_photo_is_described_and_answered(self):
@@ -175,7 +175,7 @@ class TelegramPhotoTests(ChannelTestCase):
 class TelegramVoiceTests(ChannelTestCase):
     def setUp(self):
         super().setUp()
-        get = mock.patch.object(telegram_tasks.requests, "get").start()
+        get = mock.patch.object(telegram_tasks.http, "get").start()
         get.return_value.json.return_value = {"result": {"file_path": "voice/a.ogg"}}
         get.return_value.content = b"ogg-bytes"
         mock.patch.object(
@@ -356,15 +356,18 @@ class InstagramAccountResolutionTests(ChannelTestCase):
         with mock.patch("apps.integration.views.redis_client") as redis, \
                 mock.patch("apps.integration.views.process_collected_messages") as collector:
             redis.get.return_value = None  # not a duplicate delivery
-            response = self.post_webhook({
-                "entry": [{
-                    "id": "17841400375124995",
-                    "messaging": [{
-                        "sender": {"id": "ig-user-1"},
-                        "message": {"mid": "m-1", "text": "Salom"},
-                    }],
-                }]
-            })
+            # Dispatch is deferred to transaction commit, which a TestCase never
+            # reaches on its own.
+            with self.captureOnCommitCallbacks(execute=True):
+                response = self.post_webhook({
+                    "entry": [{
+                        "id": "17841400375124995",
+                        "messaging": [{
+                            "sender": {"id": "ig-user-1"},
+                            "message": {"mid": "m-1", "text": "Salom"},
+                        }],
+                    }]
+                })
 
         self.assertEqual(response.status_code, 200)
         # Resolution succeeded, so the message was handed to the collector
@@ -379,20 +382,21 @@ class InstagramAccountResolutionTests(ChannelTestCase):
         with mock.patch("apps.integration.views.redis_client") as redis, \
                 mock.patch("apps.integration.views.process_collected_messages") as collector:
             redis.get.return_value = None
-            response = self.post_webhook({
-                "entry": [{
-                    "id": "0",
-                    "time": 1769000000,
-                    "changes": [{
-                        "field": "messages",
-                        "value": {
-                            "sender": {"id": "ig-user-1"},
-                            "recipient": {"id": ACCOUNT_ID},
-                            "message": {"mid": "m-changes-1", "text": "Salom"},
-                        },
-                    }],
-                }]
-            })
+            with self.captureOnCommitCallbacks(execute=True):
+                response = self.post_webhook({
+                    "entry": [{
+                        "id": "0",
+                        "time": 1769000000,
+                        "changes": [{
+                            "field": "messages",
+                            "value": {
+                                "sender": {"id": "ig-user-1"},
+                                "recipient": {"id": ACCOUNT_ID},
+                                "message": {"mid": "m-changes-1", "text": "Salom"},
+                            },
+                        }],
+                    }]
+                })
 
         self.assertEqual(response.status_code, 200)
         collector.apply_async.assert_called_once()
@@ -540,9 +544,9 @@ class InstagramIntegrationLifecycleTests(TestCase):
         token_response = mock.MagicMock(status_code=200)
         token_response.json.return_value = {"access_token": "short-lived"}
 
-        with mock.patch("apps.integration.views.requests") as requests_mock, \
+        with mock.patch("apps.integration.views.http") as http_mock, \
                 mock.patch("apps.integration.views.instagram_service") as service:
-            requests_mock.post.return_value = token_response
+            http_mock.post.return_value = token_response
             service.get_long_lived_access_token.return_value = "long-lived"
             service.get_user_profile.return_value = profile
             return self.client.get(
@@ -656,10 +660,10 @@ class InstagramUserInfoTests(TestCase):
         the message-processing task that calls it."""
         import requests as requests_lib
 
-        from shared.addons.instagram import InstagramService
+        from apps.shared.addons.instagram import InstagramService
 
         with mock.patch(
-            "shared.addons.instagram.requests.get",
+            "apps.shared.addons.instagram.http.get",
             side_effect=requests_lib.RequestException("boom"),
         ):
             self.assertEqual(InstagramService().get_user_info("tok", "u1"), {})
@@ -667,7 +671,7 @@ class InstagramUserInfoTests(TestCase):
 
 class BillzClientTests(TestCase):
     def test_fetch_all_products_simplifies_and_stops_after_last_page(self):
-        from shared.addons import billz
+        from apps.shared.addons import billz
 
         raw_product = {
             "id": "p1",
@@ -683,7 +687,7 @@ class BillzClientTests(TestCase):
         response = mock.MagicMock()
         response.json.return_value = {"products": [raw_product]}
 
-        with mock.patch("shared.addons.billz.requests.get", return_value=response) as get:
+        with mock.patch("apps.shared.addons.billz.http.get", return_value=response) as get:
             products = billz.fetch_all_products("token")
 
         # Fewer products than the page limit → exactly one request.
@@ -697,10 +701,10 @@ class BillzClientTests(TestCase):
     def test_fetch_all_products_fails_soft_on_network_error(self):
         import requests as requests_lib
 
-        from shared.addons import billz
+        from apps.shared.addons import billz
 
         with mock.patch(
-            "shared.addons.billz.requests.get",
+            "apps.shared.addons.billz.http.get",
             side_effect=requests_lib.RequestException("down"),
         ):
             self.assertEqual(billz.fetch_all_products("token"), [])
@@ -773,7 +777,7 @@ class IntegrationTenancyTests(TestCase):
             Transition,
         )
         from apps.user.models import User
-        from shared.addons.enums import IntegrationTypes
+        from apps.shared.addons.enums import IntegrationTypes
 
         self.owner = User.objects.create(username="tenancy-owner", auth_type="email")
         self.stranger = User.objects.create(username="tenancy-stranger", auth_type="email")
@@ -868,7 +872,7 @@ class CommentResponseUpdateTests(TestCase):
 
         from apps.assistant.models import Assistant
         from apps.user.models import User
-        from shared.addons.enums import IntegrationTypes
+        from apps.shared.addons.enums import IntegrationTypes
 
         self.owner = User.objects.create(username="cr-update-owner", auth_type="email")
         self.assistant = Assistant.objects.create(
@@ -1008,3 +1012,58 @@ class CommentResponseUpdateTests(TestCase):
             sorted(w.trigger_word for w in trigger.trigger_words.all()),
             ["delta", "gamma"],
         )
+
+
+class DeferredTaskDispatchTests(TestCase):
+    """Regression: work queued mid-request must wait for the transaction.
+
+    ``ATOMIC_REQUESTS`` keeps everything a view writes uncommitted until the
+    response is returned. Dispatching a Celery task inline therefore races the
+    commit — the worker can look the row up before it exists. Both tasks below
+    swallow that miss (``DoesNotExist`` / ``not found``) and return, so the
+    customer got a 201 and the work silently never happened.
+    """
+
+    def setUp(self):
+        from rest_framework.test import APIClient
+
+        from apps.user.models import User
+
+        self.owner = User.objects.create(username="broadcast-owner", auth_type="email")
+        self.assistant = Assistant.objects.create(
+            name="B", company_name="C", user=self.owner, vector_id="vs_b",
+        )
+        self.integration = Integration.objects.create(
+            assistant=self.assistant, user=self.owner, name="tg-b",
+            integration_type=IntegrationTypes.TELEGRAM.value, api_token="tok-b",
+        )
+        # A broadcast needs at least one recipient or the view refuses it.
+        Conversation.objects.create(
+            assistant=self.assistant, user_id="chat-1", token="tok-b",
+            status=ConversationStatuses.OPEN.value,
+        )
+        self.client = APIClient()
+        self.client.force_authenticate(self.owner)
+
+    def test_broadcast_is_not_dispatched_before_the_row_commits(self):
+        from apps.integration.models import Broadcast
+
+        with mock.patch("apps.integration.tasks.send_broadcast_task") as task:
+            with self.captureOnCommitCallbacks(execute=False) as callbacks:
+                response = self.client.post(
+                    "/api/v1/integration/broadcast/",
+                    {"integration": str(self.integration.id), "message": "hi"},
+                    format="json",
+                )
+
+            self.assertEqual(response.status_code, 201, response.data)
+            # Nothing queued yet — the dispatch is parked on the commit hook.
+            task.delay.assert_not_called()
+            self.assertEqual(len(callbacks), 1)
+
+            # Running the hook is what queues it, and by then the row is real.
+            callbacks[0]()
+            task.delay.assert_called_once()
+            queued_id = task.delay.call_args.args[0]
+
+        self.assertTrue(Broadcast.objects.filter(id=queued_id).exists())

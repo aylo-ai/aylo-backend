@@ -11,8 +11,8 @@ from apps.assistant.models import (
     Assistant, AssistantFileUpload, Conversation, Lead, Message,
 )
 from apps.assistant.serializers import AssistantFileUploadSerializer, MessageSerializer
-from shared.addons.enums import ConversationStatuses, SenderTypes, SubscriptionStatuses
-from shared.ai_service.agent import AgentResult
+from apps.shared.addons.enums import ConversationStatuses, SenderTypes, SubscriptionStatuses
+from apps.shared.ai_service.agent import AgentResult
 
 
 def make_subscribed_user():

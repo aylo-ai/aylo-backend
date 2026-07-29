@@ -10,7 +10,7 @@ import logging
 from io import BytesIO
 from shutil import which
 
-import requests
+from apps.shared import http
 from pydub import AudioSegment
 
 from django.core.files.base import ContentFile
@@ -18,11 +18,11 @@ from django.utils.text import slugify
 from django.utils.translation import gettext_lazy as _
 
 from apps.assistant.models import Conversation, Message
-from shared.addons.enums import ConversationStatuses, MessageTypes, SenderTypes
-from shared.addons.redis import publish_message_to_ws_assistant
-from shared.addons.telegram import send_telegram_message
-from shared.addons.validations import success_response
-from shared.ai_service import media
+from apps.shared.addons.enums import ConversationStatuses, MessageTypes, SenderTypes
+from apps.shared.addons.redis import publish_message_to_ws_assistant
+from apps.shared.addons.telegram import send_telegram_message
+from apps.shared.addons.validations import success_response
+from apps.shared.ai_service import media
 
 logger = logging.getLogger(__name__)
 
@@ -43,7 +43,7 @@ class ConversationService:
     def get_audio_from_url(self, url: str):
         """Download an audio file and return it as MP3 bytes, or None on failure."""
         try:
-            response = requests.get(url, timeout=30)
+            response = http.get(url, timeout=30)
             response.raise_for_status()
             audio = AudioSegment.from_file(BytesIO(response.content))
             out = BytesIO()
@@ -128,7 +128,7 @@ class ConversationService:
         rather than a continuation of the old one. An escalated chat is left
         alone so a human colleague keeps ownership.
         """
-        from shared.ai_service.agent import clear_chain
+        from apps.shared.ai_service.agent import clear_chain
 
         clear_chain(conversation)
 

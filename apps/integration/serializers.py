@@ -1,4 +1,4 @@
-import requests
+from apps.shared import http
 
 from rest_framework import serializers
 from django.utils.translation import gettext_lazy as _
@@ -6,11 +6,11 @@ from django.shortcuts import get_object_or_404
 
 
 from apps.assistant.models import Conversation, Assistant
-from shared.addons.enums import IntegrationTypes, ConversationPlatforms, ConversationStatuses
-from shared.addons.telegram import telegram_get_me, set_telegram_webhook, get_webhook_info, send_telegram_message
+from apps.shared.addons.enums import IntegrationTypes, ConversationPlatforms, ConversationStatuses
+from apps.shared.addons.telegram import telegram_get_me, set_telegram_webhook, get_webhook_info, send_telegram_message
 from apps.shared.ai_service.conversation import conversation_service
-from shared.addons.validations import raise_validation_error, success_response
-from shared.mixins import SubscriptionValidationMixin
+from apps.shared.addons.validations import raise_validation_error, success_response
+from apps.shared.mixins import SubscriptionValidationMixin
 from .models import (Integration,
                     TelegramGroupIntegration,
                     InstagramMedia,
@@ -98,7 +98,7 @@ class IntegrationCreateSerializer(serializers.ModelSerializer, SubscriptionValid
         if integration_type == IntegrationTypes.BILLZ.value:
             if not api_token:
                 raise_validation_error(message=_("Billz API token kerak"))
-            response = requests.post("https://api-admin.billz.ai/v1/auth/login", json={"secret_token": api_token})
+            response = http.post("https://api-admin.billz.ai/v1/auth/login", json={"secret_token": api_token})
             if response.status_code != 200:
                 raise_validation_error(message=_("Billz API token yaroqli emas"))
 
@@ -250,7 +250,7 @@ class InstagramMediaSerializer(serializers.ModelSerializer):
                 "Authorization": f"Bearer {integration.api_token}",
             }
             try:
-                resp = requests.get(url, headers=headers, timeout=8)
+                resp = http.get(url, headers=headers, timeout=8)
                 if resp.status_code == 200:
                     payload = resp.json() or {}
                     data = {

@@ -2,7 +2,7 @@
 
 import apps.integration.models
 import django.db.models.deletion
-import shared.addons.enums
+import apps.shared.addons.enums
 import uuid
 from django.db import migrations, models
 
@@ -25,7 +25,7 @@ class Migration(migrations.Migration):
         migrations.AddField(
             model_name='commentresponsebutton',
             name='type',
-            field=models.CharField(blank=True, choices=shared.addons.enums.ButtonType.choices, max_length=50, null=True),
+            field=models.CharField(blank=True, choices=apps.shared.addons.enums.ButtonType.choices, max_length=50, null=True),
         ),
         migrations.AlterModelTable(
             name='commentresponsebutton',
@@ -38,7 +38,7 @@ class Migration(migrations.Migration):
                 ('created_time', models.DateTimeField(auto_now_add=True)),
                 ('updated_time', models.DateTimeField(auto_now=True)),
                 ('title', models.CharField(max_length=255)),
-                ('flow_type', models.CharField(choices=shared.addons.enums.FlowType.choices, default='comment_response', max_length=50)),
+                ('flow_type', models.CharField(choices=apps.shared.addons.enums.FlowType.choices, default='comment_response', max_length=50)),
                 ('is_active', models.BooleanField(default=True)),
                 ('comment_response', models.ForeignKey(blank=True, null=True, on_delete=django.db.models.deletion.CASCADE, related_name='flows', to='integration.instagramcommentresponse')),
             ],
@@ -53,8 +53,8 @@ class Migration(migrations.Migration):
                 ('created_time', models.DateTimeField(auto_now_add=True)),
                 ('updated_time', models.DateTimeField(auto_now=True)),
                 ('message_content', models.CharField(blank=True, max_length=255, null=True)),
-                ('action', models.CharField(choices=shared.addons.enums.ActionType.choices, max_length=255)),
-                ('condition_type', models.CharField(blank=True, choices=shared.addons.enums.ConditionType.choices, max_length=255, null=True)),
+                ('action', models.CharField(choices=apps.shared.addons.enums.ActionType.choices, max_length=255)),
+                ('condition_type', models.CharField(blank=True, choices=apps.shared.addons.enums.ConditionType.choices, max_length=255, null=True)),
                 ('message_image', models.ImageField(blank=True, null=True, upload_to=apps.integration.models.comment_response_image_path)),
                 ('extra_button', models.ManyToManyField(related_name='steps', to='integration.commentresponsebutton')),
                 ('flow', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, related_name='steps', to='integration.flow')),

@@ -1,7 +1,7 @@
 from django.db import models
 from django.core.validators import MinValueValidator
 from apps.shared.models import BaseModel
-from shared.addons.enums import PaymentMethods, PaymentStatuses, CurrencyType, \
+from apps.shared.addons.enums import PaymentMethods, PaymentStatuses, CurrencyType, \
                                     TransactionTypes, PricingPackageType, SubscriptionStatuses
 
 class Feature(BaseModel):

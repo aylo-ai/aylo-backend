@@ -4,10 +4,10 @@ from drf_spectacular.utils import extend_schema_field
 from drf_spectacular.types import OpenApiTypes
 from django.utils.translation import gettext_lazy as _
 
-from shared.addons.validations import raise_validation_error, check_number, check_email_phone_number
-from shared.addons.verification import check_verification_status, is_email_verified
+from apps.shared.addons.validations import raise_validation_error, check_number, check_email_phone_number
+from apps.shared.addons.verification import check_verification_status, is_email_verified
 from apps.user.models import User, PrivacyPolicy, UserAgreement, Notification
-from shared.addons.enums import AuthTypes, UserRoles
+from apps.shared.addons.enums import AuthTypes, UserRoles
 
 class SendCodeSerializer(serializers.Serializer): # noqa
     phone_number = serializers.CharField(required=False)

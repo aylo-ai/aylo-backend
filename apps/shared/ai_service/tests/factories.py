@@ -11,7 +11,7 @@ import httpx
 from openai import APIStatusError, BadRequestError, RateLimitError
 
 from apps.assistant.models import Assistant, Conversation
-from shared.addons.enums import ConversationStatuses
+from apps.shared.addons.enums import ConversationStatuses
 
 
 def make_assistant(**overrides) -> Assistant:

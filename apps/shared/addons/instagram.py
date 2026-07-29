@@ -1,12 +1,13 @@
 import logging
 
 import requests
+from apps.shared import http
 
 from django.conf import settings
 from django.db import transaction
 
 from apps.integration.models import Flow, InstagramUserState, Step
-from shared.addons.enums import ActionType
+from apps.shared.addons.enums import ActionType
 
 logger = logging.getLogger(__name__)
 
@@ -31,7 +32,7 @@ class InstagramService:
             f"client_secret={client_secret}&access_token={short_lived_access_token}"
         )
 
-        response = requests.get(url)
+        response = http.get(url)
         if response.status_code == 200:
             access_token = response.json().get("access_token")
             # Optionally refresh right away
@@ -44,7 +45,7 @@ class InstagramService:
         grant_type = "ig_refresh_token"
         url = f"{self.GRAPH_BASE}/refresh_access_token?grant_type={grant_type}&access_token={access_token}"
 
-        response = requests.get(url)
+        response = http.get(url)
         if response.status_code == 200:
             return response.json().get("access_token")
         return None
@@ -61,7 +62,7 @@ class InstagramService:
             "fields": "id, username",
         }
         try:
-            response = requests.get(url, params=params)
+            response = http.get(url, params=params)
             return response.json()
         except (requests.RequestException, ValueError) as e:
             logger.warning("Instagram get_user_info failed for %s: %s", user_id, e)
@@ -74,7 +75,7 @@ class InstagramService:
             f"fields=id,user_id,username&"
             f"access_token={access_token}"
         )
-        response = requests.get(url)
+        response = http.get(url)
         if response.status_code == 200:
             user_profile = response.json()
             return {
@@ -94,7 +95,7 @@ class InstagramService:
             return False
         url = f"{self.GRAPH_BASE}/v22.0/me/subscribed_apps"
         try:
-            response = requests.delete(url, params={"access_token": access_token})
+            response = http.delete(url, params={"access_token": access_token})
             if response.status_code != 200:
                 logger.warning(
                     "Instagram webhook unsubscribe returned %s", response.status_code
@@ -126,7 +127,7 @@ class InstagramService:
             payload = {"recipient": {"id": recipient_id}, "message": {"text": part}}
             if tag:
                 payload["tag"] = tag
-            response = requests.post(url, json=payload, headers=headers)
+            response = http.post(url, json=payload, headers=headers)
 
             if response.status_code != 200:
                 success = False
@@ -151,7 +152,7 @@ class InstagramService:
                 }
             },
         }
-        return requests.post(url, json=payload, headers=headers)
+        return http.post(url, json=payload, headers=headers)
 
     def send_private_reply(
         self, access_token: str, account_id: str, comment_id: str, message: str
@@ -169,7 +170,7 @@ class InstagramService:
             "message": {"text": message},
         }
 
-        response = requests.post(url, json=payload, headers=headers)
+        response = http.post(url, json=payload, headers=headers)
 
         if response.status_code != 200:
             success = False
@@ -185,7 +186,7 @@ class InstagramService:
             "Authorization": f"Bearer {access_token}",
         }
         payload = {"message": message}
-        response = requests.post(url, json=payload, headers=headers)
+        response = http.post(url, json=payload, headers=headers)
         if response.status_code != 200:
             logger.warning("Instagram send_comment_reply failed with status %s", response.status_code)
         return response
@@ -255,7 +256,7 @@ class InstagramService:
             "tag": "HUMAN_AGENT",
         }
 
-        resp = requests.post(url, json=event, headers=headers)
+        resp = http.post(url, json=event, headers=headers)
         if resp.status_code == 200:
             try:
                 with transaction.atomic():
@@ -310,7 +311,7 @@ class InstagramService:
         }
 
         try:
-            resp = requests.post(url, json=event, headers=headers)
+            resp = http.post(url, json=event, headers=headers)
             logger.info("send_step_template response: %s", resp.text)
             return resp
         except requests.RequestException as e:
@@ -326,7 +327,7 @@ class InstagramService:
             "fields": "id,caption,media_type,media_url,timestamp,permalink",
             "access_token": access_token,
         }
-        response = requests.get(url, params=params)
+        response = http.get(url, params=params)
         if response.status_code == 200:
             return response.json()
         return None
@@ -341,7 +342,7 @@ class InstagramService:
             "limit": 50,
             "access_token": access_token,
         }
-        response = requests.get(url, params=params)
+        response = http.get(url, params=params)
         if response.status_code == 200:
             for media in response.json().get("data", []):
                 if media.get("permalink") and shared_url and media["permalink"].rstrip("/") in shared_url.rstrip("/"):
@@ -357,7 +358,7 @@ class InstagramService:
             "Content-Type": "application/json",
             "Authorization": f"Bearer {access_token}",
         }
-        response = requests.get(url, headers=headers)
+        response = http.get(url, headers=headers)
         return response.json()
 
 

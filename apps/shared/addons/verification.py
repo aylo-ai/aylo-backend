@@ -1,10 +1,11 @@
 import logging
 import os
 import requests
+from apps.shared import http
 from random import randint
 
 from config.settings import redis_connection
-from shared.addons.payloads import get_playmobile_payload
+from apps.shared.addons.payloads import get_playmobile_payload
 
 from django.core.mail import send_mail
 from django.conf import settings
@@ -59,7 +60,7 @@ def send_playmobile_sms(phone_number, message):
     message_id = f"repliuz_{randint(100000, 999999)}"
     payload = get_playmobile_payload(phone_number, message_id, originator, message)
     try:
-        response = requests.post(
+        response = http.post(
             PLAY_MOBILE_URL,
             json=payload,
             auth=(PLAY_MOBILE_LOGIN, PLAY_MOBILE_PASSWORD),
@@ -118,7 +119,7 @@ def verify_code_cache(phone_number, code):
 def send_sms_text(phone_number, text):
     message_id = f"repliuz_{randint(100000, 999999)}"
     payload = get_playmobile_payload(phone_number, message_id, originator, text)
-    response = requests.post(
+    response = http.post(
         PLAY_MOBILE_URL,
         json=payload,
         auth=(PLAY_MOBILE_LOGIN, PLAY_MOBILE_PASSWORD),

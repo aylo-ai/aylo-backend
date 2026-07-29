@@ -9,11 +9,11 @@ from django.utils.translation import gettext_lazy as _
 from django.conf import settings
 from django.core.mail import send_mail
 
-from shared.addons.enums import SubscriptionStatuses, NotificationTypes
-from shared.addons.verification import send_playmobile_sms
+from apps.shared.addons.enums import SubscriptionStatuses, NotificationTypes
+from apps.shared.addons.verification import send_playmobile_sms
 
 # Re-exported: several modules import send_telegram_message from here.
-from shared.addons.telegram import send_telegram_message  # noqa: F401
+from apps.shared.addons.telegram import send_telegram_message  # noqa: F401
 
 logger = logging.getLogger(__name__)
 

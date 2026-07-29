@@ -7,7 +7,7 @@ from rest_framework import status
 from rest_framework.exceptions import APIException, _get_error_details
 from rest_framework.response import Response
 
-from shared.addons.verification import check_verification_status
+from apps.shared.addons.verification import check_verification_status
 from apps.user.models import User
 
 

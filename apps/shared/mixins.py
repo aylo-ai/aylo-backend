@@ -1,8 +1,8 @@
 from django.utils.translation import gettext_lazy as _
 from django.utils import timezone
 
-from shared.addons.validations import raise_validation_error
-from shared.addons.enums import IntegrationTypes, SubscriptionStatuses, PricingPackageType
+from apps.shared.addons.validations import raise_validation_error
+from apps.shared.addons.enums import IntegrationTypes, SubscriptionStatuses, PricingPackageType
 from apps.integration.models import Integration
 
 class SubscriptionValidationMixin:

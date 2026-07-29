@@ -7,8 +7,8 @@ from unittest import mock
 
 from django.test import TestCase
 
-from shared.ai_service import agent as agent_module
-from shared.ai_service.agent import Agent, AgentResult
+from apps.shared.ai_service import agent as agent_module
+from apps.shared.ai_service.agent import Agent, AgentResult
 
 from .factories import (
     bad_request, make_assistant, make_conversation, make_response,
@@ -30,7 +30,7 @@ class AgentTestCase(TestCase):
         client_patch.start()
         self.addCleanup(client_patch.stop)
 
-        redis_patch = mock.patch("shared.addons.redis.redis_client")
+        redis_patch = mock.patch("apps.shared.addons.redis.redis_client")
         self.redis = redis_patch.start()
         self.redis.get.return_value = None
         self.addCleanup(redis_patch.stop)
@@ -432,7 +432,7 @@ class RespondTests(AgentTestCase):
     def test_respond_stores_and_publishes_the_reply(self):
         self.set_responses(make_response(text="Hello!"))
 
-        with mock.patch("shared.addons.redis.publish_message_to_ws") as publish:
+        with mock.patch("apps.shared.addons.redis.publish_message_to_ws") as publish:
             text = agent_module.respond(self.assistant, self.conversation, "Hi")
 
         self.assertEqual(text, "Hello!")
@@ -444,7 +444,7 @@ class RespondTests(AgentTestCase):
     def test_respond_stores_the_fallback_when_the_api_fails(self):
         self.client.responses.create.side_effect = ValueError("kaboom")
 
-        with mock.patch("shared.addons.redis.publish_message_to_ws"):
+        with mock.patch("apps.shared.addons.redis.publish_message_to_ws"):
             text = agent_module.respond(self.assistant, self.conversation, "Hi")
 
         self.assertEqual(text, self.assistant.fallback_message)
@@ -454,7 +454,7 @@ class RespondTests(AgentTestCase):
         self.set_responses(make_response(text="Hello!"))
 
         with mock.patch(
-            "shared.addons.redis.publish_message_to_ws", side_effect=ConnectionError("down")
+            "apps.shared.addons.redis.publish_message_to_ws", side_effect=ConnectionError("down")
         ):
             text = agent_module.respond(self.assistant, self.conversation, "Hi")
 

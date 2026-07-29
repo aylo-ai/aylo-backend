@@ -8,7 +8,6 @@ from django.utils.translation import gettext_lazy as _
 from celery.schedules import crontab
 
 BASE_DIR = Path(__file__).resolve().parent.parent
-sys.path.append(os.path.join(BASE_DIR, "apps"))
 load_dotenv()
 
 DEBUG: bool = os.environ.get("DEBUG") in ["True", "true"]
@@ -64,15 +63,21 @@ PACKAGES = [
     "telegram",
     "storages",
 ]
+# Fully qualified so every module has exactly one importable path. The bare
+# names used to work only because `apps/` was appended to sys.path, which made
+# `shared.x` and `apps.shared.x` two distinct module objects — two copies of
+# every module-level singleton (redis_client, conversation_service, agent, …).
+# The app labels are unchanged (Django takes the last component), so migrations,
+# db_table names and content types are unaffected.
 INTERNAL_APPS = [
-    "assistant",
-    "integration",
-    "payment",
-    "shared",
-    "user",
-    "blog",
-    "landing",
-    "dashboard",
+    "apps.assistant",
+    "apps.integration",
+    "apps.payment",
+    "apps.shared",
+    "apps.user",
+    "apps.blog",
+    "apps.landing",
+    "apps.dashboard",
 ]
 
 INSTALLED_APPS = DEFAULT_APPS + PACKAGES + INTERNAL_APPS
@@ -467,13 +472,28 @@ LANGUAGES = (
 )
 MODELTRANSLATION_LANGUAGES = ('en', 'uz', 'ru', 'kk', 'ar')
 
-BITRIX_CLIENT_ID='local.68fa1c012ca095.04783670'
-BITRIX_CLIENT_KEY='8Jpee3uOJnVgQQzBNtHmzqhWufqxIfm7fzjiohFjK3RS2cpqqP'
+# amoCRM OAuth. Read from the environment — these are live credentials and must
+# never be committed. `AMOCRM_ACCESS_TOKEN` and the `BITRIX_*` pair used to sit
+# here as literals with no reader anywhere in the tree; they were removed rather
+# than migrated.
+AMOCRM_CLIENT_ID = os.environ.get("AMOCRM_CLIENT_ID")
+AMOCRM_SECRET_KEY = os.environ.get("AMOCRM_SECRET_KEY")
 
-AMOCRM_CLIENT_ID='f49eee4a-598e-406c-9111-8ad3f1194230'
-AMOCRM_SECRET_KEY='pGaFSICclVG5i7HDlgzkaoChwitZXZHW5ZP5fxC6nYmHIoUgIxovgFAJ79v89lgH'
-AMOCRM_ACCESS_TOKEN='eyJ0eXAiOiJKV1QiLCJhbGciOiJSUzI1NiIsImp0aSI6Ijg2YThiMGIzZjJlMWY5MmM5ZjVjYjRjYTVjYTc5ZGQ0YzQxNGU0Yzk0Zjc0YjJhNTY2OTE2YTJhNGEzMjk0MDJjY2E0ZTQ4MDRhNGNjYWExIn0.eyJhdWQiOiJmNDllZWU0YS01OThlLTQwNmMtOTExMS04YWQzZjExOTQyMzAiLCJqdGkiOiI4NmE4YjBiM2YyZTFmOTJjOWY1Y2I0Y2E1Y2E3OWRkNGM0MTRlNGM5NGY3NGIyYTU2NjkxNmEyYTRhMzI5NDAyY2NhNGU0ODA0YTRjY2FhMSIsImlhdCI6MTc2MTIyNzE0MCwibmJmIjoxNzYxMjI3MTQwLCJleHAiOjE5MDIyNjg4MDAsInN1YiI6Ijk4NTM3OTgiLCJncmFudF90eXBlIjoiIiwiYWNjb3VudF9pZCI6MzI3MzE3MjIsImJhc2VfZG9tYWluIjoiYW1vY3JtLnJ1IiwidmVyc2lvbiI6Miwic2NvcGVzIjpbImNybSIsImZpbGVzIiwiZmlsZXNfZGVsZXRlIiwibm90aWZpY2F0aW9ucyIsInB1c2hfbm90aWZpY2F0aW9ucyJdLCJoYXNoX3V1aWQiOiIxNDI4MjVhZC1iYjcyLTRkZTAtYTY5MS0wODlmYTY5OWRiNGQiLCJ1c2VyX2ZsYWdzIjowLCJhcGlfZG9tYWluIjoiYXBpLWIuYW1vY3JtLnJ1In0.KfBz6OawRPwoOQ2XukHpLdByKEYBoO9bgr3SDGfa84ooF1vya6gRsHKWGAAdMQTIuJwzwZ55e4anHYJbsfXC7vJh71lnyE5zHNhWLQUS4gF9O6wuj9jku51oN7fYG5Uk08Z09bUBLGbizBLvGi8x_sycX8hm92gjx4-6kXZhys38yz6J94-GZUfrItHEd38Y0IxdE4PxQrevKFbP2AJB51t-sRUNLkPQw4GOPV7PeumPcpMEoqSJciiEHMNt0MzC4dyAHAwIdwHzxthRGg3MDz3PgzWrNZDQK_Nd5JKzsRG0oeBeRum3Ckk7Br5CEqAXoiHDhbc2C3zVrSnmtoi0dg'
-BASE_URL='https://api.repli.uz'
+BASE_URL = os.environ.get("BASE_URL", "https://api.aylo.uz")
+
+# Fail fast in production rather than serving a broken amoCRM OAuth flow that
+# only reveals itself when a customer tries to connect their account.
+if not DEBUG and not TESTING:
+    _missing = [
+        name for name in ("AMOCRM_CLIENT_ID", "AMOCRM_SECRET_KEY")
+        if not globals()[name]
+    ]
+    if _missing:
+        from django.core.exceptions import ImproperlyConfigured
+
+        raise ImproperlyConfigured(
+            f"Missing required environment variables: {', '.join(_missing)}"
+        )
 
 #Azure OpenAi settings
 AZURE_OPENAI_ENDPOINT = os.environ.get("AZURE_OPENAI_ENDPOINT")

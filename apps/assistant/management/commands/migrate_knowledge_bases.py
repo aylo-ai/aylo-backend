@@ -14,7 +14,7 @@ assistant exactly as it was. Run with --dry-run first.
 from django.core.management.base import BaseCommand
 
 from apps.assistant.models import Assistant
-from shared.ai_service import knowledge_base
+from apps.shared.ai_service import knowledge_base
 
 
 class Command(BaseCommand):

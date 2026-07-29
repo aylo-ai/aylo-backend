@@ -10,12 +10,12 @@ import logging
 from datetime import datetime
 
 import pytz
-import requests
+from apps.shared import http
 from celery import shared_task
 
 from apps.shared.ai_service.agent import respond
 from apps.shared.ai_service.conversation import conversation_service
-from shared.addons.instagram import instagram_service
+from apps.shared.addons.instagram import instagram_service
 
 from ..models import Flow, InstagramCommentResponse, InstagramMedia, Integration
 
@@ -67,7 +67,7 @@ def _fetch_latest_media(access_token):
         "fields": "id,media_type,media_url,username,timestamp,caption,comments_count,"
                   "like_count,permalink,thumbnail_url,children{media_type,media_url}"
     }
-    response = requests.get(url, params=params)
+    response = http.get(url, params=params)
     if response.status_code != 200:
         return None
     data = response.json().get('data') or []

@@ -2,9 +2,9 @@ from django.contrib.postgres.fields import ArrayField
 from django.db import models
 from django.utils import timezone
 from django.utils.timezone import now
-from shared.models import BaseModel
+from apps.shared.models import BaseModel
 from apps.integration.models import Integration
-from shared.addons.enums import (
+from apps.shared.addons.enums import (
     AssistantLanguages,
     PersonalityStyles,
     SenderTypes,
@@ -126,12 +126,18 @@ class Conversation(BaseModel):
     end_time = models.DateTimeField(null=True, blank=True)
     client_full_name = models.CharField(max_length=255, null=True, blank=True)
     client_phone_email = models.CharField(max_length=255, null=True, blank=True)
-    
-    def save(self, *args, **kwargs):
-        super().save(*args, **kwargs)
 
     class Meta:
         db_table = "conversation"
+        indexes = [
+            # Every inbound message resolves the conversation with exactly this
+            # filter (see ConversationService.get_or_create_conversation), so it
+            # is the single hottest read in the system.
+            models.Index(
+                fields=["assistant", "user_id", "token"],
+                name="conv_assistant_user_token_idx",
+            ),
+        ]
 
     def __str__(self):
         return f"Conversation with {self.assistant.name} - {self.platform} - {self.created_time}"
@@ -172,7 +178,7 @@ class Message(BaseModel):
         return f"Message from {self.sender} in conversation {self.conversation.id}"
 
     def save(self, *args, **kwargs):
-        from shared.addons.utils import notify_user_about_low_tokens
+        from apps.shared.addons.utils import notify_user_about_low_tokens
         from apps.payment.models import Subscription
 
         if self.conversation:

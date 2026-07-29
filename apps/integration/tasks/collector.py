@@ -10,7 +10,7 @@ import time
 
 from celery import shared_task
 
-from shared.addons.redis import redis_client
+from apps.shared.addons.redis import redis_client
 
 from .instagram_messaging import process_instagram_message
 from .telegram import process_message_task

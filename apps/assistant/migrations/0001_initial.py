@@ -2,7 +2,7 @@
 
 import django.db.models.deletion
 import django.utils.timezone
-import shared.addons.enums
+import apps.shared.addons.enums
 import uuid
 from django.db import migrations, models
 
@@ -92,7 +92,7 @@ class Migration(migrations.Migration):
                 (
                     "sender",
                     models.CharField(
-                        choices=shared.addons.enums.SenderTypes.choices, max_length=10
+                        choices=apps.shared.addons.enums.SenderTypes.choices, max_length=10
                     ),
                 ),
                 ("message_content", models.TextField()),
@@ -113,7 +113,7 @@ class Migration(migrations.Migration):
                 (
                     "status",
                     models.CharField(
-                        choices=shared.addons.enums.MessageStatuses.choices,
+                        choices=apps.shared.addons.enums.MessageStatuses.choices,
                         default="delivered",
                         max_length=15,
                     ),

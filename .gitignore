@@ -383,4 +383,5 @@ celerybeat-schedule.db
 staticfiles
 static
 .env*
+!.env.example
 swarm_commands.txt

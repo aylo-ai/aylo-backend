@@ -11,9 +11,9 @@ from apps.assistant.models import (
     Assistant, AssistantFileUpload, Conversation, Message, Lead, PromptTemplate,
     FollowUpConfig, FollowUpStage, FollowUpLog,
 )
-from shared.addons.validations import success_response, error_response
-from shared.ai_service import knowledge_base
-from shared.addons.redis import publish_new_message_to_ws
+from apps.shared.addons.validations import success_response, error_response
+from apps.shared.ai_service import knowledge_base
+from apps.shared.addons.redis import publish_new_message_to_ws
 from apps.assistant.filters import LeadFilter
 from apps.assistant.serializers import (AssistantSerializer,
     ConversationSerializer,

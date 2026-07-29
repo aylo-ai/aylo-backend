@@ -12,8 +12,8 @@ from django.test import TestCase, override_settings
 from rest_framework.test import APIClient
 
 from apps.user.models import User, Notification
-from shared.addons import verification
-from shared.addons.enums import NotificationTypes
+from apps.shared.addons import verification
+from apps.shared.addons.enums import NotificationTypes
 
 # Throttling stores its history in the default cache; DummyCache makes every
 # request pass so rate limits never make these tests flaky.
@@ -98,7 +98,7 @@ class VerifyOtpViewTests(TestCase):
         self.client = APIClient()
 
     def test_wrong_code_does_not_create_a_user(self):
-        with mock.patch("user.views.verify_code_cache", return_value=(False, "Code is incorrect")):
+        with mock.patch("apps.user.views.verify_code_cache", return_value=(False, "Code is incorrect")):
             response = self.client.post(
                 "/api/v1/user/auth/verify-otp/",
                 {"phone_number": "+998901112233", "code": "000000"},
@@ -108,7 +108,7 @@ class VerifyOtpViewTests(TestCase):
         self.assertFalse(User.objects.filter(phone_number="+998901112233").exists())
 
     def test_correct_code_creates_the_user_once_and_returns_tokens(self):
-        with mock.patch("user.views.verify_code_cache", return_value=(True, "ok")):
+        with mock.patch("apps.user.views.verify_code_cache", return_value=(True, "ok")):
             first = self.client.post(
                 "/api/v1/user/auth/verify-otp/",
                 {"phone_number": "+998901112233", "code": "123456"},
@@ -204,7 +204,7 @@ class EmailSignUpFlowTests(TestCase):
         self.client = APIClient()
 
     def test_send_otp_accepts_an_email(self):
-        with mock.patch("user.views.send_email_code", return_value=(True, "sent")) as send:
+        with mock.patch("apps.user.views.send_email_code", return_value=(True, "sent")) as send:
             response = self.client.post(
                 "/api/v1/user/auth/send-otp/", {"email": "new@example.com"},
             )
@@ -213,7 +213,7 @@ class EmailSignUpFlowTests(TestCase):
         send.assert_called_once_with("new@example.com")
 
     def test_send_otp_rejects_a_malformed_email(self):
-        with mock.patch("user.views.send_email_code") as send:
+        with mock.patch("apps.user.views.send_email_code") as send:
             response = self.client.post(
                 "/api/v1/user/auth/send-otp/", {"email": "not-an-email"},
             )
@@ -222,7 +222,7 @@ class EmailSignUpFlowTests(TestCase):
         send.assert_not_called()
 
     def test_verifying_an_email_code_creates_the_account_once(self):
-        with mock.patch("user.views.verify_email_code", return_value=(True, "ok")):
+        with mock.patch("apps.user.views.verify_email_code", return_value=(True, "ok")):
             first = self.client.post(
                 "/api/v1/user/auth/verify-otp/",
                 {"email": "new@example.com", "code": "123456"},
@@ -241,7 +241,7 @@ class EmailSignUpFlowTests(TestCase):
         self.assertEqual(users.first().auth_type, "email")
 
     def test_a_wrong_email_code_creates_no_account(self):
-        with mock.patch("user.views.verify_email_code", return_value=(False, "Invalid verification code")):
+        with mock.patch("apps.user.views.verify_email_code", return_value=(False, "Invalid verification code")):
             response = self.client.post(
                 "/api/v1/user/auth/verify-otp/",
                 {"email": "new@example.com", "code": "000000"},
@@ -253,7 +253,7 @@ class EmailSignUpFlowTests(TestCase):
     def test_a_brand_new_account_starts_with_no_name_and_no_subscription(self):
         """What the frontend keys the 'complete profile' and 'choose a plan'
         onboarding steps off — both must be empty for a first-time sign-up."""
-        with mock.patch("user.views.verify_email_code", return_value=(True, "ok")):
+        with mock.patch("apps.user.views.verify_email_code", return_value=(True, "ok")):
             self.client.post(
                 "/api/v1/user/auth/verify-otp/",
                 {"email": "new@example.com", "code": "123456"},
@@ -278,15 +278,15 @@ class RegisterGateTests(TestCase):
         }
 
     def test_registration_is_rejected_without_a_verified_otp(self):
-        with mock.patch("user.serializers.check_verification_status", return_value=(False, "not verified")):
+        with mock.patch("apps.user.serializers.check_verification_status", return_value=(False, "not verified")):
             response = self.client.post("/api/v1/user/auth/register/", self.payload)
 
         self.assertEqual(response.status_code, 400)
         self.assertFalse(User.objects.filter(phone_number="+998901112233").exists())
 
     def test_registration_succeeds_for_a_verified_number(self):
-        with mock.patch("user.serializers.check_verification_status", return_value=(True, "ok")), \
-             mock.patch("user.views.redis_connection"):
+        with mock.patch("apps.user.serializers.check_verification_status", return_value=(True, "ok")), \
+             mock.patch("apps.user.views.redis_connection"):
             response = self.client.post("/api/v1/user/auth/register/", self.payload)
 
         self.assertEqual(response.status_code, 201)
@@ -295,7 +295,7 @@ class RegisterGateTests(TestCase):
     def test_duplicate_number_is_a_clean_400_not_a_500(self):
         User.objects.create(phone_number="+998901112233", first_name="X", last_name="Y")
 
-        with mock.patch("user.serializers.check_verification_status", return_value=(True, "ok")):
+        with mock.patch("apps.user.serializers.check_verification_status", return_value=(True, "ok")):
             response = self.client.post("/api/v1/user/auth/register/", self.payload)
 
         self.assertEqual(response.status_code, 400)
@@ -338,7 +338,7 @@ class GoogleOAuthCsrfTests(TestCase):
     def test_callback_with_an_unknown_state_is_rejected(self):
         redis = mock.MagicMock()
         redis.delete.return_value = 0  # state not found → forged/expired
-        with mock.patch("user.views.redis_connection", redis):
+        with mock.patch("apps.user.views.redis_connection", redis):
             response = self.client.get(
                 "/api/v1/user/accounts/google/login/callback/?code=abc&state=forged"
             )
@@ -360,9 +360,9 @@ class GoogleOAuthEmailVerificationTests(TestCase):
         redis.delete.return_value = 1  # state found and consumed
         token_response = mock.Mock()
         token_response.json.return_value = {"id_token": "raw-token"}
-        with mock.patch("user.views.redis_connection", redis), \
-                mock.patch("user.views.requests.post", return_value=token_response), \
-                mock.patch("user.views.google_id_token.verify_oauth2_token",
+        with mock.patch("apps.user.views.redis_connection", redis), \
+                mock.patch("apps.user.views.requests.post", return_value=token_response), \
+                mock.patch("apps.user.views.google_id_token.verify_oauth2_token",
                            return_value=claims):
             return self.client.get(
                 "/api/v1/user/accounts/google/login/callback/?code=abc&state=ok"

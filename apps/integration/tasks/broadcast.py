@@ -9,8 +9,8 @@ from celery import shared_task
 
 from apps.assistant.models import Conversation
 from apps.shared.addons.enums import BroadcastStatuses, IntegrationTypes
-from shared.addons.instagram import instagram_service
-from shared.addons.telegram import send_telegram_message
+from apps.shared.addons.instagram import instagram_service
+from apps.shared.addons.telegram import send_telegram_message
 
 from ..models import Broadcast, Integration
 
