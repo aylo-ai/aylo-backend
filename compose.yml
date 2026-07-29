@@ -9,8 +9,11 @@ services:
     volumes:
       - /var/www/static:/app/staticfiles
       - /var/www/media:/app/media
+    # Loopback-only: nginx is the sole public listener and proxies to this
+    # port. Publishing on 0.0.0.0 would expose gunicorn directly, bypassing
+    # TLS, client_max_body_size and the host access log.
     ports:
-      - 8001:8000
+      - 127.0.0.1:8001:8000
     depends_on:
       - redis
       - postgres
@@ -34,8 +37,9 @@ services:
     volumes:
       - /var/www/static:/app/staticfiles
       - /var/www/media:/app/media
+    # Loopback-only — see the note on web-blue.
     ports:
-      - 8002:8000
+      - 127.0.0.1:8002:8000
     depends_on:
       - redis
       - postgres

@@ -1,3 +1,4 @@
+import logging
 import re
 from bs4 import BeautifulSoup
 import json
@@ -6,6 +7,8 @@ import requests
 from datetime import datetime
 from apps.integration.models import Integration, TelegramGroupIntegration
 from shared.addons.validations import error_response
+
+logger = logging.getLogger(__name__)
 
 USER_INFO_REGEX = r"#registered_user_info\s*" \
                   r"Ism-familiya:\s*(.*?)\s*\n" \
@@ -153,24 +156,26 @@ def set_telegram_webhook(bot_token, webhook_url):
     payload = {
         'url': webhook_url
     }
-    print(f"[+] Setting webhook to: {webhook_url}")
+    # The webhook URL embeds the bot token in its path — never log it.
     response = requests.post(url, data=payload)
     if response.status_code == 200:
-        print(f"[+] Webhook set successfully, Status code: {response.status_code}")
+        logger.info("Telegram webhook set successfully")
         return 200
     else:
-        print(f"[-] Failed to set webhook: {response.json()}, Status code: {response.status_code}")
+        logger.warning("Failed to set Telegram webhook, status code: %s", response.status_code)
         return 400
 
 
 def get_webhook_info(bot_token):
     url = f"https://api.telegram.org/bot{bot_token}/getWebhookInfo"
     response = requests.get(url)
+    # The response body carries the registered webhook URL, which embeds the
+    # bot token in its path — log the status only.
     if response.status_code == 200:
-        print(f"Webhook info: {response.json()}, Status code: {response.status_code}")
+        logger.info("Fetched Telegram webhook info")
         return 200
     else:
-        print("Failed to get webhook info:", response.json())
+        logger.warning("Failed to get Telegram webhook info, status code: %s", response.status_code)
         return 400
 
 
