@@ -21,10 +21,10 @@ from django.utils.translation import gettext_lazy as _
 
 from config.settings import INSTAGRAM_CLIENT_ID, INSTAGRAM_CLIENT_SECRET, INSTAGRAM_REDIRECT_URI
 from apps.shared.addons.enums import IntegrationTypes
-from apps.shared.addons.telegram import handle_bot_added_to_group, handle_bot_removed_from_group
+from apps.integration.gateways.telegram import handle_bot_added_to_group, handle_bot_removed_from_group
 from apps.shared.addons.validations import success_response, error_response
 from apps.shared.permissions import IsCustomer
-from apps.shared.addons.instagram import instagram_service
+from apps.integration.gateways.instagram import instagram_service
 from apps.assistant.models import Assistant
 from .models import Integration, TelegramGroupIntegration, InstagramMedia, CommentTriggerWord, InstagramCommentResponse, Flow, Transition, Step, CommentResponseButton, Broadcast
 from .serializers import (IntegrationCreateSerializer,
@@ -716,7 +716,7 @@ class TelegramGroupUpdateDestroyView(generics.RetrieveUpdateDestroyAPIView):
         instance = self.get_object()
         is_approving = request.data.get('is_approved')
         if is_approving is True or is_approving == 'true' or is_approving == True:
-            from apps.shared.addons.telegram import check_bot_in_group
+            from apps.integration.gateways.telegram import check_bot_in_group
             token = instance.integration.api_token
             if not check_bot_in_group(instance.group_id, token):
                 return error_response(

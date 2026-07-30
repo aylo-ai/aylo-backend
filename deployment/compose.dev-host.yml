@@ -34,3 +34,12 @@ services:
 
   redis:
     mem_limit: 192m
+
+  # Log viewer — only running when the `logs` profile is up. Dozzle buffers
+  # recent lines per open stream, so cap it rather than let a chatty container
+  # push the box into swap.
+  dozzle:
+    mem_limit: 128m
+
+  docker-socket-proxy:
+    mem_limit: 32m

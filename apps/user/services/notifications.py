@@ -13,7 +13,7 @@ from apps.shared.addons.enums import SubscriptionStatuses, NotificationTypes
 from apps.shared.addons.verification import send_playmobile_sms
 
 # Re-exported: several modules import send_telegram_message from here.
-from apps.shared.addons.telegram import send_telegram_message  # noqa: F401
+from apps.integration.gateways.telegram import send_telegram_message  # noqa: F401
 
 logger = logging.getLogger(__name__)
 

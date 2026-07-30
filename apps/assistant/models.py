@@ -92,6 +92,17 @@ class Assistant(BaseModel):
 
     integrations: "models.QuerySet[Integration]"
 
+    @property
+    def resolved_prompt_template(self):
+        """This assistant's template, falling back to the system default.
+
+        Resolving here rather than in `shared.ai_service.prompts` keeps the AI
+        layer from having to import an assistant model.
+        """
+        if self.prompt_template is not None:
+            return self.prompt_template
+        return PromptTemplate.objects.filter(is_default=True, is_active=True).first()
+
     def __str__(self):
         return f"{self.assistant_id} - {self.name}"
 
@@ -178,7 +189,7 @@ class Message(BaseModel):
         return f"Message from {self.sender} in conversation {self.conversation.id}"
 
     def save(self, *args, **kwargs):
-        from apps.shared.addons.utils import notify_user_about_low_tokens
+        from apps.user.services.notifications import notify_user_about_low_tokens
         from apps.payment.models import Subscription
 
         if self.conversation:

@@ -20,7 +20,7 @@ from django.utils.translation import gettext_lazy as _
 from apps.assistant.models import Conversation, Message
 from apps.shared.addons.enums import ConversationStatuses, MessageTypes, SenderTypes
 from apps.shared.addons.redis import publish_message_to_ws_assistant
-from apps.shared.addons.telegram import send_telegram_message
+from apps.integration.gateways.telegram import send_telegram_message
 from apps.shared.addons.validations import success_response
 from apps.shared.ai_service import media
 

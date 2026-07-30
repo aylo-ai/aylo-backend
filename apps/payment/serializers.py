@@ -9,7 +9,7 @@ from django.db import transaction
 
 from apps.payment.models import Feature, PricingPackage, Card, Transaction, Subscription, RetryPayment, Balance
 from apps.shared.addons.enums import TransactionTypes, PaymentStatuses, SubscriptionStatuses
-from apps.shared.addons.payment import check_payme_card_token, create_payme_receipt, commit_payme_receipt, \
+from apps.payment.services.billing import check_payme_card_token, create_payme_receipt, commit_payme_receipt, \
     update_user_balance, send_create_card_request, send_verify_code_request, verify_payme_card_token, \
     create_notification, payme_error_message
 from apps.shared.addons.validations import raise_validation_error

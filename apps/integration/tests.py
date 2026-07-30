@@ -60,7 +60,7 @@ class ChannelTestCase(TestCase):
         # `shared.x` and `apps.shared.x`, which produces two distinct module
         # objects. Patch the one the task actually holds.
         self.send_greeting = mock.patch(
-            "apps.shared.ai_service.conversation.send_telegram_message"
+            "apps.assistant.services.conversation.send_telegram_message"
         ).start()
         self.instagram = mock.MagicMock()
         self.instagram.get_user_info.return_value = {"username": "customer"}
@@ -660,10 +660,10 @@ class InstagramUserInfoTests(TestCase):
         the message-processing task that calls it."""
         import requests as requests_lib
 
-        from apps.shared.addons.instagram import InstagramService
+        from apps.integration.gateways.instagram import InstagramService
 
         with mock.patch(
-            "apps.shared.addons.instagram.http.get",
+            "apps.integration.gateways.instagram.http.get",
             side_effect=requests_lib.RequestException("boom"),
         ):
             self.assertEqual(InstagramService().get_user_info("tok", "u1"), {})
@@ -671,7 +671,7 @@ class InstagramUserInfoTests(TestCase):
 
 class BillzClientTests(TestCase):
     def test_fetch_all_products_simplifies_and_stops_after_last_page(self):
-        from apps.shared.addons import billz
+        from apps.integration.gateways import billz
 
         raw_product = {
             "id": "p1",
@@ -687,7 +687,7 @@ class BillzClientTests(TestCase):
         response = mock.MagicMock()
         response.json.return_value = {"products": [raw_product]}
 
-        with mock.patch("apps.shared.addons.billz.http.get", return_value=response) as get:
+        with mock.patch("apps.integration.gateways.billz.http.get", return_value=response) as get:
             products = billz.fetch_all_products("token")
 
         # Fewer products than the page limit → exactly one request.
@@ -701,10 +701,10 @@ class BillzClientTests(TestCase):
     def test_fetch_all_products_fails_soft_on_network_error(self):
         import requests as requests_lib
 
-        from apps.shared.addons import billz
+        from apps.integration.gateways import billz
 
         with mock.patch(
-            "apps.shared.addons.billz.http.get",
+            "apps.integration.gateways.billz.http.get",
             side_effect=requests_lib.RequestException("down"),
         ):
             self.assertEqual(billz.fetch_all_products("token"), [])

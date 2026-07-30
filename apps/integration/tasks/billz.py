@@ -7,7 +7,7 @@ from celery import shared_task
 
 from apps.shared.ai_service import knowledge_base
 from apps.shared.addons.enums import IntegrationTypes
-from apps.shared.addons import billz as billz_client
+from apps.integration.gateways import billz as billz_client
 
 from ..models import Integration
 

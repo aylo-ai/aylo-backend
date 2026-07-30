@@ -2,8 +2,7 @@ from django.utils.translation import gettext_lazy as _
 from django.utils import timezone
 
 from apps.shared.addons.validations import raise_validation_error
-from apps.shared.addons.enums import IntegrationTypes, SubscriptionStatuses, PricingPackageType
-from apps.integration.models import Integration
+from apps.shared.addons.enums import IntegrationTypes, SubscriptionStatuses
 
 class SubscriptionValidationMixin:
     """
@@ -34,17 +33,6 @@ class SubscriptionValidationMixin:
         assistants = subscription.assistants.count()
         if assistants >= 5:
             raise_validation_error(message=_("Sizning assistantlar soningiz tugagan. Iltimos, assistantlar sonini oshiring."))
-
-    def validate_intergation_count(self, user, assistant_id):
-        pass
-        # total_integrations = Integration.objects.filter(assistant_id=assistant_id).count()
-        
-        # if user.subscription.pricing_package.type == PricingPackageType.CUSTOM.value:
-        #     if total_integrations >= 2:
-        #         raise_validation_error(message=_("Sizning integratsiya soningiz tugagan. Iltimos, integratsiya sonini oshiring."))
-        # if user.subscription.pricing_package.type == PricingPackageType.PRO.value:
-        #     if total_integrations >= 3:
-        #         raise_validation_error(message=_("Sizning integratsiya soningiz tugagan. Iltimos, integratsiya sonini oshiring."))
 
     def validate_telegram_integration_count(self, subscription):
         telegram_integrations = subscription.integrations.filter(platform=IntegrationTypes.TELEGRAM.value).count()

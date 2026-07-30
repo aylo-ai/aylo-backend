@@ -7,8 +7,8 @@ from django.shortcuts import get_object_or_404
 
 from apps.assistant.models import Conversation, Assistant
 from apps.shared.addons.enums import IntegrationTypes, ConversationPlatforms, ConversationStatuses
-from apps.shared.addons.telegram import telegram_get_me, set_telegram_webhook, get_webhook_info, send_telegram_message
-from apps.shared.ai_service.conversation import conversation_service
+from apps.integration.gateways.telegram import telegram_get_me, set_telegram_webhook, get_webhook_info, send_telegram_message
+from apps.assistant.services.conversation import conversation_service
 from apps.shared.addons.validations import raise_validation_error, success_response
 from apps.shared.mixins import SubscriptionValidationMixin
 from .models import (Integration,
@@ -66,7 +66,6 @@ class IntegrationCreateSerializer(serializers.ModelSerializer, SubscriptionValid
         if not assistant.vector_id:
             raise_validation_error(message=_("Assistant faol emas, zarur fayl yuklash"))
         self.validate_subscription(user.subscription)
-        self.validate_intergation_count(user, assistant_id)
 
         if integration_type == IntegrationTypes.TELEGRAM.value and api_token:
             try:

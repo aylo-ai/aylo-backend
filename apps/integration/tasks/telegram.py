@@ -8,10 +8,10 @@ from apps.assistant.models import Assistant
 from apps.assistant.utils import cancel_pending_follow_ups
 from apps.shared.ai_service import media
 from apps.shared.ai_service.agent import respond
-from apps.shared.ai_service.conversation import conversation_service
+from apps.assistant.services.conversation import conversation_service
 from apps.shared.addons.enums import ConversationStatuses, SenderTypes
 from apps.shared.addons.redis import publish_message_to_ws
-from apps.shared.addons.telegram import send_telegram_action, send_telegram_message
+from apps.integration.gateways.telegram import send_telegram_action, send_telegram_message
 
 logger = logging.getLogger(__name__)
 

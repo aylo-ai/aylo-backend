@@ -223,9 +223,13 @@ class ToolLoopTests(AgentTestCase):
             ),
             make_response(response_id="r2", text="Sorry, something went wrong."),
         )
+        from apps.assistant import ai_tools
+
         boom = mock.Mock(side_effect=RuntimeError("db down"))
-        with mock.patch.dict(agent_module.tool_registry.TOOL_HANDLERS, {"create_lead": boom}):
-            result = self.run_turn("Book it")
+        agent_module.tool_registry.register("create_lead", ai_tools.CREATE_LEAD_SCHEMA, boom)
+        self.addCleanup(ai_tools.register_tools)
+
+        result = self.run_turn("Book it")
 
         self.assertFalse(result.used_fallback)
         self.assertIn("error", self.kwargs_at(1)["input"][0]["output"])

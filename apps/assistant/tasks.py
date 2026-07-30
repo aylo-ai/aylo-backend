@@ -17,8 +17,8 @@ from apps.shared.addons.enums import (
     IntegrationTypes, ConversationPlatforms, SenderTypes,
     MessageTypes, FollowUpLogStatus, LeadStatuses,
 )
-from apps.shared.addons.utils import send_telegram_message
-from apps.shared.addons.instagram import instagram_service
+from apps.integration.gateways.telegram import send_telegram_message
+from apps.integration.gateways.instagram import instagram_service
 from apps.shared.addons.redis import publish_message_to_ws
 
 logger = logging.getLogger(__name__)

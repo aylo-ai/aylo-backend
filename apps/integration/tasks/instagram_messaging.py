@@ -5,9 +5,9 @@ from celery import shared_task
 
 from apps.assistant.utils import cancel_pending_follow_ups
 from apps.shared.ai_service.agent import respond
-from apps.shared.ai_service.conversation import conversation_service
+from apps.assistant.services.conversation import conversation_service
 from apps.shared.addons.enums import ConversationStatuses, SenderTypes
-from apps.shared.addons.instagram import instagram_service
+from apps.integration.gateways.instagram import instagram_service
 from apps.shared.addons.redis import publish_message_to_ws
 
 from ..models import Integration

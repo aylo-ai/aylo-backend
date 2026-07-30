@@ -14,8 +14,8 @@ from apps.shared import http
 from celery import shared_task
 
 from apps.shared.ai_service.agent import respond
-from apps.shared.ai_service.conversation import conversation_service
-from apps.shared.addons.instagram import instagram_service
+from apps.assistant.services.conversation import conversation_service
+from apps.integration.gateways.instagram import instagram_service
 
 from ..models import Flow, InstagramCommentResponse, InstagramMedia, Integration
 

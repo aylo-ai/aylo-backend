@@ -5,7 +5,7 @@ from django.db import transaction
 
 from celery import shared_task
 
-from apps.shared.addons.instagram import instagram_service
+from apps.integration.gateways.instagram import instagram_service
 
 from ..models import InstagramUserState, Step, Transition
 
