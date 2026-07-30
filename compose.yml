@@ -163,9 +163,9 @@ services:
       # Served under a path prefix by nginx — must match the location block in
       # deployment/nginx/api.aylo.uz.conf.
       DOZZLE_BASE: /_logs
-      DOZZLE_HOSTNAME: repliuz
+      DOZZLE_HOSTNAME: aylochat
       # Only this project's containers; anything else on the host stays hidden.
-      DOZZLE_FILTER: label=com.docker.compose.project=repliuz
+      DOZZLE_FILTER: label=com.docker.compose.project=aylochat
       # Login required. Users live in deployment/dozzle/users.yml.
       DOZZLE_AUTH_PROVIDER: simple
       DOZZLE_AUTH_TTL: 8h
