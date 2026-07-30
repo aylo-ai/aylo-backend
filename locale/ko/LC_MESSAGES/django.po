@@ -10,1093 +10,1093 @@ msgstr ""
 "POT-Creation-Date: 2026-07-30 22:08\n"
 "PO-Revision-Date: 2026-07-30 22:08\n"
 "Last-Translator: Repli.uz <info@repli.uz>\n"
-"Language-Team: Русский\n"
-"Language: ru\n"
+"Language-Team: 한국어\n"
+"Language: ko\n"
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
-"Plural-Forms: nplurals=3; plural=(n%10==1 && n%100!=11 ? 0 : n%10>=2 && n%10<=4 && (n%100<12 || n%100>14) ? 1 : 2);\n"
+"Plural-Forms: nplurals=1; plural=0;\n"
 
 #: apps/assistant/serializers.py:82
 msgid "Company nomi 100 ta belgidan kam bo'lishi kerak"
-msgstr "Название компании должно быть менее 100 символов"
+msgstr "회사 이름은 100자 미만이어야 합니다"
 
 #: apps/assistant/serializers.py:84
 msgid "Role 100 ta belgidan kam bo'lishi kerak"
-msgstr "Роль должна быть менее 100 символов"
+msgstr "역할은 100자 미만이어야 합니다"
 
 #: apps/assistant/serializers.py:120 apps/assistant/serializers.py:118 apps/assistant/serializers.py:489 apps/assistant/views.py:128 apps/assistant/views.py:460 apps/assistant/views.py:506 apps/assistant/views.py:564 apps/assistant/views.py:612 apps/assistant/views.py:313 apps/assistant/views.py:343 apps/integration/serializers.py:65 apps/integration/serializers.py:141 apps/integration/views.py:1611
 msgid "Assistant topilmadi"
-msgstr "Ассистент не найден"
+msgstr "어시스턴트를 찾을 수 없습니다"
 
 #: apps/assistant/serializers.py:123
 msgid "Assistant uchun fayl yuklash kerak"
-msgstr "Необходимо загрузить файл для ассистента"
+msgstr "어시스턴트를 위한 파일 업로드가 필요합니다"
 
 #: apps/assistant/serializers.py:223
 msgid "Xabar matni yoki audio fayl kerak"
-msgstr "Требуется текст сообщения или аудиофайл"
+msgstr "메시지 텍스트 또는 오디오 파일이 필요합니다"
 
 #: apps/assistant/serializers.py:232 apps/assistant/views.py:195 apps/assistant/views.py:408 apps/assistant/views.py:153
 msgid "Conversation topilmadi"
-msgstr "Диалог не найден"
+msgstr "대화를 찾을 수 없습니다"
 
 #: apps/assistant/serializers.py:241
 msgid "Request obyekti kerak"
-msgstr "Требуется объект запроса"
+msgstr "요청 객체가 필요합니다"
 
 #: apps/assistant/serializers.py:309 apps/assistant/serializers.py:396 apps/integration/serializers.py:137
 msgid "Assistant AI sizda yoqilmagan"
-msgstr "ИИ-ассистент у вас не включен"
+msgstr "어시스턴트 AI가 활성화되어 있지 않습니다"
 
 #: apps/assistant/serializers.py:315 apps/assistant/serializers.py:402
 msgid "Fayl yuklanmadi"
-msgstr "Файл не загружен"
+msgstr "파일이 업로드되지 않았습니다"
 
 #: apps/assistant/serializers.py:335
 msgid "Assistant kerak"
-msgstr "Требуется ассистент"
+msgstr "어시스턴트가 필요합니다"
 
 #: apps/assistant/serializers.py:398 apps/assistant/serializers.py:424
 msgid "Request obyekt kerak"
-msgstr "Требуется объект запроса"
+msgstr "요청 객체가 필요합니다"
 
 #: apps/assistant/serializers.py:429
 msgid "Fayl va assistant kerak"
-msgstr "Требуется файл и ассистент"
+msgstr "파일과 어시스턴트가 필요합니다"
 
 #: apps/assistant/serializers.py:471
 msgid "Xabar ID lari kiritilmagan"
-msgstr "ID сообщений не указаны"
+msgstr "메시지 ID가 입력되지 않았습니다"
 
 #: apps/assistant/serializers.py:483
 msgid "Sheet URL kiritilmagan"
-msgstr "URL таблицы не указан"
+msgstr "시트 URL이 입력되지 않았습니다"
 
 #: apps/assistant/serializers.py:485
 msgid "Assistant ID kiritilmagan"
-msgstr "ID ассистента не указан"
+msgstr "어시스턴트 ID가 입력되지 않았습니다"
 
 #: apps/assistant/services/conversation.py:148
 msgid "Salomlashish va yangi chat muvaffaqiyatli bajarildi"
-msgstr "Приветствие и новый чат успешно выполнены"
+msgstr "인사와 새 채팅이 성공적으로 완료되었습니다"
 
 #: apps/assistant/views.py:64
 msgid "Assistant muvaffaqiyatli yaratildi"
-msgstr "Ассистент успешно создан"
+msgstr "어시스턴트가 성공적으로 생성되었습니다"
 
 #: apps/assistant/views.py:78
 msgid "Assistant muvaffaqiyatli olindi"
-msgstr "Ассистент успешно получен"
+msgstr "어시스턴트가 성공적으로 조회되었습니다"
 
 #: apps/assistant/views.py:89
 msgid "Assistant muvaffaqiyatli o'zgartirildi"
-msgstr "Ассистент успешно изменен"
+msgstr "어시스턴트가 성공적으로 수정되었습니다"
 
 #: apps/assistant/views.py:95
 msgid "Faqat mijozlar o'zlarining assistantlarini o'chirishlari mumkin"
-msgstr "Только клиенты могут удалять своих ассистентов"
+msgstr "고객만 자신의 어시스턴트를 삭제할 수 있습니다"
 
 #: apps/assistant/views.py:100
 msgid "Xodimlar assistantlarni o'chira olmaydi"
-msgstr "Сотрудники не могут удалять ассистентов"
+msgstr "직원은 어시스턴트를 삭제할 수 없습니다"
 
 #: apps/assistant/views.py:106
 msgid "Assistant muvaffaqiyatli o'chirildi"
-msgstr "Ассистент успешно удален"
+msgstr "어시스턴트가 성공적으로 삭제되었습니다"
 
 #: apps/assistant/views.py:137
 msgid "Conversation muvaffaqiyatli yaratildi"
-msgstr "Диалог успешно создан"
+msgstr "대화가 성공적으로 생성되었습니다"
 
 #: apps/assistant/views.py:158
 msgid "Conversation muvaffaqiyatli olindi"
-msgstr "Диалог успешно получен"
+msgstr "대화가 성공적으로 조회되었습니다"
 
 #: apps/assistant/views.py:165
 msgid "Conversation muvaffaqiyatli o'zgartirildi"
-msgstr "Диалог успешно изменен"
+msgstr "대화가 성공적으로 수정되었습니다"
 
 #: apps/assistant/views.py:170
 msgid "Conversation muvaffaqiyatli o'chirildi"
-msgstr "Диалог успешно удален"
+msgstr "대화가 성공적으로 삭제되었습니다"
 
 #: apps/assistant/views.py:199
 msgid "Message muvaffaqiyatli yaratildi"
-msgstr "Сообщение успешно создано"
+msgstr "메시지가 성공적으로 생성되었습니다"
 
 #: apps/assistant/views.py:215
 msgid "Message muvaffaqiyatli olindi"
-msgstr "Сообщение успешно получено"
+msgstr "메시지가 성공적으로 조회되었습니다"
 
 #: apps/assistant/views.py:222
 msgid "Message muvaffaqiyatli o'zgartirildi"
-msgstr "Сообщение успешно изменено"
+msgstr "메시지가 성공적으로 수정되었습니다"
 
 #: apps/assistant/views.py:227
 msgid "Message muvaffaqiyatli o'chirildi"
-msgstr "Сообщение успешно удалено"
+msgstr "메시지가 성공적으로 삭제되었습니다"
 
 #: apps/assistant/views.py:263
 msgid "Settings muvaffaqiyatli yaratildi"
-msgstr "Настройки успешно созданы"
+msgstr "설정이 성공적으로 생성되었습니다"
 
 #: apps/assistant/views.py:277
 msgid "Settings muvaffaqiyatli olindi"
-msgstr "Настройки успешно получены"
+msgstr "설정이 성공적으로 조회되었습니다"
 
 #: apps/assistant/views.py:284
 msgid "Settings muvaffaqiyatli o'zgartirildi"
-msgstr "Настройки успешно изменены"
+msgstr "설정이 성공적으로 수정되었습니다"
 
 #: apps/assistant/views.py:289
 msgid "Settings muvaffaqiyatli o'chirildi"
-msgstr "Настройки успешно удалены"
+msgstr "설정이 성공적으로 삭제되었습니다"
 
 #: apps/assistant/views.py:325
 msgid "File muvaffaqiyatli yaratildi"
-msgstr "Файл успешно создан"
+msgstr "파일이 성공적으로 생성되었습니다"
 
 #: apps/assistant/views.py:357 apps/assistant/views.py:385
 msgid "File muvaffaqiyatli o'zgartirildi"
-msgstr "Файл успешно изменен"
+msgstr "파일이 성공적으로 수정되었습니다"
 
 #: apps/assistant/views.py:372
 msgid "Berilgan ID ga ega fayl topilmadi"
-msgstr "Файл с указанным ID не найден"
+msgstr "주어진 ID를 가진 파일을 찾을 수 없습니다"
 
 #: apps/assistant/views.py:377
 msgid "File muvaffaqiyatli olindi"
-msgstr "Файл успешно получен"
+msgstr "파일이 성공적으로 조회되었습니다"
 
 #: apps/assistant/views.py:392
 msgid "Fayl topilmadi"
-msgstr "Файл не найден"
+msgstr "파일을 찾을 수 없습니다"
 
 #: apps/assistant/views.py:396
 msgid "Fayl muvaffaqiyatli o'chirildi"
-msgstr "Файл успешно удален"
+msgstr "파일이 성공적으로 삭제되었습니다"
 
 #: apps/assistant/views.py:427
 msgid "Xabarlar muvaffaqiyatli o'qildi"
-msgstr "Сообщения успешно прочитаны"
+msgstr "메시지를 읽음으로 표시했습니다"
 
 #: apps/assistant/views.py:468
 msgid "Lead muvaffaqiyatli yaratildi"
-msgstr "Лид успешно создан"
+msgstr "리드가 성공적으로 생성되었습니다"
 
 #: apps/assistant/views.py:484
 msgid "Lead muvaffaqiyatli olindi"
-msgstr "Лид успешно получен"
+msgstr "리드를 성공적으로 조회했습니다"
 
 #: apps/assistant/views.py:491
 msgid "Lead muvaffaqiyatli o'zgartirildi"
-msgstr "Лид успешно изменен"
+msgstr "리드가 성공적으로 수정되었습니다"
 
 #: apps/assistant/views.py:496
 msgid "Lead muvaffaqiyatli o'chirildi"
-msgstr "Лид успешно удален"
+msgstr "리드가 성공적으로 삭제되었습니다"
 
 #: apps/assistant/views.py:549
 msgid "Assistant token statistikasi"
-msgstr "Статистика токенов ассистента"
+msgstr "어시스턴트 토큰 통계"
 
 #: apps/assistant/views.py:574
 msgid "Follow-up konfiguratsiyasi"
-msgstr "Настройки follow-up"
+msgstr "팔로우업 설정"
 
 #: apps/assistant/views.py:582
 msgid "Follow-up konfiguratsiyasi yangilandi"
-msgstr "Настройки follow-up обновлены"
+msgstr "팔로우업 설정이 업데이트되었습니다"
 
 #: apps/assistant/views.py:603
 msgid "Follow-up bosqichlari"
-msgstr "Этапы follow-up"
+msgstr "팔로우업 단계"
 
 #: apps/assistant/views.py:621
 msgid "Follow-up bosqichi yaratildi"
-msgstr "Этап follow-up создан"
+msgstr "팔로우업 단계가 생성되었습니다"
 
 #: apps/assistant/views.py:638
 msgid "Follow-up bosqichi"
-msgstr "Этап follow-up"
+msgstr "팔로우업 단계"
 
 #: apps/assistant/views.py:646
 msgid "Follow-up bosqichi yangilandi"
-msgstr "Этап follow-up обновлен"
+msgstr "팔로우업 단계가 업데이트되었습니다"
 
 #: apps/assistant/views.py:653
 msgid "Follow-up bosqichi o'chirildi"
-msgstr "Этап follow-up удален"
+msgstr "팔로우업 단계가 삭제되었습니다"
 
 #: apps/assistant/views.py:684
 msgid "Follow-up loglari"
-msgstr "Логи follow-up"
+msgstr "팔로우업 로그"
 
 #: apps/dashboard/serializers.py:877
 msgid "role is required for change_role action"
-msgstr "Для действия change_role требуется поле role"
+msgstr "change_role 작업에는 role 필드가 필요합니다"
 
 #: apps/integration/gateways/telegram.py:187 apps/integration/views.py:751 apps/integration/views.py:182 apps/integration/views.py:842
 msgid "Integration topilmadi"
-msgstr "Интеграция не найдена"
+msgstr "통합을 찾을 수 없습니다"
 
 #: apps/integration/serializers.py:67 apps/integration/serializers.py:139
 msgid "Assistant faol emas, zarur fayl yuklash"
-msgstr "Ассистент неактивен, необходимо загрузить файл"
+msgstr "어시스턴트가 활성화되지 않았습니다. 파일 업로드가 필요합니다"
 
 #: apps/integration/serializers.py:85 apps/integration/serializers.py:76
 msgid "Telegram API token yaroqli emas"
-msgstr "Токен Telegram API недействителен"
+msgstr "Telegram API 토큰이 유효하지 않습니다"
 
 #: apps/integration/serializers.py:89 apps/integration/serializers.py:80
 msgid "Telegram webhook topilmadi"
-msgstr "Вебхук Telegram не найден"
+msgstr "Telegram 웹훅을 찾을 수 없습니다"
 
 #: apps/integration/serializers.py:99 apps/integration/views.py:1613
 msgid "Billz API token kerak"
-msgstr "Требуется токен Billz API"
+msgstr "Billz API 토큰이 필요합니다"
 
 #: apps/integration/serializers.py:102 apps/integration/views.py:1616
 msgid "Billz API token yaroqli emas"
-msgstr "Токен Billz API недействителен"
+msgstr "Billz API 토큰이 유효하지 않습니다"
 
 #: apps/integration/serializers.py:106 apps/integration/views.py:1620
 msgid "Billz access token topilmadi"
-msgstr "Токен доступа Billz не найден"
+msgstr "Billz 액세스 토큰을 찾을 수 없습니다"
 
 #: apps/integration/serializers.py:174
 msgid "Muloqot ID va xabar mavjud emas"
-msgstr "ID диалога и сообщение отсутствуют"
+msgstr "대화 ID와 메시지가 없습니다"
 
 #: apps/integration/serializers.py:177
 msgid "Muloqot topilmadi"
-msgstr "Диалог не найден"
+msgstr "대화를 찾을 수 없습니다"
 
 #: apps/integration/serializers.py:181
 msgid "Muloqot xabar yuborish mumkin emas"
-msgstr "Невозможно отправить сообщение в диалог"
+msgstr "대화에 메시지를 보낼 수 없습니다"
 
 #: apps/integration/serializers.py:190
 msgid "Telegram foydalanuvchi ID topilmadi"
-msgstr "ID пользователя Telegram не найден"
+msgstr "Telegram 사용자 ID를 찾을 수 없습니다"
 
 #: apps/integration/serializers.py:193
 msgid "Telegram bot token topilmadi"
-msgstr "Токен бота Telegram не найден"
+msgstr "Telegram 봇 토큰을 찾을 수 없습니다"
 
 #: apps/integration/serializers.py:212 apps/integration/views.py:185
 msgid "Xabar muvaffaqiyatli yuborildi"
-msgstr "Сообщение успешно отправлено"
+msgstr "메시지가 성공적으로 전송되었습니다"
 
 #: apps/integration/serializers.py:296
 msgid "Trigger word bo'sh bo'lishi mumkin emas"
-msgstr "Триггерное слово не может быть пустым"
+msgstr "트리거 단어는 비워 둘 수 없습니다"
 
 #: apps/integration/serializers.py:337
 msgid "Kamida bitta xabar shabloni kiritilishi kerak"
-msgstr "Необходимо указать хотя бы один шаблон сообщения"
+msgstr "메시지 템플릿을 하나 이상 입력해야 합니다"
 
 #: apps/integration/views.py:108 apps/integration/views.py:471
 msgid "Integration muvaffaqiyatli yaratildi"
-msgstr "Интеграция успешно создана"
+msgstr "통합이 성공적으로 생성되었습니다"
 
 #: apps/integration/views.py:130
 msgid "Integration muvaffaqiyatli olindi"
-msgstr "Интеграция успешно получена"
+msgstr "통합이 성공적으로 조회되었습니다"
 
 #: apps/integration/views.py:143
 msgid "Integration muvaffaqiyatli o'zgartirildi"
-msgstr "Интеграция успешно изменена"
+msgstr "통합이 성공적으로 수정되었습니다"
 
 #: apps/integration/views.py:152
 msgid "Integration muvaffaqiyatli o'chirildi"
-msgstr "Интеграция успешно удалена"
+msgstr "통합이 성공적으로 삭제되었습니다"
 
 #: apps/integration/views.py:174
 msgid "Xabar mavjud emas"
-msgstr "Сообщение отсутствует"
+msgstr "메시지가 없습니다"
 
 #: apps/integration/views.py:176
 msgid "Integration ID mavjud emas"
-msgstr "ID интеграции отсутствует"
+msgstr "통합 ID가 없습니다"
 
 #: apps/integration/views.py:180
 msgid "Sizda bu integration mavjud emas"
-msgstr "У вас нет такой интеграции"
+msgstr "이 통합을 보유하고 있지 않습니다"
 
 #: apps/integration/views.py:218
 msgid "Token yaroqsiz"
-msgstr "Токен недействителен"
+msgstr "토큰이 유효하지 않습니다"
 
 #: apps/integration/views.py:222
 msgid "Invalid signature"
-msgstr "Недействительная подпись"
+msgstr "서명이 유효하지 않습니다"
 
 #: apps/integration/views.py:226 apps/integration/views.py:231
 msgid "Ma'lumot topilmadi"
-msgstr "Информация не найдена"
+msgstr "정보를 찾을 수 없습니다"
 
 #: apps/integration/views.py:266
 msgid "Comment webhook ma'lumotlar muvaffaqiyatli olindi"
-msgstr "Данные вебхука комментария успешно получены"
+msgstr "댓글 웹훅 정보가 성공적으로 조회되었습니다"
 
 #: apps/integration/views.py:291
 msgid "Postback muvaffaqiyatli olindi"
-msgstr "Postback успешно получен"
+msgstr "포스트백을 성공적으로 수신했습니다"
 
 #: apps/integration/views.py:299
 msgid "Duplicate message ignored"
-msgstr "Дублирующее сообщение проигнорировано"
+msgstr "중복 메시지를 무시했습니다"
 
 #: apps/integration/views.py:306
 msgid "Reaction muvaffaqiyatli olindi"
-msgstr "Реакция успешно получена"
+msgstr "반응을 성공적으로 수신했습니다"
 
 #: apps/integration/views.py:319
 msgid "Shared post xabar muvaffaqiyatli olindi"
-msgstr "Сообщение с публикацией успешно получено"
+msgstr "공유된 게시물 메시지를 성공적으로 수신했습니다"
 
 #: apps/integration/views.py:321
 msgid "Reel yoki qo'shimcha turdagi xabar muvaffaqiyatli olindi"
-msgstr "Сообщение типа Reel или дополнительное успешно получено"
+msgstr "릴 또는 추가 유형의 메시지가 성공적으로 조회되었습니다"
 
 #: apps/integration/views.py:323
 msgid "Echo xabar muvaffaqiyatli olindi"
-msgstr "Эхо-сообщение успешно получено"
+msgstr "에코 메시지가 성공적으로 조회되었습니다"
 
 #: apps/integration/views.py:350
 msgid "Xabar webhook ma'lumotlar muvaffaqiyatli olindi"
-msgstr "Данные вебхука сообщения успешно получены"
+msgstr "메시지 웹훅 정보가 성공적으로 조회되었습니다"
 
 #: apps/integration/views.py:353
 msgid "Integratsiya boshqa foydalanuvchida ham topildi"
-msgstr "Эта интеграция найдена и у другого пользователя"
+msgstr "이 통합이 다른 사용자에게도 등록되어 있습니다"
 
 #: apps/integration/views.py:363
 msgid "Webhook ma'lumotlar muvaffaqiyatli olindi"
-msgstr "Данные вебхука успешно получены"
+msgstr "웹훅 정보가 성공적으로 조회되었습니다"
 
 #: apps/integration/views.py:378
 msgid "Assistant ID topilmadi"
-msgstr "ID ассистента не найден"
+msgstr "어시스턴트 ID를 찾을 수 없습니다"
 
 #: apps/integration/views.py:380 apps/user/views.py:312
 msgid "Authorization code topilmadi"
-msgstr "Код авторизации не найден"
+msgstr "인증 코드를 찾을 수 없습니다"
 
 #: apps/integration/views.py:401
 msgid "Access token topilmadi"
-msgstr "Токен доступа не найден"
+msgstr "액세스 토큰을 찾을 수 없습니다"
 
 #: apps/integration/views.py:405 apps/integration/views.py:411
 msgid "Foydalanuvchi profili topilmadi"
-msgstr "Профиль пользователя не найден"
+msgstr "사용자 프로필을 찾을 수 없습니다"
 
 #: apps/integration/views.py:427 apps/integration/views.py:437
 msgid "Instagram integratsiyasi sizda mavjud"
-msgstr "Интеграция с Instagram у вас уже есть"
+msgstr "이미 Instagram 통합이 있습니다"
 
 #: apps/integration/views.py:473
 msgid "Webhook topilmadi"
-msgstr "Вебхук не найден"
+msgstr "웹훅을 찾을 수 없습니다"
 
 #: apps/integration/views.py:537
 msgid "Foydalanuvchi appni deauthorized qildi"
-msgstr "Пользователь отозвал авторизацию приложения"
+msgstr "사용자가 앱의 인증을 해제했습니다"
 
 #: apps/integration/views.py:540
 msgid "Deauthorization xatolik"
-msgstr "Ошибка деавторизации"
+msgstr "인증 해제 오류"
 
 #: apps/integration/views.py:542
 msgid "Foydalanuvchi ID topilmadi"
-msgstr "ID пользователя не найден"
+msgstr "사용자 ID를 찾을 수 없습니다"
 
 #: apps/integration/views.py:550
 msgid "Signed request topilmadi"
-msgstr "Подписанный запрос не найден"
+msgstr "서명된 요청을 찾을 수 없습니다"
 
 #: apps/integration/views.py:612
 msgid "Invalid bot token"
-msgstr "Недействительный токен бота"
+msgstr "봇 토큰이 유효하지 않습니다"
 
 #: apps/integration/views.py:620
 msgid "Duplicate update ignored"
-msgstr "Дублирующее обновление проигнорировано"
+msgstr "중복 업데이트를 무시했습니다"
 
 #: apps/integration/views.py:625
 msgid "No message data received"
-msgstr "Данные сообщения не получены"
+msgstr "메시지 데이터를 받지 못했습니다"
 
 #: apps/integration/views.py:651
 msgid "Sticker message muvaffaqiyatli olindi"
-msgstr "Сообщение со стикером успешно получено"
+msgstr "스티커 메시지를 성공적으로 수신했습니다"
 
 #: apps/integration/views.py:654
 msgid "Document message muvaffaqiyatli olindi"
-msgstr "Сообщение с документом успешно получено"
+msgstr "문서 메시지를 성공적으로 수신했습니다"
 
 #: apps/integration/views.py:666
 msgid "Photo message muvaffaqiyatli olindi"
-msgstr "Сообщение с фото успешно получено"
+msgstr "사진 메시지를 성공적으로 수신했습니다"
 
 #: apps/integration/views.py:673
 msgid "Voice message muvaffaqiyatli olindi"
-msgstr "Голосовое сообщение успешно получено"
+msgstr "음성 메시지가 성공적으로 조회되었습니다"
 
 #: apps/integration/views.py:685
 msgid "Xabar muvaffaqiyatli olindi"
-msgstr "Сообщение успешно получено"
+msgstr "메시지가 성공적으로 조회되었습니다"
 
 #: apps/integration/views.py:712
 msgid "Bu guruhni boshqarish huquqi yo'q"
-msgstr "Нет прав на управление этой группой"
+msgstr "이 그룹을 관리할 권한이 없습니다"
 
 #: apps/integration/views.py:723
 msgid "Bot bu guruhda mavjud emas. Avval botni guruhga qo'shing."
-msgstr "Бот отсутствует в этой группе. Сначала добавьте бота в группу."
+msgstr "봇이 이 그룹에 없습니다. 먼저 봇을 그룹에 추가하세요."
 
 #: apps/integration/views.py:731
 msgid "Telegram guruh muvaffaqiyatli yangilandi"
-msgstr "Группа Telegram успешно обновлена"
+msgstr "Telegram 그룹이 성공적으로 업데이트되었습니다"
 
 #: apps/integration/views.py:739
 msgid "Telegram guruh muvaffaqiyatli o'chirildi"
-msgstr "Группа Telegram успешно удалена"
+msgstr "Telegram 그룹이 성공적으로 삭제되었습니다"
 
 #: apps/integration/views.py:773
 msgid "Instagram post muvaffaqiyatli olindi"
-msgstr "Публикация Instagram успешно получена"
+msgstr "Instagram 게시물을 성공적으로 조회했습니다"
 
 #: apps/integration/views.py:775
 msgid "Instagram post topilmadi"
-msgstr "Публикация Instagram не найдена"
+msgstr "Instagram 게시물을 찾을 수 없습니다"
 
 #: apps/integration/views.py:787
 msgid "Trigger word muvaffaqiyatli yaratildi"
-msgstr "Триггерное слово успешно создано"
+msgstr "트리거 단어가 성공적으로 생성되었습니다"
 
 #: apps/integration/views.py:807
 msgid "Trigger word muvaffaqiyatli olindi"
-msgstr "Триггерное слово успешно получено"
+msgstr "트리거 단어를 성공적으로 조회했습니다"
 
 #: apps/integration/views.py:814
 msgid "Trigger word muvaffaqiyatli o'zgartirildi"
-msgstr "Триггерное слово успешно изменено"
+msgstr "트리거 단어가 성공적으로 수정되었습니다"
 
 #: apps/integration/views.py:819
 msgid "Trigger word muvaffaqiyatli o'chirildi"
-msgstr "Триггерное слово успешно удалено"
+msgstr "트리거 단어가 성공적으로 삭제되었습니다"
 
 #: apps/integration/views.py:835
 msgid "Comment responses muvaffaqiyatli olindi"
-msgstr "Ответы на комментарии успешно получены"
+msgstr "댓글 응답을 성공적으로 조회했습니다"
 
 #: apps/integration/views.py:847
 msgid "Comment response muvaffaqiyatli yaratildi"
-msgstr "Ответ на комментарий успешно создан"
+msgstr "댓글 응답이 성공적으로 생성되었습니다"
 
 #: apps/integration/views.py:867
 msgid "Comment response muvaffaqiyatli olindi"
-msgstr "Ответ на комментарий успешно получен"
+msgstr "댓글 응답을 성공적으로 조회했습니다"
 
 #: apps/integration/views.py:874
 msgid "Comment response muvaffaqiyatli o'zgartirildi"
-msgstr "Ответ на комментарий успешно изменен"
+msgstr "댓글 응답이 성공적으로 수정되었습니다"
 
 #: apps/integration/views.py:879
 msgid "Comment response muvaffaqiyatli o'chirildi"
-msgstr "Ответ на комментарий успешно удален"
+msgstr "댓글 응답이 성공적으로 삭제되었습니다"
 
 #: apps/integration/views.py:907
 msgid "Instagram media muvaffaqiyatli olindi"
-msgstr "Медиа Instagram успешно получено"
+msgstr "Instagram 미디어를 성공적으로 조회했습니다"
 
 #: apps/integration/views.py:914
 msgid "Instagram media muvaffaqiyatli o'zgartirildi"
-msgstr "Медиа Instagram успешно изменено"
+msgstr "Instagram 미디어가 성공적으로 수정되었습니다"
 
 #: apps/integration/views.py:919
 msgid "Instagram media muvaffaqiyatli o'chirildi"
-msgstr "Медиа Instagram успешно удалено"
+msgstr "Instagram 미디어가 성공적으로 삭제되었습니다"
 
 #: apps/integration/views.py:1006
 msgid "Steps must belong to the same flow"
-msgstr "Шаги должны принадлежать одному сценарию"
+msgstr "단계는 동일한 플로우에 속해야 합니다"
 
 #: apps/integration/views.py:1008
 msgid "Transition muvaffaqiyatli o'zgartirildi"
-msgstr "Переход успешно изменен"
+msgstr "전환이 성공적으로 수정되었습니다"
 
 #: apps/integration/views.py:1013
 msgid "Transition muvaffaqiyatli o'chirildi"
-msgstr "Переход успешно удален"
+msgstr "전환이 성공적으로 삭제되었습니다"
 
 #: apps/integration/views.py:1033
 msgid "Flow muvaffaqiyatli olindi"
-msgstr "Сценарий успешно получен"
+msgstr "플로우를 성공적으로 조회했습니다"
 
 #: apps/integration/views.py:1040
 msgid "Flow muvaffaqiyatli o'zgartirildi"
-msgstr "Сценарий успешно изменен"
+msgstr "플로우가 성공적으로 수정되었습니다"
 
 #: apps/integration/views.py:1045
 msgid "Flow muvaffaqiyatli o'chirildi"
-msgstr "Сценарий успешно удален"
+msgstr "플로우가 성공적으로 삭제되었습니다"
 
 #: apps/integration/views.py:1065
 msgid "Step muvaffaqiyatli olindi"
-msgstr "Шаг успешно получен"
+msgstr "단계를 성공적으로 조회했습니다"
 
 #: apps/integration/views.py:1079
 msgid "Step muvaffaqiyatli o'zgartirildi"
-msgstr "Шаг успешно изменен"
+msgstr "단계가 성공적으로 수정되었습니다"
 
 #: apps/integration/views.py:1084
 msgid "Step muvaffaqiyatli o'chirildi"
-msgstr "Шаг успешно удален"
+msgstr "단계가 성공적으로 삭제되었습니다"
 
 #: apps/integration/views.py:1095
 msgid "Tugmalar muvaffaqiyatli olindi"
-msgstr "Кнопки успешно получены"
+msgstr "버튼을 성공적으로 조회했습니다"
 
 #: apps/integration/views.py:1101
 msgid "Tugma muvaffaqiyatli yaratildi"
-msgstr "Кнопка успешно создана"
+msgstr "버튼이 성공적으로 생성되었습니다"
 
 #: apps/integration/views.py:1121
 msgid "Tugma muvaffaqiyatli olindi"
-msgstr "Кнопка успешно получена"
+msgstr "버튼을 성공적으로 조회했습니다"
 
 #: apps/integration/views.py:1128
 msgid "Tugma muvaffaqiyatli o'zgartirildi"
-msgstr "Кнопка успешно изменена"
+msgstr "버튼이 성공적으로 수정되었습니다"
 
 #: apps/integration/views.py:1133
 msgid "Tugma muvaffaqiyatli o'chirildi"
-msgstr "Кнопка успешно удалена"
+msgstr "버튼이 성공적으로 삭제되었습니다"
 
 #: apps/integration/views.py:1148
 msgid "Broadcast ro'yxati"
-msgstr "Список рассылок"
+msgstr "브로드캐스트 목록"
 
 #: apps/integration/views.py:1157
 msgid "Bu integratsiya sizga tegishli emas"
-msgstr "Эта интеграция вам не принадлежит"
+msgstr "이 통합은 회원님의 것이 아닙니다"
 
 #: apps/integration/views.py:1162
 msgid "Xabar yuborish uchun qabul qiluvchilar topilmadi"
-msgstr "Получатели для отправки сообщения не найдены"
+msgstr "메시지를 보낼 수신자를 찾을 수 없습니다"
 
 #: apps/integration/views.py:1174
 msgid "Broadcast muvaffaqiyatli yaratildi"
-msgstr "Рассылка успешно создана"
+msgstr "브로드캐스트가 성공적으로 생성되었습니다"
 
 #: apps/integration/views.py:1194 apps/integration/views.py:1216 apps/integration/views.py:331
 msgid "Integratsiya topilmadi"
-msgstr "Интеграция не найдена"
+msgstr "통합을 찾을 수 없습니다"
 
 #: apps/integration/views.py:1200
 msgid "Qabul qiluvchilar soni"
-msgstr "Количество получателей"
+msgstr "수신자 수"
 
 #: apps/integration/views.py:1224
 msgid "Qabul qiluvchilar ro'yxati"
-msgstr "Список получателей"
+msgstr "수신자 목록"
 
 #: apps/integration/views.py:1633
 msgid "Billz secret token muvaffaqiyatli yaratildi"
-msgstr "Секретный токен Billz успешно создан"
+msgstr "Billz 시크릿 토큰이 성공적으로 생성되었습니다"
 
 #: apps/payment/serializers.py:89
 msgid "Narx manfiy bo'lishi mumkin emas."
-msgstr "Цена не может быть отрицательной."
+msgstr "가격은 음수일 수 없습니다."
 
 #: apps/payment/serializers.py:92
 msgid "Chegirma narxi manfiy bo'lishi mumkin emas."
-msgstr "Цена со скидкой не может быть отрицательной."
+msgstr "할인 가격은 음수일 수 없습니다."
 
 #: apps/payment/serializers.py:97
 msgid "Chegirma narxi narxdan katta bo'lishi mumkin emas."
-msgstr "Цена со скидкой не может быть больше основной цены."
+msgstr "할인 가격은 정가보다 클 수 없습니다."
 
 #: apps/payment/serializers.py:137
 msgid "Karta amal qilish muddati noto'g'ri formatda (MM/YY)."
-msgstr "Срок действия карты указан в неверном формате (ММ/ГГ)."
+msgstr "카드 유효기간 형식이 올바르지 않습니다 (MM/YY)."
 
 #: apps/payment/serializers.py:140
 msgid "Karta muddati o'tgan."
-msgstr "Срок действия карты истек."
+msgstr "카드 유효기간이 만료되었습니다."
 
 #: apps/payment/serializers.py:143 apps/payment/serializers.py:203
 msgid "Karta raqami 16 ta raqamdan kam bo'lishi mumkin emas."
-msgstr "Номер карты не может быть менее 16 цифр."
+msgstr "카드 번호는 16자리 미만일 수 없습니다."
 
 #: apps/payment/serializers.py:166
 msgid "Karta tokeni noto'g'ri. Iltimos, tekshirib qaytadan yuboring."
-msgstr "Токен карты неверный. Пожалуйста, проверьте и отправьте снова."
+msgstr "카드 토큰이 올바르지 않습니다. 확인 후 다시 보내주세요."
 
 #: apps/payment/serializers.py:170 apps/payment/serializers.py:263
 msgid "Karta noto'g'ri. Iltimos, tekshirib qaytadan yuboring."
-msgstr "Карта неверная. Пожалуйста, проверьте и отправьте снова."
+msgstr "카드가 올바르지 않습니다. 확인 후 다시 보내주세요."
 
 #: apps/payment/serializers.py:200
 msgid "Karta raqami va muddati talab qilinadi"
-msgstr "Требуется номер карты и срок действия"
+msgstr "카드 번호와 유효기간이 필요합니다"
 
 #: apps/payment/serializers.py:205
 msgid "Kartaning muddati 4 ta raqamdan kam bo'lishi mumkin emas."
-msgstr "Срок действия карты не может быть менее 4 цифр."
+msgstr "카드 유효기간은 4자리 미만일 수 없습니다."
 
 #: apps/payment/serializers.py:219
 msgid "Kartani qo'shishda xatolik yuz berdi"
-msgstr "При добавлении карты произошла ошибка"
+msgstr "카드를 추가하는 중 오류가 발생했습니다"
 
 #: apps/payment/serializers.py:229
 msgid "Tasdiqlash kodini yuborishda xatolik yuz berdi"
-msgstr "При отправке кода подтверждения произошла ошибка"
+msgstr "인증 코드를 보내는 중 오류가 발생했습니다"
 
 #: apps/payment/serializers.py:243
 msgid "Token va kod talab qilinadi"
-msgstr "Требуется токен и код"
+msgstr "토큰과 코드가 필요합니다"
 
 #: apps/payment/serializers.py:255
 msgid "Kartani tasdiqlashda xatolik yuz berdi"
-msgstr "При подтверждении карты произошла ошибка"
+msgstr "카드를 확인하는 중 오류가 발생했습니다"
 
 #: apps/payment/serializers.py:297
 msgid "Obuna topilmadi. Iltimos, tekshirib qaytadan yuboring."
-msgstr "Подписка не найдена. Пожалуйста, проверьте и отправьте снова."
+msgstr "구독을 찾을 수 없습니다. 확인 후 다시 보내주세요."
 
 #: apps/payment/serializers.py:299
 msgid "Obuna paketi faol emas. Iltimos, tekshirib qaytadan yuboring."
-msgstr "Пакет подписки неактивен. Пожалуйста, проверьте и отправьте снова."
+msgstr "구독 패키지가 활성화되지 않았습니다. 확인 후 다시 보내주세요."
 
 #: apps/payment/serializers.py:307
 msgid "Karta topilmadi. Iltimos, tekshirib qaytadan yuboring."
-msgstr "Карта не найдена. Пожалуйста, проверьте и отправьте снова."
+msgstr "카드를 찾을 수 없습니다. 확인 후 다시 보내주세요."
 
 #: apps/payment/serializers.py:309
 msgid "Karta tasdiqlanmagan. Iltimos, tekshirib qaytadan yuboring."
-msgstr "Карта не подтверждена. Пожалуйста, проверьте и отправьте снова."
+msgstr "카드가 인증되지 않았습니다. 확인 후 다시 보내주세요."
 
 #: apps/payment/serializers.py:327
 msgid "To'lov chekini yaratishda tizim bilan bog'liq muammo yuz berdi: {}"
-msgstr "При создании платежного чека возникла системная проблема: {}"
+msgstr "결제 영수증 생성 중 시스템 관련 문제가 발생했습니다: {}"
 
 #: apps/payment/serializers.py:346
 msgid "To'lov tizimi bilan bog'liq muammo yuz berdi: {}"
-msgstr "Возникла проблема с платежной системой: {}"
+msgstr "결제 시스템 관련 문제가 발생했습니다: {}"
 
 #: apps/payment/serializers.py:390
 msgid "To'lov jarayonida xatolik yuz berdi: {}"
-msgstr "В процессе оплаты произошла ошибка: {}"
+msgstr "결제 과정에서 오류가 발생했습니다: {}"
 
 #: apps/payment/serializers.py:455
 msgid "Sizda allaqachon faol obuna mavjud."
-msgstr "У вас уже есть активная подписка."
+msgstr "이미 활성화된 구독이 있습니다."
 
 #: apps/payment/serializers.py:463
 msgid "Bu narx paketi hozirda faol emas."
-msgstr "Этот пакет цен в настоящее время неактивен."
+msgstr "이 가격 패키지는 현재 활성화되지 않았습니다."
 
 #: apps/payment/serializers.py:465 apps/payment/serializers.py:549
 msgid "Narx paketi topilmadi."
-msgstr "Пакет цен не найден."
+msgstr "가격 패키지를 찾을 수 없습니다."
 
 #: apps/payment/serializers.py:538 apps/payment/views.py:296 apps/payment/views.py:354
 msgid "Sizda obuna mavjud emas."
-msgstr "У вас нет подписки."
+msgstr "구독이 없습니다."
 
 #: apps/payment/serializers.py:541
 msgid "Narx paketi ID va karta ID talab qilinadi"
-msgstr "Требуется ID пакета цен и ID карты"
+msgstr "가격 패키지 ID와 카드 ID가 필요합니다"
 
 #: apps/payment/serializers.py:545
 msgid "Narx paketi hozirda faol emas."
-msgstr "Пакет цен в настоящее время неактивен."
+msgstr "가격 패키지가 현재 활성화되지 않았습니다."
 
 #: apps/payment/serializers.py:547
 msgid "Bu tekin paketni yangilash mumkin emas."
-msgstr "Этот бесплатный пакет нельзя обновить."
+msgstr "이 무료 패키지는 업데이트할 수 없습니다."
 
 #: apps/payment/serializers.py:555
 msgid "Karta topilmadi."
-msgstr "Карта не найдена."
+msgstr "카드를 찾을 수 없습니다."
 
 #: apps/payment/views.py:33
 msgid "Funksiya muvaffaqiyatli yaratildi"
-msgstr "Функция успешно создана"
+msgstr "기능이 성공적으로 생성되었습니다"
 
 #: apps/payment/views.py:49
 msgid "Funksiya muvaffaqiyatli ko'rsatildi"
-msgstr "Функция успешно отображена"
+msgstr "기능이 성공적으로 표시되었습니다"
 
 #: apps/payment/views.py:60
 msgid "Funksiya muvaffaqiyatli tahrirlandi"
-msgstr "Функция успешно отредактирована"
+msgstr "기능이 성공적으로 수정되었습니다"
 
 #: apps/payment/views.py:65
 msgid "Funksiya muvaffaqiyatli o'chirildi"
-msgstr "Функция успешно удалена"
+msgstr "기능이 성공적으로 삭제되었습니다"
 
 #: apps/payment/views.py:82
 msgid "Narx paketi muvaffaqiyatli yaratildi"
-msgstr "Пакет цен успешно создан"
+msgstr "가격 패키지가 성공적으로 생성되었습니다"
 
 #: apps/payment/views.py:98
 msgid "Narx paketi muvaffaqiyatli olindi"
-msgstr "Пакет цен успешно получен"
+msgstr "가격 패키지가 성공적으로 조회되었습니다"
 
 #: apps/payment/views.py:107
 msgid "Narx paketi muvaffaqiyatli tahrirlandi"
-msgstr "Пакет цен успешно отредактирован"
+msgstr "가격 패키지가 성공적으로 수정되었습니다"
 
 #: apps/payment/views.py:112
 msgid "Narx paketi muvaffaqiyatli o'chirildi"
-msgstr "Пакет цен успешно удален"
+msgstr "가격 패키지가 성공적으로 삭제되었습니다"
 
 #: apps/payment/views.py:131
 msgid "Kartalar ro'yxati muvaffaqiyatli olindi"
-msgstr "Список карт успешно получен"
+msgstr "카드 목록이 성공적으로 조회되었습니다"
 
 #: apps/payment/views.py:147
 msgid "Karta muvaffaqiyatli saqlandi"
-msgstr "Карта успешно сохранена"
+msgstr "카드가 성공적으로 저장되었습니다"
 
 #: apps/payment/views.py:161
 msgid "Karta ID kiritilmagan"
-msgstr "ID карты не введен"
+msgstr "카드 ID가 입력되지 않았습니다"
 
 #: apps/payment/views.py:168 apps/payment/views.py:201 apps/payment/views.py:260
 msgid "Karta topilmadi"
-msgstr "Карта не найдена"
+msgstr "카드를 찾을 수 없습니다"
 
 #: apps/payment/views.py:179
 msgid "{card} karta asosiy kartaga muvaffaqiyatli o'zgartirildi"
-msgstr "Карта {card} успешно назначена основной"
+msgstr "{card} 카드가 기본 카드로 설정되었습니다"
 
 #: apps/payment/views.py:205
 msgid "Karta muvaffaqiyatli ko'rsatildi"
-msgstr "Карта успешно отображена"
+msgstr "카드가 성공적으로 표시되었습니다"
 
 #: apps/payment/views.py:211
 msgid "Kalit topilmadi"
-msgstr "Ключ не найден"
+msgstr "키를 찾을 수 없습니다"
 
 #: apps/payment/views.py:217
 msgid "Karta muvaffaqiyatli tahrirlandi"
-msgstr "Карта успешно отредактирована"
+msgstr "카드가 성공적으로 수정되었습니다"
 
 #: apps/payment/views.py:231
 msgid "Verification code sent successfully"
-msgstr "Код подтверждения успешно отправлен"
+msgstr "인증 코드가 성공적으로 전송되었습니다"
 
 #: apps/payment/views.py:245
 msgid "Verification code muvaffaqiyatli yuborildi"
-msgstr "Код подтверждения успешно отправлен"
+msgstr "인증 코드가 성공적으로 전송되었습니다"
 
 #: apps/payment/views.py:265
 msgid "To'lov tizimi bilan bog'lanishda xatolik yuz berdi. Iltimos, qaytadan urinib ko'ring"
-msgstr "При подключении к платежной системе произошла ошибка. Пожалуйста, попробуйте снова"
+msgstr "결제 시스템 연결 중 오류가 발생했습니다. 다시 시도해주세요"
 
 #: apps/payment/views.py:269
 msgid "Karta va uning ma'lumotlari muvaffaqiyatli o'chirildi"
-msgstr "Карта и ее данные успешно удалены"
+msgstr "카드와 그 정보가 성공적으로 삭제되었습니다"
 
 #: apps/payment/views.py:283
 msgid "Foydalanuvchi hisobi muvaffaqiyatli to'ldirildi"
-msgstr "Счет пользователя успешно пополнен"
+msgstr "사용자 계정이 성공적으로 충전되었습니다"
 
 #: apps/payment/views.py:298
 msgid "Pullik obuna paketi yo'q. Iltimos, administrator bilan bog'laning."
-msgstr "Нет платного пакета подписки. Пожалуйста, свяжитесь с администратором."
+msgstr "유료 구독 패키지가 없습니다. 관리자에게 문의하세요."
 
 #: apps/payment/views.py:316
 msgid "To'lov muvaffaqiyatli qabul qilindi, rahmat"
-msgstr "Оплата успешно принята, спасибо"
+msgstr "결제가 성공적으로 수락되었습니다. 감사합니다"
 
 #: apps/payment/views.py:327
 msgid "Obuna muvaffaqiyatli yaratildi"
-msgstr "Подписка успешно создана"
+msgstr "구독이 성공적으로 생성되었습니다"
 
 #: apps/payment/views.py:338 apps/payment/views.py:403
 msgid "Obuna muvaffaqiyatli tahrirlandi"
-msgstr "Подписка успешно отредактирована"
+msgstr "구독이 성공적으로 수정되었습니다"
 
 #: apps/payment/views.py:349
 msgid "Bekor qilish sababi talab qilinadi"
-msgstr "Требуется причина отмены"
+msgstr "취소 사유가 필요합니다"
 
 #: apps/payment/views.py:360
 msgid "Obuna muvaffaqiyatli bekor qilindi"
-msgstr "Подписка успешно отменена"
+msgstr "구독이 성공적으로 취소되었습니다"
 
 #: apps/shared/addons/validations.py:92
 msgid "Telefon raqamni kiritish majburiy"
-msgstr "Ввод номера телефона обязателен"
+msgstr "전화번호 입력은 필수입니다"
 
 #: apps/shared/addons/validations.py:94
 msgid "Noto'g'ri telefon raqami kiritildi"
-msgstr "Введен неверный номер телефона"
+msgstr "잘못된 전화번호가 입력되었습니다"
 
 #: apps/shared/addons/validations.py:100
 msgid "Telefon raqam allaqachon ro'yxatdan o'tgan"
-msgstr "Номер телефона уже зарегистрирован"
+msgstr "전화번호가 이미 등록되어 있습니다"
 
 #: apps/shared/addons/validations.py:109
 msgid "Parol kamida 6 ta belgidan iborat bo'lishi kerak"
-msgstr "Пароль должен содержать не менее 6 символов"
+msgstr "비밀번호는 최소 6자 이상이어야 합니다"
 
 #: apps/shared/addons/verification.py:153
 msgid "Verification Code"
-msgstr "Код подтверждения"
+msgstr "인증 코드"
 
 #: apps/shared/addons/verification.py:154
 msgid "Your verification code is: {}"
-msgstr "Ваш код подтверждения: {}"
+msgstr "귀하의 인증 코드는 다음과 같습니다: {}"
 
 #: apps/shared/addons/verification.py:164
 msgid "Failed to send verification code"
-msgstr "Не удалось отправить код подтверждения"
+msgstr "인증 코드를 보내지 못했습니다"
 
 #: apps/shared/addons/verification.py:167
 msgid "Verification code sent to your email"
-msgstr "Код подтверждения отправлен на вашу электронную почту"
+msgstr "인증 코드가 이메일로 전송되었습니다"
 
 #: apps/shared/addons/verification.py:175
 msgid "Verification code expired or not found"
-msgstr "Код подтверждения истек или не найден"
+msgstr "인증 코드가 만료되었거나 찾을 수 없습니다"
 
 #: apps/shared/addons/verification.py:183
 msgid "Email verified successfully"
-msgstr "Электронная почта успешно подтверждена"
+msgstr "이메일이 성공적으로 인증되었습니다"
 
 #: apps/shared/addons/verification.py:186
 msgid "Too many incorrect attempts, request a new code"
-msgstr "Слишком много неверных попыток, запросите новый код"
+msgstr "잘못된 시도가 너무 많습니다. 새 코드를 요청하세요"
 
 #: apps/shared/addons/verification.py:187
 msgid "Invalid verification code"
-msgstr "Недействительный код подтверждения"
+msgstr "유효하지 않은 인증 코드"
 
 #: apps/shared/addons/verification.py:191
 msgid "Failed to verify code"
-msgstr "Не удалось проверить код"
+msgstr "코드를 확인하지 못했습니다"
 
 #: apps/shared/mixins.py:17
 msgid "Sizda obuna paketi yo'q. Iltimos, avval obuna paketini tanlang."
-msgstr "У вас нет пакета подписки. Пожалуйста, сначала выберите пакет подписки."
+msgstr "구독 패키지가 없습니다. 먼저 구독 패키지를 선택해주세요."
 
 #: apps/shared/mixins.py:20
 msgid "Sizning obunangiz tokeni tugagan. Iltimos, obunangizni yangilang."
-msgstr "Ваши токены подписки закончились. Пожалуйста, обновите подписку."
+msgstr "구독 토큰이 소진되었습니다. 구독을 갱신해주세요."
 
 #: apps/shared/mixins.py:24
 msgid "Sizning obunangiz faol emas. Iltimos, obunangizni faollashtiring."
-msgstr "Ваша подписка неактивна. Пожалуйста, активируйте подписку."
+msgstr "구독이 활성화되지 않았습니다. 구독을 활성화해주세요."
 
 #: apps/shared/mixins.py:27
 msgid "Sizning obunangiz muddati tugagan. Iltimos, obunangizni yangilang."
-msgstr "Срок действия вашей подписки истек. Пожалуйста, обновите подписку."
+msgstr "구독 기간이 만료되었습니다. 구독을 갱신해주세요."
 
 #: apps/shared/mixins.py:35
 msgid "Sizning assistantlar soningiz tugagan. Iltimos, assistantlar sonini oshiring."
-msgstr "Ваше количество ассистентов закончилось. Пожалуйста, увеличьте количество ассистентов."
+msgstr "어시스턴트 수가 소진되었습니다. 어시스턴트 수를 늘려주세요."
 
 #: apps/shared/mixins.py:40
 msgid "Sizning telegram integratsiya soningiz tugagan. Iltimos, telegram integratsiya sonini oshiring."
-msgstr "Ваше количество интеграций Telegram закончилось. Пожалуйста, увеличьте количество интеграций Telegram."
+msgstr "Telegram 통합 수가 소진되었습니다. Telegram 통합 수를 늘려주세요."
 
 #: apps/shared/mixins.py:45
 msgid "Sizning instagram integratsiya soningiz tugagan. Iltimos, instagram integratsiya sonini oshiring."
-msgstr "Ваше количество интеграций Instagram закончилось. Пожалуйста, увеличьте количество интеграций Instagram."
+msgstr "Instagram 통합 수가 소진되었습니다. Instagram 통합 수를 늘려주세요."
 
 #: apps/shared/mixins.py:50
 msgid "Sizning assistant fayl yuklash soningiz tugagan. Iltimos, assistant fayl yuklash sonini oshiring."
-msgstr "Ваше количество загрузок файлов ассистента закончилось. Пожалуйста, увеличьте количество загрузок файлов ассистента."
+msgstr "어시스턴트 파일 업로드 수가 소진되었습니다. 어시스턴트 파일 업로드 수를 늘려주세요."
 
 #: apps/user/serializers.py:21 apps/user/serializers.py:40 apps/user/serializers.py:100 apps/user/views.py:49 apps/user/views.py:74
 msgid "Telefon raqam yoki email kiritilmagan"
-msgstr "Не введен номер телефона или электронная почта"
+msgstr "전화번호 또는 이메일이 입력되지 않았습니다"
 
 #: apps/user/serializers.py:42
 msgid "Kod kiritilmagan"
-msgstr "Код не введен"
+msgstr "코드가 입력되지 않았습니다"
 
 #: apps/user/serializers.py:104
 msgid "Ism faqat bir so'z bo'lishi kerak"
-msgstr "Имя должно быть одним словом"
+msgstr "이름은 한 단어여야 합니다"
 
 #: apps/user/serializers.py:106
 msgid "Familya faqat bir so'z bo'lishi kerak"
-msgstr "Фамилия должна быть одним словом"
+msgstr "성은 한 단어여야 합니다"
 
 #: apps/user/serializers.py:110 apps/user/serializers.py:323 apps/user/serializers.py:403
 msgid "Bu telefon raqam allaqachon ro'yxatdan o'tgan"
-msgstr "Этот номер телефона уже зарегистрирован"
+msgstr "이 전화번호는 이미 등록되어 있습니다"
 
 #: apps/user/serializers.py:112 apps/user/serializers.py:411
 msgid "Bu email allaqachon ro'yxatdan o'tgan"
-msgstr "Этот адрес электронной почты уже зарегистрирован"
+msgstr "이 이메일은 이미 등록되어 있습니다"
 
 #: apps/user/serializers.py:118
 msgid "Telefon raqam tasdiqlanmagan"
-msgstr "Номер телефона не подтвержден"
+msgstr "전화번호가 인증되지 않았습니다"
 
 #: apps/user/serializers.py:120
 msgid "Email tasdiqlanmagan"
-msgstr "Электронная почта не подтверждена"
+msgstr "이메일이 인증되지 않았습니다"
 
 #: apps/user/serializers.py:126 apps/user/serializers.py:321 apps/user/serializers.py:25
 msgid "Notog'ri telefon raqam kiritilgan"
-msgstr "Введен неверный номер телефона"
+msgstr "잘못된 전화번호가 입력되었습니다"
 
 #: apps/user/serializers.py:151 apps/user/serializers.py:162
 msgid "Refresh token noto'g'ri kiritilgan"
-msgstr "Введен неверный токен обновления"
+msgstr "리프레시 토큰이 잘못 입력되었습니다"
 
 #: apps/user/serializers.py:295 apps/user/serializers.py:395
 msgid "Ism bir so'zdan iborat bo'lishi kerak"
-msgstr "Имя должно состоять из одного слова"
+msgstr "이름은 한 단어로 구성되어야 합니다"
 
 #: apps/user/serializers.py:297 apps/user/serializers.py:397
 msgid "Familya bir so'zdan iborat bo'lishi kerak"
-msgstr "Фамилия должна состоять из одного слова"
+msgstr "성은 한 단어로 구성되어야 합니다"
 
 #: apps/user/serializers.py:345
 msgid "Foydalanuvchilar tanlanmagan"
-msgstr "Пользователи не выбраны"
+msgstr "사용자가 선택되지 않았습니다"
 
 #: apps/user/serializers.py:422
 msgid "Email yoki telefon raqam noto'g'ri kiritilgan"
-msgstr "Электронная почта или номер телефона введены неверно"
+msgstr "이메일 또는 전화번호가 잘못 입력되었습니다"
 
 #: apps/user/services/notifications.py:23
 msgid "Hurmatli {user.first_name}, sizning repli.uz dagi obuna tugadi. Iltimos, platformaga kirib, to'lovni qayta amalga oshiring."
-msgstr "Уважаемый(ая) {user.first_name}, ваша подписка на repli.uz закончилась. Пожалуйста, войдите на платформу и повторите оплату."
+msgstr "{user.first_name}님, repli.uz 구독이 종료되었습니다. 플랫폼에 로그인하여 결제를 다시 진행해 주세요."
 
 #: apps/user/services/notifications.py:39
 msgid "Warning: Your subscription has expired"
-msgstr "Внимание: срок действия вашей подписки истек"
+msgstr "경고: 구독이 만료되었습니다"
 
 #: apps/user/services/notifications.py:41
 msgid "Hurmatli {user.first_name}, sizning repli.uz dagi obuna to'lovingiz muvaffaqiyatsiz amalga oshirildi. Iltimos, platformaga kirib, to'lovni qayta amalga oshiring."
-msgstr "Уважаемый(ая) {user.first_name}, ваша подписка на repli.uz не была оплачена. Пожалуйста, войдите на платформу и повторите оплату."
+msgstr "존경하는 {user.first_name}님, repli.uz에서의 구독 결제가 실패했습니다. 플랫폼에 로그인하여 결제를 다시 진행해주세요."
 
 #: apps/user/services/notifications.py:59
 msgid "Warning message sent to your email"
-msgstr "Предупреждение отправлено на вашу электронную почту"
+msgstr "경고 메시지를 이메일로 보냈습니다"
 
 #: apps/user/services/notifications.py:62
 msgid "Failed to send warning message: {}"
-msgstr "Не удалось отправить предупреждение: {}"
+msgstr "경고 메시지를 보내지 못했습니다: {}"
 
 #: apps/user/services/notifications.py:77
 msgid "Low Token Count Warning"
-msgstr "Предупреждение о низком количестве токенов"
+msgstr "토큰 수 부족 경고"
 
 #: apps/user/services/notifications.py:79
 msgid "Hurmatli {user.first_name}, sizning repli.uz dagi so'rovlar soningiz {count} tadan kam qoldi. Iltimos, platformaga kirib, obunangizni yangilang."
-msgstr "Уважаемый(ая) {user.first_name}, у вас осталось менее {count} запросов на repli.uz. Пожалуйста, войдите на платформу и обновите подписку."
+msgstr "존경하는 {user.first_name}님, repli.uz의 요청 수가 {count}개 미만으로 남았습니다. 플랫폼에 로그인하여 구독을 갱신해주세요."
 
 #: apps/user/views.py:113
 msgid "Foydalanuvchi muvaffaqiyatli yaratildi"
-msgstr "Пользователь успешно создан"
+msgstr "사용자가 성공적으로 생성되었습니다"
 
 #: apps/user/views.py:128
 msgid "Login muvaffaqiyatli amalga oshirildi"
-msgstr "Вход успешно выполнен"
+msgstr "로그인이 성공적으로 완료되었습니다"
 
 #: apps/user/views.py:157
 msgid "Foydalanuvchi ma'lumotlari muvaffaqiyatli yangilandi"
-msgstr "Данные пользователя успешно обновлены"
+msgstr "사용자 정보가 성공적으로 업데이트되었습니다"
 
 #: apps/user/views.py:174
 msgid "Siz muvaffaqiyatli chiqdingiz"
-msgstr "Вы успешно вышли"
+msgstr "성공적으로 로그아웃되었습니다"
 
 #: apps/user/views.py:181 apps/user/views.py:186
 msgid "Noto'g'ri refresh token"
-msgstr "Неверный токен обновления"
+msgstr "리프레시 토큰이 유효하지 않습니다"
 
 #: apps/user/views.py:208
 msgid "Privacy policy muvaffaqiyatli yaratildi"
-msgstr "Политика конфиденциальности успешно создана"
+msgstr "개인정보 처리방침이 성공적으로 생성되었습니다"
 
 #: apps/user/views.py:230
 msgid "Privacy policy muvaffaqiyatli yangilandi"
-msgstr "Политика конфиденциальности успешно обновлена"
+msgstr "개인정보 처리방침이 성공적으로 업데이트되었습니다"
 
 #: apps/user/views.py:253
 msgid "User agreement muvaffaqiyatli yaratildi"
-msgstr "Пользовательское соглашение успешно создано"
+msgstr "이용약관이 성공적으로 생성되었습니다"
 
 #: apps/user/views.py:275
 msgid "User agreement muvaffaqiyatli yangilandi"
-msgstr "Пользовательское соглашение успешно обновлено"
+msgstr "이용약관이 성공적으로 업데이트되었습니다"
 
 #: apps/user/views.py:308
 msgid "Invalid or expired OAuth state"
-msgstr "Недействительный или истекший OAuth state"
+msgstr "OAuth state가 유효하지 않거나 만료되었습니다"
 
 #: apps/user/views.py:326
 msgid "ID token topilmadi"
-msgstr "ID-токен не найден"
+msgstr "ID 토큰을 찾을 수 없습니다"
 
 #: apps/user/views.py:336
 msgid "Invalid ID token"
-msgstr "Недействительный ID-токен"
+msgstr "ID 토큰이 유효하지 않습니다"
 
 #: apps/user/views.py:341
 msgid "Sub topilmadi"
-msgstr "Sub не найден"
+msgstr "Sub를 찾을 수 없습니다"
 
 #: apps/user/views.py:370
 msgid "Foydalanuvchi muvaffaqiyatli autentifikatsiya qilindi"
-msgstr "Пользователь успешно аутентифицирован"
+msgstr "사용자가 성공적으로 인증되었습니다"
 
 #: apps/user/views.py:373
 msgid "Autentifikatsiya amalga oshmadi. Iltimos, qaytadan urinib ko'ring"
-msgstr "Аутентификация не удалась. Пожалуйста, попробуйте снова"
+msgstr "인증에 실패했습니다. 다시 시도해 주세요"
 
 #: apps/user/views.py:382
 msgid "Uzur jigar sizda hodim yaratish huquqi yo'q"
-msgstr "Извините, у вас нет прав на создание сотрудника"
+msgstr "죄송합니다. 직원 생성 권한이 없습니다"
 
 #: apps/user/views.py:388
 msgid "Hodim muvaffaqiyatli yaratildi"
-msgstr "Сотрудник успешно создан"
+msgstr "직원이 성공적으로 생성되었습니다"
 
 #: apps/user/views.py:406
 msgid "Xodimlar ro'yxati"
-msgstr "Список сотрудников"
+msgstr "직원 목록"
 
 #: apps/user/views.py:421
 msgid "Hodim muvaffaqiyatli o'chirildi"
-msgstr "Сотрудник успешно удален"
+msgstr "직원이 성공적으로 삭제되었습니다"
 
 #: apps/user/views.py:447
 msgid "Notification muvaffaqiyatli yangilandi"
-msgstr "Уведомление успешно обновлено"
+msgstr "알림이 성공적으로 업데이트되었습니다"
 
 #: config/settings.py:284
 msgid "Uzbek"
-msgstr "Узбекский"
+msgstr "우즈베크어"
 
 #: config/settings.py:285
 msgid "Russian"
-msgstr "Русский"
+msgstr "러시아어"
 
 #: config/settings.py:286
 msgid "English"
-msgstr "Английский"
+msgstr "영어"
 
 #: config/settings.py:287
 msgid "Kazakh"
-msgstr "Казахский"
+msgstr "카자흐어"
 
 #: config/settings.py:288
 msgid "Korean"
-msgstr "Корейский"
+msgstr "한국어"

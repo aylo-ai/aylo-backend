@@ -172,10 +172,12 @@ class SetDefaultCard(APIView):
             default_card.is_default = True
             default_card.save()
 
+        # The f-string used to sit inside `_()`, so the lookup key was the
+        # interpolated card number — a msgid that can never match a catalog
+        # entry. Interpolate after translation instead.
         return success_response(
-            message=_(
-                f"{default_card.card_number[:4]}{'*' * 8}{default_card.card_number[-4:]} "
-                f"karta asosiy kartaga muvaffaqiyatli o'zgartirildi"
+            message=_("{card} karta asosiy kartaga muvaffaqiyatli o'zgartirildi").format(
+                card=default_card.card_number
             )
         )
 

@@ -19,10 +19,10 @@ logger = logging.getLogger(__name__)
 
 
 def notify_user_about_failed_payment(user):
-    message = (
-        f"Hurmatli {user.first_name}, sizning repli.uz dagi obuna tugadi. "
+    message = _(
+        "Hurmatli {user.first_name}, sizning repli.uz dagi obuna tugadi. "
         "Iltimos, platformaga kirib, to'lovni qayta amalga oshiring."
-    )
+    ).format(user=user)
     logger.info("Sending payment failure notification to user %s", user.id)
 
     if user.phone_number:
@@ -76,9 +76,9 @@ def notify_user_about_low_tokens(user, count):
         user=user,
         title=_("Low Token Count Warning"),
         content=_(
-            f"Hurmatli {user.first_name}, sizning repli.uz dagi so'rovlar soningiz "
-            f"{count} tadan kam qoldi. Iltimos, platformaga kirib, obunangizni yangilang."
-        ),
+            "Hurmatli {user.first_name}, sizning repli.uz dagi so'rovlar soningiz "
+            "{count} tadan kam qoldi. Iltimos, platformaga kirib, obunangizni yangilang."
+        ).format(user=user, count=count),
         type=NotificationTypes.WARNING.value,
     )
     logger.info("Low request token notification created for user %s", user.id)

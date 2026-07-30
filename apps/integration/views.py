@@ -375,9 +375,9 @@ class InstagramCallbackView(APIView):
         assistant_id = request.query_params.get("assistant_id", None)
         is_automation_only = request.query_params.get("is_automation_only", "false")
         if not assistant_id and is_automation_only == "false":
-            return error_response(message=("Assistant ID topilmadi"), code=400)
+            return error_response(message=_("Assistant ID topilmadi"), code=400)
         if not code:
-            return error_response(message=("Authorization code topilmadi"), code=400)
+            return error_response(message=_("Authorization code topilmadi"), code=400)
 
         # Exchange the authorization code for an access token
         token_url = "https://api.instagram.com/oauth/access_token"
@@ -398,17 +398,17 @@ class InstagramCallbackView(APIView):
             # Fetch Instagram Business Accounts
             access_token = instagram_service.get_long_lived_access_token(short_lived_access_token)
         else:
-            return error_response(message=("Access token topilmadi"), code=400)
+            return error_response(message=_("Access token topilmadi"), code=400)
         # get instagram user profile
         user_profile = instagram_service.get_user_profile(access_token)
         if not user_profile:
-            return error_response(message=("Foydalanuvchi profili topilmadi"), code=400)
+            return error_response(message=_("Foydalanuvchi profili topilmadi"), code=400)
 
         instagram_account_id = user_profile.get("instagram_account_id")
         instagram_user_id = user_profile.get("instagram_user_id")
         if not instagram_account_id:
             logger.warning("Instagram profile returned no user_id; refusing to create an unroutable integration")
-            return error_response(message=("Foydalanuvchi profili topilmadi"), code=400)
+            return error_response(message=_("Foydalanuvchi profili topilmadi"), code=400)
 
         # A row for this identity may already exist. Matched explicitly rather
         # than with update_or_create, which raises MultipleObjectsReturned when
@@ -424,7 +424,7 @@ class InstagramCallbackView(APIView):
 
         if existing and existing.instagram_account_id:
             logger.info("Instagram integration already exists for account %s", instagram_account_id)
-            return error_response(message=("Instagram integratsiyasi sizda mavjud"), code=400)
+            return error_response(message=_("Instagram integratsiyasi sizda mavjud"), code=400)
 
         # Any *other* row holding either identifier is a genuine duplicate.
         duplicates = Integration.instagram_by_id(instagram_account_id)
@@ -434,7 +434,7 @@ class InstagramCallbackView(APIView):
             duplicates = duplicates.exclude(pk=existing.pk)
         if duplicates.exists():
             logger.info("Instagram integration already exists for account %s", instagram_account_id)
-            return error_response(message=("Instagram integratsiyasi sizda mavjud"), code=400)
+            return error_response(message=_("Instagram integratsiyasi sizda mavjud"), code=400)
 
         fields = {
             "assistant_id": assistant_id,
@@ -468,9 +468,9 @@ class InstagramCallbackView(APIView):
         if response.status_code != 200:
             logger.warning("Instagram webhook subscription failed with status %s", response.status_code)
         if response.status_code == 200:
-            return success_response(message=("Integration muvaffaqiyatli yaratildi"), code=200)
+            return success_response(message=_("Integration muvaffaqiyatli yaratildi"), code=200)
         else:
-            return error_response(message=("Webhook topilmadi"), code=400)
+            return error_response(message=_("Webhook topilmadi"), code=400)
 
 class InstagramDeauthorizeView(APIView):
     def post(self, request, *args, **kwargs): # noqa

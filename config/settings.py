@@ -123,10 +123,16 @@ if not DEBUG:
 
 MIDDLEWARE = [
     "corsheaders.middleware.CorsMiddleware",
-    "config.middleware.LanguageMiddleware",
     "django.middleware.security.SecurityMiddleware",
     "django.contrib.sessions.middleware.SessionMiddleware",
-    'django.middleware.locale.LocaleMiddleware',  # Enables locale support
+    # Reads Accept-Language and activates it for the request. A hand-rolled
+    # `config.middleware.LanguageMiddleware` used to run ahead of this one and
+    # called `activate()` then `deactivate()` *before* handing off to the view,
+    # so the chosen language was thrown away on every request. It also read
+    # `META["Accept-Language"]` instead of `META["HTTP_ACCEPT_LANGUAGE"]`, so it
+    # never matched anything in the first place. Deleted — this does the job.
+    # Must stay after SessionMiddleware and before CommonMiddleware.
+    'django.middleware.locale.LocaleMiddleware',
     "django.middleware.common.CommonMiddleware",
     "django.middleware.csrf.CsrfViewMiddleware",
     "django.contrib.auth.middleware.AuthenticationMiddleware",
@@ -269,13 +275,17 @@ SIMPLE_JWT = {
     "SLIDING_TOKEN_REFRESH_LIFETIME": timedelta(days=1),
 }
 
+# The single source of truth for languages. There must be a matching
+# `locale/<code>/LC_MESSAGES/django.po` for every entry — a code listed here
+# without a catalog silently serves the Uzbek source strings instead.
+# `ko` is Korean; the catalog lived under `kn` (which is Kannada) until the
+# 2026-07-30 i18n pass, so `ko` clients got nothing at all.
 LANGUAGES = [
+    ('uz', _('Uzbek')),
+    ('ru', _('Russian')),
     ('en', _('English')),
     ('kk', _('Kazakh')),
-    ('ru', _('Russian')),
-    ('uz', _('Uzbek')),
-    ('kn', _('Korean')),
-    ('ar', _('Arabic')),
+    ('ko', _('Korean')),
 ]
 
 # Directory to store language files (translations)
@@ -460,16 +470,20 @@ CELERY_BEAT_SCHEDULE = {
     },
 }
 
-# Modeltranslation settings
+# Modeltranslation settings.
+#
+# This block used to redefine `LANGUAGES` — a second, plain-string copy that
+# silently overrode the lazy one above and dropped Korean. It listed `ar` as
+# well, for which no catalog and no translated field has ever existed. Both are
+# gone: `LANGUAGES` is defined once, and modeltranslation follows it.
 MODELTRANSLATION_DEFAULT_LANGUAGE = 'uz'
 
-LANGUAGES = (
-    ('en', 'English'),
-    ('uz', 'Uzbek'),
-    ('ru', 'Russian'),
-    ('kk', 'Kazakh'),
-    ('ar', 'Arabic'),
-)
+# Deliberately NOT `LANGUAGES`. These codes are database columns — `blog` and
+# `payment` already carry migrated `*_ar` fields (see
+# payment/migrations/0020_feature_name_ar_...). Dropping `ar` or adding `ko`
+# here makes modeltranslation query columns that do not exist and demands a
+# destructive migration, so the interface languages above and the translated
+# model fields are allowed to differ until someone decides that explicitly.
 MODELTRANSLATION_LANGUAGES = ('en', 'uz', 'ru', 'kk', 'ar')
 
 # amoCRM OAuth. Read from the environment — these are live credentials and must

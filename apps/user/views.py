@@ -173,13 +173,17 @@ class LogoutView(APIView):
             return success_response(
                 message=_("Siz muvaffaqiyatli chiqdingiz"), code=status.HTTP_205_RESET_CONTENT
             )
+        # Both branches say the same thing to the client; the exception class
+        # belonged in the log, not in a user-facing message.
         except TokenError:
+            logger.info("Logout rejected: invalid refresh token")
             return error_response(
-                code=status.HTTP_400_BAD_REQUEST, message=_("TokenEror - Noto'g'ri refresh token")
+                code=status.HTTP_400_BAD_REQUEST, message=_("Noto'g'ri refresh token")
             )
         except Exception:
+            logger.exception("Logout failed while blacklisting refresh token")
             return error_response(
-                code=status.HTTP_400_BAD_REQUEST, message=_("Exception - Noto'g'ri refresh token")
+                code=status.HTTP_400_BAD_REQUEST, message=_("Noto'g'ri refresh token")
             )
 
 
