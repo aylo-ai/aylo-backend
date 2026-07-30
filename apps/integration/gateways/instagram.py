@@ -1,9 +1,15 @@
-import requests
+import logging
 
+import requests
+from apps.shared import http
+
+from django.conf import settings
 from django.db import transaction
 
 from apps.integration.models import Flow, InstagramUserState, Step
-from shared.addons.enums import ActionType
+from apps.shared.addons.enums import ActionType
+
+logger = logging.getLogger(__name__)
 
 
 class InstagramService:
@@ -16,14 +22,17 @@ class InstagramService:
 
     def get_long_lived_access_token(self, short_lived_access_token: str) -> str | None:
         """Get long-lived access token from short-lived access token."""
-        CLIENT_SECRET = "dc12159193e69625fd27281997b28f4f"
+        client_secret = settings.INSTAGRAM_CLIENT_SECRET
+        if not client_secret:
+            logger.error("INSTAGRAM_CLIENT_SECRET is not configured; cannot exchange token")
+            return None
         grant_type = "ig_exchange_token"
         url = (
             f"{self.GRAPH_BASE}/access_token?grant_type={grant_type}&"
-            f"client_secret={CLIENT_SECRET}&access_token={short_lived_access_token}"
+            f"client_secret={client_secret}&access_token={short_lived_access_token}"
         )
 
-        response = requests.get(url)
+        response = http.get(url)
         if response.status_code == 200:
             access_token = response.json().get("access_token")
             # Optionally refresh right away
@@ -36,10 +45,28 @@ class InstagramService:
         grant_type = "ig_refresh_token"
         url = f"{self.GRAPH_BASE}/refresh_access_token?grant_type={grant_type}&access_token={access_token}"
 
-        response = requests.get(url)
+        response = http.get(url)
         if response.status_code == 200:
             return response.json().get("access_token")
         return None
+
+    def get_user_info(self, access_token: str, user_id: str) -> dict:
+        """Fetch a user's public info (id, username) by user ID.
+
+        Fail-soft: returns {} on any request/parse error so a message-processing
+        task never dies just because the profile lookup failed.
+        """
+        url = f"{self.GRAPH_BASE}/v23.0/{user_id}"
+        params = {
+            "access_token": access_token,
+            "fields": "id, username",
+        }
+        try:
+            response = http.get(url, params=params)
+            return response.json()
+        except (requests.RequestException, ValueError) as e:
+            logger.warning("Instagram get_user_info failed for %s: %s", user_id, e)
+            return {}
 
     def get_user_profile(self, access_token: str) -> dict | None:
         """Get user profile from access token."""
@@ -48,7 +75,7 @@ class InstagramService:
             f"fields=id,user_id,username&"
             f"access_token={access_token}"
         )
-        response = requests.get(url)
+        response = http.get(url)
         if response.status_code == 200:
             user_profile = response.json()
             return {
@@ -57,6 +84,27 @@ class InstagramService:
                 "instagram_username": user_profile.get("username"),
             }
         return None
+
+    def unsubscribe_webhooks(self, access_token: str) -> bool:
+        """Drop this app's webhook subscription for the token's account.
+
+        Fail-soft: without this, Meta keeps delivering events for accounts whose
+        integration has been removed and every one is logged as unroutable.
+        """
+        if not access_token:
+            return False
+        url = f"{self.GRAPH_BASE}/v22.0/me/subscribed_apps"
+        try:
+            response = http.delete(url, params={"access_token": access_token})
+            if response.status_code != 200:
+                logger.warning(
+                    "Instagram webhook unsubscribe returned %s", response.status_code
+                )
+                return False
+            return True
+        except requests.RequestException as e:
+            logger.warning("Instagram webhook unsubscribe failed: %s", e)
+            return False
 
     # ---- Messaging ----
 
@@ -79,15 +127,11 @@ class InstagramService:
             payload = {"recipient": {"id": recipient_id}, "message": {"text": part}}
             if tag:
                 payload["tag"] = tag
-            response = requests.post(url, json=payload, headers=headers)
+            response = http.post(url, json=payload, headers=headers)
 
             if response.status_code != 200:
                 success = False
-                if response.status_code == 190:
-                    print("[-] Refresh Instagram token here")
-            print(
-                f"[+] send_message success: {success}, response: {response.text}"
-            )
+                logger.warning("Instagram send_message failed with status %s", response.status_code)
         return success
 
     def send_photo(
@@ -108,7 +152,7 @@ class InstagramService:
                 }
             },
         }
-        return requests.post(url, json=payload, headers=headers)
+        return http.post(url, json=payload, headers=headers)
 
     def send_private_reply(
         self, access_token: str, account_id: str, comment_id: str, message: str
@@ -126,11 +170,11 @@ class InstagramService:
             "message": {"text": message},
         }
 
-        response = requests.post(url, json=payload, headers=headers)
-        print(f"[+] send_private_reply response: {response.text}")
+        response = http.post(url, json=payload, headers=headers)
 
         if response.status_code != 200:
             success = False
+            logger.warning("Instagram send_private_reply failed with status %s", response.status_code)
 
         return success
 
@@ -142,8 +186,9 @@ class InstagramService:
             "Authorization": f"Bearer {access_token}",
         }
         payload = {"message": message}
-        response = requests.post(url, json=payload, headers=headers)
-        print(f"[+] send_comment_reply response: {response.text}")
+        response = http.post(url, json=payload, headers=headers)
+        if response.status_code != 200:
+            logger.warning("Instagram send_comment_reply failed with status %s", response.status_code)
         return response
 
     # ---- Buttons / postbacks ----
@@ -211,7 +256,7 @@ class InstagramService:
             "tag": "HUMAN_AGENT",
         }
 
-        resp = requests.post(url, json=event, headers=headers)
+        resp = http.post(url, json=event, headers=headers)
         if resp.status_code == 200:
             try:
                 with transaction.atomic():
@@ -224,12 +269,54 @@ class InstagramService:
                     first_step.save()
                     first_step.flow.total_count += 1
                     first_step.flow.save()
-            except Exception as e:
-                print(f"[-] Error updating user state: {e}")
-
-        print(resp.json())
-        print(resp)
+            except Exception:
+                logger.exception("Error updating Instagram user state")
+        else:
+            logger.warning("Instagram postback send failed with status %s", resp.status_code)
         return resp
+
+    def send_step_template(self, access_token: str, recipient_id: str, step: Step):
+        """Send a flow step as a generic template (title, image, buttons) via DM.
+
+        Pure HTTP — persisting the user's new flow position is the caller's job
+        (see ``send_step_message_task``). Returns the response, or None on error.
+        """
+        url = f"{self.GRAPH_BASE}/v23.0/me/messages"
+        headers = {
+            "Content-Type": "application/json",
+            "Authorization": f"Bearer {access_token}",
+        }
+
+        btns_payload = [self.build_button_payload(b) for b in step.extra_button.all()]
+        logger.info("All buttons are ready %s", btns_payload)
+
+        image_url = step.message_image.url if step.message_image else None
+        event = {
+            "recipient": {"id": recipient_id},
+            "message": {
+                "attachment": {
+                    "type": "template",
+                    "payload": {
+                        "template_type": "generic",
+                        "elements": [
+                            {
+                                "title": step.message_content,
+                                "image_url": image_url,
+                                "buttons": btns_payload,
+                            },
+                        ],
+                    },
+                }
+            },
+        }
+
+        try:
+            resp = http.post(url, json=event, headers=headers)
+            logger.info("send_step_template response: %s", resp.text)
+            return resp
+        except requests.RequestException as e:
+            logger.warning("Instagram send_step_template failed: %s", e)
+            return None
 
     # ---- Media details ----
 
@@ -240,14 +327,13 @@ class InstagramService:
             "fields": "id,caption,media_type,media_url,timestamp,permalink",
             "access_token": access_token,
         }
-        response = requests.get(url, params=params)
+        response = http.get(url, params=params)
         if response.status_code == 200:
             return response.json()
         return None
 
     def extract_media_id_from_url(self, shared_url: str, access_token: str, account_id: str) -> str | None:
         """Extract the media ID from a shared Instagram post URL using oEmbed or searching recent media."""
-        import re
         # Try to get media ID from the URL via the Instagram API
         # First, search user's recent media to match permalink
         url = f"{self.GRAPH_BASE}/v23.0/{account_id}/media"
@@ -256,7 +342,7 @@ class InstagramService:
             "limit": 50,
             "access_token": access_token,
         }
-        response = requests.get(url, params=params)
+        response = http.get(url, params=params)
         if response.status_code == 200:
             for media in response.json().get("data", []):
                 if media.get("permalink") and shared_url and media["permalink"].rstrip("/") in shared_url.rstrip("/"):
@@ -272,7 +358,7 @@ class InstagramService:
             "Content-Type": "application/json",
             "Authorization": f"Bearer {access_token}",
         }
-        response = requests.get(url, headers=headers)
+        response = http.get(url, headers=headers)
         return response.json()
 
 

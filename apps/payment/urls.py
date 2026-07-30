@@ -1,5 +1,5 @@
 from django.urls import path
-import payment.views as views
+import apps.payment.views as views
 
 
 urlpatterns = [
@@ -7,7 +7,6 @@ urlpatterns = [
     path("features/<uuid:pk>/", views.FeatureRetrieveView.as_view()),
     path("pricing-packages/", views.PricingPackageListCreateView.as_view()),
     path("pricing-packages/<uuid:pk>/", views.PricingPackageRetrieveView.as_view()),
-    # path("subscriptions/", views.SubscriptionRetrieveView.as_view()),
     path("subscriptions/create/", views.SubscriptionCreateView.as_view()),
     path("subscriptions/cancel/", views.SubscriptionCancellationView.as_view()),
     path("subscriptions/<uuid:pk>/", views.SubscriptionUpdateAutoRenewView.as_view()),

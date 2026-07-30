@@ -5,7 +5,7 @@ from apps.payment.models import Subscription, Transaction
 from apps.assistant.models import Assistant, Conversation, Lead
 from apps.integration.models import Integration
 from apps.dashboard.models import AuditLog
-from shared.addons.enums import (
+from apps.shared.addons.enums import (
     PaymentMethods, PaymentStatuses, UserRoles,
     ConversationStatuses, ConversationPlatforms, IntegrationTypes,
     LeadStatuses, SubscriptionStatuses,

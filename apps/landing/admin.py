@@ -1,5 +1,5 @@
 from django.contrib import admin
-from landing.models import LandingLead, LeadNotificationGroup
+from apps.landing.models import LandingLead, LeadNotificationGroup
 
 
 @admin.register(LandingLead)

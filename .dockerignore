@@ -1,0 +1,30 @@
+# Never bake secrets or local state into the image — the runtime env comes from
+# compose's env_file, and COPY . /app would otherwise ship .env inside the layer.
+.env
+.env.*
+*.pem
+*.key
+
+.git
+.github
+.venv
+venv
+
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+media/
+staticfiles/
+celerybeat-schedule
+*.sqlite3
+*.log
+*.xlsx
+
+docs/
+.claude/
+.idea/
+.vscode/

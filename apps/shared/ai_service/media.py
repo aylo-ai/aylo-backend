@@ -10,6 +10,7 @@ from io import BytesIO
 from typing import Optional, Tuple
 
 import requests
+from apps.shared import http
 
 from .client import TRANSCRIBE_MODEL, VISION_MODEL, get_client
 
@@ -91,7 +92,7 @@ def analyze_image(image_url: str) -> str:
 
 def _download(url: str) -> Optional[bytes]:
     try:
-        response = requests.get(url, timeout=30)
+        response = http.get(url, timeout=30)
         response.raise_for_status()
     except requests.RequestException as exc:
         logger.error("Could not download %s: %s", url, exc)

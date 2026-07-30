@@ -13,13 +13,13 @@ from apps.assistant.models import (
     FollowUpConfig, FollowUpStage, FollowUpLog, Conversation,
 )
 from apps.integration.models import TelegramGroupIntegration
-from shared.addons.enums import (
+from apps.shared.addons.enums import (
     IntegrationTypes, ConversationPlatforms, SenderTypes,
     MessageTypes, FollowUpLogStatus, LeadStatuses,
 )
-from shared.addons.utils import send_telegram_message
-from shared.addons.instagram import instagram_service
-from shared.addons.redis import publish_message_to_ws
+from apps.integration.gateways.telegram import send_telegram_message
+from apps.integration.gateways.instagram import instagram_service
+from apps.shared.addons.redis import publish_message_to_ws
 
 logger = logging.getLogger(__name__)
 

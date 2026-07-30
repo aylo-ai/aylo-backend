@@ -60,7 +60,7 @@ def load_chain(assistant, conversation) -> Optional[str]:
             logger.info("Assistant %s changed since chain start; restarting chain", assistant.id)
         return None
 
-    from shared.addons.redis import redis_client
+    from apps.shared.addons.redis import redis_client
 
     try:
         cached = redis_client.get(_chain_key(conversation))
@@ -77,7 +77,7 @@ def save_chain(conversation, response_id: str, instructions_version) -> None:
     conversation.instructions_version = instructions_version
     conversation.save(update_fields=["previous_response_id", "instructions_version", "updated_time"])
 
-    from shared.addons.redis import redis_client
+    from apps.shared.addons.redis import redis_client
 
     try:
         redis_client.set(_chain_key(conversation), response_id, ex=CHAIN_TTL_SECONDS)
@@ -90,7 +90,7 @@ def clear_chain(conversation) -> None:
     conversation.instructions_version = None
     conversation.save(update_fields=["previous_response_id", "instructions_version", "updated_time"])
 
-    from shared.addons.redis import redis_client
+    from apps.shared.addons.redis import redis_client
 
     try:
         redis_client.delete(_chain_key(conversation))
@@ -330,9 +330,9 @@ agent = Agent()
 
 def respond(assistant, conversation, user_input: str) -> str:
     """Run a turn, persist the reply and publish it. Returns the text to send."""
-    from shared.addons.enums import SenderTypes
-    from shared.addons.redis import publish_message_to_ws
-    from shared.ai_service.conversation import conversation_service
+    from apps.shared.addons.enums import SenderTypes
+    from apps.shared.addons.redis import publish_message_to_ws
+    from apps.assistant.services.conversation import conversation_service
 
     result = agent.run(assistant, conversation, user_input)
 

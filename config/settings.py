@@ -8,13 +8,32 @@ from django.utils.translation import gettext_lazy as _
 from celery.schedules import crontab
 
 BASE_DIR = Path(__file__).resolve().parent.parent
-sys.path.append(os.path.join(BASE_DIR, "apps"))
 load_dotenv()
 
-SECRET_KEY = os.environ.get("SECRET_KEY", "django-insecure-j_27^f$x$3_q^)-3vn6!ps*9apa$nshm)202rq98y^fhf+ydz=")
 DEBUG: bool = os.environ.get("DEBUG") in ["True", "true"]
 
-ALLOWED_HOSTS = ["*"]
+SECRET_KEY = os.environ.get("SECRET_KEY")
+if not SECRET_KEY:
+    if DEBUG or "test" in sys.argv:
+        SECRET_KEY = "django-insecure-dev-only-key-do-not-use-in-production"
+    else:
+        from django.core.exceptions import ImproperlyConfigured
+
+        raise ImproperlyConfigured("SECRET_KEY environment variable is required when DEBUG is off")
+
+ALLOWED_HOSTS = os.environ.get(
+    "ALLOWED_HOSTS",
+    ".aylo.uz,.repli.uz,localhost,127.0.0.1",
+).split(",")
+
+# Tests intentionally simulate outages (OpenAI down, Redis down, …) and the
+# fail-soft code logs them. Silence logging during test runs so a green run
+# reads green — only real test failures show up.
+TESTING = "test" in sys.argv
+if TESTING:
+    import logging
+
+    logging.disable(logging.CRITICAL)
 
 AZURE_OPENAI_ENDPOINT = os.environ.get("AZURE_OPENAI_ENDPOINT")
 AZURE_OPENAI_DEPLOYMENT = os.environ.get("AZURE_OPENAI_DEPLOYMENT")
@@ -44,15 +63,21 @@ PACKAGES = [
     "telegram",
     "storages",
 ]
+# Fully qualified so every module has exactly one importable path. The bare
+# names used to work only because `apps/` was appended to sys.path, which made
+# `shared.x` and `apps.shared.x` two distinct module objects — two copies of
+# every module-level singleton (redis_client, conversation_service, agent, …).
+# The app labels are unchanged (Django takes the last component), so migrations,
+# db_table names and content types are unaffected.
 INTERNAL_APPS = [
-    "assistant",
-    "integration",
-    "payment",
-    "shared",
-    "user",
-    "blog",
-    "landing",
-    "dashboard",
+    "apps.assistant",
+    "apps.integration",
+    "apps.payment",
+    "apps.shared",
+    "apps.user",
+    "apps.blog",
+    "apps.landing",
+    "apps.dashboard",
 ]
 
 INSTALLED_APPS = DEFAULT_APPS + PACKAGES + INTERNAL_APPS
@@ -170,28 +195,25 @@ SECURE_HSTS_SECONDS = 3600
 
 CORS_ORIGIN_ALLOW_ALL = False
 
-CORS_ALLOWED_HEADERS = [
-    'content-type',
-    'authorization',
-    'x-requested-with',
-    'accept',
-    'origin',
-    'accept-language',
-]
-
 CORS_ALLOWED_ORIGINS = [
     "http://localhost:3000",
     "http://localhost:5173",
     "http://localhost:5500",
+    "https://aylo.uz",
+    "https://api.aylo.uz",
+    "https://app.aylo.uz",
+    "https://admin.aylo.uz",
+    "https://dashboard.aylo.uz",
     "https://repli.uz",
     "https://app.repli.uz",
     "https://admin.repli.uz",
     "https://dashboard.repli.uz",
     "https://dev-app.repli.uz",
     "https://dev-api.repli.uz",
+    "https://df04-82-215-100-92.ngrok-free.app",
 ]
 
-CORS_ALLOWED_METHODS = [
+CORS_ALLOW_METHODS = [
     "GET",
     "POST",
     "PUT",
@@ -213,9 +235,11 @@ CORS_ALLOW_HEADERS = [
 ]
 
 CSRF_TRUSTED_ORIGINS = [
+    "https://*.aylo.uz",
     "https://*.repli.uz",
     "http://127.0.0.1:8000",
     "http://localhost:5173",
+    "https://df04-82-215-100-92.ngrok-free.app",
 ]
 
 SIMPLE_JWT = {
@@ -302,43 +326,43 @@ CELERY_TASK_SERIALIZER = 'json'
 CELERY_BROKER_CONNECTION_RETRY_ON_STARTUP = True
 
 
-LOGGING = {
-    "version": 1,
-    "disable_existing_loggers": False,
-    "formatters": {
-        "default-formatter": {
-            "format": "[%(levelname)s] %(asctime)s %(filename)s:%(lineno)s:%(funcName)s: %(message)s",
-            "datefmt": "%m/%d/%Y %H:%M:%S",
-        },
-    },
-    "handlers": {
-        "console": {
-            "level": "DEBUG",
-            "class": "logging.StreamHandler",
-            "formatter": "default-formatter",
-        },
-    },
-    "loggers": {
-        "": {
-            "level": "WARNING",
-            "handlers": ["console"],
-        },
-        "django": {
-            "level": "ERROR",
-            "handlers": ["console"],
-            "propagate": False,
-        },
-        "django.request": {
-            "level": "ERROR",
-            "handlers": ["console"],
-            "propagate": False,
-        },
-        "api": {
-            "level": "DEBUG",
-            "handlers": ["console"],
-        },
-    },
-}
+# LOGGING = {
+#     "version": 1,
+#     "disable_existing_loggers": False,
+#     "formatters": {
+#         "default-formatter": {
+#             "format": "[%(levelname)s] %(asctime)s %(filename)s:%(lineno)s:%(funcName)s: %(message)s",
+#             "datefmt": "%m/%d/%Y %H:%M:%S",
+#         },
+#     },
+#     "handlers": {
+#         "console": {
+#             "level": "DEBUG",
+#             "class": "logging.StreamHandler",
+#             "formatter": "default-formatter",
+#         },
+#     },
+#     "loggers": {
+#         "": {
+#             "level": "WARNING",
+#             "handlers": ["console"],
+#         },
+#         "django": {
+#             "level": "ERROR",
+#             "handlers": ["console"],
+#             "propagate": False,
+#         },
+#         "django.request": {
+#             "level": "ERROR",
+#             "handlers": ["console"],
+#             "propagate": False,
+#         },
+#         "api": {
+#             "level": "DEBUG",
+#             "handlers": ["console"],
+#         },
+#     },
+# }
 
 REDIS_DB: int = int(os.environ.get("REDIS_DB", default=0))
 REDIS_HOST: str = os.environ.get("REDIS_HOST", default="localhost")
@@ -372,7 +396,12 @@ GOOGLE_REDIRECT_URI = os.environ.get("GOOGLE_REDIRECT_URI")
 GOOGLE_GEMINI_API_KEY = os.environ.get("GOOGLE_GEMINI_API_KEY")
 
 # Email settings
-EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
+# Overridable so a local environment can print the OTP email to the console
+# (`EMAIL_BACKEND=django.core.mail.backends.console.EmailBackend`) instead of
+# needing live Zoho SMTP credentials to exercise the email sign-up flow.
+EMAIL_BACKEND = os.environ.get(
+    "EMAIL_BACKEND", "django.core.mail.backends.smtp.EmailBackend"
+)
 EMAIL_HOST = 'smtppro.zoho.com'
 EMAIL_PORT = 465
 EMAIL_USE_SSL = True
@@ -385,7 +414,7 @@ DEFAULT_FROM_EMAIL = os.environ.get("EMAIL_HOST_USER")
 INSTAGRAM_CLIENT_ID = os.environ.get("INSTAGRAM_CLIENT_ID")
 INSTAGRAM_CLIENT_SECRET = os.environ.get("INSTAGRAM_CLIENT_SECRET")
 INSTAGRAM_REDIRECT_URI = os.environ.get("INSTAGRAM_REDIRECT_URI")
-INSTAGRAM_VERIFY_TOKEN = os.environ.get("INSTAGRAM_VERIFY_TOKEN", "wqbm2DoK5zfsF28Qb82Z")
+INSTAGRAM_VERIFY_TOKEN = os.environ.get("INSTAGRAM_VERIFY_TOKEN", "")
 INSTAGRAM_APP_SECRET = os.environ.get("INSTAGRAM_APP_SECRET", "")
 
 DATA_UPLOAD_MAX_MEMORY_SIZE = 104857600  # 100 MB
@@ -443,21 +472,28 @@ LANGUAGES = (
 )
 MODELTRANSLATION_LANGUAGES = ('en', 'uz', 'ru', 'kk', 'ar')
 
+# amoCRM OAuth. Read from the environment — these are live credentials and must
+# never be committed. `AMOCRM_ACCESS_TOKEN` and the `BITRIX_*` pair used to sit
+# here as literals with no reader anywhere in the tree; they were removed rather
+# than migrated.
+AMOCRM_CLIENT_ID = os.environ.get("AMOCRM_CLIENT_ID")
+AMOCRM_SECRET_KEY = os.environ.get("AMOCRM_SECRET_KEY")
 
-import sentry_sdk # Sentry SDK for error tracking and monitoring
+BASE_URL = os.environ.get("BASE_URL", "https://api.aylo.uz")
 
-# sentry_sdk.init(
-#     dsn="https://cb6c7ba11d9da224011674295fef19a0@o4506302611980288.ingest.us.sentry.io/4510062349189120",
-#     send_default_pii=True,
-# )
+# Fail fast in production rather than serving a broken amoCRM OAuth flow that
+# only reveals itself when a customer tries to connect their account.
+if not DEBUG and not TESTING:
+    _missing = [
+        name for name in ("AMOCRM_CLIENT_ID", "AMOCRM_SECRET_KEY")
+        if not globals()[name]
+    ]
+    if _missing:
+        from django.core.exceptions import ImproperlyConfigured
 
-BITRIX_CLIENT_ID='local.68fa1c012ca095.04783670'
-BITRIX_CLIENT_KEY='8Jpee3uOJnVgQQzBNtHmzqhWufqxIfm7fzjiohFjK3RS2cpqqP'
-
-AMOCRM_CLIENT_ID='f49eee4a-598e-406c-9111-8ad3f1194230'
-AMOCRM_SECRET_KEY='pGaFSICclVG5i7HDlgzkaoChwitZXZHW5ZP5fxC6nYmHIoUgIxovgFAJ79v89lgH'
-AMOCRM_ACCESS_TOKEN='eyJ0eXAiOiJKV1QiLCJhbGciOiJSUzI1NiIsImp0aSI6Ijg2YThiMGIzZjJlMWY5MmM5ZjVjYjRjYTVjYTc5ZGQ0YzQxNGU0Yzk0Zjc0YjJhNTY2OTE2YTJhNGEzMjk0MDJjY2E0ZTQ4MDRhNGNjYWExIn0.eyJhdWQiOiJmNDllZWU0YS01OThlLTQwNmMtOTExMS04YWQzZjExOTQyMzAiLCJqdGkiOiI4NmE4YjBiM2YyZTFmOTJjOWY1Y2I0Y2E1Y2E3OWRkNGM0MTRlNGM5NGY3NGIyYTU2NjkxNmEyYTRhMzI5NDAyY2NhNGU0ODA0YTRjY2FhMSIsImlhdCI6MTc2MTIyNzE0MCwibmJmIjoxNzYxMjI3MTQwLCJleHAiOjE5MDIyNjg4MDAsInN1YiI6Ijk4NTM3OTgiLCJncmFudF90eXBlIjoiIiwiYWNjb3VudF9pZCI6MzI3MzE3MjIsImJhc2VfZG9tYWluIjoiYW1vY3JtLnJ1IiwidmVyc2lvbiI6Miwic2NvcGVzIjpbImNybSIsImZpbGVzIiwiZmlsZXNfZGVsZXRlIiwibm90aWZpY2F0aW9ucyIsInB1c2hfbm90aWZpY2F0aW9ucyJdLCJoYXNoX3V1aWQiOiIxNDI4MjVhZC1iYjcyLTRkZTAtYTY5MS0wODlmYTY5OWRiNGQiLCJ1c2VyX2ZsYWdzIjowLCJhcGlfZG9tYWluIjoiYXBpLWIuYW1vY3JtLnJ1In0.KfBz6OawRPwoOQ2XukHpLdByKEYBoO9bgr3SDGfa84ooF1vya6gRsHKWGAAdMQTIuJwzwZ55e4anHYJbsfXC7vJh71lnyE5zHNhWLQUS4gF9O6wuj9jku51oN7fYG5Uk08Z09bUBLGbizBLvGi8x_sycX8hm92gjx4-6kXZhys38yz6J94-GZUfrItHEd38Y0IxdE4PxQrevKFbP2AJB51t-sRUNLkPQw4GOPV7PeumPcpMEoqSJciiEHMNt0MzC4dyAHAwIdwHzxthRGg3MDz3PgzWrNZDQK_Nd5JKzsRG0oeBeRum3Ckk7Br5CEqAXoiHDhbc2C3zVrSnmtoi0dg'
-BASE_URL='https://api.repli.uz'
+        raise ImproperlyConfigured(
+            f"Missing required environment variables: {', '.join(_missing)}"
+        )
 
 #Azure OpenAi settings
 AZURE_OPENAI_ENDPOINT = os.environ.get("AZURE_OPENAI_ENDPOINT")

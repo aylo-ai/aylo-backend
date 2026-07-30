@@ -1,7 +1,15 @@
 from django.db import models
+from django.db.models import Q
 
-from shared.addons.enums import IntegrationTypes, ActionType, ButtonType, ConditionType, FlowType
-from shared.models import BaseModel
+from apps.shared.addons.enums import (
+    ActionType,
+    BroadcastStatuses,
+    ButtonType,
+    ConditionType,
+    FlowType,
+    IntegrationTypes,
+)
+from apps.shared.models import BaseModel
 
 
 class Integration(BaseModel):
@@ -25,7 +33,8 @@ class Integration(BaseModel):
     integration_type = models.CharField(max_length=50, choices=IntegrationTypes.choices())
     is_comment_response = models.BooleanField(default=False)
 
-    # Instagram-specific fields
+    # Instagram-specific fields. Both columns are indexed via Meta.indexes below
+    # rather than db_index=True, so the migration can build them CONCURRENTLY.
     instagram_user_id = models.CharField(max_length=50, null=True, blank=True)  # IG user ID
     instagram_account_id = models.CharField(max_length=50, null=True, blank=True)  # IG account ID
     instagram_username = models.CharField(max_length=100, null=True, blank=True)  # IG username
@@ -34,9 +43,36 @@ class Integration(BaseModel):
     def __str__(self):
         return self.name
 
+    @classmethod
+    def instagram_by_id(cls, instagram_id):
+        """Instagram integrations matching ``instagram_id`` on either ID column.
+
+        OAuth stores two distinct identifiers: ``/me.id`` in ``instagram_user_id``
+        and ``/me.user_id`` in ``instagram_account_id``. Webhook payloads carry
+        one or the other in ``entry.id`` depending on the event, so matching a
+        single column silently drops traffic for accounts where the two differ.
+        """
+        if not instagram_id:
+            return cls.objects.none()
+        return cls.objects.filter(
+            Q(instagram_account_id=instagram_id) | Q(instagram_user_id=instagram_id),
+            integration_type=IntegrationTypes.INSTAGRAM.value,
+        )
+
+    @property
+    def instagram_send_id(self):
+        """Account ID to address in outbound Graph calls."""
+        return self.instagram_account_id or self.instagram_user_id
+
     class Meta:
         db_table = 'integration'
         ordering = ['-created_time']
+        indexes = [
+            # ``instagram_by_id`` ORs across both columns on every inbound
+            # webhook; Postgres needs one index per branch of the OR.
+            models.Index(fields=["instagram_user_id"], name="integration_ig_user_idx"),
+            models.Index(fields=["instagram_account_id"], name="integration_ig_acct_idx"),
+        ]
 
 
 class TelegramGroupIntegration(BaseModel):
@@ -178,7 +214,7 @@ class Broadcast(BaseModel):
     total_recipients = models.IntegerField(default=0)
     sent_count = models.IntegerField(default=0)
     failed_count = models.IntegerField(default=0)
-    status = models.CharField(max_length=20, default='pending')
+    status = models.CharField(max_length=20, default=BroadcastStatuses.PENDING.value)
 
     class Meta:
         db_table = 'broadcast'

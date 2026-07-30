@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from landing.models import LandingLead
+from apps.landing.models import LandingLead
 
 
 class LandingLeadSerializer(serializers.ModelSerializer):

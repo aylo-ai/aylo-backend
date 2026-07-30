@@ -1,17 +1,69 @@
 from rest_framework import serializers
-from django.db.models import Sum, Count, Q, Avg
+from django.db.models import Sum, Count
 from django.utils import timezone
+from django.utils.translation import gettext_lazy as _
 from django.db.models.functions import TruncDay, TruncMonth
-from django.db.models import Min
 
 from apps.assistant.models import Conversation, Assistant, Message, PromptTemplate, Lead, AssistantFileUpload
 from apps.assistant.serializers import AssistantSerializer, MessageSerializer
 from apps.integration.serializers import IntegrationSerializer
-from apps.payment.models import Transaction, Subscription, PricingPackage
+from apps.payment.models import Transaction, Subscription, PricingPackage, Feature
+from apps.payment.serializers import FeatureSerializer
 from apps.dashboard.models import AuditLog
-from apps.shared.addons.enums import SenderTypes, UserRoles, PaymentStatuses, MessageTypes, ConversationStatuses
+from apps.shared.addons.enums import (
+    SenderTypes, UserRoles, PaymentStatuses, MessageTypes, ConversationStatuses,
+    NotificationTypes, SubscriptionStatuses,
+)
 from apps.user.models import User
-from apps.shared.addons.validations import raise_validation_error
+
+
+class StrictCharField(serializers.CharField):
+    """CharField that rejects non-string input instead of coercing it.
+
+    DRF's `CharField` happily turns `123` into `"123"`; dashboard write
+    endpoints should reject a wrong-typed value rather than silently store a
+    stringified one.
+    """
+
+    def to_internal_value(self, data):
+        if not isinstance(data, str):
+            self.fail('invalid')
+        return super().to_internal_value(data)
+
+
+def serialize_pricing_package(package):
+    """Pricing-package payload, or ``None`` when the nullable FK is unset."""
+    if not package:
+        return None
+    return {
+        "id": package.id,
+        "name": package.name,
+        "type": package.type,
+        "price": package.price,
+        "request_count": package.request_count,
+        "duration_days": package.duration_days,
+        "discount_price": package.discount_price,
+        "currency": package.currency,
+    }
+
+
+def serialize_subscription(subscription):
+    """Subscription payload, or ``None`` when the user has no subscription."""
+    if not subscription:
+        return None
+    return {
+        "id": subscription.id,
+        "pricing_package": serialize_pricing_package(subscription.pricing_package),
+        "start_date": subscription.start_date,
+        "end_date": subscription.end_date,
+        "status": subscription.status,
+        "remained_request_count": subscription.remained_request_count,
+        "next_payment_date": subscription.next_payment_date,
+        "auto_renew": subscription.auto_renew,
+        "cancellation_reason": subscription.cancellation_reason,
+        "last_payment_date": subscription.last_payment_date,
+        "grace_period_days": subscription.grace_period_days,
+    }
 
 
 class DashboardConversationSerializer(serializers.ModelSerializer):
@@ -234,7 +286,7 @@ class DashboardEnhancedStatsSerializer(serializers.Serializer):
         ).count()
 
         expiring_subscriptions = Subscription.objects.filter(
-            status='active',
+            status=SubscriptionStatuses.ACTIVE.value,
             end_date__lte=today + timezone.timedelta(days=7),
             end_date__gte=today
         ).count()
@@ -415,31 +467,7 @@ class DashboardUserSerializer(serializers.ModelSerializer):
         read_only_fields = ['created_time', 'updated_time']
 
     def get_subscription(self, obj):
-        subscription = obj.subscription
-        if subscription:
-            return {
-                "id": subscription.id,
-                "pricing_package": {
-                    "id": subscription.pricing_package.id,
-                    "name": subscription.pricing_package.name,
-                    "type": subscription.pricing_package.type,
-                    "price": subscription.pricing_package.price,
-                    "request_count": subscription.pricing_package.request_count,
-                    "duration_days": subscription.pricing_package.duration_days,
-                    "discount_price": subscription.pricing_package.discount_price,
-                    "currency": subscription.pricing_package.currency,
-                },
-                "start_date": subscription.start_date,
-                "end_date": subscription.end_date,
-                "status": subscription.status,
-                "remained_request_count": subscription.remained_request_count,
-                "next_payment_date": subscription.next_payment_date,
-                "auto_renew": subscription.auto_renew,
-                "cancellation_reason": subscription.cancellation_reason,
-                "last_payment_date": subscription.last_payment_date,
-                "grace_period_days": subscription.grace_period_days,
-            }
-        return None
+        return serialize_subscription(obj.subscription)
 
     def get_assistants(self, obj):
         return AssistantSerializer(obj.assistants.all(), many=True).data
@@ -522,36 +550,14 @@ class DashboardUserListSerializer(serializers.ModelSerializer):
 
     def get_total_used_token_count(self, obj):
         subscription = obj.subscription
-        if subscription:
+        # `pricing_package` is a nullable FK (SET_NULL) — a subscription can
+        # outlive the package it was bought on.
+        if subscription and subscription.pricing_package:
             return subscription.pricing_package.request_count - subscription.remained_request_count
         return 0
 
     def get_subscription(self, obj):
-        subscription = obj.subscription
-        if subscription:
-            return {
-                "id": subscription.id,
-                "pricing_package": {
-                    "id": subscription.pricing_package.id,
-                    "name": subscription.pricing_package.name,
-                    "type": subscription.pricing_package.type,
-                    "price": subscription.pricing_package.price,
-                    "request_count": subscription.pricing_package.request_count,
-                    "duration_days": subscription.pricing_package.duration_days,
-                    "discount_price": subscription.pricing_package.discount_price,
-                    "currency": subscription.pricing_package.currency,
-                },
-                "start_date": subscription.start_date,
-                "end_date": subscription.end_date,
-                "status": subscription.status,
-                "remained_request_count": subscription.remained_request_count,
-                "next_payment_date": subscription.next_payment_date,
-                "auto_renew": subscription.auto_renew,
-                "cancellation_reason": subscription.cancellation_reason,
-                "last_payment_date": subscription.last_payment_date,
-                "grace_period_days": subscription.grace_period_days,
-            }
-        return None
+        return serialize_subscription(obj.subscription)
 
 
 class DashboardPromptTemplateSerializer(serializers.ModelSerializer):
@@ -815,7 +821,7 @@ class DashboardPricingPackageDetailSerializer(serializers.ModelSerializer):
     def get_active_subscribers(self, obj):
         return User.objects.filter(
             subscription__pricing_package=obj,
-            subscription__status='active'
+            subscription__status=SubscriptionStatuses.ACTIVE.value
         ).count()
 
     def get_total_assistants(self, obj):
@@ -855,3 +861,79 @@ class ChangeRoleSerializer(serializers.Serializer):
 class RefundSerializer(serializers.Serializer):
     amount = serializers.DecimalField(max_digits=20, decimal_places=2, required=False)
     reason = serializers.CharField(required=False, default='')
+
+
+class UserBulkActionSerializer(serializers.Serializer):
+    """Validates `users/bulk-action/` — ids must be real UUIDs before they reach the ORM."""
+    ACTIONS = ('activate', 'deactivate', 'delete', 'change_role')
+
+    action = serializers.ChoiceField(choices=ACTIONS)
+    ids = serializers.ListField(child=serializers.UUIDField(), allow_empty=False)
+    role = serializers.ChoiceField(choices=UserRoles.choices(), required=False)
+
+    def validate(self, attrs):
+        if attrs['action'] == 'change_role' and not attrs.get('role'):
+            raise serializers.ValidationError(
+                {'role': _("role is required for change_role action")}
+            )
+        return attrs
+
+
+class TransactionBulkActionSerializer(serializers.Serializer):
+    """Validates `transactions/bulk-action/`."""
+    ACTIONS = ('refund',)
+
+    action = serializers.ChoiceField(choices=ACTIONS)
+    ids = serializers.ListField(child=serializers.UUIDField(), allow_empty=False)
+
+
+class NotificationSendSerializer(serializers.Serializer):
+    """Validates `notifications/send/` — types are checked, not coerced."""
+    user_id = serializers.UUIDField()
+    title = StrictCharField(max_length=255)
+    content = StrictCharField()
+    type = serializers.ChoiceField(
+        choices=NotificationTypes.choices(),
+        default=NotificationTypes.NEWS.value,
+    )
+
+
+class DashboardAssistantCreateUserSerializer(serializers.Serializer):
+    """Validates the `user` FK that `assistants/` POST resolves before creating."""
+    user = serializers.UUIDField()
+
+
+class AssistantFileFilterSerializer(serializers.Serializer):
+    """Validates the `?assistant=` query param of `assistantfiles/`."""
+    assistant = serializers.UUIDField(required=False)
+
+
+class SubscriptionExtendSerializer(serializers.Serializer):
+    days = serializers.IntegerField(min_value=1, default=30)
+
+
+class DashboardSubscriptionUpdateSerializer(serializers.ModelSerializer):
+    """Write serializer for `subscriptions/<id>/` — every field is validated.
+
+    `pricing_package` is a real relation field, so a bad UUID or an unknown id
+    becomes a 400 instead of an unhandled ORM error.
+    """
+    pricing_package = serializers.PrimaryKeyRelatedField(
+        queryset=PricingPackage.objects.all(), required=False, allow_null=True,
+    )
+
+    class Meta:
+        model = Subscription
+        fields = [
+            'pricing_package', 'start_date', 'end_date', 'status',
+            'remained_request_count', 'auto_renew', 'next_payment_date',
+        ]
+
+
+class DashboardFeatureSerializer(FeatureSerializer):
+    """Feature serializer that rejects wrong-typed values instead of coercing them."""
+    name = StrictCharField(max_length=100)
+    icon = StrictCharField(max_length=50, required=False, allow_null=True, allow_blank=True)
+
+    class Meta(FeatureSerializer.Meta):
+        model = Feature

@@ -1,11 +1,14 @@
+import logging
 import re
 from bs4 import BeautifulSoup
 import json
 from django.utils.translation import gettext_lazy as _
-import requests
+from apps.shared import http
 from datetime import datetime
 from apps.integration.models import Integration, TelegramGroupIntegration
-from shared.addons.validations import error_response
+from apps.shared.addons.validations import error_response
+
+logger = logging.getLogger(__name__)
 
 USER_INFO_REGEX = r"#registered_user_info\s*" \
                   r"Ism-familiya:\s*(.*?)\s*\n" \
@@ -54,7 +57,7 @@ def extract_reply(text):
 
 def telegram_get_me(token):
     url = f"https://api.telegram.org/bot{token}/getMe"
-    response = requests.get(url)
+    response = http.get(url)
     code = response.status_code
     success = response.json().get("ok")
     return success, code
@@ -65,7 +68,7 @@ def send_telegram_action(chat_id,token):
         "chat_id": chat_id,
         "action": 'typing'
     }
-    response = requests.post(url, json=data)
+    response = http.post(url, json=data)
     return response
 
 def send_telegram_message(chat_id, text, token, entities=None):
@@ -79,7 +82,7 @@ def send_telegram_message(chat_id, text, token, entities=None):
         "disable_web_page_preview": True,
     }
     
-    response = requests.post(url, json=data)
+    response = http.post(url, json=data)
     response_data = response.json()
     if not response_data.get("ok"):
         if "migrate_to_chat_id" in response_data.get("parameters", {}):
@@ -97,7 +100,7 @@ def send_telegram_message(chat_id, text, token, entities=None):
 
             # Retry sending the message with the new chat ID
             data["chat_id"] = new_chat_id
-            response = requests.post(url, json=data)
+            response = http.post(url, json=data)
             response_data = response.json()
 
             if response_data.get("ok"):
@@ -124,7 +127,7 @@ def send_telegram_message(chat_id, text, token, entities=None):
 def check_bot_in_group(chat_id, token):
     """Telegram API orqali bot haqiqatan guruhda borligini tekshirish"""
     url = f"https://api.telegram.org/bot{token}/getChat"
-    response = requests.get(url, params={"chat_id": chat_id})
+    response = http.get(url, params={"chat_id": chat_id})
     return response.json().get("ok", False)
 
 
@@ -137,14 +140,14 @@ def send_telegram_photo(chat_id, photo_url, token, caption=None):
     if caption:
         data["caption"] = extract_reply(caption)
         data["parse_mode"] = "html"
-    response = requests.post(url, json=data)
+    response = http.post(url, json=data)
     return response
 
 
 def delete_telegram_message(chat_id, message_id, token):
     url = f"https://api.telegram.org/bot{token}/deleteMessage"
     data = {"chat_id": chat_id, "message_id": message_id}
-    response = requests.post(url, json=data).json()
+    response = http.post(url, json=data).json()
     return response
 
 
@@ -153,24 +156,26 @@ def set_telegram_webhook(bot_token, webhook_url):
     payload = {
         'url': webhook_url
     }
-    print(f"[+] Setting webhook to: {webhook_url}")
-    response = requests.post(url, data=payload)
+    # The webhook URL embeds the bot token in its path — never log it.
+    response = http.post(url, data=payload)
     if response.status_code == 200:
-        print(f"[+] Webhook set successfully, Status code: {response.status_code}")
+        logger.info("Telegram webhook set successfully")
         return 200
     else:
-        print(f"[-] Failed to set webhook: {response.json()}, Status code: {response.status_code}")
+        logger.warning("Failed to set Telegram webhook, status code: %s", response.status_code)
         return 400
 
 
 def get_webhook_info(bot_token):
     url = f"https://api.telegram.org/bot{bot_token}/getWebhookInfo"
-    response = requests.get(url)
+    response = http.get(url)
+    # The response body carries the registered webhook URL, which embeds the
+    # bot token in its path — log the status only.
     if response.status_code == 200:
-        print(f"Webhook info: {response.json()}, Status code: {response.status_code}")
+        logger.info("Fetched Telegram webhook info")
         return 200
     else:
-        print("Failed to get webhook info:", response.json())
+        logger.warning("Failed to get Telegram webhook info, status code: %s", response.status_code)
         return 400
 
 

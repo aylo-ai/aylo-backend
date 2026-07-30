@@ -1,15 +1,16 @@
 import logging
 import os
 import requests
+from apps.shared import http
 from random import randint
 
 from config.settings import redis_connection
-from shared.addons.payloads import get_playmobile_payload
+from apps.shared.addons.payloads import get_playmobile_payload
 
-import random
-import string
 from django.core.mail import send_mail
 from django.conf import settings
+from django.template.loader import render_to_string
+from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
 
 logger = logging.getLogger(__name__)
@@ -59,21 +60,21 @@ def send_playmobile_sms(phone_number, message):
     message_id = f"repliuz_{randint(100000, 999999)}"
     payload = get_playmobile_payload(phone_number, message_id, originator, message)
     try:
-        response = requests.post(
+        response = http.post(
             PLAY_MOBILE_URL,
             json=payload,
             auth=(PLAY_MOBILE_LOGIN, PLAY_MOBILE_PASSWORD),
             timeout=(30, 60)  # 10s connect timeout, 30s read timeout
         )
-        print(f"+] Response: {response.status_code} — {response.text}")
+        logger.info("SMS provider responded with status %s", response.status_code)
         if response.status_code == 200:
             return True, "SMS successfully sent"
         return False, f"Failed with status: {response.status_code}"
     except requests.exceptions.ConnectTimeout:
-        print(f"[+] Connect timeout to {PLAY_MOBILE_URL}")
+        logger.warning("Connect timeout to SMS provider %s", PLAY_MOBILE_URL)
         return False, "Connection timed out"
     except Exception as e:
-        print(f"[+] Unexpected error during SMS sending: {str(e)}")
+        logger.exception("Unexpected error during SMS sending")
         return False, f"Unexpected error: {str(e)}"
 
 def send_code(phone_number):
@@ -118,7 +119,7 @@ def verify_code_cache(phone_number, code):
 def send_sms_text(phone_number, text):
     message_id = f"repliuz_{randint(100000, 999999)}"
     payload = get_playmobile_payload(phone_number, message_id, originator, text)
-    response = requests.post(
+    response = http.post(
         PLAY_MOBILE_URL,
         json=payload,
         auth=(PLAY_MOBILE_LOGIN, PLAY_MOBILE_PASSWORD),
@@ -127,59 +128,56 @@ def send_sms_text(phone_number, text):
     return response if response.status_code == 200 else None
 
 
+EMAIL_CODE_TTL = 300  # seconds the emailed code stays valid
+
+
 def send_email_code(email):
+    """Email a fresh OTP. Returns (ok, user-facing message).
+
+    The code is only stored once delivery has succeeded, so a failed send never
+    replaces a code the user already holds with one they will never receive.
+    """
+    code = generate_code()
     try:
-        code = generate_code()
-        # Store code in Redis with 5 minute expiration
-        redis_connection.setex(email, 300, code)
-
-        subject = _("Verification Code")
-        message = _("Your verification code is: {}").format(code)
-        from_email = settings.EMAIL_HOST_USER
-        from django.template.loader import render_to_string
-
         html_message = render_to_string(
             'verification_email.html',
             {
                 'code': code,
-                'expiry_minutes': 5,
-                'year': 2024,
-                'subject': "Verification Code"
+                'expiry_minutes': EMAIL_CODE_TTL // 60,
+                'year': timezone.now().year,
+                'subject': "Verification Code",
             }
         )
 
         send_mail(
-            subject=subject,
-            message=message,
-            from_email=from_email,
+            subject=_("Verification Code"),
+            message=_("Your verification code is: {}").format(code),
+            from_email=settings.EMAIL_HOST_USER,
             recipient_list=[email],
             html_message=html_message,
             fail_silently=False,
         )
-        
-        return True, _("Verification code sent to your email")
-        
-    except Exception as e:
-        return False, _("Failed to send verification code: {}").format(str(e))
+    except Exception:
+        # The exception text can carry SMTP host/credential detail, so it is
+        # logged rather than returned to the caller.
+        logger.exception("Failed to send the verification email")
+        return False, _("Failed to send verification code")
+
+    redis_connection.setex(email, EMAIL_CODE_TTL, code)
+    return True, _("Verification code sent to your email")
 
 
 def verify_email_code(email, code):
     try:
-        # Get stored code from Redis
         stored_code = redis_connection.get(email)
-        
+
         if not stored_code:
             return False, _("Verification code expired or not found")
-            
-        # Compare codes
+
         if stored_code.decode('utf-8') == str(code):
-            # Mark email as verified
-            redis_connection.setex(
-                f"{email}_verified",
-                300,  # 1 hour in seconds
-                "true"
-            )
-            # Delete the code
+            # Mark the address verified for as long as the code would have lived,
+            # then burn the code so it cannot be replayed.
+            redis_connection.setex(f"{email}_verified", EMAIL_CODE_TTL, "true")
             redis_connection.delete(email)
             _clear_attempts(email)
             return True, _("Email verified successfully")
@@ -187,9 +185,10 @@ def verify_email_code(email, code):
         if not _register_failed_attempt(email):
             return False, _("Too many incorrect attempts, request a new code")
         return False, _("Invalid verification code")
-        
-    except Exception as e:
-        return False, _("Failed to verify code: {}").format(str(e))
+
+    except Exception:
+        logger.exception("Failed to verify the email code")
+        return False, _("Failed to verify code")
 
 
 def is_email_verified(email):

@@ -7,8 +7,7 @@ from rest_framework import status
 from rest_framework.exceptions import APIException, _get_error_details
 from rest_framework.response import Response
 
-from shared.addons.verification import check_verification_status
-from apps.user.models import User
+from apps.shared.addons.verification import check_verification_status
 
 
 class CustomValidationError(APIException):
@@ -70,6 +69,13 @@ def check_email_phone_number(email_phone_number):
     """
     Check if the provided email or phone number is valid.
     """
+    # `re.match` raises TypeError on None, so an omitted identifier used to
+    # crash the caller with a 500 instead of being reported as invalid input.
+    # Anything that isn't a string is simply not a valid email or phone.
+    if not isinstance(email_phone_number, str):
+        return {
+            "message": "Invalid email or phone number format."
+        }
     if re.match(r"^\+?[1-9]\d{1,14}$", email_phone_number):
         return "phone"
     elif re.match(r"^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$", email_phone_number):
@@ -86,7 +92,11 @@ def phone_number_validation(value):  # noqa
         raise_validation_error(message=_("Telefon raqamni kiritish majburiy"))
     if not check_number(value):
         raise_validation_error(message=_("Noto'g'ri telefon raqami kiritildi"))
-    if User.objects.filter(phone_number=value).exists():
+    # Resolved lazily: importing the model here would make this shared module
+    # depend on the user app, which is the cycle Phase 1 removes.
+    from django.contrib.auth import get_user_model
+
+    if get_user_model().objects.filter(phone_number=value).exists():
         raise_validation_error(message=_("Telefon raqam allaqachon ro'yxatdan o'tgan"))
     verification_status, message = check_verification_status(value)
     if not verification_status:

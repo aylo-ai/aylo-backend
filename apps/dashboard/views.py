@@ -1,31 +1,31 @@
 import csv
 from datetime import timedelta
-from io import StringIO
 
 from django.db.models import Count, Q
 from django.http import HttpResponse
 from django.utils import timezone
-from rest_framework import generics, filters, status
+from rest_framework import generics, filters
 from rest_framework.views import APIView
 from rest_framework.throttling import AnonRateThrottle
 from django_filters.rest_framework import DjangoFilterBackend
 
 from apps.user.models import User, Notification
-from apps.user.serializers import UserSerializer, NotificationSerializer
+from apps.user.serializers import NotificationSerializer
 from apps.assistant.serializers import (
-    AssistantSerializer, ConversationSerializer, MessageSerializer,
-    AssistantFileUploadSerializer
+    AssistantSerializer, MessageSerializer, AssistantFileUploadSerializer,
 )
 from apps.assistant.models import Assistant, Conversation, Message, AssistantFileUpload, PromptTemplate, Lead
 from apps.payment.models import Transaction, Subscription, Balance, Card, Feature, PricingPackage
 from apps.payment.serializers import (
-    TransactionSerializer, BalanceSerializer, CardSerializer,
-    FeatureSerializer, PricingPackageSerializer
+    BalanceSerializer, CardSerializer, PricingPackageSerializer,
 )
 from apps.integration.models import InstagramCommentResponse, Integration
 from apps.integration.serializers import InstagramCommentResponseSerializer, IntegrationSerializer
-from apps.shared.permissions import IsAdmin, IsDashboardUser, CanManageUsers, CanManageFinance, IsAuthenticated
-from apps.shared.addons.enums import UserRoles, PaymentStatuses, ConversationStatuses, SenderTypes
+from apps.shared.permissions import IsAdmin, IsDashboardUser, CanManageUsers, CanManageFinance
+from apps.shared.addons.enums import (
+    UserRoles, PaymentStatuses, ConversationStatuses, SenderTypes,
+    SubscriptionStatuses,
+)
 from apps.shared.pagination import StandardResultsSetPagination
 from apps.dashboard.filters import (
     SubscriptionFilter, TransactionFilter, UserFilter,
@@ -54,6 +54,14 @@ from apps.dashboard.serializers import (
     AuditLogSerializer,
     ChangeRoleSerializer,
     RefundSerializer,
+    UserBulkActionSerializer,
+    TransactionBulkActionSerializer,
+    NotificationSendSerializer,
+    DashboardAssistantCreateUserSerializer,
+    AssistantFileFilterSerializer,
+    SubscriptionExtendSerializer,
+    DashboardSubscriptionUpdateSerializer,
+    DashboardFeatureSerializer,
 )
 from apps.dashboard.models import AuditLog
 from apps.shared.addons.validations import success_response, error_response
@@ -65,6 +73,18 @@ def get_client_ip(request):
     if x_forwarded_for:
         return x_forwarded_for.split(',')[0]
     return request.META.get('REMOTE_ADDR')
+
+
+def subscription_repr(subscription):
+    """Audit-log label for a subscription.
+
+    `Subscription.__str__` dereferences the nullable `pricing_package` FK, so it
+    raises for package-less rows; audit logging must never be what takes an
+    endpoint down.
+    """
+    package = subscription.pricing_package
+    name = package.name if package else "no package"
+    return f"{name} - {subscription.start_date} - {subscription.end_date}"
 
 
 # ──────────────────────────────────────────────
@@ -202,27 +222,28 @@ class DashboardUserDetail(generics.RetrieveUpdateDestroyAPIView):
 
     def get_queryset(self):
         pk = self.kwargs.get("pk")
-        return User.objects.get(id=pk)
+        return User.objects.filter(id=pk)
 
     def retrieve(self, request, *args, **kwargs):
-        serializer = self.get_serializer(self.get_queryset())
+        serializer = self.get_serializer(self.get_object())
         return success_response(data=serializer.data, message="User retrieved successfully", code=200)
 
     def update(self, request, *args, **kwargs):
-        serializer = self.get_serializer(self.get_queryset(), data=request.data)
+        instance = self.get_object()
+        serializer = self.get_serializer(instance, data=request.data, partial=kwargs.get('partial', False))
         serializer.is_valid(raise_exception=True)
         serializer.save()
         AuditLog.log(
             user=request.user, action='update', target_type='user',
-            target_id=self.kwargs.get("pk"),
-            target_repr=str(self.get_queryset()),
+            target_id=instance.id,
+            target_repr=str(instance),
             details={'changes': request.data},
             ip_address=get_client_ip(request),
         )
         return success_response(data=serializer.data, message="User updated successfully", code=200)
 
     def destroy(self, request, *args, **kwargs):
-        user = self.get_queryset()
+        user = self.get_object()
         AuditLog.log(
             user=request.user, action='delete', target_type='user',
             target_id=self.kwargs.get("pk"),
@@ -294,18 +315,19 @@ class DashboardUserExport(APIView):
     permission_classes = [IsAdmin]
 
     def get(self, request):
-        from apps.dashboard.filters import UserFilter
         qs = User.objects.all().order_by('-created_time')
 
-        # Apply filters from query params
+        # Apply filters from query params. An invalid filter must fail loudly:
+        # silently dropping it would export every user instead of the subset
+        # the operator asked for.
         filterset = UserFilter(request.query_params, queryset=qs)
-        if filterset.is_valid():
-            qs = filterset.qs
+        if not filterset.is_valid():
+            return error_response(data=filterset.errors, message="Invalid filter parameters", code=400)
+        qs = filterset.qs
 
         # Apply search
         search = request.query_params.get('search', '')
         if search:
-            from django.db.models import Q
             qs = qs.filter(
                 Q(username__icontains=search) |
                 Q(email__icontains=search) |
@@ -378,11 +400,10 @@ class DashboardAssistantList(generics.ListCreateAPIView):
         return success_response(data=serializer.data, message="Assistants retrieved successfully", code=200)
 
     def create(self, request, *args, **kwargs):
-        user_id = request.data.get('user')
-        if not user_id:
-            return error_response(message="User ID is required", code=400)
+        user_serializer = DashboardAssistantCreateUserSerializer(data=request.data)
+        user_serializer.is_valid(raise_exception=True)
         try:
-            target_user = User.objects.get(id=user_id)
+            target_user = User.objects.get(id=user_serializer.validated_data['user'])
         except User.DoesNotExist:
             return error_response(message="User not found", code=404)
 
@@ -656,6 +677,23 @@ class DashboardTransactionExport(APIView):
 
     def get(self, request):
         qs = Transaction.objects.select_related('user').all().order_by('-created_time')
+
+        # Same filter + search contract as the transactions list endpoint.
+        filterset = TransactionFilter(request.query_params, queryset=qs)
+        if not filterset.is_valid():
+            return error_response(data=filterset.errors, message="Invalid filter parameters", code=400)
+        qs = filterset.qs
+
+        search = request.query_params.get('search', '')
+        if search:
+            qs = qs.filter(
+                Q(user__username__icontains=search) |
+                Q(user__email__icontains=search) |
+                Q(user__phone_number__icontains=search) |
+                Q(user__first_name__icontains=search) |
+                Q(user__last_name__icontains=search)
+            )
+
         response = HttpResponse(content_type='text/csv')
         response['Content-Disposition'] = 'attachment; filename="transactions_export.csv"'
         writer = csv.writer(response)
@@ -698,13 +736,13 @@ class DashboardSubscriptionList(generics.ListAPIView):
         today = timezone.now().date()
         stats = {
             'total': all_subs.count(),
-            'active': all_subs.filter(status='active').count(),
+            'active': all_subs.filter(status=SubscriptionStatuses.ACTIVE.value).count(),
             'expiring_soon': all_subs.filter(
-                status='active',
+                status=SubscriptionStatuses.ACTIVE.value,
                 end_date__lte=today + timedelta(days=7),
                 end_date__gte=today,
             ).count(),
-            'cancelled': all_subs.filter(status='cancelled').count(),
+            'cancelled': all_subs.filter(status=SubscriptionStatuses.CANCELLED.value).count(),
         }
 
         page = self.paginate_queryset(queryset)
@@ -727,58 +765,47 @@ class DashboardSubscriptionDetail(generics.RetrieveUpdateDestroyAPIView):
         serializer = self.get_serializer(instance)
         return success_response(data=serializer.data, message="Subscription retrieved successfully", code=200)
 
+    def _audit_snapshot(self, instance):
+        return {
+            'pricing_package': str(instance.pricing_package_id) if instance.pricing_package_id else None,
+            'start_date': str(instance.start_date) if instance.start_date else None,
+            'end_date': str(instance.end_date) if instance.end_date else None,
+            'status': instance.status,
+            'remained_request_count': instance.remained_request_count,
+            'auto_renew': instance.auto_renew,
+        }
+
     def update(self, request, *args, **kwargs):
         instance = self.get_object()
-        old_data = {
-            'pricing_package': str(instance.pricing_package_id) if instance.pricing_package else None,
-            'start_date': str(instance.start_date) if instance.start_date else None,
-            'end_date': str(instance.end_date) if instance.end_date else None,
-            'status': instance.status,
-            'remained_request_count': instance.remained_request_count,
-            'auto_renew': instance.auto_renew,
-        }
+        old_data = self._audit_snapshot(instance)
 
-        # Handle pricing_package change by ID
-        new_package_id = request.data.get('pricing_package')
-        if new_package_id:
-            try:
-                new_package = PricingPackage.objects.get(id=new_package_id)
-                instance.pricing_package = new_package
-            except PricingPackage.DoesNotExist:
-                return error_response(message="Pricing package not found", code=404)
-
-        # Update other fields
-        for field in ['start_date', 'end_date', 'status', 'remained_request_count', 'auto_renew', 'next_payment_date']:
-            if field in request.data:
-                setattr(instance, field, request.data[field])
-
-        instance.save()
-        serializer = self.get_serializer(instance)
-
-        new_data = {
-            'pricing_package': str(instance.pricing_package_id) if instance.pricing_package else None,
-            'start_date': str(instance.start_date) if instance.start_date else None,
-            'end_date': str(instance.end_date) if instance.end_date else None,
-            'status': instance.status,
-            'remained_request_count': instance.remained_request_count,
-            'auto_renew': instance.auto_renew,
-        }
+        # Every field goes through the serializer: a bad UUID, an unknown
+        # package or a non-numeric counter is a 400, never a stored value.
+        write_serializer = DashboardSubscriptionUpdateSerializer(
+            instance, data=request.data, partial=True,
+        )
+        write_serializer.is_valid(raise_exception=True)
+        instance = write_serializer.save()
 
         AuditLog.log(
             user=request.user, action='update', target_type='subscription',
             target_id=instance.id,
-            target_repr=str(instance),
-            details={'old': old_data, 'new': new_data, 'changes': request.data},
+            target_repr=subscription_repr(instance),
+            details={'old': old_data, 'new': self._audit_snapshot(instance), 'changes': request.data},
             ip_address=get_client_ip(request),
         )
-        return success_response(data=serializer.data, message="Subscription updated successfully", code=200)
+        return success_response(
+            data=self.get_serializer(instance).data,
+            message="Subscription updated successfully",
+            code=200,
+        )
 
     def destroy(self, request, *args, **kwargs):
         instance = self.get_object()
         AuditLog.log(
             user=request.user, action='delete', target_type='subscription',
             target_id=instance.id,
-            target_repr=str(instance),
+            target_repr=subscription_repr(instance),
             ip_address=get_client_ip(request),
         )
         instance.delete()
@@ -795,13 +822,13 @@ class DashboardSubscriptionCancel(APIView):
             return error_response(message="Subscription not found", code=404)
 
         reason = request.data.get('reason', '')
-        subscription.status = 'cancelled'
+        subscription.status = SubscriptionStatuses.CANCELLED.value
         subscription.cancellation_reason = reason
         subscription.save(update_fields=['status', 'cancellation_reason'])
 
         AuditLog.log(
             user=request.user, action='cancel', target_type='subscription',
-            target_id=pk, target_repr=str(subscription),
+            target_id=pk, target_repr=subscription_repr(subscription),
             details={'reason': reason},
             ip_address=get_client_ip(request),
         )
@@ -817,17 +844,18 @@ class DashboardSubscriptionExtend(APIView):
         except Subscription.DoesNotExist:
             return error_response(message="Subscription not found", code=404)
 
-        days = request.data.get('days', 30)
-        if subscription.end_date:
-            subscription.end_date = subscription.end_date + timezone.timedelta(days=int(days))
-        else:
-            subscription.end_date = timezone.now().date() + timezone.timedelta(days=int(days))
-        subscription.status = 'active'
+        serializer = SubscriptionExtendSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        days = serializer.validated_data['days']
+
+        base_date = subscription.end_date or timezone.now().date()
+        subscription.end_date = base_date + timedelta(days=days)
+        subscription.status = SubscriptionStatuses.ACTIVE.value
         subscription.save(update_fields=['end_date', 'status'])
 
         AuditLog.log(
             user=request.user, action='extend', target_type='subscription',
-            target_id=pk, target_repr=str(subscription),
+            target_id=pk, target_repr=subscription_repr(subscription),
             details={'days': days, 'new_end_date': str(subscription.end_date)},
             ip_address=get_client_ip(request),
         )
@@ -1132,7 +1160,10 @@ class DashboardAssistantFileUploadList(generics.ListCreateAPIView):
         queryset = super().get_queryset()
         assistant_id = self.request.query_params.get('assistant')
         if assistant_id:
-            queryset = queryset.filter(assistant_id=assistant_id)
+            # A raw, unvalidated UUID reaching the ORM is a 500, not a 400.
+            filter_serializer = AssistantFileFilterSerializer(data={'assistant': assistant_id})
+            filter_serializer.is_valid(raise_exception=True)
+            queryset = queryset.filter(assistant_id=filter_serializer.validated_data['assistant'])
         return queryset
 
     def list(self, request, *args, **kwargs):
@@ -1328,11 +1359,10 @@ class DashboardUserBulkAction(APIView):
     permission_classes = [CanManageUsers]
 
     def post(self, request):
-        action = request.data.get('action')
-        ids = request.data.get('ids', [])
-
-        if not ids or not action:
-            return error_response(message='action and ids are required', code=400)
+        serializer = UserBulkActionSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        action = serializer.validated_data['action']
+        ids = serializer.validated_data['ids']
 
         users = User.objects.filter(id__in=ids)
         count = users.count()
@@ -1344,12 +1374,7 @@ class DashboardUserBulkAction(APIView):
         elif action == 'delete':
             users.delete()
         elif action == 'change_role':
-            new_role = request.data.get('role')
-            if not new_role:
-                return error_response(message='role is required for change_role action', code=400)
-            users.update(user_role=new_role)
-        else:
-            return error_response(message=f'Unknown action: {action}', code=400)
+            users.update(user_role=serializer.validated_data['role'])
 
         AuditLog.log(
             user=request.user, action=f'bulk_{action}', target_type='user',
@@ -1367,23 +1392,16 @@ class DashboardTransactionBulkAction(APIView):
     permission_classes = [CanManageFinance]
 
     def post(self, request):
-        action = request.data.get('action')
-        ids = request.data.get('ids', [])
-
-        if not ids or not action:
-            return error_response(message='action and ids are required', code=400)
+        serializer = TransactionBulkActionSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        action = serializer.validated_data['action']
+        ids = serializer.validated_data['ids']
 
         transactions = Transaction.objects.filter(id__in=ids)
-        count = transactions.count()
-
-        if action == 'refund':
-            updated = transactions.filter(status=PaymentStatuses.SUCCESS.value).update(
-                status=PaymentStatuses.REFUNDED.value,
-                refund_date=timezone.now(),
-            )
-            count = updated
-        else:
-            return error_response(message=f'Unknown action: {action}', code=400)
+        count = transactions.filter(status=PaymentStatuses.SUCCESS.value).update(
+            status=PaymentStatuses.REFUNDED.value,
+            refund_date=timezone.now(),
+        )
 
         AuditLog.log(
             user=request.user, action=f'bulk_{action}', target_type='transaction',
@@ -1405,30 +1423,26 @@ class DashboardNotificationSend(APIView):
     permission_classes = [IsAdmin]
 
     def post(self, request):
-        user_id = request.data.get('user_id')
-        title = request.data.get('title')
-        content = request.data.get('content')
-        notif_type = request.data.get('type', 'news')
-
-        if not user_id or not title or not content:
-            return error_response(message='user_id, title, and content are required', code=400)
+        serializer = NotificationSendSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        data = serializer.validated_data
 
         try:
-            target_user = User.objects.get(id=user_id)
+            target_user = User.objects.get(id=data['user_id'])
         except User.DoesNotExist:
             return error_response(message='User not found', code=404)
 
         notification = Notification.objects.create(
             user=target_user,
-            title=title,
-            content=content,
-            type=notif_type,
+            title=data['title'],
+            content=data['content'],
+            type=data['type'],
         )
 
         AuditLog.log(
             user=request.user, action='send_notification', target_type='notification',
-            target_id=notification.id, target_repr=title,
-            details={'user_id': str(user_id)},
+            target_id=notification.id, target_repr=data['title'],
+            details={'user_id': str(data['user_id'])},
             ip_address=get_client_ip(request),
         )
         return success_response(message='Notification sent', code=201)
@@ -1527,7 +1541,7 @@ class DashboardCardList(generics.ListAPIView):
 
 class DashboardFeatureList(generics.ListCreateAPIView):
     queryset = Feature.objects.all()
-    serializer_class = FeatureSerializer
+    serializer_class = DashboardFeatureSerializer
     permission_classes = [IsDashboardUser]
     pagination_class = StandardResultsSetPagination
 
@@ -1549,7 +1563,7 @@ class DashboardFeatureList(generics.ListCreateAPIView):
 
 class DashboardFeatureDetail(generics.RetrieveUpdateDestroyAPIView):
     queryset = Feature.objects.all()
-    serializer_class = FeatureSerializer
+    serializer_class = DashboardFeatureSerializer
     permission_classes = [IsDashboardUser]
 
     def retrieve(self, request, *args, **kwargs):

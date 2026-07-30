@@ -6,8 +6,8 @@ from django.utils import timezone
 
 from apps.assistant.models import FollowUpConfig, FollowUpLog, FollowUpStage, Message
 from apps.integration.models import Integration, TelegramGroupIntegration
-from shared.addons.enums import ConversationStatuses, IntegrationTypes, SenderTypes
-from shared.ai_service import tools
+from apps.shared.addons.enums import ConversationStatuses, IntegrationTypes, SenderTypes
+from apps.shared.ai_service import tools
 
 from .factories import make_assistant, make_conversation
 
@@ -73,7 +73,7 @@ class CreateLeadTests(TestCase):
             integration=integration, group_id="-200", is_approved=False
         )
 
-        with mock.patch("apps.shared.addons.telegram.send_telegram_message") as send:
+        with mock.patch("apps.integration.gateways.telegram.send_telegram_message") as send:
             tools.execute("create_lead", self.assistant, self.conversation, self.args)
 
         self.assertEqual(send.call_count, 1)
@@ -97,7 +97,7 @@ class CreateLeadTests(TestCase):
         )
 
         with mock.patch(
-            "apps.shared.addons.telegram.send_telegram_message",
+            "apps.integration.gateways.telegram.send_telegram_message",
             side_effect=RuntimeError("telegram down"),
         ):
             result = tools.execute("create_lead", self.assistant, self.conversation, self.args)
@@ -246,9 +246,14 @@ class ExecuteTests(TestCase):
         self.assertIn("Unknown tool", result["error"])
 
     def test_handler_exceptions_are_converted_to_errors(self):
+        from apps.assistant import ai_tools
+
         boom = mock.Mock(side_effect=RuntimeError("db is on fire"))
-        with mock.patch.dict(tools.TOOL_HANDLERS, {"create_lead": boom}):
-            result = tools.execute("create_lead", self.assistant, self.conversation, {})
+        tools.register("create_lead", ai_tools.CREATE_LEAD_SCHEMA, boom)
+        # Put the real handler back however this test ends.
+        self.addCleanup(ai_tools.register_tools)
+
+        result = tools.execute("create_lead", self.assistant, self.conversation, {})
 
         self.assertIn("db is on fire", result["error"])
 

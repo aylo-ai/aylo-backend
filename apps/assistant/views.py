@@ -11,9 +11,9 @@ from apps.assistant.models import (
     Assistant, AssistantFileUpload, Conversation, Message, Lead, PromptTemplate,
     FollowUpConfig, FollowUpStage, FollowUpLog,
 )
-from shared.addons.validations import success_response, error_response
-from shared.ai_service import knowledge_base
-from shared.addons.redis import publish_new_message_to_ws
+from apps.shared.addons.validations import success_response, error_response
+from apps.shared.ai_service import knowledge_base
+from apps.shared.addons.redis import publish_new_message_to_ws
 from apps.assistant.filters import LeadFilter
 from apps.assistant.serializers import (AssistantSerializer,
     ConversationSerializer,
@@ -30,6 +30,18 @@ from apps.assistant.serializers import (AssistantSerializer,
     FollowUpStageSerializer,
     FollowUpLogSerializer)
 
+
+def owned_assistants(user):
+    """Assistants the requesting user may access: their own and, for staff
+    accounts, those of the customer who created them. `Assistant.user` is
+    nullable, so the created_by leg is only added when it is set — otherwise
+    `Q(user=None)` would match ownerless assistants for every customer."""
+    q = Q(user=user)
+    if user.created_by_id:
+        q |= Q(user=user.created_by)
+    return Assistant.objects.filter(q).distinct()
+
+
 class AssistantListCreateView(generics.ListCreateAPIView):
     queryset = Assistant.objects.all()
     serializer_class = AssistantSerializer
@@ -40,11 +52,7 @@ class AssistantListCreateView(generics.ListCreateAPIView):
     permission_classes = [permissions.IsAuthenticated]
 
     def get_queryset(self):
-        user = self.request.user
-        return Assistant.objects.filter(
-                Q(user=user.created_by) |
-                Q(user=user)
-            ).distinct()
+        return owned_assistants(self.request.user)
 
     def create(self, request, *args, **kwargs):
         serializer = self.get_serializer(data=request.data, context={'request': request})
@@ -62,11 +70,7 @@ class AssistantRetrieveView(generics.RetrieveUpdateDestroyAPIView):
     permission_classes = [permissions.IsAuthenticated]
 
     def get_queryset(self):
-        user = self.request.user
-        return Assistant.objects.filter(
-                Q(user=user.created_by) |
-                Q(user=user)
-            ).distinct()
+        return owned_assistants(self.request.user)
 
     def retrieve(self, request, *args, **kwargs):
         instance = self.get_object()
@@ -75,7 +79,9 @@ class AssistantRetrieveView(generics.RetrieveUpdateDestroyAPIView):
 
     def update(self, request, *args, **kwargs):
         instance = self.get_object()
-        serializer = self.get_serializer(instance, data=request.data, partial=True, context={'request': request})
+        serializer = self.get_serializer(instance, data=request.data,
+                                         partial=kwargs.pop('partial', False),
+                                         context={'request': request})
         serializer.is_valid(raise_exception=True)
         self.perform_update(serializer)
         # Nothing to sync remotely: the agent reads the assistant's prompt and
@@ -104,22 +110,22 @@ class ConversationListCreateView(generics.ListCreateAPIView):
     queryset = Conversation.objects.all()
     serializer_class = ConversationSerializer
     filter_backends = [filters.SearchFilter, filters.OrderingFilter]
-    search_fields = ['assistant__name', 'session_id']
-    ordering_fields = ['assistant__name', 'session_id', "start_time", "end_time"]
+    search_fields = ['assistant__name', 'username']
+    ordering_fields = ['assistant__name', "start_time", "end_time"]
     ordering = ["-updated_time"]
     permission_classes = [permissions.IsAuthenticated]
 
-    def get_permissions(self):
-        if self.request.method == 'POST':
-            return [permissions.AllowAny()]
-        return super().get_permissions()
-
     def get_queryset(self):
         assistant_id = self.kwargs.get("pk")
-        return super().get_queryset().filter(assistant_id=assistant_id)
+        return Conversation.objects.filter(
+            assistant_id=assistant_id,
+            assistant__in=owned_assistants(self.request.user),
+        )
 
     def create(self, request, *args, **kwargs):
         assistant_id = self.kwargs.get("pk")
+        if not owned_assistants(request.user).filter(id=assistant_id).exists():
+            raise NotFound(_("Assistant topilmadi"))
         serializer = self.get_serializer(data=request.data, context={'assistant_id': assistant_id, 'request': request})
         serializer.is_valid(raise_exception=True)
         conversation = serializer.save(assistant_id=assistant_id)
@@ -138,7 +144,13 @@ class ConversationRetrieveView(generics.RetrieveUpdateDestroyAPIView):
 
     def get_object(self):
         conversation_id = self.kwargs.get('pk')
-        return self.queryset.get(pk=conversation_id)
+        try:
+            return Conversation.objects.get(
+                pk=conversation_id,
+                assistant__in=owned_assistants(self.request.user),
+            )
+        except Conversation.DoesNotExist:
+            raise NotFound(_("Conversation topilmadi"))
 
     def retrieve(self, request, *args, **kwargs):
         instance = self.get_object()
@@ -147,7 +159,7 @@ class ConversationRetrieveView(generics.RetrieveUpdateDestroyAPIView):
 
     def update(self, request, *args, **kwargs):
         instance = self.get_object()
-        serializer = self.get_serializer(instance, data=request.data, partial=True)
+        serializer = self.get_serializer(instance, data=request.data, partial=kwargs.pop('partial', False))
         serializer.is_valid(raise_exception=True)
         self.perform_update(serializer)
         return success_response(message=_("Conversation muvaffaqiyatli o'zgartirildi"), data=serializer.data, code=200)
@@ -162,17 +174,25 @@ class MessageListCreateView(generics.ListCreateAPIView):
     queryset = Message.objects.all()
     serializer_class = MessageSerializer
     filter_backends = [filters.SearchFilter, filters.OrderingFilter]
-    search_fields = ['conversation__assistant__name', 'message']
+    search_fields = ['conversation__assistant__name', 'message_content']
     ordering_fields = ['conversation__assistant__name', 'created_time']
     ordering = ['conversation', 'created_time']
-    permission_classes = [permissions.AllowAny]
+    permission_classes = [permissions.IsAuthenticated]
 
     def get_queryset(self):
         conversation_id = self.kwargs.get('pk')
-        return super().get_queryset().filter(conversation_id=conversation_id)
+        return Message.objects.filter(
+            conversation_id=conversation_id,
+            conversation__assistant__in=owned_assistants(self.request.user),
+        )
 
     def create(self, request, *args, **kwargs):
         conversation_id = self.kwargs.get('pk')
+        if not Conversation.objects.filter(
+            id=conversation_id,
+            assistant__in=owned_assistants(request.user),
+        ).exists():
+            raise NotFound(_("Conversation topilmadi"))
         serializer = self.get_serializer(data=request.data, context={'conversation_id': conversation_id, 'request': request})
         serializer.is_valid(raise_exception=True)
         serializer.save()
@@ -180,12 +200,14 @@ class MessageListCreateView(generics.ListCreateAPIView):
 
 
 class MessageRetrieveView(generics.RetrieveUpdateDestroyAPIView):
-    queryset = Assistant.objects.all()
+    queryset = Message.objects.all()
     serializer_class = MessageSerializer
     permission_classes = [permissions.IsAuthenticated]
 
     def get_queryset(self):
-        return super().get_queryset()
+        return Message.objects.filter(
+            conversation__assistant__in=owned_assistants(self.request.user),
+        )
 
     def retrieve(self, request, *args, **kwargs):
         instance = self.get_object()
@@ -194,7 +216,7 @@ class MessageRetrieveView(generics.RetrieveUpdateDestroyAPIView):
 
     def update(self, request, *args, **kwargs):
         instance = self.get_object()
-        serializer = self.get_serializer(instance, data=request.data, partial=True)
+        serializer = self.get_serializer(instance, data=request.data, partial=kwargs.pop('partial', False))
         serializer.is_valid(raise_exception=True)
         self.perform_update(serializer)
         return success_response(message=_("Message muvaffaqiyatli o'zgartirildi"), data=serializer.data, code=200)
@@ -209,15 +231,17 @@ class ConversationMessagesListView(generics.ListAPIView):
     queryset = Message.objects.all()
     serializer_class = MessageSerializer
     filter_backends = [filters.SearchFilter, filters.OrderingFilter]
-    search_fields = ['conversation__assistant__name', 'message']
+    search_fields = ['conversation__assistant__name', 'message_content']
     ordering_fields = ['conversation__assistant__name', 'created_time']
     ordering = ['conversation', 'created_time']
     permission_classes = [permissions.IsAuthenticated]
 
     def get_queryset(self):
         conversation_id = self.kwargs.get('pk')
-        print(f"Conversation ID: {conversation_id}")
-        return self.queryset.filter(conversation_id=conversation_id)
+        return Message.objects.filter(
+            conversation_id=conversation_id,
+            conversation__assistant__in=owned_assistants(self.request.user),
+        )
 
 
 class SettingsListCreateView(generics.ListCreateAPIView):
@@ -230,7 +254,7 @@ class SettingsListCreateView(generics.ListCreateAPIView):
     permission_classes = [permissions.IsAuthenticated]
 
     def get_queryset(self):
-        return super().get_queryset()
+        return owned_assistants(self.request.user)
 
     def create(self, request, *args, **kwargs):
         serializer = self.get_serializer(data=request.data)
@@ -245,7 +269,7 @@ class SettingsRetrieveView(generics.RetrieveUpdateDestroyAPIView):
     permission_classes = [permissions.IsAuthenticated]
 
     def get_queryset(self):
-        return super().get_queryset()
+        return owned_assistants(self.request.user)
 
     def retrieve(self, request, *args, **kwargs):
         instance = self.get_object()
@@ -254,7 +278,7 @@ class SettingsRetrieveView(generics.RetrieveUpdateDestroyAPIView):
 
     def update(self, request, *args, **kwargs):
         instance = self.get_object()
-        serializer = self.get_serializer(instance, data=request.data, partial=True)
+        serializer = self.get_serializer(instance, data=request.data, partial=kwargs.pop('partial', False))
         serializer.is_valid(raise_exception=True)
         self.perform_update(serializer)
         return success_response(message=_("Settings muvaffaqiyatli o'zgartirildi"), data=serializer.data, code=200)
@@ -276,12 +300,15 @@ class AssistantFileUploadListCreateView(generics.ListCreateAPIView):
 
     def get_queryset(self):
         assistant_id = self.kwargs.get('pk')
-        return self.queryset.filter(assistant_id=assistant_id)
+        return AssistantFileUpload.objects.filter(
+            assistant_id=assistant_id,
+            assistant__in=owned_assistants(self.request.user),
+        )
 
     def create(self, request, *args, **kwargs):
         assistant_id = self.kwargs.get('pk')
         try:
-            assistant = Assistant.objects.get(id=assistant_id)
+            assistant = owned_assistants(request.user).get(id=assistant_id)
         except Assistant.DoesNotExist:
             return error_response(message=_("Assistant topilmadi"), code=404)
         files = request.FILES.getlist('file')  # Handle multiple files
@@ -292,12 +319,15 @@ class AssistantFileUploadListCreateView(generics.ListCreateAPIView):
         serializer.is_valid(raise_exception=True)
 
         serializer.save()
-        # if assistant and not assistant.vector_id:
-        #     the assistant's knowledge base is created lazily on first file upload
-        #     if not success:
-            #     return error_response(message=message, code=400)
-            # print("saved assistant data")
-        return success_response(message=_("File muvaffaqiyatli yaratildi"), code=201)
+        # The assistant's knowledge base (vector store) is created lazily on the
+        # first upload, inside the serializer.
+        return success_response(
+            message=_("File muvaffaqiyatli yaratildi"),
+            # Every other create in this app returns its payload; without it the
+            # client never learns the new file's id.
+            data=serializer.data,
+            code=201,
+        )
     
 
 class AssistantFileUploadUpdateView(generics.CreateAPIView):
@@ -308,17 +338,26 @@ class AssistantFileUploadUpdateView(generics.CreateAPIView):
     def create(self, request, *args, **kwargs):
         assistant_id = self.kwargs.get('pk')
         try:
-            assistant = Assistant.objects.get(id=assistant_id)
+            assistant = owned_assistants(request.user).get(id=assistant_id)
         except Assistant.DoesNotExist:
             return error_response(message=_("Assistant topilmadi"), code=404)
 
         files = request.FILES.getlist('file')
         context = {'assistant': assistant, 'files': files, 'request': request}
 
-        serializer = self.get_serializer(data=request.data, context=context, many=True)
+        # NOT `many=True`: the serializer takes one payload and reads the file
+        # list off the context itself. With `many=True` DRF parsed the multipart
+        # QueryDict as an empty list, so `save()` wrote nothing and the endpoint
+        # answered 200 while silently discarding the upload.
+        serializer = self.get_serializer(data=request.data, context=context)
         serializer.is_valid(raise_exception=True)
         serializer.save()
-        return success_response(message=_("File muvaffaqiyatli o'zgartirildi"), data=serializer.data, code=200)
+        uploads = getattr(serializer, "uploaded_files", [serializer.instance])
+        return success_response(
+            message=_("File muvaffaqiyatli o'zgartirildi"),
+            data=AssistantFileUploadSerializer(uploads, many=True).data,
+            code=200,
+        )
 
 
 class AssistantFileUploadRetrieveView(generics.RetrieveUpdateDestroyAPIView):
@@ -362,10 +401,15 @@ class MessageBulkReadView(generics.UpdateAPIView):
 
     def update(self, request, *args, **kwargs):
         conversation_id = kwargs.get('pk')
+        if not Conversation.objects.filter(
+            id=conversation_id,
+            assistant__in=owned_assistants(request.user),
+        ).exists():
+            raise NotFound(_("Conversation topilmadi"))
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         message_ids = serializer.validated_data['message_ids']
-        
+
         updated_count = Message.objects.filter(
             id__in=message_ids,
             conversation__id=conversation_id,
@@ -376,9 +420,9 @@ class MessageBulkReadView(generics.UpdateAPIView):
             is_read=False
         ).count()
         last_message = Message.objects.filter(conversation__id=conversation_id).order_by('-created_time').first()
-        publish_new_message_to_ws(conversation_id=conversation_id, unread_message_count=unread_message_count, 
-                                  assistant_id=last_message.conversation.assistant.id, last_message=last_message.message_content)
-        print(f"Published new message to WS for conversation {conversation_id}")
+        if last_message:
+            publish_new_message_to_ws(conversation_id=conversation_id, unread_message_count=unread_message_count,
+                                      assistant_id=last_message.conversation.assistant.id, last_message=last_message.message_content)
         return success_response(
             message=_("Xabarlar muvaffaqiyatli o'qildi"),
             data={"updated_count": updated_count},
@@ -405,13 +449,22 @@ class LeadListCreateView(generics.ListCreateAPIView):
 
     def get_queryset(self):
         assistant_id = self.kwargs.get('pk')
-        return super().get_queryset().filter(assistant_id=assistant_id)
-    
+        return Lead.objects.filter(
+            assistant_id=assistant_id,
+            assistant__in=owned_assistants(self.request.user),
+        )
+
     def create(self, request, *args, **kwargs):
         assistant_id = self.kwargs.get('pk')
+        if not owned_assistants(request.user).filter(id=assistant_id).exists():
+            raise NotFound(_("Assistant topilmadi"))
         serializer = self.get_serializer(data=request.data, context={'assistant_id': assistant_id, 'request': request})
         serializer.is_valid(raise_exception=True)
-        serializer.save()
+        # The assistant comes from the URL (already ownership-checked above).
+        # Without this the lead was saved with `assistant=NULL` — invisible to
+        # the list endpoint and unreachable by id, so it could never be
+        # retrieved or deleted again.
+        serializer.save(assistant_id=assistant_id)
         return success_response(message=_("Lead muvaffaqiyatli yaratildi"), data=serializer.data, code=201)
     
 
@@ -421,8 +474,9 @@ class LeadRetrieveView(generics.RetrieveUpdateDestroyAPIView):
     permission_classes = [permissions.IsAuthenticated]
 
     def get_queryset(self):
-        lead_id = self.kwargs.get('pk')
-        return super().get_queryset().filter(id=lead_id)
+        return Lead.objects.filter(
+            assistant__in=owned_assistants(self.request.user),
+        )
     
     def retrieve(self, request, *args, **kwargs):
         instance = self.get_object()
@@ -431,7 +485,7 @@ class LeadRetrieveView(generics.RetrieveUpdateDestroyAPIView):
     
     def update(self, request, *args, **kwargs):
         instance = self.get_object()
-        serializer = self.get_serializer(instance, data=request.data, partial=True)
+        serializer = self.get_serializer(instance, data=request.data, partial=kwargs.pop('partial', False))
         serializer.is_valid(raise_exception=True)
         serializer.save()
         return success_response(message=_("Lead muvaffaqiyatli o'zgartirildi"), data=serializer.data, code=200)
@@ -448,11 +502,15 @@ class ExportLeadsView(views.APIView):
 
     def get(self, request, *args, **kwargs):
         assistant_id = self.kwargs.get('pk')
+        if not owned_assistants(request.user).filter(id=assistant_id).exists():
+            raise NotFound(_("Assistant topilmadi"))
         serializer = self.serializer_class(data=request.data)
         serializer.is_valid(raise_exception=True)
-        file_path = serializer.export_leads(assistant_id)
-        response = FileResponse(open(file_path, 'rb'), as_attachment=True, filename=os.path.basename(file_path))
-        return response
+        # Streamed straight from memory — nothing is written to the server's
+        # working directory, so concurrent exports can't hand one tenant the
+        # other's workbook and no files are left behind.
+        filename, buffer = serializer.export_leads(assistant_id)
+        return FileResponse(buffer, as_attachment=True, filename=filename)
 
 
 class PromptTemplateListView(generics.ListAPIView):
@@ -465,10 +523,7 @@ class AssistantTokenStatsView(views.APIView):
     permission_classes = [permissions.IsAuthenticated]
 
     def get(self, request, *args, **kwargs):
-        user = request.user
-        assistants = Assistant.objects.filter(
-            Q(user=user.created_by) | Q(user=user)
-        ).distinct()
+        assistants = owned_assistants(request.user)
 
         stats = []
         for assistant in assistants:
@@ -502,10 +557,9 @@ class FollowUpConfigView(generics.RetrieveUpdateAPIView):
 
     def get_object(self):
         assistant_id = self.kwargs.get('pk')
-        assistant = Assistant.objects.filter(
-            Q(user=self.request.user) | Q(user=self.request.user.created_by),
-            id=assistant_id,
-        ).first()
+        # `owned_assistants()` exists to avoid exactly this: when `created_by`
+        # is None the `Q(user=None)` leg matches every *ownerless* assistant.
+        assistant = owned_assistants(self.request.user).filter(id=assistant_id).first()
         if not assistant:
             raise NotFound(_("Assistant topilmadi"))
         config, _created = FollowUpConfig.objects.get_or_create(
@@ -521,7 +575,7 @@ class FollowUpConfigView(generics.RetrieveUpdateAPIView):
 
     def update(self, request, *args, **kwargs):
         instance = self.get_object()
-        serializer = self.get_serializer(instance, data=request.data, partial=True)
+        serializer = self.get_serializer(instance, data=request.data, partial=kwargs.pop('partial', False))
         serializer.is_valid(raise_exception=True)
         serializer.save()
         return success_response(
@@ -540,7 +594,7 @@ class FollowUpStageListCreateView(generics.ListCreateAPIView):
         assistant_id = self.kwargs.get('pk')
         return FollowUpStage.objects.filter(
             config__assistant_id=assistant_id,
-            config__assistant__user__in=[self.request.user, self.request.user.created_by],
+            config__assistant__in=owned_assistants(self.request.user),
         ).order_by('stage_number')
 
     def list(self, request, *args, **kwargs):
@@ -575,7 +629,7 @@ class FollowUpStageDetailView(generics.RetrieveUpdateDestroyAPIView):
 
     def get_queryset(self):
         return FollowUpStage.objects.filter(
-            config__assistant__user__in=[self.request.user, self.request.user.created_by],
+            config__assistant__in=owned_assistants(self.request.user),
         )
 
     def retrieve(self, request, *args, **kwargs):
@@ -585,7 +639,7 @@ class FollowUpStageDetailView(generics.RetrieveUpdateDestroyAPIView):
 
     def update(self, request, *args, **kwargs):
         instance = self.get_object()
-        serializer = self.get_serializer(instance, data=request.data, partial=True)
+        serializer = self.get_serializer(instance, data=request.data, partial=kwargs.pop('partial', False))
         serializer.is_valid(raise_exception=True)
         serializer.save()
         return success_response(
@@ -612,7 +666,7 @@ class FollowUpLogListView(generics.ListAPIView):
         assistant_id = self.kwargs.get('pk')
         queryset = FollowUpLog.objects.filter(
             conversation__assistant_id=assistant_id,
-            conversation__assistant__user__in=[self.request.user, self.request.user.created_by],
+            conversation__assistant__in=owned_assistants(self.request.user),
         ).select_related('stage', 'conversation')
 
         status = self.request.query_params.get('status')

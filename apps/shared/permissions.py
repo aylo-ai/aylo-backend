@@ -3,7 +3,7 @@ from django.contrib.auth import get_user_model
 from rest_framework.request import Request
 from rest_framework.permissions import IsAuthenticated
 
-from shared.addons.enums import UserRoles
+from apps.shared.addons.enums import UserRoles
 
 User = get_user_model()
 

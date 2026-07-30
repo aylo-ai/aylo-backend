@@ -9,8 +9,11 @@ services:
     volumes:
       - /var/www/static:/app/staticfiles
       - /var/www/media:/app/media
+    # Loopback-only: nginx is the sole public listener and proxies to this
+    # port. Publishing on 0.0.0.0 would expose gunicorn directly, bypassing
+    # TLS, client_max_body_size and the host access log.
     ports:
-      - 8001:8000
+      - 127.0.0.1:8001:8000
     depends_on:
       - redis
       - postgres
@@ -34,8 +37,9 @@ services:
     volumes:
       - /var/www/static:/app/staticfiles
       - /var/www/media:/app/media
+    # Loopback-only — see the note on web-blue.
     ports:
-      - 8002:8000
+      - 127.0.0.1:8002:8000
     depends_on:
       - redis
       - postgres
@@ -109,6 +113,85 @@ services:
     networks:
       - backend-net
 
+  # --- Log viewer (profile: logs) -------------------------------------------
+  #
+  # Start with:  docker compose --profile logs up -d
+  # Setup:       deployment/dozzle/setup.sh  (creates the login before first run)
+  #
+  # Two containers, ~40 MB total. Dozzle never touches the Docker socket: it
+  # talks to a read-only HAProxy in front of it, so a compromised viewer cannot
+  # create, exec into, or delete containers even if it wanted to.
+
+  # Read-only Docker API gateway. CONTAINERS+INFO is the whole allowlist Dozzle
+  # needs; every other API section (IMAGES, EXEC, VOLUMES, SECRETS, SWARM, …)
+  # defaults to 0 and returns 403. POST=0 makes the entire API read-only, so
+  # container actions are blocked here as well as in Dozzle.
+  docker-socket-proxy:
+    image: tecnativa/docker-socket-proxy:v0.5.0
+    restart: unless-stopped
+    environment:
+      CONTAINERS: 1
+      INFO: 1
+      POST: 0
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    # No `ports`: reachable only from logs-net, never from the host or LAN.
+    networks:
+      - logs-net
+    read_only: true
+    # The entrypoint renders haproxy.cfg into /tmp at boot; /run holds the pid.
+    tmpfs:
+      - /run
+      - /tmp
+    cap_drop:
+      - ALL
+    profiles:
+      - logs
+
+  dozzle:
+    image: amir20/dozzle:v10.6.13
+    restart: unless-stopped
+    environment:
+      # Talk to the proxy, not to a mounted socket.
+      DOZZLE_REMOTE_HOST: tcp://docker-socket-proxy:2375
+      # Served under a path prefix by nginx — must match the location block in
+      # deployment/nginx/api.aylo.uz.conf.
+      DOZZLE_BASE: /_logs
+      DOZZLE_HOSTNAME: repliuz
+      # Only this project's containers; anything else on the host stays hidden.
+      DOZZLE_FILTER: label=com.docker.compose.project=repliuz
+      # Login required. Users live in deployment/dozzle/users.yml.
+      DOZZLE_AUTH_PROVIDER: simple
+      DOZZLE_AUTH_TTL: 8h
+      # Read-only viewer: no start/stop/restart, no container shells.
+      DOZZLE_ENABLE_ACTIONS: "false"
+      DOZZLE_ENABLE_SHELL: "false"
+      DOZZLE_NO_ANALYTICS: "true"
+      DOZZLE_LEVEL: warn
+    volumes:
+      - ./deployment/dozzle/users.yml:/data/users.yml:ro
+    # Loopback-only — nginx terminates TLS and is the sole public listener,
+    # same rule as web-blue/web-green above.
+    ports:
+      - 127.0.0.1:8080:8080
+    depends_on:
+      - docker-socket-proxy
+    networks:
+      - logs-net
+    read_only: true
+    tmpfs:
+      - /tmp
+    cap_drop:
+      - ALL
+    # `security_opt: [no-new-privileges:true]` belongs here too, but it makes
+    # execve fail with EPERM on some kernels (reproduced on 7.0.0-28-generic,
+    # where it breaks every image including alpine). Check the host first:
+    #   docker run --rm --security-opt no-new-privileges:true alpine:3 echo ok
+    # If that prints ok, add the option to both services above. With cap_drop
+    # ALL the bounding set is already empty, so it adds little on top.
+    profiles:
+      - logs
+
 
 volumes:
   postgres_data:
@@ -116,4 +199,8 @@ volumes:
 
 networks:
   backend-net:
+    driver: bridge
+  # Isolated from backend-net: the log viewer has no route to postgres, redis
+  # or the app containers, only to the socket proxy.
+  logs-net:
     driver: bridge

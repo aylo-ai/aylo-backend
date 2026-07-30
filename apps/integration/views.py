@@ -1,6 +1,7 @@
 import logging
-import requests
+from apps.shared import http
 import base64
+import functools
 import hashlib
 import hmac
 import time
@@ -9,6 +10,7 @@ import secrets
 
 logger = logging.getLogger(__name__)
 
+from django.db import transaction
 from django.db.models import Q
 from django.conf import settings
 from urllib.parse import urlencode
@@ -18,14 +20,13 @@ from rest_framework import generics, permissions
 from django.utils.translation import gettext_lazy as _
 
 from config.settings import INSTAGRAM_CLIENT_ID, INSTAGRAM_CLIENT_SECRET, INSTAGRAM_REDIRECT_URI
-from shared.addons.enums import IntegrationTypes
-from shared.addons.telegram import handle_bot_added_to_group, handle_bot_removed_from_group
-from shared.addons.validations import success_response, error_response
-from shared.permissions import IsCustomer
-from apps.shared.addons.instagram import instagram_service
+from apps.shared.addons.enums import IntegrationTypes
+from apps.integration.gateways.telegram import handle_bot_added_to_group, handle_bot_removed_from_group
+from apps.shared.addons.validations import success_response, error_response
+from apps.shared.permissions import IsCustomer
+from apps.integration.gateways.instagram import instagram_service
 from apps.assistant.models import Assistant
-from apps.assistant.models import Conversation
-from .models import Integration, TelegramGroupIntegration, InstagramMedia, CommentTriggerWord, InstagramCommentResponse, Flow, Transition, Step, CommentResponseButton, InstagramUserState, Broadcast
+from .models import Integration, TelegramGroupIntegration, InstagramMedia, CommentTriggerWord, InstagramCommentResponse, Flow, Transition, Step, CommentResponseButton, Broadcast
 from .serializers import (IntegrationCreateSerializer,
                         IntegrationSerializer,
                         SendUserMessageSerializer,
@@ -52,7 +53,7 @@ try:
 except ImportError:
     process_shared_post_message = None
 
-from shared.addons.redis import redis_client
+from apps.shared.addons.redis import redis_client
 
 
 
@@ -84,8 +85,14 @@ class IntegrationListCreateView(generics.ListCreateAPIView):
         return IntegrationSerializer
 
     def get_queryset(self):
+        # Filtering by the URL's assistant alone let any authenticated user
+        # list another tenant's integrations — including their Telegram bot
+        # `api_token`, i.e. full takeover of the victim's bot.
         assistant_id = self.kwargs.get('pk')
-        return self.queryset.filter(assistant_id=assistant_id)
+        return self.queryset.filter(
+            Q(assistant__user=self.request.user) | Q(user=self.request.user),
+            assistant_id=assistant_id,
+        ).distinct()
 
     def create(self, request, *args, **kwargs):
         base_url = f"{request.scheme}://{request.get_host()}"
@@ -106,16 +113,16 @@ class IntegrationRetrieveUpdateDestroyView(generics.RetrieveUpdateDestroyAPIView
     serializer_class = IntegrationCreateSerializer
     permission_classes = [permissions.IsAuthenticated]
 
-    def get_object(self):
-        # check if the integration belongs to the assistant
-        obj = super().get_object()
-        if obj.assistant:
-            if obj.assistant.user != self.request.user:
-                return error_response(message=_("Integration topilmadi"))
-        else:
-            if obj.user != self.request.user:
-                return error_response(message=_("Integration topilmadi"))
-        return obj
+    def get_queryset(self):
+        # Scope at the queryset so retrieve/update/destroy all 404 on another
+        # tenant's integration. The previous `get_object` *returned* an
+        # `error_response(...)` — a DRF `Response` — which the handlers then
+        # used as if it were a model instance, so every cross-tenant request
+        # blew up with a 500 (`'Response' object has no attribute 'delete'`)
+        # rather than being refused.
+        return self.queryset.filter(
+            Q(assistant__user=self.request.user) | Q(user=self.request.user),
+        ).distinct()
 
     def retrieve(self, request, *args, **kwargs):
         instance = self.get_object()
@@ -137,6 +144,10 @@ class IntegrationRetrieveUpdateDestroyView(generics.RetrieveUpdateDestroyAPIView
 
     def destroy(self, request, *args, **kwargs):
         instance = self.get_object()
+        # Drop the Meta subscription first, otherwise Instagram keeps delivering
+        # webhooks for an account that no longer resolves to an integration.
+        if instance.integration_type == IntegrationTypes.INSTAGRAM.value:
+            instagram_service.unsubscribe_webhooks(instance.api_token)
         instance.delete()
         return success_response(message=_("Integration muvaffaqiyatli o'chirildi"), code=204)
 
@@ -166,11 +177,11 @@ class SendIntegrationMessageView(generics.CreateAPIView):
         try:
             integration = Integration.objects.get(id=integration_id)
             if integration.assistant.user != request.user:
-                print(f"Integration user: {integration.user}, Request user: {request.user}")
                 return error_response(message=_("Sizda bu integration mavjud emas"), code=400)
         except Integration.DoesNotExist:
             return error_response(message=_("Integration topilmadi"), code=404)
-        send_message_integration_task.delay(integration_id, message)
+        transaction.on_commit(functools.partial(
+            send_message_integration_task.delay, integration_id, message))
         return success_response(message=_("Xabar muvaffaqiyatli yuborildi"), code=200)
 
 
@@ -180,7 +191,10 @@ class InstagramWebhookView(APIView):
         """Verify Instagram X-Hub-Signature-256 header."""
         app_secret = settings.INSTAGRAM_APP_SECRET
         if not app_secret:
-            return True  # Skip verification if secret not configured yet
+            # Fail closed: without a configured secret we cannot authenticate
+            # the sender, so reject rather than accept forged events.
+            logger.error("INSTAGRAM_APP_SECRET is not configured; rejecting webhook")
+            return False
 
         signature_header = request.META.get('HTTP_X_HUB_SIGNATURE_256', '')
         if not signature_header:
@@ -198,7 +212,7 @@ class InstagramWebhookView(APIView):
         token = request.query_params.get("hub.verify_token")
         challenge = request.query_params.get("hub.challenge")
 
-        if mode == "subscribe" and token == settings.INSTAGRAM_VERIFY_TOKEN:
+        if mode == "subscribe" and settings.INSTAGRAM_VERIFY_TOKEN and token == settings.INSTAGRAM_VERIFY_TOKEN:
             return HttpResponse(challenge, content_type="text/plain", status=200)
 
         return error_response(message=_("Token yaroqsiz"), code=403)
@@ -207,38 +221,73 @@ class InstagramWebhookView(APIView):
         if not self._verify_signature(request):
             return error_response(message=_("Invalid signature"), code=403)
 
-        logger.info("Instagram webhook data received")
         data = request.data
-        print(f"Instagram webhook data: {data}")
         if not data:
             return error_response(message=_("Ma'lumot topilmadi"), code=400)
-        
-        entry = data.get("entry")[0]
-        print(f"Entry: {entry}")
+
+        entries = data.get("entry") or []
+        if not entries:
+            logger.warning("Instagram webhook carried no entry")
+            return success_response(message=_("Ma'lumot topilmadi"), code=200)
+        if len(entries) > 1:
+            # Meta batches deliveries; only the first is handled below.
+            logger.warning("Instagram webhook carried %s entries — only the first is processed", len(entries))
+
+        entry = entries[0]
         account_id = entry.get("id") # IG Professional Account ID (instagram_user_id)
-        print(f"Account ID: {account_id}")
+
+        logger.info(f"Instagram webhook received for account: {account_id}, {entry}")
+
+        # Shape only — never the message body, which is customer content.
+        logger.info(
+            "Instagram webhook received for account %s: keys=%s changes=%s",
+            account_id, sorted(entry.keys()),
+            [c.get("field") for c in entry.get("changes", [])],
+        )
 
         # Handle comments
         if "changes" in entry:
             for change in entry["changes"]:
                 if change.get("field") == "comments":
                     comment_data = change.get("value", {})
-                    if comment_data:
-                        print(f"Comment data: {comment_data}, Account ID: {account_id}")
-                        # Get access token from integration
-                        integration = Integration.objects.filter(instagram_account_id=account_id).first()
-                        if integration and integration.api_token:
-                            process_instagram_comment.delay(account_id, comment_data)
-                            return success_response(message=_("Comment webhook ma'lumotlar muvaffaqiyatli olindi"), code=200)
+                    if not comment_data:
+                        logger.warning("Instagram comment change for %s had an empty value", account_id)
+                        continue
+                    # Get access token from integration
+                    integration = Integration.instagram_by_id(account_id).first()
+                    if not integration:
+                        logger.warning("Instagram comment for unknown account %s", account_id)
+                        continue
+                    if not integration.api_token:
+                        logger.warning("Instagram integration %s has no api_token; comment dropped", integration.id)
+                        continue
+                    transaction.on_commit(functools.partial(
+                        process_instagram_comment.delay, account_id, comment_data))
+                    return success_response(message=_("Comment webhook ma'lumotlar muvaffaqiyatli olindi"), code=200)
 
-        # Handle messages
+        # Instagram delivers DMs in one of two shapes. The classic one is
+        # entry[].messaging[]; the Instagram-Login product instead sends a
+        # changes[] entry with field "messages" whose `value` mirrors a
+        # messaging item (sender / recipient / message). In that shape entry.id
+        # is "0", so the account has to be read off the recipient.
         messaging = entry.get("messaging")
+        if not messaging:
+            messaging = [
+                change.get("value")
+                for change in entry.get("changes", [])
+                if change.get("field") == "messages" and change.get("value")
+            ]
+        if messaging and account_id in (None, "", "0", 0):
+            account_id = (messaging[0].get("recipient") or {}).get("id")
+            logger.info("Instagram account resolved from the message recipient: %s", account_id)
+
         if messaging:
             # Handle postback events (button clicks)
             if "postback" in messaging[0]:
-                integration = Integration.objects.filter(instagram_account_id=account_id).first()
+                integration = Integration.instagram_by_id(account_id).first()
                 if integration and integration.api_token:
-                    handle_postback_event_task.delay(messaging[0], integration.api_token)
+                    transaction.on_commit(functools.partial(
+                        handle_postback_event_task.delay, messaging[0], integration.api_token))
                 return success_response(message=_("Postback muvaffaqiyatli olindi"), code=200)
             
             # Deduplicate: check message ID to prevent processing the same webhook twice
@@ -263,26 +312,27 @@ class InstagramWebhookView(APIView):
                 shared_url = messaging[0].get("message", {}).get("attachments", [{}])[0].get("payload", {}).get("url", None)
                 user_text = messaging[0].get("message", {}).get("text", None)
                 sender_id = messaging[0].get("sender", {}).get("id", None)
-                if sender_id and not Integration.objects.filter(instagram_account_id=sender_id).exists():
-                    if Integration.objects.filter(instagram_account_id=account_id).exists() and process_shared_post_message:
-                        process_shared_post_message.delay(account_id, shared_url, user_text, messaging)
+                if sender_id and not Integration.instagram_by_id(sender_id).exists():
+                    if Integration.instagram_by_id(account_id).exists() and process_shared_post_message:
+                        transaction.on_commit(functools.partial(
+                            process_shared_post_message.delay, account_id, shared_url, user_text, messaging))
                 return success_response(message=_("Shared post xabar muvaffaqiyatli olindi"), code=200)
             elif attachment_type in ['ig_reel', 'unsupported_type']:
                 return success_response(message=_("Reel yoki qo'shimcha turdagi xabar muvaffaqiyatli olindi"), code=200)
-            print(f"Is echo: {is_echo}, Audio file: {audio_file}")
             if is_echo:
-                print("Echo message received")
                 return success_response(message=_("Echo xabar muvaffaqiyatli olindi"), code=200)
-            print(f"Messaging: {messaging}")
             sender_id = messaging[0].get("sender", {}).get("id", None)
-            print(f"Sender ID: {sender_id}")
-            if not Integration.objects.filter(instagram_account_id=sender_id).exists():
-                if not Integration.objects.filter(instagram_account_id=account_id).exists():
-                    print(f"Integration not found for account ID: {account_id}")
-                    return error_response(message="Integration not found", code=404)
+            if not Integration.instagram_by_id(sender_id).exists():
+                if not Integration.instagram_by_id(account_id).exists():
+                    # Ack unknown accounts: repeated non-2xx replies make Meta
+                    # throttle and eventually disable the webhook subscription.
+                    logger.warning(f"Instagram webhook received for unknown account:{messaging}")
+                    logger.warning("Integration not found for Instagram account %s", account_id)
+                    return success_response(message=_("Integratsiya topilmadi"), code=200)
                 # Start celery task to process the incoming message
                 if audio_file:
-                    process_instagram_message.delay(account_id, None, messaging,audio_file)
+                    transaction.on_commit(functools.partial(
+                        process_instagram_message.delay, account_id, None, messaging, audio_file))
                 else:
                     message = messaging[0].get("message", {}).get("text",None)
                     if message is not None:  # Only push if message is not None
@@ -293,12 +343,23 @@ class InstagramWebhookView(APIView):
                         # Schedule collector task only if not already scheduled for this sender
                         redis_client.setex(f"collecting:{sender_id}", WAIT_SECONDS + 1, "1")  # Prevent overlap
                         # Pass sender_id as chat_id, and include account_id for routing
-                        process_collected_messages.apply_async((sender_id, None, messaging, None, None, account_id), countdown=WAIT_SECONDS)
+                        transaction.on_commit(functools.partial(
+                            process_collected_messages.apply_async,
+                            (sender_id, None, messaging, None, None, account_id),
+                            countdown=WAIT_SECONDS))
                 return success_response(message=_("Xabar webhook ma'lumotlar muvaffaqiyatli olindi"), code=200)
             else:
-                print("Integration same found with the integration:", account_id)
+                logger.info("Instagram sender %s is itself an integrated account; skipping", account_id)
                 return success_response(message=_("Integratsiya boshqa foydalanuvchida ham topildi"), code=400)
 
+        # Nothing above claimed this delivery. Ack it — Meta disables a
+        # subscription that keeps failing — but say so, because this used to be
+        # indistinguishable from a handled event in the logs.
+        logger.warning(
+            "Instagram webhook for %s was not handled: keys=%s changes=%s",
+            account_id, sorted(entry.keys()),
+            [c.get("field") for c in entry.get("changes", [])],
+        )
         return success_response(message=_("Webhook ma'lumotlar muvaffaqiyatli olindi"), code=200)
 
 
@@ -327,59 +388,85 @@ class InstagramCallbackView(APIView):
             "redirect_uri": self.REDIRECT_URI,
             "code": code,
         }
-        print(f"Data: {data}")
 
-        response = requests.post(token_url, data=data)
+        response = http.post(token_url, data=data)
         if response.status_code == 400:
             return error_response(message=response.json().get("error_message"), code=400)
-        print(f"Response: {response.text}")
         if response.status_code == 200:
             token_data = response.json()
             short_lived_access_token = token_data.get("access_token")
-            user_id = token_data.get("user_id")
-            print(f"Short lived Access Token: {short_lived_access_token}, User ID: {user_id}")
             # Fetch Instagram Business Accounts
             access_token = instagram_service.get_long_lived_access_token(short_lived_access_token)
-            print(f"Long lived Access Token: {access_token}")
         else:
             return error_response(message=("Access token topilmadi"), code=400)
         # get instagram user profile
         user_profile = instagram_service.get_user_profile(access_token)
-        if user_profile:
-            print(f"User Profile: {user_profile}")
-            if Integration.objects.filter(instagram_account_id=user_profile.get("instagram_account_id")).exists():
-                print("Sizda instagram integratsiyasi mavjud")
-                return error_response(message=("Instagram integratsiyasi sizda mavjud"), code=400)
-            integration, created = Integration.objects.get_or_create(
-                instagram_user_id=user_profile.get("instagram_user_id"),
+        if not user_profile:
+            return error_response(message=("Foydalanuvchi profili topilmadi"), code=400)
+
+        instagram_account_id = user_profile.get("instagram_account_id")
+        instagram_user_id = user_profile.get("instagram_user_id")
+        if not instagram_account_id:
+            logger.warning("Instagram profile returned no user_id; refusing to create an unroutable integration")
+            return error_response(message=("Foydalanuvchi profili topilmadi"), code=400)
+
+        # A row for this identity may already exist. Matched explicitly rather
+        # than with update_or_create, which raises MultipleObjectsReturned when
+        # instagram_user_id and user are both NULL on more than one row — the
+        # callback runs unauthenticated, so user is regularly NULL.
+        existing = None
+        if instagram_user_id:
+            existing = Integration.objects.filter(
+                instagram_user_id=instagram_user_id,
                 user=user,
                 integration_type=IntegrationTypes.INSTAGRAM.value,
-                defaults={
-                    "assistant_id": assistant_id,
-                    "name": user_profile.get("instagram_username"),
-                    "api_token": access_token,
-                    "refresh_token": short_lived_access_token,
-                    "instagram_account_id": user_profile.get("instagram_account_id"),
-                    "instagram_username": user_profile.get("instagram_username"),
-                }
-            )
-            if not created:
-                return error_response(message=("Instagram integratsiyasi sizda mavjud"), code=200)
-            print(f"Integration is successfully created: {integration}")
-            # enqueue background build of Instagram knowledge base
-            try:
-                if assistant_id:
-                    # transaction.on_commit(lambda: build_instagram_kb.delay(str(integration.id)))
-                    print(f"Enqueued build_instagram_kb for integration: {integration.id}")
-            except Exception as e:
-                print(f"Failed to enqueue build_instagram_kb: {e}")
+            ).first()
+
+        if existing and existing.instagram_account_id:
+            logger.info("Instagram integration already exists for account %s", instagram_account_id)
+            return error_response(message=("Instagram integratsiyasi sizda mavjud"), code=400)
+
+        # Any *other* row holding either identifier is a genuine duplicate.
+        duplicates = Integration.instagram_by_id(instagram_account_id)
+        if instagram_user_id:
+            duplicates = duplicates | Integration.instagram_by_id(instagram_user_id)
+        if existing:
+            duplicates = duplicates.exclude(pk=existing.pk)
+        if duplicates.exists():
+            logger.info("Instagram integration already exists for account %s", instagram_account_id)
+            return error_response(message=("Instagram integratsiyasi sizda mavjud"), code=400)
+
+        fields = {
+            "assistant_id": assistant_id,
+            "name": user_profile.get("instagram_username"),
+            "api_token": access_token,
+            "refresh_token": short_lived_access_token,
+            "instagram_account_id": instagram_account_id,
+            "instagram_username": user_profile.get("instagram_username"),
+        }
+        # Repair rather than get_or_create: a row left behind by an earlier failed
+        # attempt keeps its blank identity columns (get_or_create skips its defaults
+        # on a match), staying invisible to every webhook lookup.
+        if existing:
+            for field, value in fields.items():
+                setattr(existing, field, value)
+            existing.save()
+            integration = existing
+            logger.info("Instagram integration %s relinked", integration.id)
         else:
-            return error_response(message=("Foydalanuvchi profili topilmadi"), code=400)
-        
+            integration = Integration.objects.create(
+                instagram_user_id=instagram_user_id,
+                user=user,
+                integration_type=IntegrationTypes.INSTAGRAM.value,
+                **fields,
+            )
+            logger.info("Instagram integration %s created", integration.id)
+
         # enable webhook for the integration
         url = f"https://graph.instagram.com/v22.0/me/subscribed_apps?access_token={access_token}&subscribed_fields=messages,comments"
-        response = requests.post(url)
-        print(f"Response: {response.text}")
+        response = http.post(url)
+        if response.status_code != 200:
+            logger.warning("Instagram webhook subscription failed with status %s", response.status_code)
         if response.status_code == 200:
             return success_response(message=("Integration muvaffaqiyatli yaratildi"), code=200)
         else:
@@ -389,7 +476,6 @@ class InstagramDeauthorizeView(APIView):
     def post(self, request, *args, **kwargs): # noqa
         # Facebook sends a signed request
         signed_request = request.data.get("signed_request")
-        print(f"Deauthorize Signed request: {signed_request}")
         if not signed_request:
             return error_response(message="Signed request not found", code=400)
         def parse_signed_request(signed_request: str, app_secret: str):
@@ -414,48 +500,43 @@ class InstagramDeauthorizeView(APIView):
 
                 # Validate signature
                 if not hmac.compare_digest(decoded_sig, expected_sig):
-                    print("Invalid signature!")
+                    logger.warning("Instagram deauthorize: invalid signed request signature")
                     return None
 
                 return data
 
-            except Exception as e:
-                print("Error parsing signed request:", str(e))
+            except Exception:
+                logger.exception("Error parsing Instagram signed request")
                 return None
-                
+
 
         data = parse_signed_request(signed_request, INSTAGRAM_CLIENT_SECRET)
-        print(f"Deauthorize Data: {data}")
         if not data:
             return error_response(message="Invalid signed request", code=400)
 
         user_id = data.get("user_id")
-        print(f"Deauthorize User ID: {user_id}")
         if user_id:
             # Find and remove the user's Instagram integration
             try:
-                integration = Integration.objects.filter(
-                    integration_type=IntegrationTypes.INSTAGRAM.value,
-                    instagram_account_id=user_id
-                ).first()
-                print(f"Deauthorize Integration: {integration}")
+                # The signed request carries the app-scoped ID, which OAuth
+                # stores in instagram_user_id — match either column.
+                integration = Integration.instagram_by_id(user_id).first()
                 if integration:
                     # Delete all related InstagramCommentResponse and their InstagramMedia
                     comment_responses = InstagramCommentResponse.objects.filter(integration=integration)
                     for response in comment_responses:
                         old_media = list(response.instagram_media.all())
-                        print(f"Old media: {old_media}")
                         for media in old_media:
                             media.delete()
                         response.delete()
                     # Delete the integration itself
                     integration.delete()
-                    print(f"User {user_id} deauthorized the app and their integration and related data were removed.")
+                    logger.info("Instagram user %s deauthorized the app; integration removed", user_id)
                 else:
-                    print(f"User {user_id} deauthorized the app but no integration was found.")
+                    logger.info("Instagram user %s deauthorized the app but no integration was found", user_id)
                 return success_response(message=_("Foydalanuvchi appni deauthorized qildi"), code=200)
-            except Exception as e:
-                print(f"Error during deauthorization: {str(e)}")
+            except Exception:
+                logger.exception("Error during Instagram deauthorization")
                 return error_response(message=_("Deauthorization xatolik"), code=500)
         else:
             return error_response(message=_("Foydalanuvchi ID topilmadi"), code=400)
@@ -499,13 +580,13 @@ class InstagramDataDeletionView(APIView):
 
                 # Validate signature
                 if not hmac.compare_digest(decoded_sig, expected_sig):
-                    print("Invalid signature!")
+                    logger.warning("Instagram data deletion: invalid signed request signature")
                     return None
 
                 return data
 
-            except Exception as e:
-                print("Error parsing signed request:", str(e))
+            except Exception:
+                logger.exception("Error parsing Instagram signed request")
                 return None
 
         data = parse_signed_request(signed_request, INSTAGRAM_CLIENT_SECRET)
@@ -515,7 +596,7 @@ class InstagramDataDeletionView(APIView):
         user_id = data.get("user_id")
         if user_id:
             # Process data deletion for the user
-            print(f"Deleting data for user: {user_id}")
+            logger.info("Instagram data deletion requested for user %s", user_id)
             return success_response(data={
                 "url": "https://api.repli.uz/integration/instagram/data-deletion-status/",
                 "confirmation_code": user_id
@@ -560,22 +641,16 @@ class TelegramWebhookView(APIView):
         user_message = data.get('text', None)
         chat_group_id = data.get('chat', {}).get('id', None)
         if user_message or chat_group_id:
-            print(f"Chat ID: {chat_id}, Message: {user_message}")
             if chat_type in ['group', 'supergroup']:
-                # if "reply_to_message" in data and data["reply_to_message"]["from"]["is_bot"]:
-                print("Ignoring group messages and replies to the bot.")
-                
                 if data.get('new_chat_member', {}).get('is_bot'):
                     handle_bot_added_to_group(chat_id, chat_title, bot_token)
                 elif data.get('left_chat_member', {}).get('is_bot'):
                     handle_bot_removed_from_group(chat_id, chat_title)
             else:
                 if "sticker" in data:
-                    print("[-] Cannot handle sticker messages")
                     return success_response(message=_("Sticker message muvaffaqiyatli olindi"), code=200)
-                
+
                 if "document" in data:
-                    print("[-] Cannot handle document messages")
                     return success_response(message=_("Document message muvaffaqiyatli olindi"), code=200)
 
                 # Photo message handling
@@ -586,13 +661,15 @@ class TelegramWebhookView(APIView):
                         largest_photo = photos[-1]
                         photo_file_id = largest_photo.get("file_id")
                         if photo_file_id:
-                            process_photo_task.delay(chat_id, photo_file_id, bot_token, chat_username, username)
+                            transaction.on_commit(functools.partial(
+                                process_photo_task.delay, chat_id, photo_file_id, bot_token, chat_username, username))
                             return success_response(message=_("Photo message muvaffaqiyatli olindi"), code=200)
 
                 # Voice message handling
                 if "voice" in data:
                     voice_file_id = data["voice"]["file_id"]
-                    process_voice_task.delay(chat_id, voice_file_id, bot_token)
+                    transaction.on_commit(functools.partial(
+                        process_voice_task.delay, chat_id, voice_file_id, bot_token))
                     return success_response(message=_("Voice message muvaffaqiyatli olindi"), code=200)
                 # --- Redis Message Queuing ---
                 if user_message:  # Only push if user_message is not None
@@ -600,12 +677,11 @@ class TelegramWebhookView(APIView):
                 redis_client.set(f"last_seen:{chat_id}", time.time())
 
                 # Schedule collector task only if not already scheduled
-                print(f"chat_username: {chat_username}")
-                print(f"contact username: {username}")
                 redis_client.setex(f"collecting:{chat_id}", WAIT_SECONDS + 1, "1")  # Prevent overlap
-                process_collected_messages.apply_async((chat_id, bot_token, None, chat_username, username, None), countdown=WAIT_SECONDS)
-                # Start the Celery task
-                print("celery task started")
+                transaction.on_commit(functools.partial(
+                    process_collected_messages.apply_async,
+                    (chat_id, bot_token, None, chat_username, username, None),
+                    countdown=WAIT_SECONDS))
         return success_response(message=_("Xabar muvaffaqiyatli olindi"), code=200)
 
 
@@ -640,7 +716,7 @@ class TelegramGroupUpdateDestroyView(generics.RetrieveUpdateDestroyAPIView):
         instance = self.get_object()
         is_approving = request.data.get('is_approved')
         if is_approving is True or is_approving == 'true' or is_approving == True:
-            from shared.addons.telegram import check_bot_in_group
+            from apps.integration.gateways.telegram import check_bot_in_group
             token = instance.integration.api_token
             if not check_bot_in_group(instance.group_id, token):
                 return error_response(
@@ -683,7 +759,7 @@ class InstagramPostListView(APIView):
         all_posts = []
         max_pages = 5
         for _page in range(max_pages):
-            response = requests.get(url, params=params)
+            response = http.get(url, params=params)
             if response.status_code != 200:
                 break
             json_data = response.json()
@@ -715,6 +791,15 @@ class CommentTriggerWordRetrieveView(generics.RetrieveUpdateDestroyAPIView):
     queryset = CommentTriggerWord.objects.all()
     serializer_class = CommentTriggerWordSerializer
     permission_classes = [permissions.IsAuthenticated]
+
+    def get_queryset(self):
+        # Without this the view was `objects.all()` + IsAuthenticated:
+        # any logged-in user could read, edit and DELETE another
+        # tenant's automation objects.
+        user = self.request.user
+        return self.queryset.filter(
+            Q(instagram_comment_responses__integration__assistant__user=user) | Q(instagram_comment_responses__integration__user=user),
+        ).distinct()
 
     def retrieve(self, request, *args, **kwargs):
         instance = self.get_object()
@@ -767,6 +852,15 @@ class InstagramCommentResponseRetrieveView(generics.RetrieveUpdateDestroyAPIView
     serializer_class = InstagramCommentResponseSerializer
     permission_classes = [permissions.IsAuthenticated]
 
+    def get_queryset(self):
+        # Without this the view was `objects.all()` + IsAuthenticated:
+        # any logged-in user could read, edit and DELETE another
+        # tenant's automation objects.
+        user = self.request.user
+        return self.queryset.filter(
+            Q(integration__assistant__user=user) | Q(integration__user=user),
+        ).distinct()
+
     def retrieve(self, request, *args, **kwargs):
         instance = self.get_object()
         serializer = self.get_serializer(instance)
@@ -788,6 +882,15 @@ class InstagramMediaRetrieveView(generics.RetrieveUpdateDestroyAPIView):
     queryset = InstagramMedia.objects.all()
     serializer_class = InstagramMediaSerializer
     permission_classes = [permissions.IsAuthenticated]
+
+    def get_queryset(self):
+        # Without this the view was `objects.all()` + IsAuthenticated:
+        # any logged-in user could read, edit and DELETE another
+        # tenant's automation objects.
+        user = self.request.user
+        return self.queryset.filter(
+            Q(instagram_comment_responses__integration__assistant__user=user) | Q(instagram_comment_responses__integration__user=user),
+        ).distinct()
 
     def get_serializer_context(self):
         context = super().get_serializer_context()
@@ -883,6 +986,15 @@ class TransitionRetrieveUpdateDestroyView(generics.RetrieveUpdateDestroyAPIView)
     serializer_class = TransitionSerializer
     permission_classes = [permissions.IsAuthenticated]
 
+    def get_queryset(self):
+        # Without this the view was `objects.all()` + IsAuthenticated:
+        # any logged-in user could read, edit and DELETE another
+        # tenant's automation objects.
+        user = self.request.user
+        return self.queryset.filter(
+            Q(from_to__flow__comment_response__integration__assistant__user=user) | Q(from_to__flow__comment_response__integration__user=user),
+        ).distinct()
+
     def update(self, request, *args, **kwargs):
         instance = self.get_object()
         serializer = self.get_serializer(instance, data=request.data, partial=True)
@@ -906,6 +1018,15 @@ class FlowRetrieveUpdateDestroyView(generics.RetrieveUpdateDestroyAPIView):
     serializer_class = InstagramCommentResponseFlowSerializer
     permission_classes = [permissions.IsAuthenticated]
 
+    def get_queryset(self):
+        # Without this the view was `objects.all()` + IsAuthenticated:
+        # any logged-in user could read, edit and DELETE another
+        # tenant's automation objects.
+        user = self.request.user
+        return self.queryset.filter(
+            Q(comment_response__integration__assistant__user=user) | Q(comment_response__integration__user=user),
+        ).distinct()
+
     def retrieve(self, request, *args, **kwargs):
         instance = self.get_object()
         serializer = self.get_serializer(instance)
@@ -928,6 +1049,15 @@ class StepRetrieveUpdateDestroyView(generics.RetrieveUpdateDestroyAPIView):
     queryset = Step.objects.all()
     serializer_class = StepSerializer
     permission_classes = [permissions.IsAuthenticated]
+
+    def get_queryset(self):
+        # Without this the view was `objects.all()` + IsAuthenticated:
+        # any logged-in user could read, edit and DELETE another
+        # tenant's automation objects.
+        user = self.request.user
+        return self.queryset.filter(
+            Q(flow__comment_response__integration__assistant__user=user) | Q(flow__comment_response__integration__user=user),
+        ).distinct()
 
     def retrieve(self, request, *args, **kwargs):
         instance = self.get_object()
@@ -975,6 +1105,15 @@ class CommentResponseButtonRetrieveUpdateDestroyView(generics.RetrieveUpdateDest
     queryset = CommentResponseButton.objects.all()
     serializer_class = CommentResponseButtonSerializer
     permission_classes = [permissions.IsAuthenticated]
+
+    def get_queryset(self):
+        # Without this the view was `objects.all()` + IsAuthenticated:
+        # any logged-in user could read, edit and DELETE another
+        # tenant's automation objects.
+        user = self.request.user
+        return self.queryset.filter(
+            Q(steps__flow__comment_response__integration__assistant__user=user) | Q(steps__flow__comment_response__integration__user=user),
+        ).distinct()
 
     def retrieve(self, request, *args, **kwargs):
         instance = self.get_object()
@@ -1024,8 +1163,12 @@ class BroadcastListCreateView(generics.ListCreateAPIView):
 
         broadcast = serializer.save(user=request.user, total_recipients=recipients_count)
 
+        # ATOMIC_REQUESTS keeps this row uncommitted until the response is
+        # returned. Dispatching directly lets the worker look the broadcast up
+        # before it exists, and the task's DoesNotExist branch then drops it
+        # silently — the customer sees 201 and nothing is ever sent.
         from .tasks import send_broadcast_task
-        send_broadcast_task.delay(str(broadcast.id))
+        transaction.on_commit(functools.partial(send_broadcast_task.delay, str(broadcast.id)))
 
         return success_response(
             message=_("Broadcast muvaffaqiyatli yaratildi"),
@@ -1145,9 +1288,10 @@ class AmoCRMOAuthInstallView(APIView):
                 code=200
             )
             
-        except Exception as e:
+        except Exception:
+            logger.exception("Error generating amoCRM OAuth URL")
             return error_response(
-                message=f"Error generating amoCRM OAuth URL: {str(e)}",
+                message="Error generating amoCRM OAuth URL",
                 code=500
             )
 
@@ -1198,31 +1342,21 @@ class AmoCRMOAuthHandlerView(APIView):
                 'code': code
             }
             
-            token_response = requests.post(token_url, data=token_data)
-            
+            token_response = http.post(token_url, data=token_data)
+
             if token_response.status_code != 200:
+                logger.warning("amoCRM token exchange failed with status %s", token_response.status_code)
                 return error_response(
-                    message=f"Failed to exchange code for token: {token_response.text}",
+                    message="Failed to exchange code for token",
                     code=400
                 )
-            
-            print(f"[DEBUG] Token response status: {token_response.status_code}")
-            print(f"[DEBUG] Token response: {token_response.text}")
-            
-            if token_response.status_code != 200:
-                return error_response(
-                    message=f"Failed to exchange code for token: {token_response.text}",
-                    code=400
-                )
-            
+
             token_info = token_response.json()
             access_token = token_info.get('access_token')
-            print(f"[DEBUG] Access token: {access_token}")
             refresh_token = token_info.get('refresh_token')
             expires_in = token_info.get('expires_in')
-            print(f"[DEBUG] Refresh token: {refresh_token}")
-            print(f"[DEBUG] Expires in: {expires_in}")
-            
+
+
             if not access_token:
                 return error_response(
                     message="No access token received from amoCRM",
@@ -1234,8 +1368,7 @@ class AmoCRMOAuthHandlerView(APIView):
                 'Authorization': f'Bearer {access_token}',
                 'Content-Type': 'application/json'
             }
-            user_response = requests.get(user_info_url, headers=headers)
-            print(f"[DEBUG] User response: {user_response.text}")
+            user_response = http.get(user_info_url, headers=headers)
             if user_response.status_code != 200:
                 return error_response(
                     message="Failed to get user information from amoCRM",
@@ -1244,7 +1377,6 @@ class AmoCRMOAuthHandlerView(APIView):
             
             user_info = user_response.json()
             account_id = user_info.get('id')
-            print(f"[DEBUG] Account ID: {account_id}")
             # Create or update integration
             from apps.assistant.models import Assistant
             assistant = Assistant.objects.filter(user_id=user_id).first()
@@ -1299,9 +1431,10 @@ class AmoCRMOAuthHandlerView(APIView):
                 code=200
             )
             
-        except Exception as e:
+        except Exception:
+            logger.exception("Error processing amoCRM OAuth callback")
             return error_response(
-                message=f"Error processing amoCRM OAuth callback: {str(e)}",
+                message="Error processing amoCRM OAuth callback",
                 code=500
             )
 
@@ -1350,11 +1483,11 @@ class AmoCRMTokenRefreshView(APIView):
                 'refresh_token': refresh_token
             }
             
-            token_response = requests.post(token_url, data=token_data)
+            token_response = http.post(token_url, data=token_data)
             
             if token_response.status_code != 200:
                 return error_response(
-                    message=f"Failed to refresh token: {token_response.text}",
+                    message="Failed to refresh token",
                     code=400
                 )
             
@@ -1381,9 +1514,10 @@ class AmoCRMTokenRefreshView(APIView):
                 code=200
             )
             
-        except Exception as e:
+        except Exception:
+            logger.exception("Error refreshing amoCRM token")
             return error_response(
-                message=f"Error refreshing token: {str(e)}",
+                message="Error refreshing token",
                 code=500
             )
 
@@ -1413,9 +1547,7 @@ class AmoCRMSetPipelineView(APIView):
                 )
             
             # Get pipeline info from amoCRM
-            print(f"[DEBUG] Integration metadata: {integration.metadata}")
             subdomain = integration.metadata.get('subdomain') if integration.metadata else 'repli.amocrm.ru'
-            print(f"[DEBUG] Subdomain: {subdomain}")
             access_token = integration.api_token
             
             # Get pipeline details
@@ -1425,11 +1557,11 @@ class AmoCRMSetPipelineView(APIView):
                 'Content-Type': 'application/json'
             }
             
-            pipeline_response = requests.get(pipeline_url, headers=headers)
+            pipeline_response = http.get(pipeline_url, headers=headers)
             
             if pipeline_response.status_code != 200:
                 return error_response(
-                    message=f"Failed to get pipeline info: {pipeline_response.text}",
+                    message="Failed to get pipeline info",
                     code=400
                 )
             
@@ -1454,9 +1586,10 @@ class AmoCRMSetPipelineView(APIView):
                 code=200
             )
             
-        except Exception as e:
+        except Exception:
+            logger.exception("Error setting amoCRM pipeline")
             return error_response(
-                message=f"Error setting pipeline: {str(e)}",
+                message="Error setting pipeline",
                 code=500
             )
         
@@ -1474,17 +1607,14 @@ class BillzSecretTokenHandlerView(generics.CreateAPIView):
         serializer = self.get_serializer(data=request.data)
         api_token = request.data.get('api_token')
         assistant_id = self.kwargs.get('pk')
-        try:
-            assistant = Assistant.objects.get(id=assistant_id)
-        except Assistant.DoesNotExist:
+        if not Assistant.objects.filter(id=assistant_id).exists():
             return error_response(message=_("Assistant topilmadi"), code=404)
         if not api_token:
             return error_response(message=_("Billz API token kerak"), code=400)
-        response = requests.post(f"https://api-admin.billz.ai/v1/auth/login", json={"secret_token": api_token})
+        response = http.post("https://api-admin.billz.ai/v1/auth/login", json={"secret_token": api_token})
         if response.status_code != 200:
             return error_response(message=_("Billz API token yaroqli emas"), code=400)
 
-        print(f"response: {response.json()}")
         access_token = response.json().get('data').get('access_token')
         if not access_token:
             return error_response(message=_("Billz access token topilmadi"), code=400)
@@ -1493,8 +1623,11 @@ class BillzSecretTokenHandlerView(generics.CreateAPIView):
         serializer.is_valid(raise_exception=True)
         integration = serializer.save()
         
-        # Trigger async task to fetch and save Billz products
+        # Trigger async task to fetch and save Billz products, once the
+        # integration row this id points at is actually visible to the worker.
         from apps.integration.tasks import fetch_and_save_billz_products
-        fetch_and_save_billz_products.delay(str(integration.id))
+        transaction.on_commit(
+            functools.partial(fetch_and_save_billz_products.delay, str(integration.id))
+        )
         
         return success_response(message=_("Billz secret token muvaffaqiyatli yaratildi"), data=serializer.data, code=201)

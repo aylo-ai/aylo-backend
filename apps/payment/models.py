@@ -1,7 +1,7 @@
 from django.db import models
 from django.core.validators import MinValueValidator
 from apps.shared.models import BaseModel
-from shared.addons.enums import PaymentMethods, PaymentStatuses, CurrencyType, \
+from apps.shared.addons.enums import PaymentMethods, PaymentStatuses, CurrencyType, \
                                     TransactionTypes, PricingPackageType, SubscriptionStatuses
 
 class Feature(BaseModel):
@@ -97,7 +97,7 @@ class Card(BaseModel):
         if self.is_default:
             Card.objects.filter(user=self.user).exclude(id=self.id).update(is_default=False)
         if not self.name:
-            self.name = f"Card {self.card_number[-4:0]}"
+            self.name = f"Card {self.card_number[-4:]}"
         super(Card, self).save(*args, **kwargs)
 
     def __str__(self):
@@ -148,8 +148,11 @@ class Subscription(BaseModel):
         ordering = ["-created_time"]
 
     def __str__(self):
-        return f"{self.pricing_package.name} - {self.start_date} - {self.end_date}"
-    
+        # `pricing_package` is SET_NULL, so it can legitimately be missing —
+        # don't let that raise in the admin or in any log line.
+        package = self.pricing_package.name if self.pricing_package else "No package"
+        return f"{package} - {self.start_date} - {self.end_date}"
+
 class RetryPayment(BaseModel):
     subscription = models.ForeignKey(Subscription, on_delete=models.CASCADE, related_name="retry_payments")
     amount = models.DecimalField(max_digits=20, decimal_places=2)
@@ -162,4 +165,6 @@ class RetryPayment(BaseModel):
         ordering = ["-created_time"]
 
     def __str__(self):
-        return f"{self.subscription.pricing_package.name} - {self.amount} - {self.status}"
+        package = self.subscription.pricing_package
+        name = package.name if package else "No package"
+        return f"{name} - {self.amount} - {self.status}"

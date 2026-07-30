@@ -1,10 +1,10 @@
 from django.contrib.postgres.fields import ArrayField
-from django.db import models, transaction
+from django.db import models
 from django.utils import timezone
 from django.utils.timezone import now
-from shared.models import BaseModel
+from apps.shared.models import BaseModel
 from apps.integration.models import Integration
-from shared.addons.enums import (
+from apps.shared.addons.enums import (
     AssistantLanguages,
     PersonalityStyles,
     SenderTypes,
@@ -92,6 +92,17 @@ class Assistant(BaseModel):
 
     integrations: "models.QuerySet[Integration]"
 
+    @property
+    def resolved_prompt_template(self):
+        """This assistant's template, falling back to the system default.
+
+        Resolving here rather than in `shared.ai_service.prompts` keeps the AI
+        layer from having to import an assistant model.
+        """
+        if self.prompt_template is not None:
+            return self.prompt_template
+        return PromptTemplate.objects.filter(is_default=True, is_active=True).first()
+
     def __str__(self):
         return f"{self.assistant_id} - {self.name}"
 
@@ -126,12 +137,18 @@ class Conversation(BaseModel):
     end_time = models.DateTimeField(null=True, blank=True)
     client_full_name = models.CharField(max_length=255, null=True, blank=True)
     client_phone_email = models.CharField(max_length=255, null=True, blank=True)
-    
-    def save(self, *args, **kwargs):
-        super().save(*args, **kwargs)
 
     class Meta:
         db_table = "conversation"
+        indexes = [
+            # Every inbound message resolves the conversation with exactly this
+            # filter (see ConversationService.get_or_create_conversation), so it
+            # is the single hottest read in the system.
+            models.Index(
+                fields=["assistant", "user_id", "token"],
+                name="conv_assistant_user_token_idx",
+            ),
+        ]
 
     def __str__(self):
         return f"Conversation with {self.assistant.name} - {self.platform} - {self.created_time}"
@@ -172,27 +189,39 @@ class Message(BaseModel):
         return f"Message from {self.sender} in conversation {self.conversation.id}"
 
     def save(self, *args, **kwargs):
-        from shared.addons.utils import notify_user_about_low_tokens
-        with transaction.atomic():
-            if self.conversation:
-                self.conversation.updated_time = now()
-                self.conversation.save(update_fields=["updated_time"])
+        from apps.user.services.notifications import notify_user_about_low_tokens
+        from apps.payment.models import Subscription
 
-            assistant_user = (
-                getattr(self.conversation.assistant, "user", None)
-                if self.conversation
-                else None
-            )
-            if assistant_user and self.sender == SenderTypes.ASSISTANT.value:
-                subscription = assistant_user.subscription
-                if subscription.remained_request_count > 0:
-                    subscription.remained_request_count -= 1
+        if self.conversation:
+            # Bump conversation activity with a single UPDATE, no full save.
+            Conversation.objects.filter(pk=self.conversation.pk).update(updated_time=now())
+
+        assistant_user = (
+            getattr(self.conversation.assistant, "user", None)
+            if self.conversation
+            else None
+        )
+        # Charge the owner's quota only when a NEW assistant reply is inserted:
+        # edits/re-saves must not charge again, and an owner without a
+        # subscription must not crash the reply.
+        subscription = getattr(assistant_user, "subscription", None)
+        if (
+            self._state.adding
+            and subscription is not None
+            and self.sender == SenderTypes.ASSISTANT.value
+        ):
+            # Race-free decrement that can never go negative.
+            charged = Subscription.objects.filter(
+                pk=subscription.pk, remained_request_count__gt=0
+            ).update(remained_request_count=models.F("remained_request_count") - 1)
+            if charged:
+                subscription.refresh_from_db(fields=["remained_request_count"])
+                # Warn the owner only when a request was actually consumed.
                 if subscription.remained_request_count in [0, 10, 20]:
                     notify_user_about_low_tokens(
                         assistant_user, subscription.remained_request_count
                     )
-                subscription.save(update_fields=["remained_request_count"])
-            super().save(*args, **kwargs)
+        super().save(*args, **kwargs)
 
 
 class Settings(BaseModel):
