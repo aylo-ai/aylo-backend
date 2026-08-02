@@ -100,6 +100,16 @@ REST_FRAMEWORK = {
         "landing_lead": "10/minute",
         "otp_send": "5/minute",
         "otp_verify": "10/minute",
+        # Card lifecycle against Payme. `payme/get-verify-token/` makes Payme
+        # SMS a verification code to the *card holder* for whatever PAN the
+        # caller typed, so unthrottled it is an SMS-bombing and card-validity
+        # oracle aimed at third parties, billed to this merchant.
+        "payment_card": "10/minute",
+        # Anything that actually moves money through Payme.
+        "payment_charge": "5/minute",
+        # Account creation and token minting.
+        "auth_register": "10/minute",
+        "token_refresh": "20/minute",
     },
 }
 

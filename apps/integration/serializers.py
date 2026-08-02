@@ -6,6 +6,7 @@ from django.shortcuts import get_object_or_404
 
 
 from apps.assistant.models import Conversation, Assistant
+from apps.assistant.utils import owned_assistants
 from apps.shared.addons.enums import IntegrationTypes, ConversationPlatforms, ConversationStatuses
 from apps.integration.gateways.telegram import telegram_get_me, set_telegram_webhook, get_webhook_info, send_telegram_message
 from apps.assistant.services.conversation import conversation_service
@@ -60,7 +61,12 @@ class IntegrationCreateSerializer(serializers.ModelSerializer, SubscriptionValid
         user = self.context.get("request").user
         base_url = self.context.get("base_url")
         assistant_id = self.context.get("assistant_id", None)
-        assistant = Assistant.objects.filter(id=assistant_id).first()
+        # Owner-scoped. Resolving the assistant by id alone let any subscribed
+        # user POST to /assistant/<someone else's id>/integration/ and bind
+        # their own Telegram bot to that assistant: the attacker then chats
+        # with the victim's agent, draining the victim's request quota and
+        # reading back whatever their knowledge base and system prompt hold.
+        assistant = owned_assistants(user).filter(id=assistant_id).first()
         if not assistant:
             raise_validation_error(message=_("Assistant topilmadi"), code=404)
         if not assistant.vector_id:

@@ -15,8 +15,6 @@ from apps.assistant.models import (
     Assistant, Conversation, Message, Settings, AssistantFileUpload, Lead, PromptTemplate,
     FollowUpConfig, FollowUpStage, FollowUpLog,
 )
-from apps.integration.models import TelegramGroupIntegration
-from apps.integration.gateways.telegram import send_telegram_message
 from apps.shared.ai_service import knowledge_base, media
 from apps.shared.ai_service.agent import agent
 from apps.shared.addons.validations import raise_validation_error
@@ -61,7 +59,14 @@ class AssistantSerializer(serializers.ModelSerializer,
             "integrations",
             "prompt_template",
         ]
-        read_only_fields = ["created_time", "updated_time"]
+        # `user` is the tenancy column. While it was writable, `PATCH
+        # /assistant/<own id>/ {"user": "<someone else's id>"}` silently moved
+        # the assistant into that account: it then counted against the victim's
+        # assistant quota and every integration hung off it billed the victim's
+        # subscription. Owners are set by the server — `AssistantListCreateView`
+        # and the dashboard's create path both pass `user=` to `save()`, which
+        # a read-only field does not block.
+        read_only_fields = ["created_time", "updated_time", "user"]
 
     def get_integrations(self, obj):  # noqa
         telegram_count = obj.integrations.filter(integration_type="telegram").exists()
@@ -165,10 +170,12 @@ class ConversationRetrieveSerializer(serializers.ModelSerializer, SubscriptionVa
             "created_time",
             "updated_time",
         ]
-        read_only_fields = ["created_time", "updated_time"]
-        extra_kwargs = {
-            "assistant": {"required": False},
-        }
+        # This serializer only ever serves retrieve/update. A writable
+        # `assistant` let `PATCH /conversation/<own id>/` re-parent the
+        # conversation onto another tenant's assistant, pushing attacker-written
+        # messages into that tenant's inbox. Conversations are created — with
+        # their assistant — by `ConversationSerializer`.
+        read_only_fields = ["created_time", "updated_time", "assistant"]
 
 
     def to_representation(self, instance):
@@ -215,6 +222,12 @@ class MessageSerializer(serializers.ModelSerializer, SubscriptionValidationMixin
         # On an update the message already has its conversation and the content
         # may not be re-sent, so both checks below only apply to a create.
         if self.instance is not None:
+            # A message never changes conversation. `conversation` stayed
+            # writable on this path, so `PATCH /message/<own id>/
+            # {"conversation": "<victim's>"}` moved an attacker-authored message
+            # into another tenant's thread — the view's ownership check had
+            # already passed on the *original* conversation.
+            attrs.pop("conversation", None)
             return attrs
 
         message_content = attrs.get("message_content")
@@ -245,7 +258,13 @@ class MessageSerializer(serializers.ModelSerializer, SubscriptionValidationMixin
         sender = validated_data.get("sender")
         if audio_file:
             audio_bytes = audio_file.read()
-            transcribed_text, _, _ = media.transcribe_audio(audio_bytes, filename=audio_file.name)
+            # Not `_`: that name is gettext, and binding it here makes it a
+            # local for the whole method — the `_("Request obyekti kerak")`
+            # above then raises UnboundLocalError (a 500) instead of the
+            # validation error it is meant to raise.
+            transcribed_text, _input_tokens, _output_tokens = media.transcribe_audio(
+                audio_bytes, filename=audio_file.name,
+            )
             validated_data["message_content"] = transcribed_text
             validated_data["message_type"] = MessageTypes.AUDIO.value
         else:

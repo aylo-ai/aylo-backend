@@ -27,7 +27,10 @@ def process_message_task(self, chat_id, user_message, bot_token, chat_username=N
     """
     assistant = Assistant.objects.filter(integrations__api_token=bot_token).first()
     if not assistant:
-        logger.warning("[-] No assistant found for bot_token: %s", bot_token)
+        # The bot token is the credential for the customer's bot — log that a
+        # delivery went unmatched, never the token that would let a reader take
+        # the bot over.
+        logger.warning("[-] No assistant found for the bot token on this delivery")
         return
 
     if user_message == '/start':

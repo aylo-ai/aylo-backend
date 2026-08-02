@@ -449,10 +449,6 @@ msgstr "Дауыстық хабар сәтті алынды"
 msgid "Xabar muvaffaqiyatli olindi"
 msgstr "Хабар сәтті алынды"
 
-#: apps/integration/views.py:712
-msgid "Bu guruhni boshqarish huquqi yo'q"
-msgstr "Бұл топты басқаруға құқық жоқ"
-
 #: apps/integration/views.py:723
 msgid "Bot bu guruhda mavjud emas. Avval botni guruhga qo'shing."
 msgstr "Бот бұл топта жоқ. Алдымен ботты топқа қосыңыз."
@@ -690,8 +686,12 @@ msgid "To'lov tizimi bilan bog'liq muammo yuz berdi: {}"
 msgstr "Төлем жүйесімен байланысты мәселе туындады: {}"
 
 #: apps/payment/serializers.py:390
-msgid "To'lov jarayonida xatolik yuz berdi: {}"
-msgstr "Төлем процесінде қате туындады: {}"
+msgid "To'lov jarayonida xatolik yuz berdi"
+msgstr "Төлем процесінде қате туындады"
+
+#: apps/payment/serializers.py:181
+msgid "Bu karta boshqa foydalanuvchiga biriktirilgan."
+msgstr "Бұл карта басқа пайдаланушыға тіркелген."
 
 #: apps/payment/serializers.py:455
 msgid "Sizda allaqachon faol obuna mavjud."
@@ -889,31 +889,39 @@ msgstr "Кодты растау мүмкін болмады"
 msgid "Sizda obuna paketi yo'q. Iltimos, avval obuna paketini tanlang."
 msgstr "Сізде жазылым пакеті жоқ. Алдымен жазылым пакетін таңдаңыз."
 
-#: apps/shared/mixins.py:20
-msgid "Sizning obunangiz tokeni tugagan. Iltimos, obunangizni yangilang."
-msgstr "Сіздің жазылымыңыздың токені аяқталды. Жазылымыңызды жаңартыңыз."
-
 #: apps/shared/mixins.py:24
+msgid "Sizning obunangiz bekor qilingan. Iltimos, yangi obuna tanlang."
+msgstr "Сіздің жазылымыңыз тоқтатылды. Жаңа жазылым таңдаңыз."
+
+#: apps/shared/mixins.py:32
+msgid "To'lov hali amalga oshirilmagan. Iltimos, to'lovni yakunlang."
+msgstr "Төлем әлі жасалған жоқ. Төлемді аяқтаңыз."
+
+#: apps/shared/mixins.py:33
 msgid "Sizning obunangiz faol emas. Iltimos, obunangizni faollashtiring."
 msgstr "Сіздің жазылымыңыз белсенді емес. Жазылымыңызды белсендіріңіз."
 
-#: apps/shared/mixins.py:27
+#: apps/shared/mixins.py:36
+msgid "Sizning obunangiz tokeni tugagan. Iltimos, obunangizni yangilang."
+msgstr "Сіздің жазылымыңыздың токені аяқталды. Жазылымыңызды жаңартыңыз."
+
+#: apps/shared/mixins.py:39
 msgid "Sizning obunangiz muddati tugagan. Iltimos, obunangizni yangilang."
 msgstr "Сіздің жазылымыңыздың мерзімі аяқталды. Жазылымыңызды жаңартыңыз."
 
-#: apps/shared/mixins.py:35
+#: apps/shared/mixins.py:47
 msgid "Sizning assistantlar soningiz tugagan. Iltimos, assistantlar sonini oshiring."
 msgstr "Сіздің ассистенттер саныңыз аяқталды. Ассистенттер санын көбейтіңіз."
 
-#: apps/shared/mixins.py:40
+#: apps/shared/mixins.py:52
 msgid "Sizning telegram integratsiya soningiz tugagan. Iltimos, telegram integratsiya sonini oshiring."
 msgstr "Сіздің Telegram интеграция саныңыз аяқталды. Telegram интеграция санын көбейтіңіз."
 
-#: apps/shared/mixins.py:45
+#: apps/shared/mixins.py:57
 msgid "Sizning instagram integratsiya soningiz tugagan. Iltimos, instagram integratsiya sonini oshiring."
 msgstr "Сіздің Instagram интеграция саныңыз аяқталды. Instagram интеграция санын көбейтіңіз."
 
-#: apps/shared/mixins.py:50
+#: apps/shared/mixins.py:62
 msgid "Sizning assistant fayl yuklash soningiz tugagan. Iltimos, assistant fayl yuklash sonini oshiring."
 msgstr "Сіздің ассистент файл жүктеу саныңыз аяқталды. Ассистент файл жүктеу санын көбейтіңіз."
 

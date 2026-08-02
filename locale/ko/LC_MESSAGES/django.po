@@ -449,10 +449,6 @@ msgstr "음성 메시지가 성공적으로 조회되었습니다"
 msgid "Xabar muvaffaqiyatli olindi"
 msgstr "메시지가 성공적으로 조회되었습니다"
 
-#: apps/integration/views.py:712
-msgid "Bu guruhni boshqarish huquqi yo'q"
-msgstr "이 그룹을 관리할 권한이 없습니다"
-
 #: apps/integration/views.py:723
 msgid "Bot bu guruhda mavjud emas. Avval botni guruhga qo'shing."
 msgstr "봇이 이 그룹에 없습니다. 먼저 봇을 그룹에 추가하세요."
@@ -690,8 +686,12 @@ msgid "To'lov tizimi bilan bog'liq muammo yuz berdi: {}"
 msgstr "결제 시스템 관련 문제가 발생했습니다: {}"
 
 #: apps/payment/serializers.py:390
-msgid "To'lov jarayonida xatolik yuz berdi: {}"
-msgstr "결제 과정에서 오류가 발생했습니다: {}"
+msgid "To'lov jarayonida xatolik yuz berdi"
+msgstr "결제 과정에서 오류가 발생했습니다"
+
+#: apps/payment/serializers.py:181
+msgid "Bu karta boshqa foydalanuvchiga biriktirilgan."
+msgstr "이 카드는 다른 사용자에게 연결되어 있습니다."
 
 #: apps/payment/serializers.py:455
 msgid "Sizda allaqachon faol obuna mavjud."
@@ -889,31 +889,39 @@ msgstr "코드를 확인하지 못했습니다"
 msgid "Sizda obuna paketi yo'q. Iltimos, avval obuna paketini tanlang."
 msgstr "구독 패키지가 없습니다. 먼저 구독 패키지를 선택해주세요."
 
-#: apps/shared/mixins.py:20
-msgid "Sizning obunangiz tokeni tugagan. Iltimos, obunangizni yangilang."
-msgstr "구독 토큰이 소진되었습니다. 구독을 갱신해주세요."
-
 #: apps/shared/mixins.py:24
+msgid "Sizning obunangiz bekor qilingan. Iltimos, yangi obuna tanlang."
+msgstr "구독이 취소되었습니다. 새 구독을 선택해주세요."
+
+#: apps/shared/mixins.py:32
+msgid "To'lov hali amalga oshirilmagan. Iltimos, to'lovni yakunlang."
+msgstr "결제가 아직 완료되지 않았습니다. 결제를 완료해주세요."
+
+#: apps/shared/mixins.py:33
 msgid "Sizning obunangiz faol emas. Iltimos, obunangizni faollashtiring."
 msgstr "구독이 활성화되지 않았습니다. 구독을 활성화해주세요."
 
-#: apps/shared/mixins.py:27
+#: apps/shared/mixins.py:36
+msgid "Sizning obunangiz tokeni tugagan. Iltimos, obunangizni yangilang."
+msgstr "구독 토큰이 소진되었습니다. 구독을 갱신해주세요."
+
+#: apps/shared/mixins.py:39
 msgid "Sizning obunangiz muddati tugagan. Iltimos, obunangizni yangilang."
 msgstr "구독 기간이 만료되었습니다. 구독을 갱신해주세요."
 
-#: apps/shared/mixins.py:35
+#: apps/shared/mixins.py:47
 msgid "Sizning assistantlar soningiz tugagan. Iltimos, assistantlar sonini oshiring."
 msgstr "어시스턴트 수가 소진되었습니다. 어시스턴트 수를 늘려주세요."
 
-#: apps/shared/mixins.py:40
+#: apps/shared/mixins.py:52
 msgid "Sizning telegram integratsiya soningiz tugagan. Iltimos, telegram integratsiya sonini oshiring."
 msgstr "Telegram 통합 수가 소진되었습니다. Telegram 통합 수를 늘려주세요."
 
-#: apps/shared/mixins.py:45
+#: apps/shared/mixins.py:57
 msgid "Sizning instagram integratsiya soningiz tugagan. Iltimos, instagram integratsiya sonini oshiring."
 msgstr "Instagram 통합 수가 소진되었습니다. Instagram 통합 수를 늘려주세요."
 
-#: apps/shared/mixins.py:50
+#: apps/shared/mixins.py:62
 msgid "Sizning assistant fayl yuklash soningiz tugagan. Iltimos, assistant fayl yuklash sonini oshiring."
 msgstr "어시스턴트 파일 업로드 수가 소진되었습니다. 어시스턴트 파일 업로드 수를 늘려주세요."
 

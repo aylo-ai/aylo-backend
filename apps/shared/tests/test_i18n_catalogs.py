@@ -163,6 +163,52 @@ class CatalogHealthTests(SimpleTestCase):
                 )
 
 
+class SubscriptionStatusMessageTests(SimpleTestCase):
+    """`SubscriptionValidationMixin` tells the user *why* their subscription
+    is unusable, and the four causes must stay distinguishable in every
+    language. A cancelled subscription reported as "not active", or a
+    never-paid one reported as "tokens exhausted", sends the user to the wrong
+    screen — which is the bug the two newest msgids were added to fix.
+    """
+
+    STATUS_MSGIDS = [
+        "Sizning obunangiz bekor qilingan. Iltimos, yangi obuna tanlang.",
+        "To'lov hali amalga oshirilmagan. Iltimos, to'lovni yakunlang.",
+        "Sizning obunangiz faol emas. Iltimos, obunangizni faollashtiring.",
+        "Sizning obunangiz tokeni tugagan. Iltimos, obunangizni yangilang.",
+        "Sizning obunangiz muddati tugagan. Iltimos, obunangizni yangilang.",
+    ]
+
+    def setUp(self):
+        self.codes = [code for code, _name in settings.LANGUAGES]
+
+    def test_every_status_cause_is_translated_in_every_language(self):
+        for lang in self.codes:
+            entries, _header = parse_catalog(lang)
+            for msgid in self.STATUS_MSGIDS:
+                self.assertIn(msgid, entries, f"{lang}: no entry for {msgid!r}")
+                self.assertTrue(entries[msgid], f"{lang}: empty translation for {msgid!r}")
+
+    def test_translated_languages_do_not_echo_the_uzbek_source(self):
+        """An untouched msgstr reads as Uzbek to a Russian or Korean user."""
+        for lang in self.codes:
+            if lang == "uz":
+                continue
+            entries, _header = parse_catalog(lang)
+            echoed = [m for m in self.STATUS_MSGIDS if entries.get(m) == m]
+            self.assertEqual(echoed, [], f"{lang}: untranslated Uzbek served for {echoed}")
+
+    def test_each_cause_reads_differently(self):
+        """Distinct causes that share wording are indistinguishable to the user."""
+        for lang in self.codes:
+            entries, _header = parse_catalog(lang)
+            rendered = [entries[m] for m in self.STATUS_MSGIDS]
+            self.assertEqual(
+                len(set(rendered)), len(rendered),
+                f"{lang}: subscription status messages collide: {rendered}",
+            )
+
+
 class LanguageSelectionTests(SimpleTestCase):
     def test_locale_middleware_is_installed_and_ordered(self):
         """Activation only works between SessionMiddleware and CommonMiddleware."""

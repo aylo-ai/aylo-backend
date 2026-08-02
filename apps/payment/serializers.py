@@ -1,4 +1,5 @@
 import calendar
+import logging
 import re
 from datetime import date, timedelta
 
@@ -16,6 +17,8 @@ from apps.shared.addons.validations import raise_validation_error
 from apps.user.serializers import UserSerializer
 from apps.shared.addons.enums import PricingPackageType
 from django.utils.translation import gettext_lazy as _
+
+logger = logging.getLogger(__name__)
 
 
 def parse_card_expiry(value):
@@ -117,6 +120,19 @@ class CardSerializer(serializers.ModelSerializer):
             "color",
             "is_verified",
         )
+        read_only_fields = (
+            # Only Payme may set these. `is_verified` in particular is a
+            # security gate — `PayWithCardSerializer.validate()` and
+            # `process_subscription_payment()` both refuse to charge a card
+            # unless it is set — so a client that can PATCH it to `true`
+            # decides for itself whether its own card counts as verified.
+            # `card_number` is the masked PAN echoed back on transactions and
+            # in the dashboard; a client-set value misrepresents which card a
+            # token actually charges.
+            "card_number",
+            "is_verified",
+        )
+
     def validate(self, attrs):
         # `CardDetailView.update` always runs partial, so neither key is
         # guaranteed to be in `attrs` — read through to the instance instead of
@@ -158,9 +174,36 @@ class CardCreateSerializer(serializers.ModelSerializer):
             "color",
             "is_verified",
         )
+        extra_kwargs = {
+            # The Payme card token is a chargeable credential: whoever holds it
+            # can attach the card to an account and bill it. It has to come in
+            # (the client gets it from Payme), but echoing it back in the 201
+            # body put it into browser devtools, HAR captures, reverse-proxy
+            # access logs and mobile crash reports — every one of which is a
+            # place an attacker can pick it up and replay it here.
+            "card_token": {"write_only": True},
+        }
+        read_only_fields = (
+            # `create()` below takes all of these from Payme's `cards.check`
+            # reply, never from the request body.
+            "card_number",
+            "expiry_date",
+            "is_verified",
+        )
 
     def validate_card_token(self, value):
         """Validate the card token with the Payme system."""
+        # Payme only answers "is this token live and rebillable", never "does it
+        # belong to the caller". Without this check an attacker who learned a
+        # token could bind the victim's card to their own account here and then
+        # charge it through `PayWithCardSerializer`, which authorises on the
+        # local `Card.user` row alone.
+        user = self.context["request"].user
+        if Card.objects.filter(card_token=value).exclude(user=user).exists():
+            raise_validation_error(
+                message=_("Bu karta boshqa foydalanuvchiga biriktirilgan.")
+            )
+
         response = check_payme_card_token(value)
         if not response:
             raise_validation_error(message=_("Karta tokeni noto'g'ri. Iltimos, tekshirib qaytadan yuboring."))
@@ -387,7 +430,11 @@ class PayWithCardSerializer(serializers.Serializer):
                 subscription.save()
             except Exception:
                 pass
-            raise_validation_error(message=_("To'lov jarayonida xatolik yuz berdi: {}").format(str(e)))
+            # `e` can be any internal exception — a database error, a missing
+            # attribute, a stack-bearing library message. It belongs in the log,
+            # not in a response body a caller can read.
+            logger.exception("Card payment failed for user %s", user.id)
+            raise_validation_error(message=_("To'lov jarayonida xatolik yuz berdi"))
 
 
 class TransactionSerializer(serializers.ModelSerializer):

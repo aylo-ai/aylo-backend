@@ -19,18 +19,28 @@ FEATURES = [
     {"name": "Instagram integratsiyasi", "icon": "instagram"},
     {"name": "Veb-sayt vidjeti", "icon": "globe"},
     {"name": "Bilimlar bazasi", "icon": "book"},
-    {"name": "Lidlar eksporti", "icon": "download"},
+    {"name": "Lidlarni boshqarish va eksport", "icon": "download"},
+    {"name": "Follow-up avtomatlashtirish", "icon": "repeat"},
+    {"name": "Ommaviy xabarnoma (broadcast)", "icon": "megaphone"},
+    {"name": "amoCRM integratsiyasi", "icon": "link"},
+    {"name": "Billz integratsiyasi", "icon": "shopping-bag"},
     {"name": "Jamoa a'zolari", "icon": "users"},
     {"name": "Ustuvor qo'llab-quvvatlash", "icon": "headset"},
 ]
 
+# Entry paid price is pinned to the "299,000 so'mdan boshlanadi" claim already
+# published in the marketing blog (apps/blog/management/commands/seed_blog_posts.py) —
+# keep the two in sync if either changes.
 PACKAGES = [
     {
         "name": "Free",
         "type": PricingPackageType.FREE.value,
         "price": 0,
         "discount_price": None,
-        "description": "Repli AI bilan tanishish uchun — bitta agent va asosiy integratsiya.",
+        "description": (
+            "Repli AI bilan tanishish uchun — 1 ta AI agent, veb-sayt vidjeti va "
+            "asosiy bilimlar bazasi bilan bepul sinab ko'ring."
+        ),
         "request_count": 100,
         "duration_days": 30,
         "is_popular": False,
@@ -39,9 +49,12 @@ PACKAGES = [
     {
         "name": "Basic",
         "type": PricingPackageType.CUSTOM.value,
-        "price": 199000,
-        "discount_price": 149000,
-        "description": "O'sib borayotgan biznes uchun — messenjerlar va lidlar bilan to'liq ish.",
+        "price": 299000,
+        "discount_price": 239000,
+        "description": (
+            "O'sib borayotgan biznes uchun — Telegram va Instagram orqali mijozlar "
+            "bilan to'liq muloqot, lidlarni boshqarish va avtomatik follow-up xabarlar."
+        ),
         "request_count": 2000,
         "duration_days": 30,
         "is_popular": True,
@@ -51,15 +64,19 @@ PACKAGES = [
             "Instagram integratsiyasi",
             "Veb-sayt vidjeti",
             "Bilimlar bazasi",
-            "Lidlar eksporti",
+            "Lidlarni boshqarish va eksport",
+            "Follow-up avtomatlashtirish",
         ],
     },
     {
         "name": "Pro",
         "type": PricingPackageType.PRO.value,
-        "price": 499000,
+        "price": 699000,
         "discount_price": None,
-        "description": "Katta hajmdagi murojaatlar, jamoa bilan ishlash va ustuvor yordam.",
+        "description": (
+            "Katta hajmdagi murojaatlar uchun — jamoa bilan ishlash, amoCRM/Billz "
+            "integratsiyasi, ommaviy xabarnomalar va ustuvor yordam."
+        ),
         "request_count": 10000,
         "duration_days": 30,
         "is_popular": False,

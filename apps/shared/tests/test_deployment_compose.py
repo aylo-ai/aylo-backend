@@ -22,6 +22,7 @@ def load_compose():
 class DozzleHardeningTests(SimpleTestCase):
     def setUp(self):
         compose = load_compose()
+        self.project = compose["name"]
         self.dozzle = compose["services"]["dozzle"]
         self.proxy = compose["services"]["docker-socket-proxy"]
         self.networks = compose["networks"]
@@ -46,9 +47,11 @@ class DozzleHardeningTests(SimpleTestCase):
         self.assertEqual(env["DOZZLE_ENABLE_SHELL"], "false")
 
     def test_dozzle_shows_only_this_projects_containers(self):
+        """Pinned to whatever this compose file's project is — renaming the stack
+        must not silently widen the viewer to every container on the host."""
         self.assertEqual(
             self.dozzle["environment"]["DOZZLE_FILTER"],
-            "label=com.docker.compose.project=repliuz",
+            f"label=com.docker.compose.project={self.project}",
         )
 
     def test_dozzle_publishes_on_loopback_only(self):
@@ -67,9 +70,10 @@ class DozzleHardeningTests(SimpleTestCase):
         self.assertIn(f"{DOCKER_SOCKET}:{DOCKER_SOCKET}:ro", self.proxy["volumes"])
         env = self.proxy["environment"]
         self.assertEqual(env["POST"], 0, "POST=1 would re-enable container actions")
-        # CONTAINERS + INFO is the entire allowlist Dozzle needs; anything else
-        # granted here (IMAGES, EXEC, VOLUMES, SWARM, …) widens the blast radius.
-        self.assertEqual(set(env) - {"POST"}, {"CONTAINERS", "INFO"})
+        # CONTAINERS + INFO + EVENTS is the entire allowlist Dozzle needs (EVENTS
+        # is what streams container start/stop); anything else granted here
+        # (IMAGES, EXEC, VOLUMES, SWARM, …) widens the blast radius.
+        self.assertEqual(set(env) - {"POST"}, {"CONTAINERS", "INFO", "EVENTS"})
 
     def test_socket_proxy_is_not_published(self):
         """An exposed proxy port is an unauthenticated Docker API on the LAN."""

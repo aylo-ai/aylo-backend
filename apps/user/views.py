@@ -88,8 +88,9 @@ class VerifyCodeView(generics.GenericAPIView):
 
 class UserRegisterView(generics.CreateAPIView):
     """Handles creating and listing Users."""
-    queryset = User.objects.all()
     serializer_class = serializers.RegisterUserSerializer
+    throttle_classes = (ScopedRateThrottle,)
+    throttle_scope = "auth_register"
 
     def create(self, request, *args, **kwargs):
         serializer = self.get_serializer(data=request.data)
@@ -118,6 +119,10 @@ class UserRegisterView(generics.CreateAPIView):
 class LoginRefreshView(generics.GenericAPIView):
     serializer_class = serializers.LoginRefreshSerializer
     permission_classes = [permissions.AllowAny, ]
+    # Unauthenticated and it mints a fresh access/refresh pair, so it is the one
+    # anonymous surface worth spending a rate limit on besides the OTP pair.
+    throttle_classes = (ScopedRateThrottle,)
+    throttle_scope = "token_refresh"
 
     def post(self, request, *args, **kwargs):
         serializer = self.get_serializer(data=request.data)
@@ -140,7 +145,6 @@ class UserProfileGetView(generics.RetrieveAPIView):
 
 class UpdateProfileView(generics.UpdateAPIView):
     """Handles updating a user's profile."""
-    queryset = User.objects.all()
     serializer_class = serializers.UpdateProfileSerializer
     permission_classes = [permissions.IsAuthenticated, ]
 
@@ -373,7 +377,6 @@ class GoogleAuthCallbackView(APIView):
             return error_response(message=_("Autentifikatsiya amalga oshmadi. Iltimos, qaytadan urinib ko'ring"), code=400)
 
 class AddStaffView(generics.CreateAPIView):
-    queryset = User.objects.all()
     serializer_class = serializers.AddStaffSerializer
     permission_classes = [IsAdminOrCustomer]
 
@@ -422,12 +425,13 @@ class StaffDeleteView(generics.DestroyAPIView):
 
 
 class NotificationListView(generics.ListAPIView):
-    queryset = Notification.objects.all()
     serializer_class = serializers.NotificationSerializer
     permission_classes = [permissions.IsAuthenticated]
-    
+
     def get_queryset(self):
-        return self.queryset.filter(user=self.request.user)
+        if getattr(self, "swagger_fake_view", False):
+            return Notification.objects.none()
+        return Notification.objects.filter(user=self.request.user)
     
 
 class NotificationUpdateView(generics.UpdateAPIView):

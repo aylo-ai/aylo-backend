@@ -1,8 +1,6 @@
-import os
-
 from django.utils.translation import gettext_lazy as _
 from django.http import FileResponse
-from django.db.models import Q, Sum, Count
+from django.db.models import Sum, Count
 from rest_framework import permissions, filters, generics, views
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework.exceptions import NotFound
@@ -15,6 +13,7 @@ from apps.shared.addons.validations import success_response, error_response
 from apps.shared.ai_service import knowledge_base
 from apps.shared.addons.redis import publish_new_message_to_ws
 from apps.assistant.filters import LeadFilter
+from apps.assistant.utils import owned_assistants
 from apps.assistant.serializers import (AssistantSerializer,
     ConversationSerializer,
     MessageSerializer,
@@ -29,17 +28,6 @@ from apps.assistant.serializers import (AssistantSerializer,
     FollowUpConfigSerializer,
     FollowUpStageSerializer,
     FollowUpLogSerializer)
-
-
-def owned_assistants(user):
-    """Assistants the requesting user may access: their own and, for staff
-    accounts, those of the customer who created them. `Assistant.user` is
-    nullable, so the created_by leg is only added when it is set — otherwise
-    `Q(user=None)` would match ownerless assistants for every customer."""
-    q = Q(user=user)
-    if user.created_by_id:
-        q |= Q(user=user.created_by)
-    return Assistant.objects.filter(q).distinct()
 
 
 class AssistantListCreateView(generics.ListCreateAPIView):
@@ -604,10 +592,11 @@ class FollowUpStageListCreateView(generics.ListCreateAPIView):
 
     def create(self, request, *args, **kwargs):
         assistant_id = self.kwargs.get('pk')
-        assistant = Assistant.objects.filter(
-            Q(user=request.user) | Q(user=request.user.created_by),
-            id=assistant_id,
-        ).first()
+        # `owned_assistants()`, not a hand-rolled Q: with `created_by` unset the
+        # `Q(user=request.user.created_by)` leg becomes `Q(user=None)` and
+        # matches every ownerless assistant, letting any customer configure
+        # follow-ups on them.
+        assistant = owned_assistants(request.user).filter(id=assistant_id).first()
         if not assistant:
             raise NotFound(_("Assistant topilmadi"))
         config, _created = FollowUpConfig.objects.get_or_create(

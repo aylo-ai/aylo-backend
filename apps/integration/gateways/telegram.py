@@ -180,24 +180,25 @@ def get_webhook_info(bot_token):
 
 
 def handle_bot_added_to_group(chat_id, chat_title, bot_token):
-    print(f"Bot added to group: {chat_title} ({chat_id})")
+    logger.info("Bot added to Telegram group %s", chat_id)
     integration = Integration.objects.filter(api_token=bot_token).first()
     if not integration:
-        print(f"No integration found for bot token: {bot_token}")
+        # Never the token itself: it is the full credential for the customer's
+        # bot, and this line used to print it verbatim to the container log.
+        logger.warning("No integration matches the bot token that was added to group %s", chat_id)
         return error_response(message=_("Integration topilmadi"), code=404)
 
     if not TelegramGroupIntegration.objects.filter(integration=integration, group_id=chat_id).exists():
         telegram_group = TelegramGroupIntegration(integration=integration, group_id=chat_id, group_title=chat_title)
         telegram_group.save()
-        print(f"Created group: {chat_title} ({chat_id})")
+        logger.info("Created Telegram group %s for integration %s", chat_id, integration.id)
     else:
-        print(f"Group already exists for this integration: {chat_title} ({chat_id})")
+        logger.info("Telegram group %s already exists for integration %s", chat_id, integration.id)
 
 
-def handle_bot_removed_from_group(chat_id, chat_title):
-    print(f"Bot removed from group: {chat_title} ({chat_id})")
+def handle_bot_removed_from_group(chat_id):
+    logger.info("Bot removed from Telegram group %s", chat_id)
     TelegramGroupIntegration.objects.filter(group_id=chat_id).delete()
-    print(f"Deleted group: {chat_title} ({chat_id})")
 
 
 def check_register_info(message):

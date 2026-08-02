@@ -7,12 +7,23 @@ from apps.shared.addons.enums import UserRoles
 
 User = get_user_model()
 
+# Roles that may see the internal admin console at all.
+#
+# `UserRoles.STAFF` is deliberately NOT here. The only thing in the codebase
+# that ever mints a `staff` account is `AddStaffView`
+# (`POST /api/v1/user/add-staff/`) — a *customer-facing* "add my employee"
+# feature that any customer may call and that returns the new account's JWT in
+# its own 201 body. While `staff` was a dashboard role, that made customer →
+# platform-admin privilege escalation a two-request operation: create an
+# employee, then use the token it hands you against `IsDashboardUser` routes
+# such as `/dashboard/users/`, `/dashboard/cards/`, `/dashboard/transactions/`
+# and `/dashboard/search/`, none of which scope their querysets by tenant.
+# Internal console roles are super_admin / admin / manager / support_agent.
 DASHBOARD_ROLES = [
     UserRoles.SUPER_ADMIN.value,
     UserRoles.ADMIN.value,
     UserRoles.MANAGER.value,
     UserRoles.SUPPORT_AGENT.value,
-    UserRoles.STAFF.value,
 ]
 
 ADMIN_ROLES = [

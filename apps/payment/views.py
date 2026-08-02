@@ -3,6 +3,7 @@ from datetime import timedelta
 from django.db import transaction
 from django.utils.timezone import now
 from rest_framework import generics, permissions
+from rest_framework.throttling import ScopedRateThrottle
 from rest_framework.views import APIView
 
 from apps.payment.models import Feature, PricingPackage, Card, Subscription, Transaction, RetryPayment  
@@ -137,7 +138,8 @@ class CardCreateWithPaymeView(generics.CreateAPIView):
 
     serializer_class = serializers.CardCreateSerializer
     permission_classes = (permissions.IsAuthenticated,)
-    queryset = Card.objects.all()
+    throttle_classes = (ScopedRateThrottle,)
+    throttle_scope = "payment_card"
 
     def create(self, request, *args, **kwargs):
         serializer = self.get_serializer(data=request.data)
@@ -183,17 +185,21 @@ class SetDefaultCard(APIView):
 
 
 class CardDetailView(generics.RetrieveUpdateAPIView):
-    queryset = Card.objects.all()
     serializer_class = serializers.CardSerializer
     permission_classes = (permissions.IsAuthenticated,)
 
+    def get_queryset(self):
+        # The tenancy boundary lives here, not in `get_object()` below: a class
+        # level `Card.objects.all()` survives any future handler rewrite and
+        # turns straight back into an IDOR, whereas a scoped `get_queryset()`
+        # keeps every code path — DRF's own `get_object()`, filter backends,
+        # schema generation — inside the caller's own cards.
+        if getattr(self, "swagger_fake_view", False):
+            return Card.objects.none()
+        return Card.objects.filter(user=self.request.user)
+
     def get_object(self):
-        card_id = self.kwargs.get("pk")
-        try:
-            card = Card.objects.get(id=card_id, user=self.request.user)
-            return card
-        except Card.DoesNotExist:
-            return None
+        return self.get_queryset().filter(id=self.kwargs.get("pk")).first()
 
     def retrieve(self, request, *args, **kwargs):
         instance = self.get_object()
@@ -220,6 +226,11 @@ class CardDetailView(generics.RetrieveUpdateAPIView):
 class PaymeGetVerifyCodeView(generics.CreateAPIView):
     serializer_class = serializers.PaymeGetVerifyCodeSerializer
     permission_classes = (permissions.IsAuthenticated,)
+    # Payme sends the verification SMS to the phone registered against the card
+    # number in the body — a number the caller picks. Unthrottled, this is an
+    # SMS flood and a PAN-validity oracle pointed at strangers.
+    throttle_classes = (ScopedRateThrottle,)
+    throttle_scope = "payment_card"
 
     def create(self, request, *args, **kwargs):
         serializer = self.get_serializer(
@@ -234,6 +245,9 @@ class PaymeGetVerifyCodeView(generics.CreateAPIView):
 class PaymeVerifyCodeView(generics.CreateAPIView):
     serializer_class = serializers.PaymeVerifyCodeSerializer
     permission_classes = (permissions.IsAuthenticated,)
+    # Guesses a 6-digit code against a card token; must not be free to retry.
+    throttle_classes = (ScopedRateThrottle,)
+    throttle_scope = "payment_card"
 
     def create(self, request, *args, **kwargs):
         serializer = self.get_serializer(
@@ -247,17 +261,21 @@ class PaymeVerifyCodeView(generics.CreateAPIView):
         )
 
 class CardRemoveView(generics.DestroyAPIView):
-    queryset = Card.objects.all()
     serializer_class = serializers.CardSerializer
     permission_classes = (permissions.IsAuthenticated,)
+    throttle_classes = (ScopedRateThrottle,)
+    throttle_scope = "payment_card"
+
+    def get_queryset(self):
+        if getattr(self, "swagger_fake_view", False):
+            return Card.objects.none()
+        return Card.objects.filter(user=self.request.user)
 
     def delete(self, request, *args, **kwargs):
-        card_id = self.kwargs["pk"]
-        try:
-            card = Card.objects.get(id=card_id, user=request.user)
-            card_token = card.card_token
-        except Card.DoesNotExist:
+        card = self.get_queryset().filter(id=self.kwargs["pk"]).first()
+        if card is None:
             return error_response(message=_("Karta topilmadi"))
+        card_token = card.card_token
 
         response = remove_payme_card(card_token)
         if not response:
@@ -273,6 +291,8 @@ class CardRemoveView(generics.DestroyAPIView):
 class PayWithCard(generics.CreateAPIView):
     serializer_class = serializers.PayWithCardSerializer
     permission_classes = (permissions.IsAuthenticated,)
+    throttle_classes = (ScopedRateThrottle,)
+    throttle_scope = "payment_charge"
 
     def create(self, request, *args, **kwargs):
         serializer = self.get_serializer(data=request.data, context={"request": request})
@@ -287,6 +307,8 @@ class PayWithCard(generics.CreateAPIView):
 class ManualSubscriptionPaymentView(generics.CreateAPIView):
     serializer_class = serializers.PayWithCardSerializer
     permission_classes = (permissions.IsAuthenticated,)
+    throttle_classes = (ScopedRateThrottle,)
+    throttle_scope = "payment_charge"
 
     def create(self, request, *args, **kwargs):
         user = request.user
@@ -330,6 +352,8 @@ class SubscriptionCreateView(generics.CreateAPIView):
 class SubscriptionUpdateView(generics.CreateAPIView):
     serializer_class = serializers.SubscriptionUpdateSerializer
     permission_classes = (permissions.IsAuthenticated,)
+    throttle_classes = (ScopedRateThrottle,)
+    throttle_scope = "payment_charge"
 
     def create(self, request, *args, **kwargs):
         serializer = self.get_serializer(data=request.data, context={"request": request})
@@ -352,7 +376,10 @@ class SubscriptionCancellationView(APIView):
         subscription = user.subscription
         if subscription is None:
             return error_response(message=_("Sizda obuna mavjud emas."))
-        subscription.status = SubscriptionStatuses.INACTIVE.value
+        # CANCELLED, not INACTIVE — matches DashboardSubscriptionCancel and
+        # gives validate_subscription() the right signal to report "you
+        # cancelled" rather than the generic "not active" message.
+        subscription.status = SubscriptionStatuses.CANCELLED.value
         subscription.cancellation_reason = cancellation_reason
         subscription.save()
         
@@ -363,7 +390,6 @@ class SubscriptionCancellationView(APIView):
         )
     
 class TransactionListView(generics.ListAPIView):
-    queryset = Transaction.objects.all()
     serializer_class = serializers.TransactionSerializer
     permission_classes = (permissions.IsAuthenticated,)
 
@@ -377,7 +403,6 @@ class TransactionListView(generics.ListAPIView):
             return Transaction.objects.filter(user=user)
 
 class RetryPaymentListView(generics.ListAPIView):
-    queryset = RetryPayment.objects.all()
     serializer_class = serializers.RetryPaymentSerializer
     permission_classes = (permissions.IsAuthenticated,)
 

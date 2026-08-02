@@ -423,3 +423,155 @@ class ChatEndpointRegressionTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assistant.refresh_from_db()
         self.assertEqual(self.assistant.name, "Renamed")
+
+
+class MassAssignmentTenancyTests(TestCase):
+    """Tenancy columns were writable through the customer-facing serializers.
+
+    Each of these had passed the view's ownership check on the row the caller
+    *did* own — the escalation was in the body, re-pointing that row at another
+    tenant afterwards.
+    """
+
+    def setUp(self):
+        from rest_framework.test import APIClient
+
+        from apps.payment.models import Subscription
+        from apps.user.models import User
+
+        def subscribed(username):
+            subscription = Subscription.objects.create(
+                status=SubscriptionStatuses.ACTIVE.value, remained_request_count=1000,
+            )
+            return User.objects.create(
+                username=username, auth_type="email", subscription=subscription,
+            )
+
+        self.owner = subscribed("ma-owner")
+        self.victim = subscribed("ma-victim")
+
+        self.assistant = Assistant.objects.create(
+            name="Mine", company_name="C", user=self.owner, vector_id="vs_a",
+        )
+        self.victim_assistant = Assistant.objects.create(
+            name="Theirs", company_name="V", user=self.victim, vector_id="vs_b",
+        )
+        self.conversation = Conversation.objects.create(
+            assistant=self.assistant, status=ConversationStatuses.ESCALATED.value,
+        )
+        self.victim_conversation = Conversation.objects.create(
+            assistant=self.victim_assistant, status=ConversationStatuses.ESCALATED.value,
+        )
+        self.message = Message.objects.create(
+            conversation=self.conversation, sender=SenderTypes.USER.value,
+            message_content="original",
+        )
+        self.client = APIClient()
+        self.client.force_authenticate(self.owner)
+
+    def test_an_assistant_cannot_be_handed_to_another_account(self):
+        """`user` was writable, so a PATCH moved the assistant into the
+        victim's account: it then counted against their assistant quota and
+        every integration hung off it billed their subscription."""
+        response = self.client.patch(
+            f"/api/v1/chat/assistant/{self.assistant.id}/",
+            {"user": str(self.victim.id)}, format="json",
+        )
+
+        self.assertEqual(response.status_code, 200, response.data)
+        self.assistant.refresh_from_db()
+        self.assertEqual(self.assistant.user_id, self.owner.id)
+
+        # The rest of the same PATCH still applies — this is a read-only field,
+        # not a rejected request.
+        renamed = self.client.patch(
+            f"/api/v1/chat/assistant/{self.assistant.id}/",
+            {"name": "Renamed"}, format="json",
+        )
+        self.assertEqual(renamed.status_code, 200)
+        self.assistant.refresh_from_db()
+        self.assertEqual(self.assistant.name, "Renamed")
+
+    def test_a_conversation_cannot_be_re_parented_onto_another_assistant(self):
+        response = self.client.patch(
+            f"/api/v1/chat/conversation/{self.conversation.id}/",
+            {"assistant": str(self.victim_assistant.id),
+             "status": ConversationStatuses.CLOSED.value},
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, 200, response.data)
+        self.conversation.refresh_from_db()
+        self.assertEqual(self.conversation.assistant_id, self.assistant.id)
+        # …and the legitimate half of the same request went through.
+        self.assertEqual(self.conversation.status, ConversationStatuses.CLOSED.value)
+
+    def test_a_message_cannot_be_moved_into_another_tenants_thread(self):
+        response = self.client.patch(
+            f"/api/v1/chat/message/{self.message.id}/",
+            {"conversation": str(self.victim_conversation.id),
+             "message_content": "edited"},
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, 200, response.data)
+        self.message.refresh_from_db()
+        self.assertEqual(self.message.conversation_id, self.conversation.id)
+        self.assertEqual(self.message.message_content, "edited")
+        self.assertEqual(self.victim_conversation.messages.count(), 0)
+
+
+class FollowUpStageOwnershipTests(TestCase):
+    """`FollowUpStageListCreateView.create` filtered on
+    `Q(user=request.user) | Q(user=request.user.created_by)`; with `created_by`
+    unset the second leg is `Q(user=None)` and matches every ownerless
+    assistant."""
+
+    def setUp(self):
+        from rest_framework.test import APIClient
+
+        from apps.user.models import User
+
+        self.user = User.objects.create(username="fu-user", auth_type="email")
+        self.ownerless = Assistant.objects.create(
+            name="Ownerless", company_name="O", user=None, vector_id="vs_o",
+        )
+        self.own = Assistant.objects.create(
+            name="Own", company_name="O", user=self.user, vector_id="vs_p",
+        )
+        self.client = APIClient()
+        self.client.force_authenticate(self.user)
+
+    def payload(self):
+        return {"stage_number": 1, "delay_hours": 2, "message_template": "hi"}
+
+    def test_an_ownerless_assistant_is_not_configurable(self):
+        from apps.assistant.models import FollowUpStage
+
+        refused = self.client.post(
+            f"/api/v1/chat/assistant/{self.ownerless.id}/follow-up/stages/",
+            self.payload(), format="json",
+        )
+        self.assertEqual(refused.status_code, 404)
+        self.assertFalse(
+            FollowUpStage.objects.filter(config__assistant=self.ownerless).exists()
+        )
+
+        allowed = self.client.post(
+            f"/api/v1/chat/assistant/{self.own.id}/follow-up/stages/",
+            self.payload(), format="json",
+        )
+        self.assertEqual(allowed.status_code, 201, allowed.data)
+
+
+class MessageCreateWithoutRequestTests(TestCase):
+    """`create()` bound `_` as a local (`transcribed_text, _, _ = ...`), which
+    made the `_("Request obyekti kerak")` guard above it raise
+    UnboundLocalError — a 500 where a 400 was intended."""
+
+    def test_a_missing_request_raises_the_validation_error(self):
+        from apps.shared.addons.validations import CustomValidationError
+
+        serializer = MessageSerializer()
+        with self.assertRaises(CustomValidationError):
+            serializer.create({"sender": SenderTypes.USER.value})

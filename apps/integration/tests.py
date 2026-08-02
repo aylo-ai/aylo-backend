@@ -353,8 +353,8 @@ class InstagramAccountResolutionTests(ChannelTestCase):
         integration.instagram_account_id = None
         integration.save()
 
-        with mock.patch("apps.integration.views.redis_client") as redis, \
-                mock.patch("apps.integration.views.process_collected_messages") as collector:
+        with mock.patch("apps.integration.views.instagram_webhook.redis_client") as redis, \
+                mock.patch("apps.integration.views.instagram_webhook.process_collected_messages") as collector:
             redis.get.return_value = None  # not a duplicate delivery
             # Dispatch is deferred to transaction commit, which a TestCase never
             # reaches on its own.
@@ -379,8 +379,8 @@ class InstagramAccountResolutionTests(ChannelTestCase):
         changes[field="messages"] rather than messaging[], with entry.id "0".
         The view only understood messaging[], so every DM fell through to the
         generic 200 and no reply was ever produced."""
-        with mock.patch("apps.integration.views.redis_client") as redis, \
-                mock.patch("apps.integration.views.process_collected_messages") as collector:
+        with mock.patch("apps.integration.views.instagram_webhook.redis_client") as redis, \
+                mock.patch("apps.integration.views.instagram_webhook.process_collected_messages") as collector:
             redis.get.return_value = None
             with self.captureOnCommitCallbacks(execute=True):
                 response = self.post_webhook({
@@ -404,8 +404,8 @@ class InstagramAccountResolutionTests(ChannelTestCase):
         self.assertEqual(collector.apply_async.call_args.args[0][5], ACCOUNT_ID)
 
     def test_an_echo_in_a_changes_entry_is_not_answered(self):
-        with mock.patch("apps.integration.views.redis_client") as redis, \
-                mock.patch("apps.integration.views.process_collected_messages") as collector:
+        with mock.patch("apps.integration.views.instagram_webhook.redis_client") as redis, \
+                mock.patch("apps.integration.views.instagram_webhook.process_collected_messages") as collector:
             redis.get.return_value = None
             response = self.post_webhook({
                 "entry": [{
@@ -427,7 +427,7 @@ class InstagramAccountResolutionTests(ChannelTestCase):
     def test_unknown_account_is_acknowledged_not_404ed(self):
         """Meta throttles and eventually disables a subscription that keeps
         returning non-2xx, so an unroutable account must still be ack'd."""
-        with mock.patch("apps.integration.views.redis_client"):
+        with mock.patch("apps.integration.views.instagram_webhook.redis_client"):
             response = self.post_webhook({
                 "entry": [{
                     "id": "99999999999999999",
@@ -544,8 +544,8 @@ class InstagramIntegrationLifecycleTests(TestCase):
         token_response = mock.MagicMock(status_code=200)
         token_response.json.return_value = {"access_token": "short-lived"}
 
-        with mock.patch("apps.integration.views.http") as http_mock, \
-                mock.patch("apps.integration.views.instagram_service") as service:
+        with mock.patch("apps.integration.views.instagram_oauth.http") as http_mock, \
+                mock.patch("apps.integration.views.instagram_oauth.instagram_service") as service:
             http_mock.post.return_value = token_response
             service.get_long_lived_access_token.return_value = "long-lived"
             service.get_user_profile.return_value = profile
@@ -619,7 +619,7 @@ class InstagramIntegrationLifecycleTests(TestCase):
         self.assertFalse(Integration.instagram_by_id(None).exists())
 
     def test_deleting_an_integration_unsubscribes_the_webhook(self):
-        from apps.integration import views as integration_views
+        from apps.integration.views import integrations as integration_views
 
         integration = Integration.objects.create(
             name="ig", integration_type=IntegrationTypes.INSTAGRAM.value,
@@ -1067,3 +1067,638 @@ class DeferredTaskDispatchTests(TestCase):
             queued_id = task.delay.call_args.args[0]
 
         self.assertTrue(Broadcast.objects.filter(id=queued_id).exists())
+
+
+class TenancyFixture(TestCase):
+    """Two tenants and one fully populated automation tree for the first.
+
+    Every subclass asserts the same two halves: the stranger is refused, and
+    the owner — in the same test — still gets through. A denial test without
+    the positive half only proves the endpoint is broken.
+    """
+
+    def setUp(self):
+        from rest_framework.test import APIClient
+
+        from apps.assistant.models import Assistant
+        from apps.integration.models import (
+            Flow, InstagramCommentResponse, Step, TelegramGroupIntegration,
+            Transition,
+        )
+        from apps.payment.models import Subscription
+        from apps.shared.addons.enums import SubscriptionStatuses
+        from apps.user.models import User
+
+        def subscribed(username):
+            subscription = Subscription.objects.create(
+                status=SubscriptionStatuses.ACTIVE.value, remained_request_count=1000,
+            )
+            return User.objects.create(
+                username=username, auth_type="email", subscription=subscription,
+            )
+
+        self.owner = subscribed("ws4-owner")
+        self.stranger = subscribed("ws4-stranger")
+
+        self.assistant = Assistant.objects.create(
+            name="Owned", company_name="C", user=self.owner, vector_id="vs_x",
+        )
+        self.stranger_assistant = Assistant.objects.create(
+            name="Stranger", company_name="S", user=self.stranger, vector_id="vs_y",
+        )
+        self.integration = Integration.objects.create(
+            assistant=self.assistant, user=self.owner, name="Owned IG",
+            integration_type=IntegrationTypes.INSTAGRAM.value,
+            api_token="OWNER-IG-TOKEN", instagram_account_id="ig-owner",
+        )
+        # Held through `Integration.user` only — assistant is NULL. This is the
+        # shape every `integration.assistant.user` check silently skipped.
+        self.userless_integration = Integration.objects.create(
+            assistant=None, user=self.owner, name="Owned TG",
+            integration_type=IntegrationTypes.TELEGRAM.value,
+            api_token="OWNER-TG-TOKEN",
+        )
+        self.group = TelegramGroupIntegration.objects.create(
+            integration=self.userless_integration, group_id="-100", group_title="G",
+        )
+        self.response_obj = InstagramCommentResponse.objects.create(
+            integration=self.integration, comment_message_template="hi",
+        )
+        self.flow = Flow.objects.create(comment_response=self.response_obj, title="F")
+        self.step = Step.objects.create(flow=self.flow, message_content="s")
+        self.transition = Transition.objects.create(from_to=self.step)
+
+        self.client = APIClient()
+
+    def as_stranger(self):
+        self.client.force_authenticate(self.stranger)
+
+    def as_owner(self):
+        self.client.force_authenticate(self.owner)
+
+
+class TelegramGroupTenancyTests(TenancyFixture):
+    """`TelegramGroupUpdateDestroyView` guarded only
+    `integration.assistant.user`, so a group hanging off an integration held
+    through `Integration.user` alone (assistant NULL) was unguarded: any
+    authenticated user could approve or DELETE it. `TelegramGroupListView`
+    filtered on the URL id alone."""
+
+    def detail_url(self):
+        return f"/api/v1/integration/telegram-group/{self.group.id}/"
+
+    def list_url(self):
+        return f"/api/v1/integration/integration/{self.userless_integration.id}/telegram-group/"
+
+    def test_a_stranger_cannot_read_update_or_delete_the_group(self):
+        from apps.integration.models import TelegramGroupIntegration
+
+        self.as_stranger()
+        self.assertEqual(self.client.get(self.detail_url()).status_code, 404)
+        self.assertEqual(
+            self.client.patch(self.detail_url(), {"is_approved": True}, format="json").status_code,
+            404,
+        )
+        self.assertEqual(self.client.delete(self.detail_url()).status_code, 404)
+        self.assertTrue(TelegramGroupIntegration.objects.filter(id=self.group.id).exists())
+        self.group.refresh_from_db()
+        self.assertFalse(self.group.is_approved)
+
+        # …and the owner still can.
+        self.as_owner()
+        self.assertEqual(self.client.get(self.detail_url()).status_code, 200)
+
+    def test_a_stranger_sees_no_groups_but_the_owner_does(self):
+        self.as_stranger()
+        response = self.client.get(self.list_url())
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(list(response.data), [])
+
+        self.as_owner()
+        response = self.client.get(self.list_url())
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(len(response.data), 1)
+
+
+class CommentAutomationTenancyTests(TenancyFixture):
+    """Comment responses, flows and transitions were keyed off the URL id
+    only: reading another tenant's automation, and — worse — writing new
+    auto-replies onto their verified Instagram account."""
+
+    def responses_url(self, integration):
+        return f"/api/v1/integration/{integration.id}/instagram/comment-responses/"
+
+    def flows_url(self, response_obj):
+        return f"/api/v1/integration/comment-responses/{response_obj.id}/flow/"
+
+    def transitions_url(self, flow):
+        return f"/api/v1/integration/comment-response/flow/{flow.id}/transition/"
+
+    def test_comment_responses_are_not_readable_or_writable_across_tenants(self):
+        from apps.integration.models import InstagramCommentResponse
+
+        url = self.responses_url(self.integration)
+        self.as_stranger()
+        listing = self.client.get(url)
+        self.assertEqual(listing.status_code, 200)
+        self.assertEqual(listing.data["data"], [])
+
+        created = self.client.post(
+            url, {"comment_message_template": "phish", "private_message_template": ""},
+            format="json",
+        )
+        self.assertEqual(created.status_code, 404)
+        self.assertEqual(
+            InstagramCommentResponse.objects.filter(integration=self.integration).count(), 1,
+        )
+
+        self.as_owner()
+        listing = self.client.get(url)
+        self.assertEqual(listing.status_code, 200)
+        self.assertEqual(len(listing.data["data"]), 1)
+        created = self.client.post(
+            url, {"comment_message_template": "mine", "private_message_template": ""},
+            format="json",
+        )
+        self.assertEqual(created.status_code, 201, created.data)
+
+    def test_flows_are_not_readable_or_writable_across_tenants(self):
+        from apps.integration.models import Flow
+
+        url = self.flows_url(self.response_obj)
+        payload = {
+            "title": "injected", "steps": [{"message_content": "hi"}],
+        }
+        self.as_stranger()
+        listing = self.client.get(url)
+        self.assertEqual(listing.status_code, 200)
+        self.assertEqual(list(listing.data), [])
+        self.assertEqual(self.client.post(url, payload, format="json").status_code, 404)
+        self.assertFalse(Flow.objects.filter(title="injected").exists())
+
+        self.as_owner()
+        listing = self.client.get(url)
+        self.assertEqual(listing.status_code, 200)
+        self.assertEqual(len(listing.data), 1)
+        self.assertEqual(self.client.post(url, payload, format="json").status_code, 201)
+
+    def test_the_transition_list_no_longer_returns_every_tenants_rows(self):
+        """It used to `return self.queryset.all()` — every Transition in the
+        database — as soon as the flow id existed."""
+        from apps.integration.models import Flow, Step, Transition
+
+        other_flow = Flow.objects.create(title="theirs")
+        other_step = Step.objects.create(flow=other_flow, message_content="theirs")
+        Transition.objects.create(from_to=other_step)
+
+        url = self.transitions_url(self.flow)
+        self.as_stranger()
+        listing = self.client.get(url)
+        self.assertEqual(listing.status_code, 200)
+        self.assertEqual(list(listing.data), [])
+
+        self.as_owner()
+        listing = self.client.get(url)
+        self.assertEqual(listing.status_code, 200)
+        ids = [row["id"] for row in listing.data]
+        self.assertEqual(ids, [str(self.transition.id)])
+
+    def test_a_stranger_cannot_write_transitions_into_the_flow(self):
+        from apps.integration.models import Transition
+
+        url = self.transitions_url(self.flow)
+        payload = {"from_to": str(self.step.id), "button_text": None}
+
+        self.as_stranger()
+        self.assertEqual(self.client.post(url, payload, format="json").status_code, 404)
+        self.assertEqual(Transition.objects.filter(from_to=self.step).count(), 1)
+
+        self.as_owner()
+        self.assertEqual(self.client.post(url, payload, format="json").status_code, 200)
+        self.assertEqual(Transition.objects.filter(from_to=self.step).count(), 2)
+
+
+class InstagramPostListTenancyTests(TenancyFixture):
+    """`/integration/<pk>/instagram/posts/` spends the integration's own access
+    token, so an id-only lookup paged another tenant's media with that
+    tenant's credentials."""
+
+    def url(self):
+        return f"/api/v1/integration/integration/{self.integration.id}/instagram/posts/"
+
+    def test_only_the_owner_reaches_the_graph_api(self):
+        page = mock.MagicMock(status_code=200)
+        page.json.return_value = {"data": [{"id": "m1"}], "paging": {}}
+
+        with mock.patch("apps.integration.views.instagram_media.http") as http_mock:
+            http_mock.get.return_value = page
+
+            self.as_stranger()
+            refused = self.client.get(self.url())
+            self.assertEqual(refused.status_code, 400)
+            http_mock.get.assert_not_called()
+
+            self.as_owner()
+            allowed = self.client.get(self.url())
+            self.assertEqual(allowed.status_code, 200)
+            self.assertEqual(allowed.data["data"], [{"id": "m1"}])
+
+
+class SendIntegrationMessageTenancyTests(TenancyFixture):
+    """The ownership check read `integration.assistant.user`, which ignored
+    `Integration.user` and raised AttributeError — a 500, not a refusal — when
+    `assistant` was NULL."""
+
+    def url(self, integration):
+        return f"/api/v1/integration/send/integration/{integration.id}/"
+
+    def test_only_the_owner_can_dispatch(self):
+        with mock.patch(
+            "apps.integration.views.integrations.send_message_integration_task"
+        ) as task:
+            self.as_stranger()
+            with self.captureOnCommitCallbacks(execute=True):
+                refused = self.client.post(
+                    self.url(self.userless_integration), {"message": "hi"}, format="json",
+                )
+            self.assertEqual(refused.status_code, 400)
+            task.delay.assert_not_called()
+
+            self.as_owner()
+            with self.captureOnCommitCallbacks(execute=True):
+                allowed = self.client.post(
+                    self.url(self.userless_integration), {"message": "hi"}, format="json",
+                )
+            self.assertEqual(allowed.status_code, 200)
+            task.delay.assert_called_once()
+
+
+class IntegrationCreateTenancyTests(TenancyFixture):
+    """`IntegrationCreateSerializer` resolved the URL's assistant by id alone,
+    so a subscribed user could bind their own Telegram bot to another tenant's
+    assistant and then chat with that tenant's agent."""
+
+    def url(self, assistant):
+        return f"/api/v1/integration/assistant/{assistant.id}/integration/"
+
+    def payload(self):
+        return {
+            "name": "mine", "integration_type": IntegrationTypes.TELEGRAM.value,
+            "api_token": "attacker-bot-token",
+        }
+
+    def test_an_integration_cannot_be_attached_to_another_tenants_assistant(self):
+        with mock.patch(
+            "apps.integration.serializers.telegram_get_me", return_value=(True, 200)
+        ), mock.patch("apps.integration.serializers.set_telegram_webhook"), \
+                mock.patch("apps.integration.serializers.get_webhook_info", return_value=200):
+            self.as_stranger()
+            refused = self.client.post(self.url(self.assistant), self.payload(), format="json")
+            self.assertEqual(refused.status_code, 400)
+            self.assertFalse(
+                Integration.objects.filter(assistant=self.assistant, name="mine").exists()
+            )
+
+            # The same request against their own assistant still works.
+            allowed = self.client.post(
+                self.url(self.stranger_assistant), self.payload(), format="json",
+            )
+            self.assertEqual(allowed.status_code, 201, allowed.data)
+
+
+class BillzTenancyTests(TenancyFixture):
+    """The Billz handler checked only that the assistant *existed*, and
+    `IntegrationSerializer.assistant` is writable behind a bare
+    `serializer.save()` — two ways to graft a catalogue onto a victim."""
+
+    def url(self, assistant):
+        return f"/api/v1/integration/assistant/{assistant.id}/billz/"
+
+    def login_response(self):
+        response = mock.MagicMock(status_code=200)
+        response.json.return_value = {"data": {"access_token": "billz-access"}}
+        return response
+
+    def test_only_the_owner_can_onboard_and_the_body_cannot_redirect_it(self):
+        with mock.patch("apps.integration.views.billz.http") as http_mock, \
+                mock.patch("apps.integration.tasks.fetch_and_save_billz_products"):
+            http_mock.post.return_value = self.login_response()
+
+            self.as_stranger()
+            refused = self.client.post(
+                self.url(self.assistant),
+                {"name": "billz", "integration_type": IntegrationTypes.BILLZ.value,
+                 "api_token": "secret"},
+                format="json",
+            )
+            self.assertEqual(refused.status_code, 404)
+            self.assertFalse(
+                Integration.objects.filter(
+                    assistant=self.assistant,
+                    integration_type=IntegrationTypes.BILLZ.value,
+                ).exists()
+            )
+
+            # Owner onboards their own assistant while naming the victim's in
+            # the body: the URL's (owned) assistant wins.
+            self.as_owner()
+            allowed = self.client.post(
+                self.url(self.assistant),
+                {"name": "billz", "integration_type": IntegrationTypes.BILLZ.value,
+                 "api_token": "secret", "assistant": str(self.stranger_assistant.id)},
+                format="json",
+            )
+            self.assertEqual(allowed.status_code, 201, allowed.data)
+            created = Integration.objects.get(
+                integration_type=IntegrationTypes.BILLZ.value,
+            )
+            self.assertEqual(created.assistant_id, self.assistant.id)
+
+
+class AmoCRMTenancyTests(TenancyFixture):
+    """`/amocrm/refresh/` looked its integration up by id alone and returned
+    the freshly minted access token in the response body — one request from
+    any authenticated account to a bearer credential for another tenant's
+    whole CRM."""
+
+    def setUp(self):
+        super().setUp()
+        self.amocrm = Integration.objects.create(
+            assistant=self.assistant, user=self.owner, name="amo",
+            integration_type=IntegrationTypes.AMOCRM.value,
+            api_token="OLD-ACCESS",
+            metadata={"subdomain": "repli.amocrm.ru", "client_id": "cid",
+                      "refresh_token": "OLD-REFRESH"},
+        )
+
+    def token_response(self):
+        response = mock.MagicMock(status_code=200)
+        response.json.return_value = {
+            "access_token": "NEW-ACCESS", "refresh_token": "NEW-REFRESH",
+            "expires_in": 86400,
+        }
+        return response
+
+    def test_refresh_is_owner_scoped_and_never_returns_the_token(self):
+        with self.settings(AMOCRM_SECRET_KEY="app-secret"), \
+                mock.patch("apps.integration.views.amocrm.http") as http_mock:
+            http_mock.post.return_value = self.token_response()
+
+            self.as_stranger()
+            refused = self.client.post(
+                "/api/v1/integration/amocrm/refresh/",
+                {"integration_id": str(self.amocrm.id)}, format="json",
+            )
+            self.assertEqual(refused.status_code, 404)
+            http_mock.post.assert_not_called()
+            self.amocrm.refresh_from_db()
+            self.assertEqual(self.amocrm.api_token, "OLD-ACCESS")
+
+            self.as_owner()
+            allowed = self.client.post(
+                "/api/v1/integration/amocrm/refresh/",
+                {"integration_id": str(self.amocrm.id)}, format="json",
+            )
+            self.assertEqual(allowed.status_code, 200, allowed.data)
+            self.amocrm.refresh_from_db()
+            self.assertEqual(self.amocrm.api_token, "NEW-ACCESS")
+            self.assertNotContains(allowed, "NEW-ACCESS")
+            self.assertNotIn("access_token", allowed.data["data"])
+
+    def test_set_pipeline_is_owner_scoped(self):
+        pipeline = mock.MagicMock(status_code=200)
+        pipeline.json.return_value = {"name": "Sales"}
+
+        with mock.patch("apps.integration.views.amocrm.http") as http_mock:
+            http_mock.get.return_value = pipeline
+
+            self.as_stranger()
+            refused = self.client.post(
+                "/api/v1/integration/amocrm/set-pipeline/",
+                {"integration_id": str(self.amocrm.id), "pipeline_id": "7"},
+                format="json",
+            )
+            self.assertEqual(refused.status_code, 404)
+            http_mock.get.assert_not_called()
+
+            self.as_owner()
+            allowed = self.client.post(
+                "/api/v1/integration/amocrm/set-pipeline/",
+                {"integration_id": str(self.amocrm.id), "pipeline_id": "7"},
+                format="json",
+            )
+            self.assertEqual(allowed.status_code, 200, allowed.data)
+
+
+class AmoCRMCallbackHostTests(TestCase):
+    """`referer` decides which host the AllowAny callback POSTs an
+    authorization code to and reads JSON back from — an SSRF primitive until
+    it is pinned to amoCRM's own domains."""
+
+    URL = "/api/v1/integration/amocrm/"
+
+    def test_an_off_domain_referer_is_refused_before_any_request_leaves(self):
+        from apps.integration.views import amocrm
+
+        with mock.patch.object(amocrm, "redis_client") as redis_mock, \
+                mock.patch.object(amocrm, "http") as http_mock:
+            redis_mock.get.return_value = '{"user_id": "1", "client_id": "cid"}'
+
+            response = self.client.get(
+                self.URL,
+                {"code": "c", "state": "s", "referer": "attacker.example.com"},
+            )
+
+        self.assertEqual(response.status_code, 400)
+        http_mock.post.assert_not_called()
+        http_mock.get.assert_not_called()
+
+    def test_the_host_check_rejects_smuggled_authorities(self):
+        from apps.integration.views.amocrm import is_amocrm_host
+
+        self.assertTrue(is_amocrm_host("repli.amocrm.ru"))
+        self.assertTrue(is_amocrm_host("amocrm.ru"))
+        for bad in (
+            "", None, "evil.com", "amocrm.ru.evil.com", "notamocrm.ru",
+            "evil.com/amocrm.ru", "evil.com@amocrm.ru", "amocrm.ru:8080",
+            "amocrm.ru#@evil.com", "evil.com?x=amocrm.ru",
+        ):
+            with self.subTest(host=bad):
+                self.assertFalse(is_amocrm_host(bad))
+
+    def test_a_valid_amocrm_referer_is_still_accepted(self):
+        from apps.integration.views import amocrm
+
+        with mock.patch.object(amocrm, "redis_client") as redis_mock, \
+                mock.patch.object(amocrm, "http") as http_mock, \
+                self.settings(AMOCRM_SECRET_KEY="app-secret"):
+            redis_mock.get.return_value = '{"user_id": "1", "client_id": "cid"}'
+            token = mock.MagicMock(status_code=400)
+            http_mock.post.return_value = token
+
+            response = self.client.get(
+                self.URL, {"code": "c", "state": "s", "referer": "repli.amocrm.ru"},
+            )
+
+        # It got past the host check and tried the exchange (which the fake
+        # refuses) rather than being turned away at the door.
+        self.assertEqual(response.status_code, 400)
+        http_mock.post.assert_called_once()
+
+
+class InstagramCallbackAssistantBindingTests(TestCase):
+    """`assistant_id` came off the query string of an unauthenticated endpoint
+    and was written straight onto the new integration."""
+
+    URL = "/api/v1/integration/instagram/callback/"
+
+    def setUp(self):
+        from rest_framework.test import APIClient
+
+        from apps.assistant.models import Assistant
+        from apps.user.models import User
+
+        self.owner = User.objects.create(username="cb-owner", auth_type="email")
+        self.stranger = User.objects.create(username="cb-stranger", auth_type="email")
+        self.assistant = Assistant.objects.create(
+            name="Victim", company_name="V", user=self.owner, vector_id="vs_v",
+        )
+        self.client = APIClient()
+
+    def call(self):
+        token_response = mock.MagicMock(status_code=200)
+        token_response.json.return_value = {"access_token": "short-lived"}
+
+        with mock.patch("apps.integration.views.instagram_oauth.http") as http_mock, \
+                mock.patch("apps.integration.views.instagram_oauth.instagram_service") as service:
+            http_mock.post.return_value = token_response
+            service.get_long_lived_access_token.return_value = "long-lived"
+            service.get_user_profile.return_value = {
+                "instagram_user_id": "app-scoped-1",
+                "instagram_account_id": "17841400375124995",
+                "instagram_username": "shop",
+            }
+            return self.client.get(
+                self.URL, {"code": "auth-code", "assistant_id": str(self.assistant.id)},
+            )
+
+    def test_an_unauthenticated_caller_cannot_bind_an_assistant(self):
+        response = self.call()
+
+        self.assertEqual(response.status_code, 404)
+        self.assertFalse(Integration.objects.exists())
+
+    def test_another_tenant_cannot_bind_it_either(self):
+        self.client.force_authenticate(self.stranger)
+        response = self.call()
+
+        self.assertEqual(response.status_code, 404)
+        self.assertFalse(Integration.objects.exists())
+
+    def test_the_owner_still_completes_the_flow(self):
+        self.client.force_authenticate(self.owner)
+        response = self.call()
+
+        self.assertEqual(response.status_code, 200, response.data)
+        integration = Integration.objects.get()
+        self.assertEqual(integration.assistant_id, self.assistant.id)
+
+
+class TelegramWebhookSecretHandlingTests(TestCase):
+    """The bot token in the path is this endpoint's only credential, and the
+    log line used to carry a slice of it."""
+
+    def url(self, token):
+        return f"/api/v1/integration/telegram/webhook/{token}/"
+
+    def setUp(self):
+        from apps.assistant.models import Assistant
+
+        assistant = Assistant.objects.create(
+            name="B", company_name="C", vector_id="vs_z",
+        )
+        self.integration = Integration.objects.create(
+            assistant=assistant, name="tg",
+            integration_type=IntegrationTypes.TELEGRAM.value,
+            api_token="123456:SUPER-SECRET-BOT-TOKEN",
+        )
+
+    def test_an_unknown_token_is_refused(self):
+        response = self.client.post(
+            self.url("123456:NOT-A-REAL-TOKEN"),
+            data={"message": {"chat": {"id": 1, "type": "private"}}},
+            content_type="application/json",
+        )
+        self.assertEqual(response.status_code, 403)
+
+    def test_the_known_token_is_accepted_and_never_logged(self):
+        """It used to log `bot_token[-6:]`. A slice of a credential is still a
+        credential leak into a log viewer, and it identified nothing useful."""
+        # settings.py disables logging under `manage.py test`; this assertion is
+        # *about* the log output, so lift it for the duration of the test.
+        import logging
+
+        logging.disable(logging.NOTSET)
+        self.addCleanup(logging.disable, logging.CRITICAL)
+
+        with mock.patch("apps.integration.views.telegram.redis_client"), \
+                self.assertLogs("apps.integration.views.telegram", level="INFO") as logs:
+            response = self.client.post(
+                self.url(self.integration.api_token),
+                data={"message": {"chat": {"id": 1, "type": "private"}, "text": "hi"}},
+                content_type="application/json",
+            )
+
+        self.assertEqual(response.status_code, 200)
+        joined = "\n".join(logs.output)
+        self.assertNotIn("SUPER-SECRET-BOT-TOKEN", joined)
+        self.assertNotIn("BOT-TOKEN", joined)  # not even a suffix
+        self.assertIn(str(self.integration.id), joined)
+
+
+class TelegramGatewaySecretHandlingTests(TestCase):
+    """`handle_bot_added_to_group` used `print(f"... {bot_token}")`, putting the
+    customer's full bot token — total control of their bot — into the container
+    log that the deployed log viewer serves."""
+
+    def test_an_unmatched_bot_token_is_never_written_out(self):
+        import logging
+
+        from apps.integration.gateways.telegram import handle_bot_added_to_group
+
+        logging.disable(logging.NOTSET)
+        self.addCleanup(logging.disable, logging.CRITICAL)
+
+        with self.assertLogs("apps.integration.gateways.telegram", level="INFO") as logs:
+            handle_bot_added_to_group("-100", "Group", "123456:SUPER-SECRET-BOT-TOKEN")
+
+        joined = "\n".join(logs.output)
+        self.assertNotIn("SUPER-SECRET-BOT-TOKEN", joined)
+        self.assertIn("-100", joined)
+
+    def test_a_matched_token_creates_the_group_without_logging_it(self):
+        import logging
+
+        from apps.assistant.models import Assistant
+        from apps.integration.gateways.telegram import handle_bot_added_to_group
+        from apps.integration.models import TelegramGroupIntegration
+
+        assistant = Assistant.objects.create(name="B", company_name="C", vector_id="vs_g")
+        integration = Integration.objects.create(
+            assistant=assistant, name="tg",
+            integration_type=IntegrationTypes.TELEGRAM.value,
+            api_token="123456:SUPER-SECRET-BOT-TOKEN",
+        )
+
+        logging.disable(logging.NOTSET)
+        self.addCleanup(logging.disable, logging.CRITICAL)
+
+        with self.assertLogs("apps.integration.gateways.telegram", level="INFO") as logs:
+            handle_bot_added_to_group("-100", "Group", integration.api_token)
+
+        self.assertTrue(
+            TelegramGroupIntegration.objects.filter(
+                integration=integration, group_id="-100",
+            ).exists()
+        )
+        self.assertNotIn("SUPER-SECRET-BOT-TOKEN", "\n".join(logs.output))

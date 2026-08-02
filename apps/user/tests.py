@@ -13,7 +13,7 @@ from rest_framework.test import APIClient
 
 from apps.user.models import User, Notification
 from apps.shared.addons import verification
-from apps.shared.addons.enums import NotificationTypes
+from apps.shared.addons.enums import NotificationTypes, UserRoles
 
 # Throttling stores its history in the default cache; DummyCache makes every
 # request pass so rate limits never make these tests flaky.
@@ -388,3 +388,74 @@ class GoogleOAuthEmailVerificationTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.victim.refresh_from_db()
         self.assertEqual(self.victim.sub, "google-sub")
+
+
+@NO_THROTTLE
+class StaffRoleEscalationTests(TestCase):
+    """`POST /user/add-staff/` is a *customer* feature — "add my employee" —
+    and it hands the caller the new account's JWT in its own 201 body. While
+    `UserRoles.STAFF` was also a member of `DASHBOARD_ROLES`, that made
+    customer → platform-admin escalation a two-request operation.
+    """
+
+    DASHBOARD_USERS = "/api/v1/dashboard/users/"
+
+    def setUp(self):
+        self.client = APIClient()
+        self.customer = User.objects.create(
+            phone_number="+998900000101", first_name="Cus", last_name="Tomer",
+            user_role=UserRoles.CUSTOMER.value,
+        )
+        self.support_agent = User.objects.create(
+            phone_number="+998900000102", first_name="Sup", last_name="Port",
+            user_role=UserRoles.SUPPORT_AGENT.value,
+        )
+
+    def mint_staff_token(self):
+        self.client.force_authenticate(self.customer)
+        response = self.client.post(
+            "/api/v1/user/add-staff/",
+            {
+                "first_name": "Emp",
+                "last_name": "Loyee",
+                "email_or_phone_number": "employee@example.com",
+            },
+            format="json",
+        )
+        self.assertEqual(response.status_code, 201)
+        return response.data["data"]["tokens"]["access"]
+
+    def test_add_staff_still_works_and_still_creates_a_staff_account(self):
+        self.mint_staff_token()
+
+        employee = User.objects.get(email="employee@example.com")
+        self.assertEqual(employee.user_role, UserRoles.STAFF.value)
+        self.assertEqual(employee.created_by, self.customer)
+
+    def test_a_customer_minted_staff_token_cannot_reach_the_dashboard(self):
+        access = self.mint_staff_token()
+
+        attacker = APIClient()
+        attacker.credentials(HTTP_AUTHORIZATION=f"Bearer {access}")
+        response = attacker.get(self.DASHBOARD_USERS)
+
+        self.assertEqual(response.status_code, 403)
+
+    def test_a_support_agent_still_reaches_the_dashboard(self):
+        self.client.force_authenticate(self.support_agent)
+        response = self.client.get(self.DASHBOARD_USERS)
+
+        self.assertEqual(response.status_code, 200)
+
+    def test_staff_is_refused_the_dashboard_otp_login(self):
+        staff = User.objects.create(
+            phone_number="+998900000103", first_name="Emp", last_name="Loyee",
+            user_role=UserRoles.STAFF.value,
+        )
+        response = self.client.post(
+            "/api/v1/dashboard/send-otp/login/",
+            {"phone_number": staff.phone_number},
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, 400)

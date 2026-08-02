@@ -16,16 +16,28 @@ class SubscriptionValidationMixin:
         if not subscription:
             raise_validation_error(message=_("Sizda obuna paketi yo'q. Iltimos, avval obuna paketini tanlang."))
 
-        if subscription.remained_request_count <= 0:
-            raise_validation_error(message=_("Sizning obunangiz tokeni tugagan. Iltimos, obunangizni yangilang."))
-        
-        # Check if subscription is active
-        if  subscription.status == SubscriptionStatuses.INACTIVE.value:
+        # Status is checked before the token count: an inactive/cancelled
+        # subscription commonly also has a fresh remained_request_count of 0,
+        # and reporting "tokens tugagan" (tokens exhausted) in that case hides
+        # the real cause (never activated / cancelled) from the user.
+        if subscription.status == SubscriptionStatuses.CANCELLED.value:
+            raise_validation_error(message=_("Sizning obunangiz bekor qilingan. Iltimos, yangi obuna tanlang."))
+
+        if subscription.status != SubscriptionStatuses.ACTIVE.value:
+            # `last_payment_date` is only ever set by a successful payment
+            # (Payme card flow, manual payment, billing renewal), so its
+            # absence reliably means this subscription has never been paid —
+            # distinct from one that was active and then lapsed.
+            if not subscription.last_payment_date:
+                raise_validation_error(message=_("To'lov hali amalga oshirilmagan. Iltimos, to'lovni yakunlang."))
             raise_validation_error(message=_("Sizning obunangiz faol emas. Iltimos, obunangizni faollashtiring."))
 
-        if subscription.next_payment_date < timezone.now().date() if subscription.next_payment_date else False:
+        if subscription.remained_request_count <= 0:
+            raise_validation_error(message=_("Sizning obunangiz tokeni tugagan. Iltimos, obunangizni yangilang."))
+
+        if subscription.next_payment_date and subscription.next_payment_date < timezone.now().date():
             raise_validation_error(message=_("Sizning obunangiz muddati tugagan. Iltimos, obunangizni yangilang."))
-        
+
         return subscription
             
 

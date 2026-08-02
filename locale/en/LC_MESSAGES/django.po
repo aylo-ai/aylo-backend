@@ -449,10 +449,6 @@ msgstr "Voice message successfully retrieved"
 msgid "Xabar muvaffaqiyatli olindi"
 msgstr "Message successfully retrieved"
 
-#: apps/integration/views.py:712
-msgid "Bu guruhni boshqarish huquqi yo'q"
-msgstr "No permission to manage this group"
-
 #: apps/integration/views.py:723
 msgid "Bot bu guruhda mavjud emas. Avval botni guruhga qo'shing."
 msgstr "The bot is not in this group. Add the bot to the group first."
@@ -690,8 +686,12 @@ msgid "To'lov tizimi bilan bog'liq muammo yuz berdi: {}"
 msgstr "System-related issue occurred with payment system: {}"
 
 #: apps/payment/serializers.py:390
-msgid "To'lov jarayonida xatolik yuz berdi: {}"
-msgstr "Error occurred during payment process: {}"
+msgid "To'lov jarayonida xatolik yuz berdi"
+msgstr "Error occurred during payment process"
+
+#: apps/payment/serializers.py:181
+msgid "Bu karta boshqa foydalanuvchiga biriktirilgan."
+msgstr "This card is linked to another user."
 
 #: apps/payment/serializers.py:455
 msgid "Sizda allaqachon faol obuna mavjud."
@@ -889,31 +889,39 @@ msgstr "Failed to verify code"
 msgid "Sizda obuna paketi yo'q. Iltimos, avval obuna paketini tanlang."
 msgstr "You don't have a subscription package. Please select a subscription package first."
 
-#: apps/shared/mixins.py:20
-msgid "Sizning obunangiz tokeni tugagan. Iltimos, obunangizni yangilang."
-msgstr "Your subscription tokens have expired. Please renew your subscription."
-
 #: apps/shared/mixins.py:24
+msgid "Sizning obunangiz bekor qilingan. Iltimos, yangi obuna tanlang."
+msgstr "Your subscription has been cancelled. Please select a new subscription."
+
+#: apps/shared/mixins.py:32
+msgid "To'lov hali amalga oshirilmagan. Iltimos, to'lovni yakunlang."
+msgstr "Payment has not been completed yet. Please complete the payment."
+
+#: apps/shared/mixins.py:33
 msgid "Sizning obunangiz faol emas. Iltimos, obunangizni faollashtiring."
 msgstr "Your subscription is not active. Please activate your subscription."
 
-#: apps/shared/mixins.py:27
+#: apps/shared/mixins.py:36
+msgid "Sizning obunangiz tokeni tugagan. Iltimos, obunangizni yangilang."
+msgstr "Your subscription tokens have expired. Please renew your subscription."
+
+#: apps/shared/mixins.py:39
 msgid "Sizning obunangiz muddati tugagan. Iltimos, obunangizni yangilang."
 msgstr "Your subscription period has expired. Please renew your subscription."
 
-#: apps/shared/mixins.py:35
+#: apps/shared/mixins.py:47
 msgid "Sizning assistantlar soningiz tugagan. Iltimos, assistantlar sonini oshiring."
 msgstr "You have reached your assistant limit. Please increase your assistant limit."
 
-#: apps/shared/mixins.py:40
+#: apps/shared/mixins.py:52
 msgid "Sizning telegram integratsiya soningiz tugagan. Iltimos, telegram integratsiya sonini oshiring."
 msgstr "You have reached your Telegram integration limit. Please increase your Telegram integration limit."
 
-#: apps/shared/mixins.py:45
+#: apps/shared/mixins.py:57
 msgid "Sizning instagram integratsiya soningiz tugagan. Iltimos, instagram integratsiya sonini oshiring."
 msgstr "You have reached your Instagram integration limit. Please increase your Instagram integration limit."
 
-#: apps/shared/mixins.py:50
+#: apps/shared/mixins.py:62
 msgid "Sizning assistant fayl yuklash soningiz tugagan. Iltimos, assistant fayl yuklash sonini oshiring."
 msgstr "You have reached your assistant file upload limit. Please increase your assistant file upload limit."
 
