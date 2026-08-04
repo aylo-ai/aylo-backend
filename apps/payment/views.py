@@ -17,6 +17,9 @@ class FeatureListCreateView(generics.ListCreateAPIView):
     queryset = Feature.objects.filter(is_active=True)
     serializer_class = serializers.FeatureSerializer
     permission_classes = [IsAdmin]
+    # Anonymous readable, so it needs a bound: the only global throttle class is
+    # ScopedRateThrottle, which does nothing on a view without a scope.
+    throttle_scope = "public_read"
 
     def get_permissions(self):
         # Features are the public bullet list on the pricing page — readable by
@@ -37,6 +40,7 @@ class FeatureRetrieveView(generics.RetrieveUpdateDestroyAPIView):
     queryset = Feature.objects.filter(is_active=True)
     serializer_class = serializers.FeatureSerializer
     permission_classes = [IsAdmin]
+    throttle_scope = "public_read"
 
     def get_permissions(self):
         if self.request.method == "GET":
@@ -69,6 +73,7 @@ class PricingPackageListCreateView(generics.ListCreateAPIView):
     queryset = PricingPackage.objects.filter(is_active=True)
     serializer_class = serializers.PricingPackageSerializer
     permission_classes = [IsAdmin]
+    throttle_scope = "public_read"
 
     def get_permissions(self):
         if self.request.method == 'GET':
@@ -86,6 +91,7 @@ class PricingPackageRetrieveView(generics.RetrieveUpdateDestroyAPIView):
     queryset = PricingPackage.objects.filter(is_active=True)
     serializer_class = serializers.PricingPackageSerializer
     permission_classes = [IsAdmin]
+    throttle_scope = "public_read"
 
     def get_permissions(self):
         if self.request.method == 'GET':
@@ -218,6 +224,9 @@ class CardDetailView(generics.RetrieveUpdateAPIView):
 class PaymeGetVerifyCodeView(generics.CreateAPIView):
     serializer_class = serializers.PaymeGetVerifyCodeSerializer
     permission_classes = (permissions.IsAuthenticated,)
+    # Each call makes Payme send an SMS to the cardholder. Unbounded, one
+    # account can pump SMS at any card number the attacker chooses.
+    throttle_scope = "payme_verify"
 
     def create(self, request, *args, **kwargs):
         serializer = self.get_serializer(
@@ -232,6 +241,8 @@ class PaymeGetVerifyCodeView(generics.CreateAPIView):
 class PaymeVerifyCodeView(generics.CreateAPIView):
     serializer_class = serializers.PaymeVerifyCodeSerializer
     permission_classes = (permissions.IsAuthenticated,)
+    # The SMS code is short and numeric — bound the guess rate.
+    throttle_scope = "payme_verify"
 
     def create(self, request, *args, **kwargs):
         serializer = self.get_serializer(

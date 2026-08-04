@@ -284,3 +284,149 @@ class PricingPackageValidationTests(TestCase):
         )
 
         self.assertEqual(response.status_code, 200)
+
+
+# ──────────────────────────────────────────────────────────────────────────
+# Public catalogue exposure and abuse bounds (2026-08-04 hardening sweep)
+# ──────────────────────────────────────────────────────────────────────────
+
+def throttled_at(scope, rate):
+    """Lower one throttle scope for the duration of a `with` block.
+
+    `override_settings(REST_FRAMEWORK=...)` does *not* work here:
+    `SimpleRateThrottle.THROTTLE_RATES` is a class attribute bound to the rates
+    dict at import time, so DRF's settings reload swaps the `api_settings`
+    object but every throttle instance keeps reading the original dict. Patch
+    that dict instead.
+    """
+    from rest_framework.throttling import SimpleRateThrottle
+
+    return mock.patch.dict(SimpleRateThrottle.THROTTLE_RATES, {scope: rate})
+
+
+class PublicCatalogueTests(TestCase):
+    """`features/` and `pricing-packages/` are the only `AllowAny` branches in
+    the payment app. They are the public pricing page — not a payment-provider
+    callback — so anonymous *reads* are intended; anonymous *writes* and an
+    unbounded request rate are not.
+    """
+
+    def setUp(self):
+        from django.core.cache import cache
+
+        cache.clear()  # throttle history lives in the cache
+        self.package = PricingPackage.objects.create(
+            name="Basic", type=PricingPackageType.CUSTOM.value, price=199000,
+            request_count=2000, duration_days=30,
+        )
+        self.retired = PricingPackage.objects.create(
+            name="Retired", type=PricingPackageType.CUSTOM.value, price=1,
+            request_count=1, duration_days=30, is_active=False,
+        )
+        self.client = APIClient()
+
+    def test_anonymous_may_read_the_package_list(self):
+        response = self.client.get("/api/v1/payment/pricing-packages/")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual([p["name"] for p in response.data], ["Basic"])
+
+    def test_a_retired_package_is_not_exposed(self):
+        response = self.client.get(f"/api/v1/payment/pricing-packages/{self.retired.id}/")
+
+        self.assertEqual(response.status_code, 404)
+
+    def test_the_public_package_payload_carries_no_internal_fields(self):
+        response = self.client.get(f"/api/v1/payment/pricing-packages/{self.package.id}/")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(
+            set(response.data["data"]),
+            {"id", "name", "price", "discount_price", "currency", "description",
+             "features", "request_count", "duration_days", "is_popular"},
+        )
+
+    def test_anonymous_cannot_create_a_package(self):
+        response = self.client.post(
+            "/api/v1/payment/pricing-packages/",
+            {"name": "Free forever", "price": 0, "request_count": 1,
+             "duration_days": 30, "type": PricingPackageType.CUSTOM.value},
+            format="json",
+        )
+
+        self.assertIn(response.status_code, (401, 403))
+        self.assertFalse(PricingPackage.objects.filter(name="Free forever").exists())
+
+    def test_anonymous_cannot_edit_a_package_price(self):
+        response = self.client.patch(
+            f"/api/v1/payment/pricing-packages/{self.package.id}/",
+            {"price": 1}, format="json",
+        )
+
+        self.assertIn(response.status_code, (401, 403))
+        self.package.refresh_from_db()
+        self.assertEqual(self.package.price, 199000)
+
+    def test_anonymous_cannot_delete_a_package(self):
+        response = self.client.delete(
+            f"/api/v1/payment/pricing-packages/{self.package.id}/"
+        )
+
+        self.assertIn(response.status_code, (401, 403))
+        self.assertTrue(PricingPackage.objects.filter(id=self.package.id).exists())
+
+    def test_the_public_catalogue_is_rate_limited(self):
+        """ScopedRateThrottle is the only global throttle class, so a view with
+        no `throttle_scope` is completely unbounded — which is what these two
+        anonymous endpoints used to be."""
+        with throttled_at("public_read", "1/minute"):
+            first = self.client.get("/api/v1/payment/pricing-packages/")
+            second = self.client.get("/api/v1/payment/pricing-packages/")
+
+        self.assertEqual(first.status_code, 200)
+        self.assertEqual(second.status_code, 429)
+
+    def test_the_feature_list_is_rate_limited(self):
+        with throttled_at("public_read", "1/minute"):
+            first = self.client.get("/api/v1/payment/features/")
+            second = self.client.get("/api/v1/payment/features/")
+
+        self.assertEqual(first.status_code, 200)
+        self.assertEqual(second.status_code, 429)
+
+
+class PaymeVerificationThrottleTests(TestCase):
+    """Both Payme card endpoints were authenticated but unbounded: one makes
+    Payme send an SMS to a card number the caller chooses, the other checks the
+    short numeric code that comes back."""
+
+    def setUp(self):
+        from django.core.cache import cache
+
+        cache.clear()
+        self.user = User.objects.create(username="payme-user", auth_type="email")
+        self.client = APIClient()
+        self.client.force_authenticate(self.user)
+
+    def test_verify_code_requests_are_rate_limited(self):
+        with throttled_at("payme_verify", "1/minute"):
+            first = self.client.post("/api/v1/payment/payme/get-verify-token/", {}, format="json")
+            second = self.client.post("/api/v1/payment/payme/get-verify-token/", {}, format="json")
+
+        # The first is rejected on its (empty) payload — the point is that it
+        # reached the serializer at all, and the second never did.
+        self.assertEqual(first.status_code, 400)
+        self.assertEqual(second.status_code, 429)
+
+    def test_code_confirmation_attempts_are_rate_limited(self):
+        with throttled_at("payme_verify", "1/minute"):
+            first = self.client.post("/api/v1/payment/payme/verify-code/", {}, format="json")
+            second = self.client.post("/api/v1/payment/payme/verify-code/", {}, format="json")
+
+        self.assertEqual(first.status_code, 400)
+        self.assertEqual(second.status_code, 429)
+
+    def test_the_endpoints_still_reject_anonymous_callers(self):
+        response = APIClient().post("/api/v1/payment/payme/verify-code/", {}, format="json")
+
+        self.assertIn(response.status_code, (401, 403))

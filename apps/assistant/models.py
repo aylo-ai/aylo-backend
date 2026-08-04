@@ -2,6 +2,7 @@ from django.contrib.postgres.fields import ArrayField
 from django.db import models
 from django.utils import timezone
 from django.utils.timezone import now
+from apps.shared.fields import EncryptedCharField, EncryptedTextField
 from apps.shared.models import BaseModel
 from apps.integration.models import Integration
 from apps.shared.addons.enums import (
@@ -135,8 +136,10 @@ class Conversation(BaseModel):
     instructions_version = models.DateTimeField(null=True, blank=True)
     start_time = models.DateTimeField(default=timezone.now)
     end_time = models.DateTimeField(null=True, blank=True)
-    client_full_name = models.CharField(max_length=255, null=True, blank=True)
-    client_phone_email = models.CharField(max_length=255, null=True, blank=True)
+    # Client PII volunteered in chat (name, phone number or email). Encrypted
+    # at rest; not searchable in SQL any more — see apps/shared/fields.py.
+    client_full_name = EncryptedCharField(max_length=255, null=True, blank=True)
+    client_phone_email = EncryptedCharField(max_length=255, null=True, blank=True)
 
     class Meta:
         db_table = "conversation"
@@ -159,7 +162,9 @@ class Message(BaseModel):
         Conversation, on_delete=models.CASCADE, related_name="messages"
     )
     sender = models.CharField(max_length=10, choices=SenderTypes.choices())
-    message_content = models.TextField()
+    # Full conversation transcript: order details, addresses, phone numbers.
+    # Encrypted at rest.
+    message_content = EncryptedTextField()
     audio_file = models.FileField(
         upload_to=assistant_audio_path, null=True, blank=True, max_length=255
     )

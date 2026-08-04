@@ -7,7 +7,6 @@ urlpatterns = [
     path('assistant/token-stats/', views.AssistantTokenStatsView.as_view(), name='assistant-token-stats'),
     path("assistant/<uuid:pk>/", views.AssistantRetrieveView.as_view()),
     path("assistant/<uuid:pk>/conversation/", views.ConversationListCreateView.as_view()),
-    # path("assistant/<uuid:pk>/google-doc/", views.AssistantFileGoogleDocView.as_view()),
     path("conversation/<uuid:pk>/", views.ConversationRetrieveView.as_view()),
     path("conversation/<uuid:pk>/message/", views.MessageListCreateView.as_view()),
     path("message/<uuid:pk>/", views.MessageRetrieveView.as_view()),

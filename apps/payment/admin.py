@@ -1,4 +1,7 @@
 from django.contrib import admin
+
+from apps.shared.addons.crypto import mask_secret
+
 from .models import Feature, PricingPackage, Transaction, Card, Balance, Subscription, RetryPayment
 
 
@@ -25,10 +28,21 @@ class TransactionAdmin(admin.ModelAdmin):
 
 @admin.register(Card)
 class CardAdmin(admin.ModelAdmin):
+    """`card_token` is a Payme bearer credential that can charge the card.
+
+    With no `fields`/`exclude` declared, the change form rendered every editable
+    field — including the raw token. It is masked and read-only now.
+    """
+
     list_display = ('name', 'user', 'card_number', 'expiry_date', 'is_verified', 'created_time')
     search_fields = ('user__first_name', 'user__last_name', 'user__phone_number', 'user__username')
     list_filter = ('is_default', 'is_verified')
-    readonly_fields = ('created_time', 'updated_time')
+    exclude = ('card_token',)
+    readonly_fields = ('card_token_masked', 'created_time', 'updated_time')
+
+    @admin.display(description="Card token")
+    def card_token_masked(self, obj):
+        return mask_secret(obj.card_token)
 
 @admin.register(Balance)
 class BalanceAdmin(admin.ModelAdmin):

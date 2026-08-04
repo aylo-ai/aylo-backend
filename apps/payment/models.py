@@ -1,5 +1,6 @@
 from django.db import models
 from django.core.validators import MinValueValidator
+from apps.shared.fields import EncryptedTextField
 from apps.shared.models import BaseModel
 from apps.shared.addons.enums import PaymentMethods, PaymentStatuses, CurrencyType, \
                                     TransactionTypes, PricingPackageType, SubscriptionStatuses
@@ -83,7 +84,9 @@ class Transaction(BaseModel):
 
 class Card(BaseModel):
     name = models.CharField(max_length=50, null=True, blank=True)
-    card_token = models.TextField()
+    # Payme card token — a bearer credential that can charge the customer's
+    # card. Encrypted at rest.
+    card_token = EncryptedTextField()
     card_number = models.CharField(max_length=16)
     expiry_date = models.CharField(max_length=10)
     is_verified = models.BooleanField(default=False)

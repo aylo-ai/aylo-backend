@@ -1,14 +1,31 @@
 from django.contrib import admin
+
+from apps.shared.addons.crypto import mask_secret
+
 from .models import Integration, TelegramGroupIntegration, InstagramMedia, InstagramCommentResponse, CommentTriggerWord, CommentResponseButton, Step, Transition, Flow,InstagramUserState
 
 
 @admin.register(Integration)
-class Integration(admin.ModelAdmin):
+class IntegrationAdmin(admin.ModelAdmin):
+    """The credentials are deliberately absent from the change form.
+
+    `api_token`, `refresh_token` and the amoCRM payload in `metadata` are live
+    bearer credentials. They used to be plain editable inputs, so any staff
+    member with integration access — and anyone who got hold of a session —
+    could read every customer's bot token straight off the page. They are shown
+    masked and read-only now; tokens are set by the OAuth callbacks and the
+    integration API, never by hand.
+    """
+
     list_display = ["get_asssitant_name", "name", "integration_type", "is_active", "created_time"]
     search_fields = ["name",]
+    readonly_fields = ("api_token_masked", "refresh_token_masked", "metadata_keys")
     fieldsets = (
-        (None, {"fields": ("assistant", "user", "name", "description", "is_active", "api_token","is_comment_response",
-                           "refresh_token", "integration_type", "metadata")}),
+        (None, {"fields": ("assistant", "user", "name", "description", "is_active",
+                           "is_comment_response", "integration_type")}),
+        ("Credentials (read-only)", {
+            "fields": ("api_token_masked", "refresh_token_masked", "metadata_keys"),
+        }),
         ("Instagram", {"fields": ("instagram_user_id", "instagram_account_id", "instagram_username")}),
     )
 
@@ -16,6 +33,19 @@ class Integration(admin.ModelAdmin):
         if obj.assistant:
             return obj.assistant.name
         return obj.user.first_name if obj.user else None
+
+    @admin.display(description="API token")
+    def api_token_masked(self, obj):
+        return mask_secret(obj.api_token)
+
+    @admin.display(description="Refresh token")
+    def refresh_token_masked(self, obj):
+        return mask_secret(obj.refresh_token)
+
+    @admin.display(description="Metadata keys")
+    def metadata_keys(self, obj):
+        """Key names only — the values hold the amoCRM refresh token."""
+        return ", ".join(sorted(obj.metadata)) if isinstance(obj.metadata, dict) else "—"
 
 class InstagramCommentResponseInline(admin.TabularInline):
     model = InstagramCommentResponse.instagram_media.through

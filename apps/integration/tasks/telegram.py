@@ -4,7 +4,6 @@ import logging
 from apps.shared import http
 from celery import shared_task
 
-from apps.assistant.models import Assistant
 from apps.assistant.utils import cancel_pending_follow_ups
 from apps.shared.ai_service import media
 from apps.shared.ai_service.agent import respond
@@ -12,6 +11,8 @@ from apps.assistant.services.conversation import conversation_service
 from apps.shared.addons.enums import ConversationStatuses, SenderTypes
 from apps.shared.addons.redis import publish_message_to_ws
 from apps.integration.gateways.telegram import send_telegram_action, send_telegram_message
+from apps.integration.models import Integration
+from apps.shared.addons.crypto import mask_secret
 
 logger = logging.getLogger(__name__)
 
@@ -25,9 +26,10 @@ def process_message_task(self, chat_id, user_message, bot_token, chat_username=N
     Escalated conversations and inactive assistants only store the message (a
     human operator takes over); otherwise the agent's reply is sent back.
     """
-    assistant = Assistant.objects.filter(integrations__api_token=bot_token).first()
+    assistant = Integration.assistant_for_bot_token(bot_token)
     if not assistant:
-        logger.warning("[-] No assistant found for bot_token: %s", bot_token)
+        # The bot token is a live credential — only ever log a masked suffix.
+        logger.warning("[-] No assistant found for bot token %s", mask_secret(bot_token))
         return
 
     if user_message == '/start':
@@ -70,7 +72,7 @@ def process_message_task(self, chat_id, user_message, bot_token, chat_username=N
 def process_voice_task(self, chat_id, voice_file_id, bot_token):
     """Download a Telegram voice note, transcribe it, and hand the text to
     ``process_message_task`` as a normal message (with the audio attached)."""
-    assistant = Assistant.objects.filter(integrations__api_token=bot_token).first()
+    assistant = Integration.assistant_for_bot_token(bot_token)
     if not assistant:
         logger.warning("[+] Assistant not found")
         return
@@ -97,7 +99,7 @@ def process_voice_task(self, chat_id, voice_file_id, bot_token):
              name="apps.integration.tasks.process_photo_task")
 def process_photo_task(self, chat_id, photo_file_id, bot_token, chat_username=None, username=None):
     """Describe a Telegram photo with vision and answer based on the description."""
-    assistant = Assistant.objects.filter(integrations__api_token=bot_token).first()
+    assistant = Integration.assistant_for_bot_token(bot_token)
     if not assistant:
         logger.warning("[+] Assistant not found")
         return

@@ -35,6 +35,44 @@ if TESTING:
 
     logging.disable(logging.CRITICAL)
 
+# --- Field encryption at rest -------------------------------------------
+# Keys for `apps.shared.addons.crypto` / `apps.shared.fields`, which encrypt
+# bot and OAuth tokens, Payme card tokens, message bodies and client PII before
+# they reach Postgres.
+#
+# `FIELD_ENCRYPTION_KEYS` is a comma-separated list of urlsafe-base64 32-byte
+# Fernet keys. The FIRST key encrypts; every key can decrypt, so rotation is
+# "generate a new key, prepend it, redeploy" with no downtime and no rewrite of
+# existing rows. Generate one with:
+#   python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
+#
+# Missing keys are derived deterministically from SECRET_KEY under DEBUG / the
+# test runner so a fresh checkout and the offline suite work, and are a hard
+# startup error otherwise — same shape as the SECRET_KEY handling above.
+FIELD_ENCRYPTION_KEYS = [
+    key.strip()
+    for key in os.environ.get("FIELD_ENCRYPTION_KEYS", "").split(",")
+    if key.strip()
+]
+# Key for the deterministic HMAC-SHA256 digests in the `*_hash` companion
+# columns that make an encrypted secret searchable. Rotating it requires
+# rebuilding those columns, so it is configured separately from the Fernet keys.
+FIELD_ENCRYPTION_HASH_KEY = os.environ.get("FIELD_ENCRYPTION_HASH_KEY", "")
+
+if not FIELD_ENCRYPTION_KEYS or not FIELD_ENCRYPTION_HASH_KEY:
+    if DEBUG or TESTING:
+        from apps.shared.addons.crypto import derive_key_from_secret
+
+        FIELD_ENCRYPTION_KEYS = FIELD_ENCRYPTION_KEYS or [derive_key_from_secret(SECRET_KEY)]
+        FIELD_ENCRYPTION_HASH_KEY = FIELD_ENCRYPTION_HASH_KEY or f"field-hash:{SECRET_KEY}"
+    else:
+        from django.core.exceptions import ImproperlyConfigured
+
+        raise ImproperlyConfigured(
+            "FIELD_ENCRYPTION_KEYS and FIELD_ENCRYPTION_HASH_KEY environment "
+            "variables are required when DEBUG is off"
+        )
+
 AZURE_OPENAI_ENDPOINT = os.environ.get("AZURE_OPENAI_ENDPOINT")
 AZURE_OPENAI_DEPLOYMENT = os.environ.get("AZURE_OPENAI_DEPLOYMENT")
 
@@ -98,8 +136,27 @@ REST_FRAMEWORK = {
     "DEFAULT_THROTTLE_RATES": {
         "anon": "10/minute",
         "landing_lead": "10/minute",
+        # Per client IP.
         "otp_send": "5/minute",
         "otp_verify": "10/minute",
+        # Per phone number / email (apps.user.services.throttles). The per-IP
+        # scopes above do not bound an attack on one account — rotating source
+        # addresses resets them — and they let one NAT'd user lock out everyone
+        # behind the same address. These follow the identifier instead.
+        "otp_send_identifier": "5/hour",
+        "otp_verify_identifier": "15/hour",
+        # Unauthenticated third-party callbacks. Meta's and Telegram's own
+        # webhooks are deliberately *not* throttled — a dropped delivery is lost
+        # customer traffic and repeated non-2xx answers make Meta disable the
+        # subscription; they are bounded by signature verification and a body
+        # size cap instead. These scopes cover the callbacks that carry no
+        # provider signature at all.
+        "oauth_callback": "20/minute",
+        "lead_bot": "60/minute",
+        # Public read-only catalogue / blog endpoints.
+        "public_read": "60/minute",
+        # Payme card verification codes — an SMS code brute-force surface.
+        "payme_verify": "10/minute",
     },
 }
 
@@ -210,7 +267,10 @@ CORS_ALLOWED_ORIGINS = [
     "https://dashboard.repli.uz",
     "https://dev-app.repli.uz",
     "https://dev-api.repli.uz",
-    "https://df04-82-215-100-92.ngrok-free.app",
+    # NOTE: no ngrok/tunnel hosts here. `CORS_ALLOW_CREDENTIALS` is on, and an
+    # ephemeral `*.ngrok-free.app` subdomain is handed back out once the tunnel
+    # that held it closes — whoever claims it next can read authenticated
+    # responses from this API cross-origin.
 ]
 
 CORS_ALLOW_METHODS = [
@@ -239,12 +299,20 @@ CSRF_TRUSTED_ORIGINS = [
     "https://*.repli.uz",
     "http://127.0.0.1:8000",
     "http://localhost:5173",
-    "https://df04-82-215-100-92.ngrok-free.app",
 ]
 
+# Access tokens are bearer credentials that nothing can revoke: `/auth/logout/`
+# and refresh rotation blacklist the *refresh* token, but an access token stays
+# valid until it expires on its own. Its lifetime is therefore the window an
+# attacker keeps a stolen token — it used to be 7 days. One hour is the default;
+# `ACCESS_TOKEN_LIFETIME_MINUTES` lets ops widen it without a code change, and
+# clients renew through `/api/v1/user/auth/login/refresh/`.
+ACCESS_TOKEN_LIFETIME_MINUTES = int(os.environ.get("ACCESS_TOKEN_LIFETIME_MINUTES", 60))
+REFRESH_TOKEN_LIFETIME_DAYS = int(os.environ.get("REFRESH_TOKEN_LIFETIME_DAYS", 14))
+
 SIMPLE_JWT = {
-    "ACCESS_TOKEN_LIFETIME": timedelta(days=7),
-    "REFRESH_TOKEN_LIFETIME": timedelta(days=30),
+    "ACCESS_TOKEN_LIFETIME": timedelta(minutes=ACCESS_TOKEN_LIFETIME_MINUTES),
+    "REFRESH_TOKEN_LIFETIME": timedelta(days=REFRESH_TOKEN_LIFETIME_DAYS),
     "ROTATE_REFRESH_TOKENS": True,
     "BLACKLIST_AFTER_ROTATION": True,
     "UPDATE_LAST_LOGIN": True,
@@ -268,6 +336,24 @@ SIMPLE_JWT = {
     "SLIDING_TOKEN_LIFETIME": timedelta(minutes=5),
     "SLIDING_TOKEN_REFRESH_LIFETIME": timedelta(days=1),
 }
+
+# Response headers and cookie flags that only make sense once the site is served
+# over TLS — turning them on under `DEBUG` breaks plain-http local development
+# (the session cookie would never be sent back, so `/admin/` cannot log in).
+if not DEBUG:
+    # A year, and long enough for the preload list; 3600s is below every
+    # browser's minimum and `manage.py check --deploy` flags it.
+    SECURE_HSTS_SECONDS = 31536000
+    SESSION_COOKIE_HTTPONLY = True
+    CSRF_COOKIE_HTTPONLY = True
+    X_FRAME_OPTIONS = "DENY"
+    SECURE_REFERRER_POLICY = "same-origin"
+    SECURE_CROSS_ORIGIN_OPENER_POLICY = "same-origin"
+    # NOTE: `SECURE_SSL_REDIRECT` is deliberately *not* set here. The committed
+    # nginx vhost (deployment/nginx/api.aylo.uz.conf) terminates on :80 only, so
+    # `X-Forwarded-Proto` is `http` and Django would answer every request with a
+    # redirect to itself. Enable it in the same change that adds the TLS server
+    # block — see the change report for 2026-08-04.
 
 LANGUAGES = [
     ('en', _('English')),
@@ -416,6 +502,18 @@ INSTAGRAM_CLIENT_SECRET = os.environ.get("INSTAGRAM_CLIENT_SECRET")
 INSTAGRAM_REDIRECT_URI = os.environ.get("INSTAGRAM_REDIRECT_URI")
 INSTAGRAM_VERIFY_TOKEN = os.environ.get("INSTAGRAM_VERIFY_TOKEN", "")
 INSTAGRAM_APP_SECRET = os.environ.get("INSTAGRAM_APP_SECRET", "")
+
+# --- Webhook authenticity secrets ---------------------------------------
+# Telegram does not sign webhook payloads. The only control it offers is the
+# `secret_token` registered with setWebhook and returned in the
+# X-Telegram-Bot-Api-Secret-Token header of every delivery. This server key is
+# never sent anywhere: each bot's secret is HMAC(key, bot_token) — see
+# `apps.integration.gateways.telegram.telegram_webhook_secret`. Unset means the
+# inbound webhook fails closed and rejects every update.
+TELEGRAM_WEBHOOK_SECRET = os.environ.get("TELEGRAM_WEBHOOK_SECRET", "")
+# Same handshake for the landing-page lead notification bot, which runs on its
+# own token (LEAD_BOT_TOKEN) and its own webhook.
+LEAD_BOT_WEBHOOK_SECRET = os.environ.get("LEAD_BOT_WEBHOOK_SECRET", "")
 
 DATA_UPLOAD_MAX_MEMORY_SIZE = 104857600  # 100 MB
 FILE_UPLOAD_MAX_MEMORY_SIZE = 104857600  # 100 MB

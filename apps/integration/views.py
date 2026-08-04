@@ -4,11 +4,29 @@ import base64
 import functools
 import hashlib
 import hmac
+import re
 import time
 import json
 import secrets
 
 logger = logging.getLogger(__name__)
+
+# Webhook bodies are small: a Telegram update or a Meta delivery is a few KB.
+# DATA_UPLOAD_MAX_MEMORY_SIZE is 100 MB for file uploads, which would otherwise
+# let an anonymous caller make this process buffer 100 MB and HMAC it before the
+# signature check can reject it.
+MAX_WEBHOOK_BODY_BYTES = 1024 * 1024
+
+# How long a provider event id is remembered for replay suppression. Long
+# enough to outlive every provider's own retry schedule (and a captured payload
+# being replayed), short enough to keep the key space bounded.
+WEBHOOK_DEDUP_TTL_SECONDS = 6 * 60 * 60
+
+# amoCRM hands the account subdomain to the OAuth callback as a query parameter
+# and the callback then makes server-side requests to it, carrying the amoCRM
+# client credentials. Unconstrained, that is an SSRF with credential
+# exfiltration: `?referer=attacker.example` posts client_id/client_secret there.
+AMOCRM_HOST_RE = re.compile(r"^[a-z0-9][a-z0-9-]{0,62}\.amocrm\.(ru|com)$")
 
 from django.db import transaction
 from django.db.models import Q
@@ -21,7 +39,11 @@ from django.utils.translation import gettext_lazy as _
 
 from config.settings import INSTAGRAM_CLIENT_ID, INSTAGRAM_CLIENT_SECRET, INSTAGRAM_REDIRECT_URI
 from apps.shared.addons.enums import IntegrationTypes
-from apps.integration.gateways.telegram import handle_bot_added_to_group, handle_bot_removed_from_group
+from apps.integration.gateways.telegram import (
+    handle_bot_added_to_group,
+    handle_bot_removed_from_group,
+    telegram_webhook_secret,
+)
 from apps.shared.addons.validations import success_response, error_response
 from apps.shared.permissions import IsCustomer
 from apps.integration.gateways.instagram import instagram_service
@@ -185,6 +207,69 @@ class SendIntegrationMessageView(generics.CreateAPIView):
         return success_response(message=_("Xabar muvaffaqiyatli yuborildi"), code=200)
 
 
+def webhook_body_too_large(request):
+    """True when a webhook body exceeds what any provider legitimately sends."""
+    declared = request.META.get("CONTENT_LENGTH") or 0
+    try:
+        declared = int(declared)
+    except (TypeError, ValueError):
+        declared = 0
+    return declared > MAX_WEBHOOK_BODY_BYTES or len(request.body) > MAX_WEBHOOK_BODY_BYTES
+
+
+def webhook_replay_seen(key):
+    """Mark a provider event id as handled; True when it was already seen.
+
+    Signature verification proves *who* sent a payload, not that it is new: a
+    captured delivery can be replayed verbatim and would answer the customer
+    twice, re-run the comment automation, or re-charge the account's AI quota.
+    The old dedup window was 5 minutes, which a replay trivially outlives.
+
+    Redis being down must not stop a real customer message, so a failure here
+    degrades to at-least-once delivery rather than dropping the event.
+    """
+    try:
+        if redis_client.get(key):
+            return True
+        redis_client.setex(key, WEBHOOK_DEDUP_TTL_SECONDS, "1")
+    except Exception:
+        logger.exception("Webhook replay check failed; processing without dedup")
+    return False
+
+
+def parse_meta_signed_request(signed_request, app_secret):
+    """Validate a Meta ``signed_request`` and return its payload, or ``None``.
+
+    Used by both the deauthorize and the data-deletion callbacks; it lived
+    twice, verbatim, as a closure inside each of them.
+    """
+    if not app_secret:
+        # Fail closed: with no secret the signature cannot be checked, and an
+        # unverified payload here deletes a customer's integration.
+        logger.error("INSTAGRAM_CLIENT_SECRET is not configured; rejecting signed request")
+        return None
+    try:
+        encoded_sig, payload = signed_request.split('.', 1)
+
+        def base64_url_decode(input_str):
+            input_str += '=' * ((4 - len(input_str) % 4) % 4)  # Proper padding
+            return base64.urlsafe_b64decode(input_str.encode())
+
+        decoded_sig = base64_url_decode(encoded_sig)
+        expected_sig = hmac.new(
+            app_secret.encode(),
+            msg=payload.encode(),
+            digestmod=hashlib.sha256,
+        ).digest()
+        if not hmac.compare_digest(decoded_sig, expected_sig):
+            logger.warning("Meta signed request carried an invalid signature")
+            return None
+        return json.loads(base64_url_decode(payload))
+    except Exception:
+        logger.exception("Error parsing Meta signed request")
+        return None
+
+
 class InstagramWebhookView(APIView):
 
     def _verify_signature(self, request):
@@ -212,15 +297,33 @@ class InstagramWebhookView(APIView):
         token = request.query_params.get("hub.verify_token")
         challenge = request.query_params.get("hub.challenge")
 
-        if mode == "subscribe" and settings.INSTAGRAM_VERIFY_TOKEN and token == settings.INSTAGRAM_VERIFY_TOKEN:
+        verify_token = settings.INSTAGRAM_VERIFY_TOKEN
+        if mode == "subscribe" and verify_token and hmac.compare_digest(
+            str(token or ""), str(verify_token)
+        ):
             return HttpResponse(challenge, content_type="text/plain", status=200)
 
         return error_response(message=_("Token yaroqsiz"), code=403)
 
-    def post(self, request, *args, **kwargs):  # noqa
+    def post(self, request, *args, **kwargs):
+        if webhook_body_too_large(request):
+            logger.warning("Instagram webhook body exceeded %s bytes", MAX_WEBHOOK_BODY_BYTES)
+            return error_response(message=_("So'rov hajmi juda katta"), code=413)
+
+        # Authenticity fails *closed*; everything after it fails soft.
         if not self._verify_signature(request):
             return error_response(message=_("Invalid signature"), code=403)
 
+        try:
+            return self._handle(request)
+        except Exception:
+            # Meta throttles and eventually disables a subscription that keeps
+            # answering non-2xx, so a bug in the routing below must not take the
+            # channel down for every customer.
+            logger.exception("Instagram webhook handling failed")
+            return success_response(message=_("Webhook ma'lumotlar qabul qilindi"), code=200)
+
+    def _handle(self, request):  # noqa
         data = request.data
         if not data:
             return error_response(message=_("Ma'lumot topilmadi"), code=400)
@@ -235,8 +338,6 @@ class InstagramWebhookView(APIView):
 
         entry = entries[0]
         account_id = entry.get("id") # IG Professional Account ID (instagram_user_id)
-
-        logger.info(f"Instagram webhook received for account: {account_id}, {entry}")
 
         # Shape only — never the message body, which is customer content.
         logger.info(
@@ -261,6 +362,10 @@ class InstagramWebhookView(APIView):
                     if not integration.api_token:
                         logger.warning("Instagram integration %s has no api_token; comment dropped", integration.id)
                         continue
+                    comment_id = comment_data.get("id")
+                    if comment_id and webhook_replay_seen(f"ig_comment_dedup:{comment_id}"):
+                        logger.info("Duplicate Instagram comment delivery ignored")
+                        return success_response(message=_("Duplicate comment ignored"), code=200)
                     transaction.on_commit(functools.partial(
                         process_instagram_comment.delay, account_id, comment_data))
                     return success_response(message=_("Comment webhook ma'lumotlar muvaffaqiyatli olindi"), code=200)
@@ -284,20 +389,22 @@ class InstagramWebhookView(APIView):
         if messaging:
             # Handle postback events (button clicks)
             if "postback" in messaging[0]:
+                postback_mid = messaging[0].get("postback", {}).get("mid")
+                if postback_mid and webhook_replay_seen(f"ig_postback_dedup:{postback_mid}"):
+                    logger.info("Duplicate Instagram postback delivery ignored")
+                    return success_response(message=_("Duplicate postback ignored"), code=200)
                 integration = Integration.instagram_by_id(account_id).first()
                 if integration and integration.api_token:
                     transaction.on_commit(functools.partial(
                         handle_postback_event_task.delay, messaging[0], integration.api_token))
                 return success_response(message=_("Postback muvaffaqiyatli olindi"), code=200)
-            
-            # Deduplicate: check message ID to prevent processing the same webhook twice
+
+            # Deduplicate on the provider's own message id, so a redelivered —
+            # or replayed — payload is answered exactly once.
             msg_mid = messaging[0].get("message", {}).get("mid")
-            if msg_mid:
-                dedup_key = f"ig_dedup:{msg_mid}"
-                if redis_client.get(dedup_key):
-                    logger.info(f"Duplicate Instagram message detected: {msg_mid}")
-                    return success_response(message=_("Duplicate message ignored"), code=200)
-                redis_client.setex(dedup_key, 300, "1")  # 5 min TTL
+            if msg_mid and webhook_replay_seen(f"ig_dedup:{msg_mid}"):
+                logger.info("Duplicate Instagram message delivery ignored")
+                return success_response(message=_("Duplicate message ignored"), code=200)
 
             audio_file = None
             is_echo = messaging[0].get("message", {}).get("is_echo")
@@ -368,6 +475,9 @@ class InstagramCallbackView(APIView):
     CLIENT_SECRET = INSTAGRAM_CLIENT_SECRET
     REDIRECT_URI = INSTAGRAM_REDIRECT_URI
 
+    # Meta redirects the installing user's browser here, so no JWT is present.
+    throttle_scope = "oauth_callback"
+
     def get(self, request, *args, **kwargs):
         # Get the authorization code from the query parameters
         user = request.user if request.user.is_authenticated else None
@@ -375,9 +485,30 @@ class InstagramCallbackView(APIView):
         assistant_id = request.query_params.get("assistant_id", None)
         is_automation_only = request.query_params.get("is_automation_only", "false")
         if not assistant_id and is_automation_only == "false":
-            return error_response(message=("Assistant ID topilmadi"), code=400)
+            return error_response(message=_("Assistant ID topilmadi"), code=400)
         if not code:
-            return error_response(message=("Authorization code topilmadi"), code=400)
+            return error_response(message=_("Authorization code topilmadi"), code=400)
+
+        # `assistant_id` arrives as an unauthenticated query parameter and is
+        # written straight onto the new Integration row. Resolve it explicitly:
+        # a bad value used to reach the database as a raw FK and 500, and when
+        # the browser *does* carry a session the assistant must be the caller's
+        # own. Binding it for the anonymous case needs a signed `state` in the
+        # authorize URL — see the change report.
+        assistant = None
+        if assistant_id:
+            try:
+                assistant = Assistant.objects.filter(id=assistant_id).first()
+            except (ValueError, DjangoValidationError):
+                assistant = None
+            if not assistant:
+                return error_response(message=_("Assistant topilmadi"), code=404)
+            if user and assistant.user_id and assistant.user_id != user.id:
+                logger.warning(
+                    "Instagram callback tried to attach assistant %s to another user",
+                    assistant.id,
+                )
+                return error_response(message=_("Assistant topilmadi"), code=404)
 
         # Exchange the authorization code for an access token
         token_url = "https://api.instagram.com/oauth/access_token"
@@ -477,42 +608,11 @@ class InstagramDeauthorizeView(APIView):
         # Facebook sends a signed request
         signed_request = request.data.get("signed_request")
         if not signed_request:
-            return error_response(message="Signed request not found", code=400)
-        def parse_signed_request(signed_request: str, app_secret: str):
-            try:
-                def base64_url_decode(input_str):
-                    input_str += '=' * ((4 - len(input_str) % 4) % 4)  # Proper padding
-                    return base64.urlsafe_b64decode(input_str.encode())
+            return error_response(message=_("Signed request topilmadi"), code=400)
 
-                encoded_sig, payload = signed_request.split('.', 1)
-
-                # Decode the payload and signature
-                decoded_sig = base64_url_decode(encoded_sig)
-                decoded_payload = base64_url_decode(payload)
-                data = json.loads(decoded_payload)
-
-                # Generate expected signature
-                expected_sig = hmac.new(
-                    app_secret.encode(),
-                    msg=payload.encode(),
-                    digestmod=hashlib.sha256
-                ).digest()
-
-                # Validate signature
-                if not hmac.compare_digest(decoded_sig, expected_sig):
-                    logger.warning("Instagram deauthorize: invalid signed request signature")
-                    return None
-
-                return data
-
-            except Exception:
-                logger.exception("Error parsing Instagram signed request")
-                return None
-
-
-        data = parse_signed_request(signed_request, INSTAGRAM_CLIENT_SECRET)
+        data = parse_meta_signed_request(signed_request, INSTAGRAM_CLIENT_SECRET)
         if not data:
-            return error_response(message="Invalid signed request", code=400)
+            return error_response(message=_("Signed request yaroqsiz"), code=400)
 
         user_id = data.get("user_id")
         if user_id:
@@ -548,50 +648,10 @@ class InstagramDataDeletionView(APIView):
 
         if not signed_request:
             return error_response(message=_("Signed request topilmadi"), code=400)
-        def parse_signed_request(signed_request: str, app_secret: str):
-            """
-            Parses and validates a signed_request from Instagram/Facebook.
 
-            Args:
-                signed_request (str): The signed request string from Meta.
-                app_secret (str): Your Instagram app's secret key.
-
-            Returns:
-                dict or None: Decoded data if valid, otherwise None.
-            """
-            try:
-                def base64_url_decode(input_str):
-                    input_str += '=' * ((4 - len(input_str) % 4) % 4)  # Proper padding
-                    return base64.urlsafe_b64decode(input_str.encode())
-
-                encoded_sig, payload = signed_request.split('.', 1)
-
-                # Decode the payload and signature
-                decoded_sig = base64_url_decode(encoded_sig)
-                decoded_payload = base64_url_decode(payload)
-                data = json.loads(decoded_payload)
-
-                # Generate expected signature
-                expected_sig = hmac.new(
-                    app_secret.encode(),
-                    msg=payload.encode(),
-                    digestmod=hashlib.sha256
-                ).digest()
-
-                # Validate signature
-                if not hmac.compare_digest(decoded_sig, expected_sig):
-                    logger.warning("Instagram data deletion: invalid signed request signature")
-                    return None
-
-                return data
-
-            except Exception:
-                logger.exception("Error parsing Instagram signed request")
-                return None
-
-        data = parse_signed_request(signed_request, INSTAGRAM_CLIENT_SECRET)
+        data = parse_meta_signed_request(signed_request, INSTAGRAM_CLIENT_SECRET)
         if not data:
-            return error_response(message="Invalid signed request", code=400)
+            return error_response(message=_("Signed request yaroqsiz"), code=400)
 
         user_id = data.get("user_id")
         if user_id:
@@ -606,24 +666,67 @@ class InstagramDataDeletionView(APIView):
 
 
 class TelegramWebhookView(APIView):
-    def post(self, request, bot_token):  # noqa
-        # Verify the bot token exists as an integration
-        if not Integration.objects.filter(api_token=bot_token).exists():
-            return error_response(message=_("Invalid bot token"), code=403)
+    """Inbound Telegram updates.
 
-        # Deduplicate: use Telegram update_id
+    Telegram signs nothing. Authenticity rests entirely on the ``secret_token``
+    registered with ``setWebhook`` and returned in every delivery's
+    ``X-Telegram-Bot-Api-Secret-Token`` header — see
+    ``gateways.telegram.telegram_webhook_secret``. Until this check existed, the
+    bot token in the URL path was the only barrier, and that token travels in
+    plain sight through proxy and access logs: anyone who read one could inject
+    arbitrary conversations into a customer's assistant, burning their AI quota
+    and poisoning their lead data.
+    """
+
+    def _verify_secret_token(self, request, bot_token):
+        expected = telegram_webhook_secret(bot_token)
+        if not expected:
+            logger.error("TELEGRAM_WEBHOOK_SECRET is not configured; rejecting webhook")
+            return False
+        # A missing header must fail exactly like a wrong one — the classic
+        # bug is checking the value only when the header happens to be present.
+        provided = request.META.get("HTTP_X_TELEGRAM_BOT_API_SECRET_TOKEN", "")
+        if not provided:
+            return False
+        return hmac.compare_digest(provided, expected)
+
+    def post(self, request, bot_token):
+        if webhook_body_too_large(request):
+            logger.warning("Telegram webhook body exceeded %s bytes", MAX_WEBHOOK_BODY_BYTES)
+            return error_response(message=_("So'rov hajmi juda katta"), code=413)
+
+        # Fail closed on authenticity. The message is deliberately identical for
+        # an unknown bot and a bad secret so the endpoint cannot be used to test
+        # whether a given bot token is connected to Repli.
+        if not self._verify_secret_token(request, bot_token):
+            return error_response(message=_("Invalid webhook credentials"), code=403)
+
+        try:
+            return self._handle(request, bot_token)
+        except Exception:
+            # Telegram retries a failed update and eventually backs the webhook
+            # off entirely; a handler bug must not cost the customer traffic.
+            logger.exception("Telegram webhook handling failed")
+            return success_response(message=_("Xabar qabul qilindi"), code=200)
+
+    def _handle(self, request, bot_token):  # noqa
+        # Telegram's update_id counter is per bot, so the key has to be scoped
+        # per bot too — a global `tg_dedup:<update_id>` made two bots with
+        # overlapping counters silently swallow each other's updates.
         update_id = request.data.get('update_id')
-        if update_id:
-            dedup_key = f"tg_dedup:{update_id}"
-            if redis_client.get(dedup_key):
-                logger.info(f"Duplicate Telegram update detected: {update_id}")
+        if update_id is not None:
+            bot_key = hashlib.sha256(str(bot_token).encode()).hexdigest()[:16]
+            if webhook_replay_seen(f"tg_dedup:{bot_key}:{update_id}"):
+                logger.info("Duplicate Telegram update ignored")
                 return success_response(message=_("Duplicate update ignored"), code=200)
-            redis_client.setex(dedup_key, 300, "1")  # 5 min TTL
 
         data = request.data.get('message')
         if not data:
-            return error_response(message=_("No message data received"))
-        logger.info(f"Telegram webhook received for bot_token ending ...{bot_token[-6:]}")
+            # Callback queries, edited messages, chat-member updates … nothing
+            # here handles them, but answering non-2xx makes Telegram retry the
+            # same update forever.
+            logger.info("Telegram update carried no message; acknowledged")
+            return success_response(message=_("Xabar mavjud emas"), code=200)
         chat_id = data.get("chat", {}).get("id", None)
         chat_title = data.get('chat', {}).get('title', 'Private Chat')
         chat_type = data.get("chat", {}).get("type", None)
@@ -1255,15 +1358,17 @@ class AmoCRMOAuthInstallView(APIView):
             # Generate state parameter for security
             state = secrets.token_urlsafe(32)
             
-            # Store state and user info in session/redis for verification
+            # Store state and user info in redis for verification. The client
+            # secret is deliberately NOT stored: it lives in settings, and
+            # copying it into a 5-minute Redis key only widened where it can
+            # leak from.
             redis_client.setex(
-                f"amocrm_oauth_state:{state}", 
+                f"amocrm_oauth_state:{state}",
                 300,  # 5 minutes expiry
                 json.dumps({
                     'user_id': str(user_id),  # Convert UUID to string
                     'subdomain': subdomain,
                     'client_id': client_id,
-                    'client_secret': client_secret
                 })
             )
             
@@ -1297,8 +1402,13 @@ class AmoCRMOAuthInstallView(APIView):
 
 
 class AmoCRMOAuthHandlerView(APIView):
-    permission_classes = [permissions.AllowAny]  # amoCRM will call this directly
-    
+    # amoCRM redirects the installing user's browser here, so this cannot
+    # require a JWT. The single-use `state` minted by AmoCRMOAuthInstallView is
+    # what binds a callback to an authenticated user; the throttle bounds
+    # guessing attempts against it.
+    permission_classes = [permissions.AllowAny]
+    throttle_scope = "oauth_callback"
+
     def get(self, request):
         try:
             # Get OAuth parameters
@@ -1306,32 +1416,51 @@ class AmoCRMOAuthHandlerView(APIView):
             state = request.GET.get('state')
             referer = request.GET.get('referer')  # amoCRM subdomain
             error = request.GET.get('error')
-            
+
             if error:
+                # Never reflect the provider's error string back into our own
+                # response body — log it instead.
+                logger.warning("amoCRM OAuth callback reported an error")
                 return error_response(
-                    message=f"OAuth error: {error}",
+                    message=_("amoCRM OAuth xatolik bilan yakunlandi"),
                     code=400
                 )
-            
+
             if not code or not state or not referer:
                 return error_response(
-                    message="Missing required OAuth parameters",
+                    message=_("OAuth parametrlari to'liq emas"),
                     code=400
                 )
-            
+
+            # `referer` decides which host receives the client credentials
+            # below. Unconstrained it is an SSRF that exfiltrates the amoCRM
+            # client_id/client_secret to any host the caller names.
+            if not AMOCRM_HOST_RE.match(referer.lower()):
+                logger.warning("amoCRM OAuth callback carried a non-amoCRM referer host")
+                return error_response(
+                    message=_("amoCRM domeni yaroqsiz"),
+                    code=400
+                )
+
             # Verify state parameter
             stored_state = redis_client.get(f"amocrm_oauth_state:{state}")
             if not stored_state:
                 return error_response(
-                    message="Invalid or expired state parameter",
+                    message=_("State parametri yaroqsiz yoki muddati o'tgan"),
                     code=400
                 )
-            
+
             state_data = json.loads(stored_state)
             user_id = state_data.get('user_id')
             client_id = state_data.get('client_id')
-            client_secret = state_data.get('client_secret')
-            
+            client_secret = getattr(settings, 'AMOCRM_SECRET_KEY', None)
+            if not client_secret:
+                logger.error("AMOCRM_SECRET_KEY is not configured")
+                return error_response(
+                    message=_("amoCRM sozlamalari to'liq emas"),
+                    code=500
+                )
+
             # Exchange authorization code for access token
             token_url = f"https://{referer}/oauth2/access_token"
             token_data = {
@@ -1405,9 +1534,12 @@ class AmoCRMOAuthHandlerView(APIView):
             )
             
             if not created:
-                # Update existing integration
+                # Update existing integration. `metadata` is nullable, so it
+                # has to be read through a default — `None.update(...)` used to
+                # turn a re-install into a 500.
                 integration.api_token = access_token
-                integration.metadata.update({
+                metadata = integration.metadata or {}
+                metadata.update({
                     'subdomain': referer,
                     'client_id': client_id,
                     'refresh_token': refresh_token,
@@ -1415,6 +1547,7 @@ class AmoCRMOAuthHandlerView(APIView):
                     'account_id': account_id,
                     'user_info': user_info
                 })
+                integration.metadata = metadata
                 integration.save()
             
             # Clean up state
@@ -1451,29 +1584,42 @@ class AmoCRMTokenRefreshView(APIView):
                     code=400
                 )
             
+            # Scoped to the caller: this endpoint took any integration id and
+            # handed back that integration's fresh access token, so any logged-in
+            # user could refresh — and read — another tenant's amoCRM credentials.
             integration = Integration.objects.filter(
+                Q(assistant__user=request.user) | Q(user=request.user),
                 id=integration_id,
                 integration_type=IntegrationTypes.AMOCRM.value
             ).first()
-            
+
             if not integration:
                 return error_response(
-                    message="amoCRM integration not found",
+                    message=_("amoCRM integratsiyasi topilmadi"),
                     code=404
                 )
-            
+
             metadata = integration.metadata or {}
             refresh_token = metadata.get('refresh_token')
             subdomain = metadata.get('subdomain')
             client_id = metadata.get('client_id')
             client_secret = getattr(settings, 'AMOCRM_SECRET_KEY', None)
-            
+
             if not refresh_token or not subdomain or not client_secret:
                 return error_response(
-                    message="Missing refresh token or credentials",
+                    message=_("Refresh token yoki kirish ma'lumotlari topilmadi"),
                     code=400
                 )
-            
+            if not AMOCRM_HOST_RE.match(str(subdomain).lower()):
+                # Defence in depth: the stored subdomain predates the callback's
+                # allow-list, so an old row could still point the credentials at
+                # an arbitrary host.
+                logger.warning("amoCRM integration %s carries a non-amoCRM subdomain", integration.id)
+                return error_response(
+                    message=_("amoCRM domeni yaroqsiz"),
+                    code=400
+                )
+
             # Refresh the token
             token_url = f"https://{subdomain}/oauth2/access_token"
             token_data = {
@@ -1486,38 +1632,39 @@ class AmoCRMTokenRefreshView(APIView):
             token_response = http.post(token_url, data=token_data)
             
             if token_response.status_code != 200:
+                logger.warning("amoCRM token refresh failed with status %s", token_response.status_code)
                 return error_response(
-                    message="Failed to refresh token",
+                    message=_("Tokenni yangilab bo'lmadi"),
                     code=400
                 )
-            
+
             token_info = token_response.json()
             new_access_token = token_info.get('access_token')
             new_refresh_token = token_info.get('refresh_token')
             new_expires_in = token_info.get('expires_in')
-            
+
             # Update integration with new tokens
             integration.api_token = new_access_token
-            integration.metadata.update({
+            metadata.update({
                 'refresh_token': new_refresh_token,
                 'expires_in': new_expires_in,
                 'last_refresh': time.time()
             })
+            integration.metadata = metadata
             integration.save()
-            
+
+            # The access token itself is never returned: it is a server-side
+            # credential, and nothing in the client needs it.
             return success_response(
-                data={
-                    'access_token': new_access_token,
-                    'expires_in': new_expires_in
-                },
-                message="Token refreshed successfully",
+                data={'expires_in': new_expires_in},
+                message=_("Token muvaffaqiyatli yangilandi"),
                 code=200
             )
-            
+
         except Exception:
             logger.exception("Error refreshing amoCRM token")
             return error_response(
-                message="Error refreshing token",
+                message=_("Tokenni yangilashda xatolik"),
                 code=500
             )
 
@@ -1531,25 +1678,35 @@ class AmoCRMSetPipelineView(APIView):
             pipeline_id = request.data.get('pipeline_id')
             if not integration_id or not pipeline_id:
                 return error_response(
-                    message="Integration ID and Pipeline ID are required",
+                    message=_("Integration ID va Pipeline ID kerak"),
                     code=400
                 )
-            
+
+            # Scoped to the caller — this used to accept any integration id and
+            # rewrite another tenant's amoCRM pipeline configuration.
             integration = Integration.objects.filter(
+                Q(assistant__user=request.user) | Q(user=request.user),
                 id=integration_id,
                 integration_type=IntegrationTypes.AMOCRM.value
             ).first()
-            
+
             if not integration:
                 return error_response(
-                    message="amoCRM integration not found",
+                    message=_("amoCRM integratsiyasi topilmadi"),
                     code=404
                 )
-            
+
             # Get pipeline info from amoCRM
-            subdomain = integration.metadata.get('subdomain') if integration.metadata else 'repli.amocrm.ru'
+            metadata = integration.metadata or {}
+            subdomain = metadata.get('subdomain') or 'repli.amocrm.ru'
+            if not AMOCRM_HOST_RE.match(str(subdomain).lower()):
+                logger.warning("amoCRM integration %s carries a non-amoCRM subdomain", integration.id)
+                return error_response(
+                    message=_("amoCRM domeni yaroqsiz"),
+                    code=400
+                )
             access_token = integration.api_token
-            
+
             # Get pipeline details
             pipeline_url = f"https://{subdomain}/api/v4/leads/pipelines/{pipeline_id}"
             headers = {
@@ -1560,36 +1717,38 @@ class AmoCRMSetPipelineView(APIView):
             pipeline_response = http.get(pipeline_url, headers=headers)
             
             if pipeline_response.status_code != 200:
+                logger.warning("amoCRM pipeline lookup failed with status %s", pipeline_response.status_code)
                 return error_response(
-                    message="Failed to get pipeline info",
+                    message=_("Pipeline ma'lumotini olib bo'lmadi"),
                     code=400
                 )
-            
+
             pipeline_info = pipeline_response.json()
             pipeline_name = pipeline_info.get('name', f'Pipeline {pipeline_id}')
-            
+
             # Update integration metadata
-            integration.metadata.update({
+            metadata.update({
                 'pipeline_id': pipeline_id,
                 'pipeline_name': pipeline_name,
                 'pipeline_info': pipeline_info
             })
+            integration.metadata = metadata
             integration.save()
-            
+
             return success_response(
                 data={
                     'pipeline_id': pipeline_id,
                     'pipeline_name': pipeline_name,
                     'integration_id': str(integration.id)
                 },
-                message="Pipeline set successfully",
+                message=_("Pipeline muvaffaqiyatli o'rnatildi"),
                 code=200
             )
-            
+
         except Exception:
             logger.exception("Error setting amoCRM pipeline")
             return error_response(
-                message="Error setting pipeline",
+                message=_("Pipeline o'rnatishda xatolik"),
                 code=500
             )
         
@@ -1604,10 +1763,12 @@ class BillzSecretTokenHandlerView(generics.CreateAPIView):
         return context
     
     def create(self, request, *args, **kwargs):
-        serializer = self.get_serializer(data=request.data)
         api_token = request.data.get('api_token')
         assistant_id = self.kwargs.get('pk')
-        if not Assistant.objects.filter(id=assistant_id).exists():
+        # Scoped to the caller: the check was `Assistant.objects.filter(id=...)`,
+        # so any authenticated user could hang a Billz integration off another
+        # tenant's assistant.
+        if not Assistant.objects.filter(id=assistant_id, user=request.user).exists():
             return error_response(message=_("Assistant topilmadi"), code=404)
         if not api_token:
             return error_response(message=_("Billz API token kerak"), code=400)
@@ -1615,14 +1776,22 @@ class BillzSecretTokenHandlerView(generics.CreateAPIView):
         if response.status_code != 200:
             return error_response(message=_("Billz API token yaroqli emas"), code=400)
 
-        access_token = response.json().get('data').get('access_token')
+        access_token = (response.json() or {}).get('data', {}).get('access_token')
         if not access_token:
             return error_response(message=_("Billz access token topilmadi"), code=400)
-        request.data['refresh_token'] = api_token
-        request.data['api_token'] = access_token
+
+        # The tokens are passed through `save()` rather than by mutating
+        # `request.data`: that mutation raised on a form-encoded (immutable)
+        # QueryDict, and `refresh_token` is not a serializer field, so the Billz
+        # secret token it tried to set was silently dropped.
+        serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
-        integration = serializer.save()
-        
+        integration = serializer.save(
+            assistant_id=assistant_id,
+            api_token=access_token,
+            refresh_token=api_token,
+        )
+
         # Trigger async task to fetch and save Billz products, once the
         # integration row this id points at is actually visible to the worker.
         from apps.integration.tasks import fetch_and_save_billz_products

@@ -1,3 +1,4 @@
+import hmac
 import logging
 import os
 import requests
@@ -24,9 +25,24 @@ originator: str = os.environ['PLAY_MOBILE_ORIGINATOR']
 # brute-forced OTP cannot be tried indefinitely within its validity window.
 MAX_VERIFY_ATTEMPTS = 5
 
+# Minimum gap between two codes sent to the same identifier. The SMS path is
+# already covered by its 60s code TTL; email codes live for 5 minutes, so
+# without this an attacker could flood a victim's inbox (and our sending
+# reputation) with one request per second.
+RESEND_COOLDOWN = 60
+
 
 def generate_code():
     return randint(100000, 999999)
+
+
+def _codes_match(stored, supplied):
+    """Compare an OTP without leaking its contents through timing."""
+    if stored is None:
+        return False
+    if isinstance(stored, bytes):
+        stored = stored.decode("utf-8")
+    return hmac.compare_digest(str(stored), str(supplied))
 
 
 def _register_failed_attempt(key):
@@ -48,11 +64,6 @@ def _register_failed_attempt(key):
 
 def _clear_attempts(key):
     redis_connection.delete(f"{key}_attempts")
-
-
-def clear_verified_flag(identifier):
-    """Drop the 'verified' marker once it has been consumed by registration."""
-    redis_connection.delete(f"{identifier}_verified")
 
 
 def send_playmobile_sms(phone_number, message):
@@ -104,8 +115,7 @@ def verify_code_cache(phone_number, code):
     data = redis_connection.get(phone_number)
     if not data:
         return False, "Code expired"
-    stored_code = data.decode('utf-8')
-    if stored_code == str(code):
+    if _codes_match(data, code):
         redis_connection.set(f"{phone_number}_verified", "True")
         redis_connection.expire(f"{phone_number}_verified", time=180)
         redis_connection.delete(phone_number)
@@ -114,18 +124,6 @@ def verify_code_cache(phone_number, code):
     if not _register_failed_attempt(phone_number):
         return False, "Too many incorrect attempts, request a new code"
     return False, "Code is incorrect"
-
-
-def send_sms_text(phone_number, text):
-    message_id = f"repliuz_{randint(100000, 999999)}"
-    payload = get_playmobile_payload(phone_number, message_id, originator, text)
-    response = http.post(
-        PLAY_MOBILE_URL,
-        json=payload,
-        auth=(PLAY_MOBILE_LOGIN, PLAY_MOBILE_PASSWORD),
-        timeout=60
-    )
-    return response if response.status_code == 200 else None
 
 
 EMAIL_CODE_TTL = 300  # seconds the emailed code stays valid
@@ -137,6 +135,10 @@ def send_email_code(email):
     The code is only stored once delivery has succeeded, so a failed send never
     replaces a code the user already holds with one they will never receive.
     """
+    cooldown_key = f"{email}_cooldown"
+    if redis_connection.get(cooldown_key):
+        return False, _("Verification code already sent")
+
     code = generate_code()
     try:
         html_message = render_to_string(
@@ -164,6 +166,7 @@ def send_email_code(email):
         return False, _("Failed to send verification code")
 
     redis_connection.setex(email, EMAIL_CODE_TTL, code)
+    redis_connection.setex(cooldown_key, RESEND_COOLDOWN, "1")
     return True, _("Verification code sent to your email")
 
 
@@ -174,7 +177,7 @@ def verify_email_code(email, code):
         if not stored_code:
             return False, _("Verification code expired or not found")
 
-        if stored_code.decode('utf-8') == str(code):
+        if _codes_match(stored_code, code):
             # Mark the address verified for as long as the code would have lived,
             # then burn the code so it cannot be replayed.
             redis_connection.setex(f"{email}_verified", EMAIL_CODE_TTL, "true")

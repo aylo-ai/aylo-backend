@@ -68,18 +68,10 @@ class IntegrationCreateSerializer(serializers.ModelSerializer, SubscriptionValid
         self.validate_subscription(user.subscription)
 
         if integration_type == IntegrationTypes.TELEGRAM.value and api_token:
-            try:
-                integration = Integration.objects.get(api_token=api_token, integration_type=IntegrationTypes.TELEGRAM.value)
-                if integration:
-                    success, code = telegram_get_me(api_token)
-                    if not success or code == 401:
-                        raise_validation_error(message=_("Telegram API token yaroqli emas"))
-                    set_telegram_webhook(api_token, f"{base_url}/api/v1/integration/telegram/webhook/{api_token}/")
-                    code = get_webhook_info(api_token)
-                    if code == 400:
-                        raise_validation_error(message=_("Telegram webhook topilmadi"))
-            except Integration.DoesNotExist:
-                pass
+            # There used to be an `Integration.objects.get(api_token=...)` here
+            # whose only branch repeated the verification below verbatim — a
+            # redundant query that also raised MultipleObjectsReturned when one
+            # bot was connected twice. Verify the token unconditionally instead.
             success, code = telegram_get_me(api_token)
             if not success or code == 401:
                 raise_validation_error(message=_("Telegram API token yaroqli emas"))

@@ -158,6 +158,11 @@ class CardCreateSerializer(serializers.ModelSerializer):
             "color",
             "is_verified",
         )
+        extra_kwargs = {
+            # The Payme card token can charge the customer's card. Accepted on
+            # write, never echoed back — the create response used to return it.
+            "card_token": {"write_only": True},
+        }
 
     def validate_card_token(self, value):
         """Validate the card token with the Payme system."""

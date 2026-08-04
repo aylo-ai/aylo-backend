@@ -1,5 +1,3 @@
-import os
-
 from django.utils.translation import gettext_lazy as _
 from django.http import FileResponse
 from django.db.models import Q, Sum, Count
@@ -18,7 +16,6 @@ from apps.assistant.filters import LeadFilter
 from apps.assistant.serializers import (AssistantSerializer,
     ConversationSerializer,
     MessageSerializer,
-    SettingsSerializer,
     AssistantFileUploadSerializer,
     ConversationRetrieveSerializer,
     UpdateFileUploadSerializer,
@@ -174,7 +171,10 @@ class MessageListCreateView(generics.ListCreateAPIView):
     queryset = Message.objects.all()
     serializer_class = MessageSerializer
     filter_backends = [filters.SearchFilter, filters.OrderingFilter]
-    search_fields = ['conversation__assistant__name', 'message_content']
+    # `message_content` is encrypted at rest, so an SQL `icontains` over it
+    # would match nothing. Searching transcripts needs a dedicated index —
+    # see docs/reports/2026-08-04-field-encryption-at-rest.md.
+    search_fields = ['conversation__assistant__name']
     ordering_fields = ['conversation__assistant__name', 'created_time']
     ordering = ['conversation', 'created_time']
     permission_classes = [permissions.IsAuthenticated]
@@ -231,7 +231,10 @@ class ConversationMessagesListView(generics.ListAPIView):
     queryset = Message.objects.all()
     serializer_class = MessageSerializer
     filter_backends = [filters.SearchFilter, filters.OrderingFilter]
-    search_fields = ['conversation__assistant__name', 'message_content']
+    # `message_content` is encrypted at rest, so an SQL `icontains` over it
+    # would match nothing. Searching transcripts needs a dedicated index —
+    # see docs/reports/2026-08-04-field-encryption-at-rest.md.
+    search_fields = ['conversation__assistant__name']
     ordering_fields = ['conversation__assistant__name', 'created_time']
     ordering = ['conversation', 'created_time']
     permission_classes = [permissions.IsAuthenticated]
@@ -242,51 +245,6 @@ class ConversationMessagesListView(generics.ListAPIView):
             conversation_id=conversation_id,
             conversation__assistant__in=owned_assistants(self.request.user),
         )
-
-
-class SettingsListCreateView(generics.ListCreateAPIView):
-    queryset = Assistant.objects.all()
-    serializer_class = SettingsSerializer
-    filter_backends = [filters.SearchFilter, filters.OrderingFilter]
-    search_fields = ['assistant__name']
-    ordering_fields = ['assistant__name']
-    ordering = ['assistant']
-    permission_classes = [permissions.IsAuthenticated]
-
-    def get_queryset(self):
-        return owned_assistants(self.request.user)
-
-    def create(self, request, *args, **kwargs):
-        serializer = self.get_serializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
-        self.perform_create(serializer)
-        return success_response(message=_("Settings muvaffaqiyatli yaratildi"), data=serializer.data, code=201)
-
-
-class SettingsRetrieveView(generics.RetrieveUpdateDestroyAPIView):
-    queryset = Assistant.objects.all()
-    serializer_class = SettingsSerializer
-    permission_classes = [permissions.IsAuthenticated]
-
-    def get_queryset(self):
-        return owned_assistants(self.request.user)
-
-    def retrieve(self, request, *args, **kwargs):
-        instance = self.get_object()
-        serializer = self.get_serializer(instance)
-        return success_response(data=serializer.data, message=_("Settings muvaffaqiyatli olindi"), code=200)
-
-    def update(self, request, *args, **kwargs):
-        instance = self.get_object()
-        serializer = self.get_serializer(instance, data=request.data, partial=kwargs.pop('partial', False))
-        serializer.is_valid(raise_exception=True)
-        self.perform_update(serializer)
-        return success_response(message=_("Settings muvaffaqiyatli o'zgartirildi"), data=serializer.data, code=200)
-
-    def destroy(self, request, *args, **kwargs):
-        instance = self.get_object()
-        self.perform_destroy(instance)
-        return success_response(message=_("Settings muvaffaqiyatli o'chirildi"), code=204)
 
 
 class AssistantFileUploadListCreateView(generics.ListCreateAPIView):
@@ -361,13 +319,21 @@ class AssistantFileUploadUpdateView(generics.CreateAPIView):
 
 
 class AssistantFileUploadRetrieveView(generics.RetrieveUpdateDestroyAPIView):
-    queryset = AssistantFileUpload.objects.all()
     serializer_class = AssistantFileUploadSerializer
     permission_classes = [permissions.IsAuthenticated]
 
+    def get_queryset(self):
+        # `owned_assistants()` rather than `assistant__user=request.user`: the
+        # list and upload endpoints already let a customer's staff account work
+        # with these files, so scoping detail/update/delete more narrowly was an
+        # inconsistency, not a control. It is still one tenant either way.
+        return AssistantFileUpload.objects.filter(
+            assistant__in=owned_assistants(self.request.user),
+        )
+
     def get_object(self):
         try:
-            return self.queryset.get(pk=self.kwargs.get('pk'), assistant__user=self.request.user)
+            return self.get_queryset().get(pk=self.kwargs.get('pk'))
         except AssistantFileUpload.DoesNotExist:
             raise NotFound(detail=_("Berilgan ID ga ega fayl topilmadi"))
 
@@ -385,12 +351,7 @@ class AssistantFileUploadRetrieveView(generics.RetrieveUpdateDestroyAPIView):
         return success_response(message=_("File muvaffaqiyatli o'zgartirildi"), data=serializer.data, code=200)
 
     def destroy(self, request, *args, **kwargs):
-        pk = kwargs.get("pk")
-        try:
-            instance = AssistantFileUpload.objects.get(id=pk, assistant__user=request.user)
-        except AssistantFileUpload.DoesNotExist:
-            return error_response(message=_("Fayl topilmadi"), code=404)
-
+        instance = self.get_object()
         knowledge_base.delete_file(instance.assistant.vector_id, instance.file_id)
         instance.delete()
         return success_response(message=_("Fayl muvaffaqiyatli o'chirildi"), code=200)
@@ -428,16 +389,6 @@ class MessageBulkReadView(generics.UpdateAPIView):
             data={"updated_count": updated_count},
             code=200
         )
-
-# class AssistantFileGoogleDocView(generics.CreateAPIView):
-#     serializer_class = AssistantFileGoogleDocSerializer
-#     permission_classes = [permissions.IsAuthenticated]
-
-#     def create(self, request, *args, **kwargs):
-#         serializer = self.get_serializer(data=request.data)
-#         serializer.is_valid(raise_exception=True)
-#         serializer.save()
-#         return success_response(message=_("Assistant google sheet muvaffaqiyatli yaratildi"), data=serializer.data, code=201)
 
 class LeadListCreateView(generics.ListCreateAPIView):
     queryset = Lead.objects.all()
@@ -604,10 +555,12 @@ class FollowUpStageListCreateView(generics.ListCreateAPIView):
 
     def create(self, request, *args, **kwargs):
         assistant_id = self.kwargs.get('pk')
-        assistant = Assistant.objects.filter(
-            Q(user=request.user) | Q(user=request.user.created_by),
-            id=assistant_id,
-        ).first()
+        # `owned_assistants()`, not a hand-rolled `Q(user=…) | Q(user=…created_by)`:
+        # `created_by` is None for every ordinary customer, so the second leg
+        # became `Q(user=None)` and matched every *ownerless* assistant on the
+        # platform — any authenticated user could attach follow-up stages (and
+        # therefore outbound messages) to one.
+        assistant = owned_assistants(request.user).filter(id=assistant_id).first()
         if not assistant:
             raise NotFound(_("Assistant topilmadi"))
         config, _created = FollowUpConfig.objects.get_or_create(

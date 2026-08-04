@@ -490,7 +490,9 @@ class DashboardConversationList(generics.ListAPIView):
     permission_classes = [IsDashboardUser]
     filterset_class = ConversationFilter
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
-    search_fields = ['username', 'client_full_name', 'client_phone_email', 'assistant__name']
+    # `client_full_name` / `client_phone_email` are encrypted at rest and
+    # cannot be matched in SQL; `username` still covers the common case.
+    search_fields = ['username', 'assistant__name']
     ordering_fields = ['created_time', 'updated_time', 'status', 'platform']
     pagination_class = StandardResultsSetPagination
 
@@ -1493,9 +1495,9 @@ class DashboardGlobalSearch(APIView):
             })
 
         # Conversations
+        # `client_full_name` is encrypted at rest — not matchable in SQL.
         conversations = Conversation.objects.filter(
-            Q(client_full_name__icontains=q) | Q(username__icontains=q) |
-            Q(assistant__name__icontains=q)
+            Q(username__icontains=q) | Q(assistant__name__icontains=q)
         )[:5]
         for c in conversations:
             results.append({
