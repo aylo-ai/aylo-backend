@@ -598,7 +598,7 @@ class InstagramDataDeletionView(APIView):
             # Process data deletion for the user
             logger.info("Instagram data deletion requested for user %s", user_id)
             return success_response(data={
-                "url": "https://api.repli.uz/integration/instagram/data-deletion-status/",
+                "url": "https://api.aylo.uz/integration/instagram/data-deletion-status/",
                 "confirmation_code": user_id
             }, code=200)
         else:

@@ -8,15 +8,24 @@ services:
     command: ./deployment/start.sh
     volumes:
       - /var/www/static:/app/staticfiles
-      - /var/www/media:/app/media
+      # Google service-account key, mounted read-only at runtime instead of
+      # being baked into the image. See GOOGLE_SERVICE_ACCOUNT_FILE.
+      - ./secrets:/app/secrets:ro
     # Loopback-only: nginx is the sole public listener and proxies to this
     # port. Publishing on 0.0.0.0 would expose gunicorn directly, bypassing
     # TLS, client_max_body_size and the host access log.
     ports:
       - 127.0.0.1:8001:8000
     depends_on:
-      - redis
-      - postgres
+      redis:
+        condition: service_started
+      postgres:
+        condition: service_started
+      # Not just `minio`: wait for the bucket and the scoped app user to exist.
+      # A cold `compose up` could otherwise accept an upload before the bootstrap
+      # had run, and fail it with NoSuchBucket.
+      minio-init:
+        condition: service_completed_successfully
     networks:
       - backend-net
     profiles:
@@ -36,13 +45,22 @@ services:
     command: ./deployment/start.sh
     volumes:
       - /var/www/static:/app/staticfiles
-      - /var/www/media:/app/media
+      # Google service-account key, mounted read-only at runtime instead of
+      # being baked into the image. See GOOGLE_SERVICE_ACCOUNT_FILE.
+      - ./secrets:/app/secrets:ro
     # Loopback-only — see the note on web-blue.
     ports:
       - 127.0.0.1:8002:8000
     depends_on:
-      - redis
-      - postgres
+      redis:
+        condition: service_started
+      postgres:
+        condition: service_started
+      # Not just `minio`: wait for the bucket and the scoped app user to exist.
+      # A cold `compose up` could otherwise accept an upload before the bootstrap
+      # had run, and fail it with NoSuchBucket.
+      minio-init:
+        condition: service_completed_successfully
     networks:
       - backend-net
     profiles:
@@ -73,7 +91,9 @@ services:
     restart: unless-stopped
     volumes:
       - /var/www/static:/app/staticfiles
-      - /var/www/media:/app/media
+      # Google service-account key, mounted read-only at runtime instead of
+      # being baked into the image. See GOOGLE_SERVICE_ACCOUNT_FILE.
+      - ./secrets:/app/secrets:ro
     networks:
       - backend-net
 
@@ -86,7 +106,9 @@ services:
     restart: unless-stopped
     volumes:
       - /var/www/static:/app/staticfiles
-      - /var/www/media:/app/media
+      # Google service-account key, mounted read-only at runtime instead of
+      # being baked into the image. See GOOGLE_SERVICE_ACCOUNT_FILE.
+      - ./secrets:/app/secrets:ro
     networks:
       - backend-net
 
@@ -101,6 +123,66 @@ services:
       POSTGRES_PASSWORD: ${DB_PASSWORD}
     networks:
       - backend-net
+
+  # --- Object storage --------------------------------------------------------
+  #
+  # All user media (knowledge-base documents, message audio, campaign images)
+  # lives here instead of AWS S3. MinIO speaks the S3 API, so Django reaches it
+  # through the same django-storages/boto3 backend — only the endpoint changes.
+  #
+  # The bucket is PRIVATE. Nothing is served by anonymous URL; Django issues
+  # short-lived presigned URLs. See deployment/minio/init.sh.
+  minio:
+    image: minio/minio:RELEASE.2025-04-22T22-12-26Z
+    command: server /data --console-address ":9001"
+    restart: unless-stopped
+    environment:
+      # `:?` makes compose refuse to start when these are unset or empty.
+      # Verified against a real `docker compose up` with both blank: MinIO boots,
+      # answers /minio/health/live with 200 and is reported `Healthy`, but no
+      # credential authenticates — not even minioadmin. The bootstrap then hangs
+      # and every upload 403s with InvalidAccessKeyId, which reads like a MinIO or
+      # nginx fault a long way from the actual cause. Fail at `up` instead.
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:?set MINIO_ROOT_USER in .env}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:?set MINIO_ROOT_PASSWORD in .env}
+      # Browser console is an admin surface; it is not exposed through nginx.
+      MINIO_BROWSER: ${MINIO_BROWSER:-off}
+    volumes:
+      - minio-data:/data
+    # Loopback-only, same rule as web-blue/web-green and dozzle: nginx is the
+    # sole public listener. 9000 is the S3 API, 9001 the admin console — the
+    # console must never be reachable from the LAN or the internet.
+    ports:
+      - 127.0.0.1:9000:9000
+      - 127.0.0.1:9001:9001
+    networks:
+      - backend-net
+    healthcheck:
+      test: ["CMD", "mc", "ready", "local"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+    cap_drop:
+      - ALL
+
+  # Idempotent bootstrap: creates the bucket, forces anonymous access off, and
+  # provisions the scoped application credential. Exits 0 and stays exited.
+  minio-init:
+    image: minio/mc:RELEASE.2025-04-16T18-13-26Z
+    env_file: .env
+    entrypoint: ["/bin/sh", "/init/init.sh"]
+    volumes:
+      - ./deployment/minio/init.sh:/init/init.sh:ro
+      - ./deployment/minio/policy.json:/init/policy.json:ro
+    depends_on:
+      minio:
+        condition: service_healthy
+    networks:
+      - backend-net
+    restart: "no"
+    cap_drop:
+      - ALL
 
   redis:
     image: redis:latest
@@ -157,8 +239,12 @@ services:
       # Served under a path prefix by nginx — must match the location block in
       # deployment/nginx/api.aylo.uz.conf.
       DOZZLE_BASE: /_logs
-      DOZZLE_HOSTNAME: repliuz
+      DOZZLE_HOSTNAME: aylo
       # Only this project's containers; anything else on the host stays hidden.
+      # This must match `name:` at the top of this file, NOT the brand. The
+      # project name stays `repliuz` because renaming it would re-prefix every
+      # volume (repliuz_postgres_data -> …), which Docker implements as "create
+      # a new empty volume" rather than a rename.
       DOZZLE_FILTER: label=com.docker.compose.project=repliuz
       # Login required. Users live in deployment/dozzle/users.yml.
       DOZZLE_AUTH_PROVIDER: simple
@@ -196,6 +282,7 @@ services:
 volumes:
   postgres_data:
   redis-data:
+  minio-data:
 
 networks:
   backend-net:

@@ -10,6 +10,7 @@ from apps.integration.serializers import IntegrationSerializer
 from apps.payment.models import Transaction, Subscription, PricingPackage, Feature
 from apps.payment.serializers import FeatureSerializer
 from apps.dashboard.models import AuditLog
+from apps.shared.file_validation import validate_document
 from apps.shared.addons.enums import (
     SenderTypes, UserRoles, PaymentStatuses, MessageTypes, ConversationStatuses,
     NotificationTypes, SubscriptionStatuses,
@@ -763,9 +764,9 @@ class DashboardAssistantFileUploadSerializer(serializers.ModelSerializer):
         read_only_fields = ['created_time', 'updated_time']
 
     def validate(self, attrs):
-        file = attrs.get('file')
-        if file and hasattr(file, 'size') and file.size > 30 * 1024 * 1024:
-            raise serializers.ValidationError("File exceeds the 30MB size limit.")
+        # Same size and extension rules as the tenant-facing upload — an admin
+        # route is not a reason to accept a file type the agent cannot read.
+        validate_document(attrs.get('file'))
         return attrs
 
 

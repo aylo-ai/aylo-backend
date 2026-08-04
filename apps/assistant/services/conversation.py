@@ -41,16 +41,23 @@ class ConversationService:
         return out.getvalue()
 
     def get_audio_from_url(self, url: str):
-        """Download an audio file and return it as MP3 bytes, or None on failure."""
+        """Download an audio file and return it as MP3 bytes, or None on failure.
+
+        The URL comes off a webhook payload, so it goes through `fetch_external`,
+        which refuses internal addresses, re-checks every redirect hop and caps
+        the download size. A plain `http.get` here was an SSRF into the worker's
+        own network.
+        """
         try:
-            response = http.get(url, timeout=30)
-            response.raise_for_status()
-            audio = AudioSegment.from_file(BytesIO(response.content))
+            content = http.fetch_external(url)
+            audio = AudioSegment.from_file(BytesIO(content))
             out = BytesIO()
             audio.export(out, format="mp3")
             return out.getvalue()
         except Exception as exc:
-            logger.warning("Could not fetch audio from %s: %s", url, exc)
+            # Query string omitted: for our own presigned URLs it is a bearer
+            # credential, and for webhook URLs it carries platform tokens.
+            logger.warning("Could not fetch audio from %s: %s", url.split("?")[0], exc)
             return None
 
     def process_instagram_audio(self, audio_url: str, language: str = "uz"):

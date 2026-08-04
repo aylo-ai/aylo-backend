@@ -1,15 +1,35 @@
-import uuid
-from google.oauth2.service_account import Credentials
-from google.oauth2 import service_account
-from googleapiclient.discovery import build
 import json
+import logging
+import re
 from datetime import datetime
-import boto3
+
+from google.oauth2.service_account import Credentials
+from googleapiclient.discovery import build
+from django.conf import settings
 from django.core.files.base import ContentFile
+
 from apps.assistant.models import AssistantFileUpload
 from apps.shared.addons.enums import FileTypes
-from config.settings import AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, AWS_STORAGE_BUCKET_NAME
-import re
+
+logger = logging.getLogger(__name__)
+
+
+def _load_credentials(scopes):
+    """Load the Google service-account credentials, or return None.
+
+    The key is mounted at runtime (GOOGLE_SERVICE_ACCOUNT_FILE) rather than
+    committed, so an unmounted or unreadable file is a configuration state the
+    caller has to survive. Loading it outside a try meant a missing file raised
+    an uncaught FileNotFoundError and answered 500.
+    """
+    path = settings.GOOGLE_SERVICE_ACCOUNT_FILE
+    try:
+        return Credentials.from_service_account_file(path, scopes=scopes)
+    except (OSError, ValueError):
+        logger.exception(
+            "Could not load Google service-account credentials from %s", path
+        )
+        return None
 
 def extract_doc_id(url):
     """Extract document ID and type from Google URL."""
@@ -47,32 +67,14 @@ def format_data_for_training(rows):
     
     return formatted_data
 
-def upload_to_s3(file_content, filename):
-    """Upload file to S3 bucket."""
-    s3_client = boto3.client(
-        's3',
-        aws_access_key_id=AWS_ACCESS_KEY_ID,
-        aws_secret_access_key=AWS_SECRET_ACCESS_KEY
-    )
-    
-    try:
-        s3_client.put_object(
-            Bucket=AWS_STORAGE_BUCKET_NAME,
-            Key=filename,
-            Body=file_content
-        )
-        return f"https://{AWS_STORAGE_BUCKET_NAME}.s3.amazonaws.com/{filename}"
-    except Exception as e:
-        print(f"❌ Error uploading to S3: {e}")
-        return None
-
 def get_doc_content(doc_id, assistant):
     """Get content from Google Doc and save as text file."""
-    SERVICE_ACCOUNT_FILE = "apps/shared/addons/repli-ai-cred.json"
-    SCOPES = ["https://www.googleapis.com/auth/documents.readonly"]
-    
-    # -------- AUTHENTICATE --------
-    creds = Credentials.from_service_account_file(SERVICE_ACCOUNT_FILE, scopes=SCOPES)
+    creds = _load_credentials(["https://www.googleapis.com/auth/documents.readonly"])
+    if creds is None:
+        return {
+            "status": "error",
+            "message": "Google credentials are not configured",
+        }
     service = build("docs", "v1", credentials=creds)
     
     try:
@@ -94,59 +96,53 @@ def get_doc_content(doc_id, assistant):
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         text_filename = f"document_{timestamp}.txt"
         
-        # Upload to S3
-        s3_url = upload_to_s3(text_content.encode('utf-8'), text_filename)
-        
-        if s3_url:
-            # Create AssistantFileUpload record
-            try:
-                file_upload = AssistantFileUpload.objects.create(
-                    assistant=assistant,
-                    file=ContentFile(text_content.encode('utf-8'), name=text_filename),
-                    filename=text_filename,
-                    google_sheet_doc_id=doc_id,
-                    file_type=FileTypes.GOOGLE_DOCUMENT
-                )
-                print(f"✅ Document uploaded and record created: {file_upload.filename}")
-                
-                # Create the Google Doc URL
-                doc_url = f"https://docs.google.com/document/d/{doc_id}/edit"
-                
-                return {
-                    "status": "success",
-                    "message": "Document successfully processed and uploaded",
-                    "file_url": s3_url,
-                    "file_name": file_upload.filename,
-                    "sheet_doc_url": doc_url,
-                    "assistant_id": assistant.id,
-                    "file_type": FileTypes.GOOGLE_DOCUMENT.value
-                }
-            except Exception as e:
-                print(f"❌ Error creating AssistantFileUpload record: {e}")
-                return {
-                    "status": "error",
-                    "message": f"Error creating record: {str(e)}"
-                }
-        else:
+        # A single write, through the configured storage backend. The previous
+        # version also PUT the same bytes at the bucket root with a hand-rolled
+        # boto3 client: a second copy that no DB row referenced, under a key
+        # partly taken from the document title, and hardcoded to
+        # s3.amazonaws.com so it could never address MinIO.
+        try:
+            file_upload = AssistantFileUpload.objects.create(
+                assistant=assistant,
+                file=ContentFile(text_content.encode('utf-8'), name=text_filename),
+                filename=text_filename,
+                google_sheet_doc_id=doc_id,
+                file_type=FileTypes.GOOGLE_DOCUMENT
+            )
+            logger.info("Stored Google Doc %s as %s", doc_id, file_upload.filename)
+
+            return {
+                "status": "success",
+                "message": "Document successfully processed and uploaded",
+                "file_url": file_upload.file.url,
+                "file_name": file_upload.filename,
+                "sheet_doc_url": f"https://docs.google.com/document/d/{doc_id}/edit",
+                "assistant_id": assistant.id,
+                "file_type": FileTypes.GOOGLE_DOCUMENT.value
+            }
+        except Exception as exc:
+            logger.exception("Could not store Google Doc %s", doc_id)
             return {
                 "status": "error",
-                "message": "Failed to upload to S3"
+                "message": f"Error creating record: {exc}"
             }
             
     except Exception as e:
-        print(f"❌ Error processing document: {e}")
+        logger.exception("Error processing Google Doc %s", doc_id)
         return {
             "status": "error",
             "message": f"Error processing document: {str(e)}"
         }
 
 def get_sheet_data(spreadsheet_id, assistant):
-    SERVICE_ACCOUNT_FILE = "apps/shared/addons/repli-ai-cred.json"
-    SCOPES = ["https://www.googleapis.com/auth/spreadsheets.readonly"]
     SPREADSHEET_ID = spreadsheet_id
 
-    # -------- AUTHENTICATE --------
-    creds = Credentials.from_service_account_file(SERVICE_ACCOUNT_FILE, scopes=SCOPES)
+    creds = _load_credentials(["https://www.googleapis.com/auth/spreadsheets.readonly"])
+    if creds is None:
+        return {
+            "status": "error",
+            "message": "Google credentials are not configured",
+        }
     service = build("sheets", "v4", credentials=creds)
 
     # -------- GET SPREADSHEET INFO --------
@@ -174,8 +170,8 @@ def get_sheet_data(spreadsheet_id, assistant):
             if formatted_data:
                 training_data.extend(formatted_data)
             
-        except Exception as e:
-            print(f"❌ Could not read sheet '{title}': {e}")
+        except Exception:
+            logger.warning("Could not read sheet %r", title, exc_info=True)
 
     if training_data:
         # Create JSON content
@@ -185,39 +181,37 @@ def get_sheet_data(spreadsheet_id, assistant):
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         json_filename = f"{spreadsheet_title}_{timestamp}.json"
         
-        # Upload to S3
-        s3_url = upload_to_s3(json_content.encode('utf-8'), json_filename)
-        
-        if s3_url:
-            # Create AssistantFileUpload record
-            try:
-                file_upload = AssistantFileUpload.objects.create(
-                    assistant=assistant,
-                    file=ContentFile(json_content.encode('utf-8'), name=json_filename),
-                    filename=json_filename,
-                    google_sheet_doc_id=spreadsheet_id,
-                    file_type=FileTypes.GOOGLE_SPREADSHEET.value
-                )
-                print(f"✅ File uploaded and record created: {file_upload.filename}")
-                
-                # Create the Google Sheets URL
-                sheet_doc_url = f"https://docs.google.com/spreadsheets/d/{spreadsheet_id}/edit"
-                
-                return {
-                    "status": "success",
-                    "message": "Data successfully processed and uploaded",
-                    "file_url": s3_url,
-                    "file_name": file_upload.filename,
-                    "sheet_doc_url": sheet_doc_url,
-                    "assistant_id": assistant.id,
-                    "file_type": FileTypes.GOOGLE_SPREADSHEET
-                }
-            except Exception as e:
-                print(f"❌ Error creating AssistantFileUpload record: {e}")
-                return {
-                    "status": "error",
-                    "message": f"Error creating record: {str(e)}"
-                }
+        # Single write through the storage backend — see the note in
+        # get_doc_content about the duplicate bucket-root copy this replaces.
+        try:
+            file_upload = AssistantFileUpload.objects.create(
+                assistant=assistant,
+                file=ContentFile(json_content.encode('utf-8'), name=json_filename),
+                filename=json_filename,
+                google_sheet_doc_id=spreadsheet_id,
+                file_type=FileTypes.GOOGLE_SPREADSHEET.value
+            )
+            logger.info(
+                "Stored Google Sheet %s as %s", spreadsheet_id, file_upload.filename
+            )
+
+            return {
+                "status": "success",
+                "message": "Data successfully processed and uploaded",
+                "file_url": file_upload.file.url,
+                "file_name": file_upload.filename,
+                "sheet_doc_url": (
+                    f"https://docs.google.com/spreadsheets/d/{spreadsheet_id}/edit"
+                ),
+                "assistant_id": assistant.id,
+                "file_type": FileTypes.GOOGLE_SPREADSHEET.value
+            }
+        except Exception as exc:
+            logger.exception("Could not store Google Sheet %s", spreadsheet_id)
+            return {
+                "status": "error",
+                "message": f"Error creating record: {exc}"
+            }
     else:
         return {
             "status": "error",
@@ -250,56 +244,3 @@ def process_google_doc(url, assistant):
             "assistant_id": assistant.id,
             "file_type": None
         }
-
-# Example usage
-# url = "https://docs.google.com/document/d/your-doc-id/edit"
-# print(process_google_doc(url))
-# def watch_google_drive_file(file_id, webhook_url):
-
-#     SCOPES = [
-#         'https://www.googleapis.com/auth/drive',
-#         'https://www.googleapis.com/auth/drive.file'
-#     ]
-    
-#     try:
-#         # Load credentials
-#         creds = service_account.Credentials.from_service_account_file(
-#             'apps/shared/addons/repli-ai-cred.json',
-#             scopes=SCOPES
-#         )        # Build the service
-#         service = build('drive', 'v3', credentials=creds)
-        
-#         try:
-#             file_info = service.files().get(fileId=file_id).execute()
-#             print(f"✅ File accessible: {file_info.get('name', 'Unknown')}")
-#         except Exception as e:
-#             print(f"❌ Cannot access file {file_id}: {e}")
-#             return {
-#                 "status": "error",
-#                 "message": f"Cannot access file: {str(e)}"
-#             }
-
-#         # Watch channel setup
-#         channel_id = str(uuid.uuid4())  # Unique per watch
-#         channel = {
-#             "id": channel_id,
-#             "type": "web_hook",
-#             "address": webhook_url,
-#         }
-
-#         # Set up the watch
-#         response = service.files().watch(fileId=file_id, body=channel).execute()
-        
-#     except Exception as e:
-#         print(f"❌ Error setting up watch: {e}")
-#         return {
-#             "status": "error",
-#             "message": f"Error setting up watch: {str(e)}"
-#         }
-
-# # Example usage - uncomment to test
-# result = watch_google_drive_file(
-#     '1_U_QXvZi_z6yXa5PnOH3UCBpGR8g-r4AixTplgTAtkg', 
-#     "https://2114-89-249-62-104.ngrok-free.app/api/v1/integration/google-drive/webhook/"
-# )
-# print(result)

@@ -2,15 +2,15 @@ import logging
 from datetime import timedelta
 
 from django.db import transaction
-from django.db.models import Subquery, OuterRef, Exists, Max
+from django.db.models import Subquery, OuterRef, Exists
 from django.utils import timezone
 from django.utils.timezone import now
 
 from celery import shared_task
 
 from apps.assistant.models import (
-    AssistantFileUpload, Assistant, Message, Lead,
-    FollowUpConfig, FollowUpStage, FollowUpLog, Conversation,
+    Assistant, Message, Lead,
+    FollowUpConfig, FollowUpLog, Conversation,
 )
 from apps.integration.models import TelegramGroupIntegration
 from apps.shared.addons.enums import (
@@ -22,17 +22,6 @@ from apps.integration.gateways.instagram import instagram_service
 from apps.shared.addons.redis import publish_message_to_ws
 
 logger = logging.getLogger(__name__)
-
-
-@shared_task
-def save_uploaded_file(assistant, file_data, filename):
-    AssistantFileUpload.objects.create(
-        assistant=assistant,
-        file=file_data,
-        filename=filename
-    )
-    print(f"File uploaded successfully for assistant_id: {assistant.id}")
-
 
 
 @shared_task

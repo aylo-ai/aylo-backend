@@ -20,7 +20,7 @@ logger = logging.getLogger(__name__)
 
 def notify_user_about_failed_payment(user):
     message = (
-        f"Hurmatli {user.first_name}, sizning repli.uz dagi obuna tugadi. "
+        f"Hurmatli {user.first_name}, sizning aylo.uz dagi obuna tugadi. "
         "Iltimos, platformaga kirib, to'lovni qayta amalga oshiring."
     )
     logger.info("Sending payment failure notification to user %s", user.id)
@@ -38,7 +38,7 @@ def send_email_message(email, user):
         logger.info("Sending subscription warning email to user %s", user.id)
         subject = _("Warning: Your subscription has expired")
         message = _(
-            "Hurmatli {user.first_name}, sizning repli.uz dagi obuna to'lovingiz "
+            "Hurmatli {user.first_name}, sizning aylo.uz dagi obuna to'lovingiz "
             "muvaffaqiyatsiz amalga oshirildi. Iltimos, platformaga kirib, "
             "to'lovni qayta amalga oshiring."
         ).format(user=user)
@@ -76,7 +76,7 @@ def notify_user_about_low_tokens(user, count):
         user=user,
         title=_("Low Token Count Warning"),
         content=_(
-            f"Hurmatli {user.first_name}, sizning repli.uz dagi so'rovlar soningiz "
+            f"Hurmatli {user.first_name}, sizning aylo.uz dagi so'rovlar soningiz "
             f"{count} tadan kam qoldi. Iltimos, platformaga kirib, obunangizni yangilang."
         ),
         type=NotificationTypes.WARNING.value,

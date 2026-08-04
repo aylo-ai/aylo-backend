@@ -133,11 +133,13 @@ def _download(file_url: str) -> Tuple[Optional[bytes], str]:
         response = http.get(file_url, timeout=30)
         response.raise_for_status()
     except requests.RequestException as exc:
-        logger.error("Could not download %s: %s", file_url, exc)
+        # Never the URL: it is a presigned, time-limited capability for this
+        # object, and these logs are exposed through the log viewer.
+        logger.error("Could not download %s: %s", filename, exc)
         return None, filename
 
     if not response.content:
-        logger.info("File %s is empty; skipping", file_url)
+        logger.info("File %s is empty; skipping", filename)
         return None, filename
 
     return response.content, filename

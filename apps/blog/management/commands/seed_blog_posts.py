@@ -1,5 +1,5 @@
 """
-Django management command to seed SEO-optimized blog posts for Repli AI.
+Django management command to seed SEO-optimized blog posts for Aylo AI.
 """
 
 import json
@@ -15,10 +15,10 @@ BLOG_POSTS = [
         "title_en": "Instagram DM Automation: Complete Guide 2026",
         "slug": "instagram-dm-avtomatlashtirish-qollanma",
         "cover_image": "https://images.unsplash.com/photo-1611162617474-5b21e879e113?w=1200&h=630&fit=crop",
-        "author": "Repli AI Team",
+        "author": "Aylo AI Team",
         "tags": ["instagram", "dm", "avtomatlashtirish", "chatbot", "sotuv"],
         "target_keyword": "instagram dm avtomatlashtirish",
-        "meta_title": "Instagram DM avtomatlashtirish: to'liq qo'llanma 2026 | Repli AI",
+        "meta_title": "Instagram DM avtomatlashtirish: to'liq qo'llanma 2026 | Aylo AI",
         "meta_description": "Instagram DM avtomatlashtirish bo'yicha batafsil qo'llanma. Javob vaqtini qisqartiring, sotuvni oshiring va mijozlarni yo'qotmang. Bosqichma-bosqich sozlash.",
         "read_time": 12,
         "internal_links": [
@@ -150,11 +150,11 @@ BLOG_POSTS = [
 <li><strong>GDPR va maxfiylik:</strong> Mijozlar ma'lumotlarini himoya qiling</li>
 </ul>
 
-<h2>Repli AI qanday yordam beradi?</h2>
+<h2>Aylo AI qanday yordam beradi?</h2>
 
-<p><strong>Repli AI</strong> — O'zbekistondagi bizneslarga mo'ljallangan eng zamonaviy DM avtomatlashtirish platformasi. <a href="https://repli.uz">repli.uz</a> orqali siz Instagram DM avtomatlashtirishni bir necha daqiqada sozlashingiz mumkin.</p>
+<p><strong>Aylo AI</strong> — O'zbekistondagi bizneslarga mo'ljallangan eng zamonaviy DM avtomatlashtirish platformasi. <a href="https://aylo.uz">aylo.uz</a> orqali siz Instagram DM avtomatlashtirishni bir necha daqiqada sozlashingiz mumkin.</p>
 
-<p>Repli AI boshqa platformalardan qanday farq qiladi:</p>
+<p>Aylo AI boshqa platformalardan qanday farq qiladi:</p>
 
 <ul>
 <li><strong>O'zbek tilini tushunadi:</strong> Sun'iy intellektimiz o'zbek tilida yozilgan xabarlarni to'g'ri tahlil qiladi va tabiiy javob beradi</li>
@@ -166,7 +166,7 @@ BLOG_POSTS = [
 <li><strong>Analitika:</strong> Batafsil statistika — nechta xabar, nechta sotuv, konversiya darajasi</li>
 </ul>
 
-<p>Hoziroq <a href="https://repli.uz">repli.uz</a> saytiga tashrif buyuring va <strong>7 kunlik bepul sinov</strong> davrini boshlang. Birinchi natijalarni 24 soat ichida ko'rasiz!</p>""",
+<p>Hoziroq <a href="https://aylo.uz">aylo.uz</a> saytiga tashrif buyuring va <strong>7 kunlik bepul sinov</strong> davrini boshlang. Birinchi natijalarni 24 soat ichida ko'rasiz!</p>""",
         "content_ru": """<h2>Что такое автоматизация Instagram DM и зачем она нужна?</h2>
 
 <p>Instagram — одна из самых популярных социальных сетей в Узбекистане с более чем 8 миллионами активных пользователей. Каждый день тысячи потенциальных клиентов обращаются к бизнес-аккаунтам через Direct Message. Однако большинство компаний не успевают отвечать вовремя — и клиенты уходят к конкурентам.</p>
@@ -215,13 +215,13 @@ BLOG_POSTS = [
 <li><strong>Игнорирование аналитики</strong> — регулярно отслеживайте конверсию и качество ответов</li>
 </ul>
 
-<h2>Как помогает Repli AI?</h2>
+<h2>Как помогает Aylo AI?</h2>
 
-<p><strong>Repli AI</strong> — современная платформа автоматизации DM, разработанная специально для бизнеса в Узбекистане. На <a href="https://repli.uz">repli.uz</a> вы можете настроить автоматизацию Instagram DM за несколько минут.</p>
+<p><strong>Aylo AI</strong> — современная платформа автоматизации DM, разработанная специально для бизнеса в Узбекистане. На <a href="https://aylo.uz">aylo.uz</a> вы можете настроить автоматизацию Instagram DM за несколько минут.</p>
 
-<p>Преимущества Repli AI: понимание узбекского языка, ответ за 5 секунд, поддержка Instagram + Telegram + WhatsApp, встроенная CRM, визуальный конструктор сценариев без программирования, работа 24/7 и детальная аналитика.</p>
+<p>Преимущества Aylo AI: понимание узбекского языка, ответ за 5 секунд, поддержка Instagram + Telegram + WhatsApp, встроенная CRM, визуальный конструктор сценариев без программирования, работа 24/7 и детальная аналитика.</p>
 
-<p>Посетите <a href="https://repli.uz">repli.uz</a> и начните <strong>7-дневный бесплатный пробный период</strong> уже сегодня!</p>""",
+<p>Посетите <a href="https://aylo.uz">aylo.uz</a> и начните <strong>7-дневный бесплатный пробный период</strong> уже сегодня!</p>""",
         "content_en": """<h2>What Is Instagram DM Automation and Why Does It Matter?</h2>
 
 <p>Instagram is one of the most popular social networks in Uzbekistan, with over 8 million active users. Every day, thousands of potential customers reach out to business accounts through Direct Messages. However, most businesses fail to respond in time — and lose customers to competitors.</p>
@@ -270,13 +270,13 @@ BLOG_POSTS = [
 <li><strong>Ignoring analytics</strong> — regularly monitor conversion rates and response quality</li>
 </ul>
 
-<h2>How Repli AI Helps</h2>
+<h2>How Aylo AI Helps</h2>
 
-<p><strong>Repli AI</strong> is a modern DM automation platform built specifically for businesses in Uzbekistan. At <a href="https://repli.uz">repli.uz</a>, you can set up Instagram DM automation in just minutes.</p>
+<p><strong>Aylo AI</strong> is a modern DM automation platform built specifically for businesses in Uzbekistan. At <a href="https://aylo.uz">aylo.uz</a>, you can set up Instagram DM automation in just minutes.</p>
 
-<p>Repli AI advantages: understands Uzbek language, responds in 5 seconds, supports Instagram + Telegram + WhatsApp, built-in CRM, visual no-code scenario builder, 24/7 operation, and detailed analytics.</p>
+<p>Aylo AI advantages: understands Uzbek language, responds in 5 seconds, supports Instagram + Telegram + WhatsApp, built-in CRM, visual no-code scenario builder, 24/7 operation, and detailed analytics.</p>
 
-<p>Visit <a href="https://repli.uz">repli.uz</a> and start your <strong>7-day free trial</strong> today!</p>"""
+<p>Visit <a href="https://aylo.uz">aylo.uz</a> and start your <strong>7-day free trial</strong> today!</p>"""
     },
     {
         "title_uz": "Telegram bot biznes uchun — nima uchun kerak?",
@@ -284,10 +284,10 @@ BLOG_POSTS = [
         "title_en": "Telegram Bot for Business — Why Do You Need One?",
         "slug": "telegram-bot-biznes-uchun",
         "cover_image": "https://images.unsplash.com/photo-1636114673156-052a83459fc1?w=1200&h=630&fit=crop",
-        "author": "Repli AI Team",
+        "author": "Aylo AI Team",
         "tags": ["telegram", "bot", "biznes", "chatbot", "messenja"],
         "target_keyword": "telegram bot biznes",
-        "meta_title": "Telegram bot biznes uchun — nima uchun kerak? | Repli AI",
+        "meta_title": "Telegram bot biznes uchun — nima uchun kerak? | Aylo AI",
         "meta_description": "Telegram bot biznes uchun qanday foydalar keltiradi? 20M+ foydalanuvchi, real misollar, ROI hisoblash va bosqichma-bosqich sozlash qo'llanmasi.",
         "read_time": 11,
         "internal_links": [
@@ -412,11 +412,11 @@ BLOG_POSTS = [
 <h3>5-qadam: Ishga tushirish va reklama</h3>
 <p>Botni barcha kanallarda reklama qiling — Instagram, veb-sayt, vizitka, do'kon ichida QR kod.</p>
 
-<h2>Repli AI qanday yordam beradi?</h2>
+<h2>Aylo AI qanday yordam beradi?</h2>
 
-<p><strong>Repli AI</strong> orqali siz professional Telegram botni bir necha soat ichida yaratishingiz mumkin — dasturlash bilimi talab qilinmaydi. <a href="https://repli.uz">repli.uz</a> platformasi O'zbekiston bizneslari uchun maxsus optimallashtirilgan.</p>
+<p><strong>Aylo AI</strong> orqali siz professional Telegram botni bir necha soat ichida yaratishingiz mumkin — dasturlash bilimi talab qilinmaydi. <a href="https://aylo.uz">aylo.uz</a> platformasi O'zbekiston bizneslari uchun maxsus optimallashtirilgan.</p>
 
-<p>Repli AI Telegram bot imkoniyatlari:</p>
+<p>Aylo AI Telegram bot imkoniyatlari:</p>
 
 <ul>
 <li><strong>AI-powered javoblar:</strong> Sun'iy intellekt mijozning savoliga mos javob generatsiya qiladi</li>
@@ -428,7 +428,7 @@ BLOG_POSTS = [
 <li><strong>Batafsil analitika:</strong> Nechta foydalanuvchi, nechta buyurtma, qancha daromad</li>
 </ul>
 
-<p><a href="https://repli.uz">repli.uz</a> saytida <strong>7 kunlik bepul sinov</strong> mavjud — hoziroq boshlang va Telegram bot sizning biznesingizga qanday foyda keltirishini o'zingiz ko'ring!</p>""",
+<p><a href="https://aylo.uz">aylo.uz</a> saytida <strong>7 kunlik bepul sinov</strong> mavjud — hoziroq boshlang va Telegram bot sizning biznesingizga qanday foyda keltirishini o'zingiz ko'ring!</p>""",
         "content_ru": """<h2>Telegram в Узбекистане: цифры и возможности</h2>
 
 <p>Telegram — самый популярный мессенджер в Узбекистане с более чем <strong>20 миллионами</strong> активных пользователей. Это значит, что каждый второй житель страны использует Telegram. Для бизнеса это огромная возможность — ваши клиенты уже в Telegram, и вы можете обслуживать их прямо в их любимом мессенджере.</p>
@@ -464,13 +464,13 @@ BLOG_POSTS = [
 <p>С ботом: платформа (1,5 млн) + 1 оператор (4 млн) = ~5,5 млн сум/мес.</p>
 <p><strong>Экономия: ~7 млн сум/мес, ~84 млн сум/год!</strong></p>
 
-<h2>Как помогает Repli AI?</h2>
+<h2>Как помогает Aylo AI?</h2>
 
-<p><strong>Repli AI</strong> позволяет создать профессионального Telegram-бота за несколько часов без навыков программирования. Платформа <a href="https://repli.uz">repli.uz</a> специально оптимизирована для бизнеса в Узбекистане.</p>
+<p><strong>Aylo AI</strong> позволяет создать профессионального Telegram-бота за несколько часов без навыков программирования. Платформа <a href="https://aylo.uz">aylo.uz</a> специально оптимизирована для бизнеса в Узбекистане.</p>
 
 <p>Возможности: AI-ответы на узбекском и русском языках, интеграция с Payme/Click/Uzum, встроенная CRM, визуальный конструктор, управление Instagram + WhatsApp + Telegram из одной панели, детальная аналитика.</p>
 
-<p>Начните <strong>7-дневный бесплатный период</strong> на <a href="https://repli.uz">repli.uz</a> уже сегодня!</p>""",
+<p>Начните <strong>7-дневный бесплатный период</strong> на <a href="https://aylo.uz">aylo.uz</a> уже сегодня!</p>""",
         "content_en": """<h2>Telegram in Uzbekistan: Numbers and Opportunities</h2>
 
 <p>Telegram is the most popular messenger in Uzbekistan with over <strong>20 million</strong> active users. This means every second person in the country uses Telegram. For businesses, this represents a massive opportunity — your customers are already on Telegram, and you can serve them directly in their favorite messenger.</p>
@@ -506,13 +506,13 @@ BLOG_POSTS = [
 <p>With bot: platform (1.5M) + 1 operator (4M) = ~5.5M sum/mo.</p>
 <p><strong>Savings: ~7M sum/mo, ~84M sum/year!</strong></p>
 
-<h2>How Repli AI Helps</h2>
+<h2>How Aylo AI Helps</h2>
 
-<p><strong>Repli AI</strong> lets you create a professional Telegram bot in just hours — no coding required. The <a href="https://repli.uz">repli.uz</a> platform is specifically optimized for businesses in Uzbekistan.</p>
+<p><strong>Aylo AI</strong> lets you create a professional Telegram bot in just hours — no coding required. The <a href="https://aylo.uz">aylo.uz</a> platform is specifically optimized for businesses in Uzbekistan.</p>
 
 <p>Features include: AI-powered responses in Uzbek and Russian, Payme/Click/Uzum integration, built-in CRM, visual drag-and-drop builder, unified Instagram + WhatsApp + Telegram management, and detailed analytics.</p>
 
-<p>Start your <strong>7-day free trial</strong> at <a href="https://repli.uz">repli.uz</a> today!</p>"""
+<p>Start your <strong>7-day free trial</strong> at <a href="https://aylo.uz">aylo.uz</a> today!</p>"""
     },
     {
         "title_uz": "WhatsApp Business API: O'zbekistonda qanday ulash",
@@ -520,10 +520,10 @@ BLOG_POSTS = [
         "title_en": "WhatsApp Business API: How to Connect in Uzbekistan",
         "slug": "whatsapp-business-api-uzbekistonda",
         "cover_image": "https://images.unsplash.com/photo-1614680376408-81e91ffe3db7?w=1200&h=630&fit=crop",
-        "author": "Repli AI Team",
+        "author": "Aylo AI Team",
         "tags": ["whatsapp", "api", "biznes", "chatbot", "uzbekiston"],
         "target_keyword": "whatsapp business api uzbekiston",
-        "meta_title": "WhatsApp Business API: O'zbekistonda qanday ulash | Repli AI",
+        "meta_title": "WhatsApp Business API: O'zbekistonda qanday ulash | Aylo AI",
         "meta_description": "WhatsApp Business API ni O'zbekistonda qanday ulash mumkin? Verificatsiya, narxlar, shablonlar va integratsiya bo'yicha to'liq qo'llanma. Bosqichma-bosqich.",
         "read_time": 13,
         "internal_links": [
@@ -652,11 +652,11 @@ BLOG_POSTS = [
 <h3>Muammo: Xabar limitlari</h3>
 <p>Yechim: Dastlab limit past (250 suhbat/kun). Sifatli xizmat ko'rsatish orqali limit asta-sekin oshadi — 1K, 10K, 100K gacha.</p>
 
-<h2>Repli AI qanday yordam beradi?</h2>
+<h2>Aylo AI qanday yordam beradi?</h2>
 
-<p><strong>Repli AI</strong> O'zbekistonda WhatsApp Business API ulashning eng oson yo'li. <a href="https://repli.uz">repli.uz</a> platformasi rasmiy Meta BSP hamkori sifatida barcha jarayonni soddalashtiradi.</p>
+<p><strong>Aylo AI</strong> O'zbekistonda WhatsApp Business API ulashning eng oson yo'li. <a href="https://aylo.uz">aylo.uz</a> platformasi rasmiy Meta BSP hamkori sifatida barcha jarayonni soddalashtiradi.</p>
 
-<p>Repli AI WhatsApp xizmatlari:</p>
+<p>Aylo AI WhatsApp xizmatlari:</p>
 
 <ul>
 <li><strong>Verificatsiya yordami:</strong> Biz Meta verificatsiya jarayonida qo'llab-quvvatlaymiz — hujjatlar tayyorlash, topshirish va kuzatish</li>
@@ -669,7 +669,7 @@ BLOG_POSTS = [
 <li><strong>Texnik yordam:</strong> O'zbek tilida 24/7 qo'llab-quvvatlash</li>
 </ul>
 
-<p>Hoziroq <a href="https://repli.uz">repli.uz</a> saytiga tashrif buyuring — WhatsApp Business API ni <strong>bepul konsultatsiya</strong> bilan boshlang!</p>""",
+<p>Hoziroq <a href="https://aylo.uz">aylo.uz</a> saytiga tashrif buyuring — WhatsApp Business API ni <strong>bepul konsultatsiya</strong> bilan boshlang!</p>""",
         "content_ru": """<h2>Что такое WhatsApp Business API?</h2>
 
 <p>WhatsApp — один из самых популярных мессенджеров в мире, в Узбекистане им пользуются более <strong>5 миллионов</strong> человек. WhatsApp Business API — профессиональный инструмент для среднего и крупного бизнеса, кардинально отличающийся от обычного приложения WhatsApp Business.</p>
@@ -713,13 +713,13 @@ BLOG_POSTS = [
 <li><strong>Лимиты отправки:</strong> начальный лимит 250 разговоров/день, растёт при качественном обслуживании</li>
 </ul>
 
-<h2>Как помогает Repli AI?</h2>
+<h2>Как помогает Aylo AI?</h2>
 
-<p><strong>Repli AI</strong> — самый простой способ подключить WhatsApp Business API в Узбекистане. <a href="https://repli.uz">repli.uz</a> как официальный партнёр Meta упрощает весь процесс.</p>
+<p><strong>Aylo AI</strong> — самый простой способ подключить WhatsApp Business API в Узбекистане. <a href="https://aylo.uz">aylo.uz</a> как официальный партнёр Meta упрощает весь процесс.</p>
 
 <p>Наши услуги: помощь с верификацией Meta, подключение API за 24-48 часов, создание шаблонов, AI-чатбот на узбекском и русском, омниканальное управление (WhatsApp + Instagram + Telegram), встроенная CRM, детальная аналитика и техподдержка 24/7 на узбекском языке.</p>
 
-<p>Посетите <a href="https://repli.uz">repli.uz</a> и получите <strong>бесплатную консультацию</strong> по подключению WhatsApp Business API!</p>""",
+<p>Посетите <a href="https://aylo.uz">aylo.uz</a> и получите <strong>бесплатную консультацию</strong> по подключению WhatsApp Business API!</p>""",
         "content_en": """<h2>What Is WhatsApp Business API?</h2>
 
 <p>WhatsApp is one of the world's most popular messengers, with over <strong>5 million</strong> active users in Uzbekistan. WhatsApp Business API is a professional tool designed for medium and large businesses, fundamentally different from the regular WhatsApp Business app.</p>
@@ -763,13 +763,13 @@ BLOG_POSTS = [
 <li><strong>Sending limits:</strong> initial limit is 250 conversations/day, grows with quality service</li>
 </ul>
 
-<h2>How Repli AI Helps</h2>
+<h2>How Aylo AI Helps</h2>
 
-<p><strong>Repli AI</strong> is the easiest way to connect WhatsApp Business API in Uzbekistan. <a href="https://repli.uz">repli.uz</a> as an official Meta partner simplifies the entire process.</p>
+<p><strong>Aylo AI</strong> is the easiest way to connect WhatsApp Business API in Uzbekistan. <a href="https://aylo.uz">aylo.uz</a> as an official Meta partner simplifies the entire process.</p>
 
 <p>Our services: Meta verification assistance, API connection within 24-48 hours, template creation, AI chatbot in Uzbek and Russian, omnichannel management (WhatsApp + Instagram + Telegram), built-in CRM, detailed analytics, and 24/7 technical support.</p>
 
-<p>Visit <a href="https://repli.uz">repli.uz</a> and get a <strong>free consultation</strong> on connecting WhatsApp Business API!</p>"""
+<p>Visit <a href="https://aylo.uz">aylo.uz</a> and get a <strong>free consultation</strong> on connecting WhatsApp Business API!</p>"""
     },
     {
         "title_uz": "AI chatbot vs oddiy chatbot — farqi nimada?",
@@ -777,10 +777,10 @@ BLOG_POSTS = [
         "title_en": "AI Chatbot vs Regular Chatbot — What's the Difference?",
         "slug": "ai-chatbot-vs-oddiy-chatbot-farqi",
         "cover_image": "https://images.unsplash.com/photo-1677442136019-21780ecad995?w=1200&h=630&fit=crop",
-        "author": "Repli AI Team",
+        "author": "Aylo AI Team",
         "tags": ["ai", "chatbot", "nlp", "solishtirish", "texnologiya"],
         "target_keyword": "ai chatbot farqi",
-        "meta_title": "AI chatbot vs oddiy chatbot — farqi nimada? | Repli AI",
+        "meta_title": "AI chatbot vs oddiy chatbot — farqi nimada? | Aylo AI",
         "meta_description": "AI chatbot va oddiy chatbot orasidagi farqlar. NLP texnologiyasi, mashinaviy o'rganish, real suhbat misollari va qaysi birini tanlash kerakligi haqida.",
         "read_time": 10,
         "internal_links": [
@@ -917,11 +917,11 @@ BLOG_POSTS = [
 
 <p>Oddiy chatbot: oyiga $20-100 (asosiy funksiyalar). AI chatbot: oyiga $50-500 (hajm va funksiyalarga qarab). Lekin AI chatbotning ROI ni hisobga olsak, u odatda <strong>3-6 oy</strong> ichida o'zini oqlaydi — chunki ko'proq sotuvni yopadi va kamroq mijoz yo'qotiladi.</p>
 
-<h2>Repli AI qanday yordam beradi?</h2>
+<h2>Aylo AI qanday yordam beradi?</h2>
 
-<p><strong>Repli AI</strong> — bu eng zamonaviy AI chatbot platformasi bo'lib, O'zbekiston bizneslari uchun maxsus yaratilgan. <a href="https://repli.uz">repli.uz</a> da siz AI chatbotning barcha afzalliklaridan oddiy chatbot narxida foydalanishingiz mumkin.</p>
+<p><strong>Aylo AI</strong> — bu eng zamonaviy AI chatbot platformasi bo'lib, O'zbekiston bizneslari uchun maxsus yaratilgan. <a href="https://aylo.uz">aylo.uz</a> da siz AI chatbotning barcha afzalliklaridan oddiy chatbot narxida foydalanishingiz mumkin.</p>
 
-<p>Repli AI nima bilan ajralib turadi:</p>
+<p>Aylo AI nima bilan ajralib turadi:</p>
 
 <ul>
 <li><strong>O'zbek tilini mukammal tushunadi:</strong> NLP modelimiz o'zbek tili uchun maxsus o'qitilgan — "krasovka", "razmer", lahja so'zlarini tushunadi</li>
@@ -932,7 +932,7 @@ BLOG_POSTS = [
 <li><strong>Barcha kanallar:</strong> Instagram, Telegram, WhatsApp — bitta AI barcha kanallarda ishlaydi</li>
 </ul>
 
-<p><a href="https://repli.uz">repli.uz</a> saytida <strong>7 kunlik bepul sinov</strong> mavjud. AI chatbot va oddiy chatbot orasidagi farqni o'zingiz sinab ko'ring!</p>""",
+<p><a href="https://aylo.uz">aylo.uz</a> saytida <strong>7 kunlik bepul sinov</strong> mavjud. AI chatbot va oddiy chatbot orasidagi farqni o'zingiz sinab ko'ring!</p>""",
         "content_ru": """<h2>Что такое чатбот и как он работает?</h2>
 
 <p>Чатбот — это программа, которая общается с пользователями в текстовом или голосовом формате. Сегодня существуют два основных типа: <strong>обычный (rule-based) чатбот</strong> и <strong>AI-чатбот</strong> на основе искусственного интеллекта. Понимание разницы между ними критически важно для правильного выбора.</p>
@@ -968,13 +968,13 @@ BLOG_POSTS = [
 <p><strong>Обычный бот:</strong> маленький бизнес, повторяющиеся вопросы, ограниченный бюджет, только FAQ.</p>
 <p><strong>AI-бот:</strong> 50+ сообщений в день, сложные вопросы, персонализация, мультиязычность, рост продаж.</p>
 
-<h2>Как помогает Repli AI?</h2>
+<h2>Как помогает Aylo AI?</h2>
 
-<p><strong>Repli AI</strong> — современная AI-чатбот платформа, созданная специально для бизнеса в Узбекистане. На <a href="https://repli.uz">repli.uz</a> вы получаете все преимущества AI-чатбота по цене обычного.</p>
+<p><strong>Aylo AI</strong> — современная AI-чатбот платформа, созданная специально для бизнеса в Узбекистане. На <a href="https://aylo.uz">aylo.uz</a> вы получаете все преимущества AI-чатбота по цене обычного.</p>
 
 <p>Особенности: идеальное понимание узбекского языка (включая разговорные формы и диалекты), запоминание контекста, самообучение, визуальный конструктор без программирования, поддержка Instagram + Telegram + WhatsApp, от 299 000 сум/месяц.</p>
 
-<p>Начните <strong>7-дневный бесплатный период</strong> на <a href="https://repli.uz">repli.uz</a> и убедитесь в разнице сами!</p>""",
+<p>Начните <strong>7-дневный бесплатный период</strong> на <a href="https://aylo.uz">aylo.uz</a> и убедитесь в разнице сами!</p>""",
         "content_en": """<h2>What Is a Chatbot and How Does It Work?</h2>
 
 <p>A chatbot is software that communicates with users via text or voice. Today, there are two main types: <strong>rule-based chatbots</strong> and <strong>AI chatbots</strong> powered by artificial intelligence. Understanding the difference is critical for making the right choice.</p>
@@ -1010,13 +1010,13 @@ BLOG_POSTS = [
 <p><strong>Rule-based:</strong> small business, repetitive questions, limited budget, FAQ only.</p>
 <p><strong>AI chatbot:</strong> 50+ messages/day, complex questions, personalization needed, multilingual, sales growth.</p>
 
-<h2>How Repli AI Helps</h2>
+<h2>How Aylo AI Helps</h2>
 
-<p><strong>Repli AI</strong> is a modern AI chatbot platform built specifically for businesses in Uzbekistan. At <a href="https://repli.uz">repli.uz</a>, you get all AI chatbot advantages at rule-based chatbot prices.</p>
+<p><strong>Aylo AI</strong> is a modern AI chatbot platform built specifically for businesses in Uzbekistan. At <a href="https://aylo.uz">aylo.uz</a>, you get all AI chatbot advantages at rule-based chatbot prices.</p>
 
 <p>Key features: perfect understanding of Uzbek language (including colloquial forms), context memory, self-learning, visual no-code builder, Instagram + Telegram + WhatsApp support, starting from 299,000 sum/month.</p>
 
-<p>Start your <strong>7-day free trial</strong> at <a href="https://repli.uz">repli.uz</a> and see the difference yourself!</p>"""
+<p>Start your <strong>7-day free trial</strong> at <a href="https://aylo.uz">aylo.uz</a> and see the difference yourself!</p>"""
     },
     {
         "title_uz": "Instagram orqali sotuvni 3 barobar oshirish yo'llari",
@@ -1024,10 +1024,10 @@ BLOG_POSTS = [
         "title_en": "How to Triple Your Sales Through Instagram",
         "slug": "instagram-orqali-sotuvni-oshirish",
         "cover_image": "https://images.unsplash.com/photo-1563986768609-322da13575f2?w=1200&h=630&fit=crop",
-        "author": "Repli AI Team",
+        "author": "Aylo AI Team",
         "tags": ["instagram", "sotuv", "strategiya", "chatbot", "marketing"],
         "target_keyword": "instagram sotuv",
-        "meta_title": "Instagram orqali sotuvni 3 barobar oshirish yo'llari | Repli AI",
+        "meta_title": "Instagram orqali sotuvni 3 barobar oshirish yo'llari | Aylo AI",
         "meta_description": "Instagram orqali sotuvni 3x oshirish strategiyalari. DM avtomatlashtirish, kontent strategiya va analitika qo'llanmasi.",
         "read_time": 11,
         "internal_links": [
@@ -1171,11 +1171,11 @@ BLOG_POSTS = [
 <h3>Haftalik tahlil qilish kerak:</h3>
 <p>Har hafta oxirida analitikani ko'rib chiqing. Qaysi post eng ko'p engagement oldi? Qaysi story eng ko'p DM keltirdi? Qaysi mahsulot eng ko'p so'raldi? Bu ma'lumotlar asosida keyingi hafta strategiyasini tuzating.</p>
 
-<h2>Repli AI qanday yordam beradi?</h2>
+<h2>Aylo AI qanday yordam beradi?</h2>
 
-<p><strong>Repli AI</strong> yuqoridagi barcha strategiyalarni amalga oshirishda sizga yordam beradi. <a href="https://repli.uz">repli.uz</a> platformasi Instagram sotuvlarni oshirish uchun maxsus yaratilgan.</p>
+<p><strong>Aylo AI</strong> yuqoridagi barcha strategiyalarni amalga oshirishda sizga yordam beradi. <a href="https://aylo.uz">aylo.uz</a> platformasi Instagram sotuvlarni oshirish uchun maxsus yaratilgan.</p>
 
-<p>Repli AI bilan siz quyidagilarni amalga oshirasiz:</p>
+<p>Aylo AI bilan siz quyidagilarni amalga oshirasiz:</p>
 
 <ul>
 <li><strong>5 daqiqa qoidasi:</strong> Har bir DM ga 5 soniyada javob — 24/7, dam olish kunlari ham</li>
@@ -1187,7 +1187,7 @@ BLOG_POSTS = [
 <li><strong>Ko'p kanalli:</strong> Instagram + Telegram + WhatsApp — barcha kanallardan kelgan mijozlarni bitta joyda boshqaring</li>
 </ul>
 
-<p>Hoziroq <a href="https://repli.uz">repli.uz</a> saytiga tashrif buyuring va <strong>7 kunlik bepul sinov</strong> davrini boshlang. Birinchi haftadayoq Instagram sotuvlaringiz o'sishini ko'rasiz!</p>""",
+<p>Hoziroq <a href="https://aylo.uz">aylo.uz</a> saytiga tashrif buyuring va <strong>7 kunlik bepul sinov</strong> davrini boshlang. Birinchi haftadayoq Instagram sotuvlaringiz o'sishini ko'rasiz!</p>""",
         "content_ru": """<h2>Почему Instagram важен для продаж?</h2>
 
 <p>Instagram в Узбекистане насчитывает более <strong>8 миллионов</strong> активных пользователей и является одним из самых мощных каналов продаж. Однако многие бизнесы не используют его потенциал полностью — публикуют красивые посты, но не конвертируют подписчиков в покупателей.</p>
@@ -1226,13 +1226,13 @@ BLOG_POSTS = [
 
 <p>Отслеживайте ключевые метрики еженедельно: охват, engagement rate, количество DM, конверсия, среднее время ответа, доход.</p>
 
-<h2>Как помогает Repli AI?</h2>
+<h2>Как помогает Aylo AI?</h2>
 
-<p><strong>Repli AI</strong> помогает реализовать все эти стратегии. Платформа <a href="https://repli.uz">repli.uz</a> создана специально для увеличения продаж через Instagram.</p>
+<p><strong>Aylo AI</strong> помогает реализовать все эти стратегии. Платформа <a href="https://aylo.uz">aylo.uz</a> создана специально для увеличения продаж через Instagram.</p>
 
 <p>Возможности: мгновенный ответ на DM 24/7, comment trigger, автоматизация Stories, воронка продаж, CRM, детальная аналитика, омниканальное управление Instagram + Telegram + WhatsApp.</p>
 
-<p>Начните <strong>7-дневный бесплатный период</strong> на <a href="https://repli.uz">repli.uz</a> и увидите рост продаж уже в первую неделю!</p>""",
+<p>Начните <strong>7-дневный бесплатный период</strong> на <a href="https://aylo.uz">aylo.uz</a> и увидите рост продаж уже в первую неделю!</p>""",
         "content_en": """<h2>Why Instagram Matters for Sales</h2>
 
 <p>Instagram has over <strong>8 million</strong> active users in Uzbekistan and is one of the most powerful sales channels. Yet many businesses fail to convert followers into buyers — they post beautiful content but don't close sales.</p>
@@ -1271,13 +1271,13 @@ BLOG_POSTS = [
 
 <p>Track key metrics weekly: reach, engagement rate, DM count, conversion rate, average response time, revenue.</p>
 
-<h2>How Repli AI Helps</h2>
+<h2>How Aylo AI Helps</h2>
 
-<p><strong>Repli AI</strong> helps you implement all these strategies. The <a href="https://repli.uz">repli.uz</a> platform is built specifically to increase Instagram sales.</p>
+<p><strong>Aylo AI</strong> helps you implement all these strategies. The <a href="https://aylo.uz">aylo.uz</a> platform is built specifically to increase Instagram sales.</p>
 
 <p>Features: instant 24/7 DM responses, comment triggers, Stories automation, sales funnels, CRM, detailed analytics, omnichannel management across Instagram + Telegram + WhatsApp.</p>
 
-<p>Start your <strong>7-day free trial</strong> at <a href="https://repli.uz">repli.uz</a> and see your sales grow in the first week!</p>"""
+<p>Start your <strong>7-day free trial</strong> at <a href="https://aylo.uz">aylo.uz</a> and see your sales grow in the first week!</p>"""
     },
     {
         "title_uz": "Lid generatsiya nima? AI bilan avtomatik lid yig'ish",
@@ -1285,10 +1285,10 @@ BLOG_POSTS = [
         "title_en": "What Is Lead Generation? Automatic Lead Collection with AI",
         "slug": "lid-generatsiya-ai-bilan",
         "cover_image": "https://images.unsplash.com/photo-1460925895917-afdab827c52f?w=1200&h=630&fit=crop",
-        "author": "Repli AI Team",
+        "author": "Aylo AI Team",
         "tags": ["lid", "generatsiya", "crm", "sotuv", "ai"],
         "target_keyword": "lid generatsiya",
-        "meta_title": "Lid generatsiya nima? AI bilan avtomatik lid yig'ish | Repli AI",
+        "meta_title": "Lid generatsiya nima? AI bilan avtomatik lid yig'ish | Aylo AI",
         "meta_description": "Lid generatsiya nima, qanday ishlaydi va AI yordamida lidlarni avtomatik yig'ish usullari. Sotuv samaradorligini 133% ga oshiring.",
         "read_time": 10,
         "internal_links": [
@@ -1429,11 +1429,11 @@ BLOG_POSTS = [
 <li><strong>ROI:</strong> Lid generatsiya investitsiyasining qaytimi — maqsad 300%+</li>
 </ul>
 
-<h2>Repli AI qanday yordam beradi?</h2>
+<h2>Aylo AI qanday yordam beradi?</h2>
 
-<p><strong>Repli AI</strong> — bu O'zbekistondagi bizneslar uchun maxsus yaratilgan lid generatsiya platformasi. <a href="https://repli.uz">repli.uz</a> orqali siz barcha lid generatsiya jarayonlarini avtomatlashtirishingiz mumkin.</p>
+<p><strong>Aylo AI</strong> — bu O'zbekistondagi bizneslar uchun maxsus yaratilgan lid generatsiya platformasi. <a href="https://aylo.uz">aylo.uz</a> orqali siz barcha lid generatsiya jarayonlarini avtomatlashtirishingiz mumkin.</p>
 
-<p>Repli AI imkoniyatlari:</p>
+<p>Aylo AI imkoniyatlari:</p>
 <ul>
 <li>Instagram, Telegram, WhatsApp va veb-sayt orqali bir vaqtda lid yig'ish</li>
 <li>AI yordamida avtomatik lid kvalifikatsiya va scoring</li>
@@ -1443,7 +1443,7 @@ BLOG_POSTS = [
 <li>O'zbek, rus va ingliz tillarida ishlash</li>
 </ul>
 
-<p><a href="https://repli.uz">repli.uz</a> saytida <strong>7 kunlik bepul sinov</strong> davrini boshlang va lid generatsiya samaradorligingizni 3 barobarga oshiring!</p>""",
+<p><a href="https://aylo.uz">aylo.uz</a> saytida <strong>7 kunlik bepul sinov</strong> davrini boshlang va lid generatsiya samaradorligingizni 3 barobarga oshiring!</p>""",
         "content_ru": """<h2>Что такое лидогенерация?</h2>
 
 <p>Лидогенерация — это процесс привлечения потенциальных клиентов и сбора их контактных данных. Лид — это человек или организация, проявившие интерес к вашему продукту или услуге. Лидогенерация — фундаментальный процесс для роста любого бизнеса.</p>
@@ -1486,11 +1486,11 @@ BLOG_POSTS = [
 
 <p>Nurturing включает 4 этапа: первый контакт (0-24 часа), информирование (1-3 дня), поддержка решения (3-7 дней), передача в продажи (7-14 дней). На каждом этапе AI отправляет персонализированный контент.</p>
 
-<h2>Как помогает Repli AI?</h2>
+<h2>Как помогает Aylo AI?</h2>
 
-<p><strong>Repli AI</strong> — платформа лидогенерации, созданная для бизнеса в Узбекистане. На <a href="https://repli.uz">repli.uz</a> вы получаете: сбор лидов через Instagram, Telegram, WhatsApp и сайт, автоматическую квалификацию и скоринг, интеграцию с CRM (amoCRM, Bitrix24, HubSpot), автоматизацию nurturing и аналитику в реальном времени.</p>
+<p><strong>Aylo AI</strong> — платформа лидогенерации, созданная для бизнеса в Узбекистане. На <a href="https://aylo.uz">aylo.uz</a> вы получаете: сбор лидов через Instagram, Telegram, WhatsApp и сайт, автоматическую квалификацию и скоринг, интеграцию с CRM (amoCRM, Bitrix24, HubSpot), автоматизацию nurturing и аналитику в реальном времени.</p>
 
-<p>Начните <strong>бесплатный 7-дневный</strong> пробный период на <a href="https://repli.uz">repli.uz</a> и увеличьте поток лидов в 3 раза!</p>""",
+<p>Начните <strong>бесплатный 7-дневный</strong> пробный период на <a href="https://aylo.uz">aylo.uz</a> и увеличьте поток лидов в 3 раза!</p>""",
         "content_en": """<h2>What Is Lead Generation?</h2>
 
 <p>Lead generation is the process of attracting potential customers and collecting their contact information. A lead is a person or organization that has shown interest in your product or service. Lead generation is fundamental to the growth of any business.</p>
@@ -1524,11 +1524,11 @@ BLOG_POSTS = [
 
 <p>Nurturing involves 4 stages: initial contact (0-24 hours), information delivery (1-3 days), decision support (3-7 days), and handoff to sales (7-14 days). AI sends personalized content at each stage, increasing conversion rates by up to 47%.</p>
 
-<h2>How Repli AI Helps</h2>
+<h2>How Aylo AI Helps</h2>
 
-<p><strong>Repli AI</strong> is a lead generation platform built for businesses in Uzbekistan. At <a href="https://repli.uz">repli.uz</a>, you get: multi-channel lead collection (Instagram, Telegram, WhatsApp, website), automatic qualification and scoring, CRM integration (amoCRM, Bitrix24, HubSpot), automated nurturing campaigns, and real-time analytics.</p>
+<p><strong>Aylo AI</strong> is a lead generation platform built for businesses in Uzbekistan. At <a href="https://aylo.uz">aylo.uz</a>, you get: multi-channel lead collection (Instagram, Telegram, WhatsApp, website), automatic qualification and scoring, CRM integration (amoCRM, Bitrix24, HubSpot), automated nurturing campaigns, and real-time analytics.</p>
 
-<p>Start your <strong>free 7-day trial</strong> at <a href="https://repli.uz">repli.uz</a> and triple your lead flow!</p>"""
+<p>Start your <strong>free 7-day trial</strong> at <a href="https://aylo.uz">aylo.uz</a> and triple your lead flow!</p>"""
     },
     {
         "title_uz": "CRM integratsiya — mijozlar bazasini avtomatlashtirish",
@@ -1536,10 +1536,10 @@ BLOG_POSTS = [
         "title_en": "CRM Integration — Automating Your Customer Database",
         "slug": "crm-integratsiya-avtomatlashtirish",
         "cover_image": "https://images.unsplash.com/photo-1552664730-d307ca884978?w=1200&h=630&fit=crop",
-        "author": "Repli AI Team",
+        "author": "Aylo AI Team",
         "tags": ["crm", "integratsiya", "amocrm", "bitrix24", "avtomatlashtirish"],
         "target_keyword": "crm integratsiya",
-        "meta_title": "CRM integratsiya — mijozlar bazasini avtomatlashtirish | Repli AI",
+        "meta_title": "CRM integratsiya — mijozlar bazasini avtomatlashtirish | Aylo AI",
         "meta_description": "CRM integratsiyasi qanday ishlaydi? amoCRM, Bitrix24, HubSpot bilan chatbot ulash, ma'lumotlar oqimi va avtomatlashtirish bo'yicha to'liq qo'llanma.",
         "read_time": 11,
         "internal_links": [
@@ -1634,7 +1634,7 @@ BLOG_POSTS = [
 <p>Biznesingiz hajmi va ehtiyojlariga mos CRM tanlang. Kichik biznes uchun amoCRM yoki HubSpot (bepul), o'rta biznes uchun Bitrix24, yirik biznes uchun Salesforce tavsiya etiladi. CRM da sotuv pipeline ni sozlang — bosqichlarni aniqlang.</p>
 
 <h3>2-bosqich: Chatbot platformani tanlash</h3>
-<p>CRM bilan integratsiya qo'llab-quvvatlaydigan chatbot platformani tanlang. Repli AI barcha yuqoridagi CRM tizimlar bilan integratsiya qiladi.</p>
+<p>CRM bilan integratsiya qo'llab-quvvatlaydigan chatbot platformani tanlang. Aylo AI barcha yuqoridagi CRM tizimlar bilan integratsiya qiladi.</p>
 
 <h3>3-bosqich: API kalitlarini sozlash</h3>
 <p>CRM tizimdan API kalit oling. Chatbot platformada CRM integratsiya bo'limiga o'ting. API kalitni kiriting va ulanishni tekshiring.</p>
@@ -1681,9 +1681,9 @@ BLOG_POSTS = [
 <li><strong>ROI hisoblash:</strong> Har bir kanal va kampaniya uchun ROI</li>
 </ul>
 
-<h2>Repli AI qanday yordam beradi?</h2>
+<h2>Aylo AI qanday yordam beradi?</h2>
 
-<p><strong>Repli AI</strong> barcha mashhur CRM tizimlar bilan chuqur integratsiya qiladi. <a href="https://repli.uz">repli.uz</a> orqali siz:</p>
+<p><strong>Aylo AI</strong> barcha mashhur CRM tizimlar bilan chuqur integratsiya qiladi. <a href="https://aylo.uz">aylo.uz</a> orqali siz:</p>
 
 <ul>
 <li>amoCRM, Bitrix24, HubSpot va Salesforce bilan bir necha daqiqada ulaning</li>
@@ -1693,7 +1693,7 @@ BLOG_POSTS = [
 <li>Kuchli analitika va hisobotlar orqali sotuvni optimallashtiring</li>
 </ul>
 
-<p><a href="https://repli.uz">repli.uz</a> da <strong>7 kunlik bepul sinov</strong> davrini boshlang va CRM integratsiya kuchini his qiling!</p>""",
+<p><a href="https://aylo.uz">aylo.uz</a> da <strong>7 kunlik bepul sinov</strong> davrini boshlang va CRM integratsiya kuchini his qiling!</p>""",
         "content_ru": """<h2>Что такое CRM и зачем она нужна?</h2>
 
 <p>CRM (Customer Relationship Management) — система управления взаимоотношениями с клиентами. CRM собирает всю информацию о клиентах в одном месте: контактные данные, историю покупок, историю общения и интересы. В Узбекистане 45% среднего и крупного бизнеса уже используют CRM — в 2020 году этот показатель составлял всего 15%.</p>
@@ -1728,11 +1728,11 @@ BLOG_POSTS = [
 <li><strong>Тестирование:</strong> создайте тестовый лид и проверьте весь поток данных</li>
 </ol>
 
-<h2>Как помогает Repli AI?</h2>
+<h2>Как помогает Aylo AI?</h2>
 
-<p><strong>Repli AI</strong> обеспечивает глубокую интеграцию со всеми популярными CRM. На <a href="https://repli.uz">repli.uz</a> вы подключите amoCRM, Bitrix24, HubSpot или Salesforce за считанные минуты. Автоматическое создание лидов, синхронизация данных в реальном времени, управление pipeline — всё из одного интерфейса.</p>
+<p><strong>Aylo AI</strong> обеспечивает глубокую интеграцию со всеми популярными CRM. На <a href="https://aylo.uz">aylo.uz</a> вы подключите amoCRM, Bitrix24, HubSpot или Salesforce за считанные минуты. Автоматическое создание лидов, синхронизация данных в реальном времени, управление pipeline — всё из одного интерфейса.</p>
 
-<p>Начните <strong>бесплатный 7-дневный</strong> период на <a href="https://repli.uz">repli.uz</a> и ощутите мощь CRM-интеграции!</p>""",
+<p>Начните <strong>бесплатный 7-дневный</strong> период на <a href="https://aylo.uz">aylo.uz</a> и ощутите мощь CRM-интеграции!</p>""",
         "content_en": """<h2>What Is CRM and Why Does It Matter?</h2>
 
 <p>CRM (Customer Relationship Management) is a system for managing all customer interactions and data in one place. It tracks contact information, purchase history, communication logs, and customer interests. In Uzbekistan, CRM adoption has grown from 15% in 2020 to 45% of medium and large businesses today.</p>
@@ -1765,11 +1765,11 @@ BLOG_POSTS = [
 <li><strong>Test:</strong> create a test lead and verify the entire data flow</li>
 </ol>
 
-<h2>How Repli AI Helps</h2>
+<h2>How Aylo AI Helps</h2>
 
-<p><strong>Repli AI</strong> provides deep integration with all popular CRMs. At <a href="https://repli.uz">repli.uz</a>, connect amoCRM, Bitrix24, HubSpot, or Salesforce in minutes. Automatic lead creation, real-time data sync, pipeline management — all from one interface.</p>
+<p><strong>Aylo AI</strong> provides deep integration with all popular CRMs. At <a href="https://aylo.uz">aylo.uz</a>, connect amoCRM, Bitrix24, HubSpot, or Salesforce in minutes. Automatic lead creation, real-time data sync, pipeline management — all from one interface.</p>
 
-<p>Start your <strong>free 7-day trial</strong> at <a href="https://repli.uz">repli.uz</a> and experience the power of CRM integration!</p>"""
+<p>Start your <strong>free 7-day trial</strong> at <a href="https://aylo.uz">aylo.uz</a> and experience the power of CRM integration!</p>"""
     },
     {
         "title_uz": "O'zbekistonda AI texnologiyalar: biznes uchun imkoniyatlar",
@@ -1777,10 +1777,10 @@ BLOG_POSTS = [
         "title_en": "AI Technologies in Uzbekistan: Opportunities for Business",
         "slug": "uzbekistonda-ai-texnologiyalar-biznes",
         "cover_image": "https://images.unsplash.com/photo-1485827404703-89b55fcc595e?w=1200&h=630&fit=crop",
-        "author": "Repli AI Team",
+        "author": "Aylo AI Team",
         "tags": ["ai", "uzbekiston", "texnologiya", "biznes", "innovatsiya"],
         "target_keyword": "ai texnologiya uzbekiston",
-        "meta_title": "O'zbekistonda AI texnologiyalar: biznes uchun imkoniyatlar | Repli AI",
+        "meta_title": "O'zbekistonda AI texnologiyalar: biznes uchun imkoniyatlar | Aylo AI",
         "meta_description": "O'zbekistonda AI texnologiyalar qanday rivojlanmoqda? IT Park statistikasi, startup ekotizimi, sanoat bo'yicha AI qo'llanilishi va kelajak istiqbollari.",
         "read_time": 12,
         "internal_links": [
@@ -1917,9 +1917,9 @@ BLOG_POSTS = [
 <li><strong>2030:</strong> O'zbekiston AI eksporti $500M ga yetadi</li>
 </ul>
 
-<h2>Repli AI qanday yordam beradi?</h2>
+<h2>Aylo AI qanday yordam beradi?</h2>
 
-<p><strong>Repli AI</strong> — O'zbekistonda ishlab chiqilgan AI platforma bo'lib, mahalliy bizneslar uchun sun'iy intellekt imkoniyatlarini ochib beradi. <a href="https://repli.uz">repli.uz</a> orqali siz:</p>
+<p><strong>Aylo AI</strong> — O'zbekistonda ishlab chiqilgan AI platforma bo'lib, mahalliy bizneslar uchun sun'iy intellekt imkoniyatlarini ochib beradi. <a href="https://aylo.uz">aylo.uz</a> orqali siz:</p>
 
 <ul>
 <li>AI chatbot orqali mijozlarga 24/7 xizmat ko'rsating</li>
@@ -1929,7 +1929,7 @@ BLOG_POSTS = [
 <li>Real vaqtda analitika orqali qarorlar qabul qiling</li>
 </ul>
 
-<p>O'zbekistondagi AI inqilobining bir qismi bo'ling! <a href="https://repli.uz">repli.uz</a> da <strong>7 kunlik bepul sinov</strong> davrini boshlang!</p>""",
+<p>O'zbekistondagi AI inqilobining bir qismi bo'ling! <a href="https://aylo.uz">aylo.uz</a> da <strong>7 kunlik bepul sinov</strong> davrini boshlang!</p>""",
         "content_ru": """<h2>Цифровая трансформация Узбекистана</h2>
 
 <p>Узбекистан активно движется по пути цифровой трансформации. Стратегия «Цифровой Узбекистан — 2030» ставит целью увеличение доли цифровой экономики в ВВП с 3.5% до 10%. IT-экспорт страны достиг $250 миллионов в 2023 году и продолжает расти.</p>
@@ -1963,11 +1963,11 @@ BLOG_POSTS = [
 
 <p>Основные вызовы: нехватка AI-специалистов (покрыто 30% спроса), неструктурированные данные, высокие начальные инвестиции. Возможности: молодое население (60% до 30 лет), господдержка, растущий рынок (40%+ рост спроса ежегодно).</p>
 
-<h2>Как помогает Repli AI?</h2>
+<h2>Как помогает Aylo AI?</h2>
 
-<p><strong>Repli AI</strong> — AI-платформа, созданная в Узбекистане для местного бизнеса. На <a href="https://repli.uz">repli.uz</a>: AI-чат-бот 24/7, автоматизация продаж через Instagram, Telegram и WhatsApp, поддержка узбекского, русского и английского языков, CRM-интеграция и аналитика в реальном времени.</p>
+<p><strong>Aylo AI</strong> — AI-платформа, созданная в Узбекистане для местного бизнеса. На <a href="https://aylo.uz">aylo.uz</a>: AI-чат-бот 24/7, автоматизация продаж через Instagram, Telegram и WhatsApp, поддержка узбекского, русского и английского языков, CRM-интеграция и аналитика в реальном времени.</p>
 
-<p>Станьте частью AI-революции! Начните <strong>бесплатный 7-дневный</strong> период на <a href="https://repli.uz">repli.uz</a>!</p>""",
+<p>Станьте частью AI-революции! Начните <strong>бесплатный 7-дневный</strong> период на <a href="https://aylo.uz">aylo.uz</a>!</p>""",
         "content_en": """<h2>Uzbekistan's Digital Transformation</h2>
 
 <p>Uzbekistan has taken significant steps toward digital transformation. The "Digital Uzbekistan — 2030" strategy aims to increase the digital economy's share of GDP from 3.5% to 10%. IT exports reached $250 million in 2023 and continue to grow year over year.</p>
@@ -2001,11 +2001,11 @@ BLOG_POSTS = [
 
 <p>Key challenges include a shortage of AI specialists (only 30% of demand met), unstructured data, and high initial investment costs. Major opportunities: a young population (60% under 30), government support through tax benefits and grants, a growing market with 40%+ annual demand increase, and regional potential across Central Asia.</p>
 
-<h2>How Repli AI Helps</h2>
+<h2>How Aylo AI Helps</h2>
 
-<p><strong>Repli AI</strong> is an AI platform built in Uzbekistan for local businesses. At <a href="https://repli.uz">repli.uz</a>, you get: 24/7 AI chatbot, sales automation across Instagram, Telegram, and WhatsApp, support for Uzbek, Russian, and English, CRM integration, and real-time analytics.</p>
+<p><strong>Aylo AI</strong> is an AI platform built in Uzbekistan for local businesses. At <a href="https://aylo.uz">aylo.uz</a>, you get: 24/7 AI chatbot, sales automation across Instagram, Telegram, and WhatsApp, support for Uzbek, Russian, and English, CRM integration, and real-time analytics.</p>
 
-<p>Be part of the AI revolution! Start your <strong>free 7-day trial</strong> at <a href="https://repli.uz">repli.uz</a>!</p>"""
+<p>Be part of the AI revolution! Start your <strong>free 7-day trial</strong> at <a href="https://aylo.uz">aylo.uz</a>!</p>"""
     },
     {
         "title_uz": "Chatbot orqali mijozlar xizmatini yaxshilash — 5 ta usul",
@@ -2013,10 +2013,10 @@ BLOG_POSTS = [
         "title_en": "Improving Customer Service with Chatbots — 5 Methods",
         "slug": "chatbot-mijozlar-xizmati-yaxshilash",
         "cover_image": "https://images.unsplash.com/photo-1556745757-8d76bdb6984b?w=1200&h=630&fit=crop",
-        "author": "Repli AI Team",
+        "author": "Aylo AI Team",
         "tags": ["chatbot", "mijoz", "xizmat", "crm", "sotuv"],
         "target_keyword": "chatbot mijoz xizmati",
-        "meta_title": "Chatbot orqali mijozlar xizmatini yaxshilash — 5 ta usul | Repli AI",
+        "meta_title": "Chatbot orqali mijozlar xizmatini yaxshilash — 5 ta usul | Aylo AI",
         "meta_description": "Chatbot yordamida mijozlar xizmatini qanday yaxshilash mumkin? 5 ta isbotlangan usul, case study'lar va amaliy qo'llanma. Mijoz qaytishini 89% ga oshiring.",
         "read_time": 10,
         "internal_links": [
@@ -2171,9 +2171,9 @@ BLOG_POSTS = [
 <li>Muammo hal qilingandan so'ng chatbot feedback so'raydi</li>
 </ol>
 
-<h2>Repli AI qanday yordam beradi?</h2>
+<h2>Aylo AI qanday yordam beradi?</h2>
 
-<p><strong>Repli AI</strong> yuqoridagi barcha 5 ta usulni qo'llab-quvvatlaydigan platforma. <a href="https://repli.uz">repli.uz</a> orqali siz:</p>
+<p><strong>Aylo AI</strong> yuqoridagi barcha 5 ta usulni qo'llab-quvvatlaydigan platforma. <a href="https://aylo.uz">aylo.uz</a> orqali siz:</p>
 
 <ul>
 <li>24/7 AI chatbot o'rnating — 3 soniyada javob beradi</li>
@@ -2184,7 +2184,7 @@ BLOG_POSTS = [
 <li>Oson eskalatsiya — chatbot dan operatorga uzluksiz o'tish</li>
 </ul>
 
-<p><a href="https://repli.uz">repli.uz</a> da <strong>7 kunlik bepul sinov</strong> davrini boshlang va mijozlar xizmatingizni yangi darajaga olib chiqing!</p>""",
+<p><a href="https://aylo.uz">aylo.uz</a> da <strong>7 kunlik bepul sinov</strong> davrini boshlang va mijozlar xizmatingizni yangi darajaga olib chiqing!</p>""",
         "content_ru": """<h2>Почему обслуживание клиентов критически важно?</h2>
 
 <p>Качество обслуживания напрямую влияет на прибыль. Клиенты покупают не просто товар — они покупают опыт. И большая часть этого опыта зависит от качества сервиса.</p>
@@ -2222,11 +2222,11 @@ BLOG_POSTS = [
 
 <p>Когда бот не может ответить — плавная передача оператору с полной историей переписки. Оператор подключается за 2 минуты и видит всю информацию.</p>
 
-<h2>Как помогает Repli AI?</h2>
+<h2>Как помогает Aylo AI?</h2>
 
-<p><strong>Repli AI</strong> поддерживает все 5 способов. На <a href="https://repli.uz">repli.uz</a>: AI-бот 24/7, персонализация, проактивные сообщения, омниканальность (Instagram + Telegram + WhatsApp), аналитика в реальном времени и плавная эскалация.</p>
+<p><strong>Aylo AI</strong> поддерживает все 5 способов. На <a href="https://aylo.uz">aylo.uz</a>: AI-бот 24/7, персонализация, проактивные сообщения, омниканальность (Instagram + Telegram + WhatsApp), аналитика в реальном времени и плавная эскалация.</p>
 
-<p>Начните <strong>бесплатный 7-дневный</strong> период на <a href="https://repli.uz">repli.uz</a> и поднимите сервис на новый уровень!</p>""",
+<p>Начните <strong>бесплатный 7-дневный</strong> период на <a href="https://aylo.uz">aylo.uz</a> и поднимите сервис на новый уровень!</p>""",
         "content_en": """<h2>Why Customer Service Matters</h2>
 
 <p>Customer service is the heart of any business. No matter how great your product is, poor service drives customers away. Today's customers don't just buy products — they buy experiences. And a huge part of that experience depends on service quality.</p>
@@ -2264,11 +2264,11 @@ BLOG_POSTS = [
 
 <p>When the bot can't answer, it smoothly hands off to a human agent with the complete conversation history. The agent connects within 2 minutes and sees all information — no need for the customer to repeat anything.</p>
 
-<h2>How Repli AI Helps</h2>
+<h2>How Aylo AI Helps</h2>
 
-<p><strong>Repli AI</strong> supports all 5 methods. At <a href="https://repli.uz">repli.uz</a>: 24/7 AI bot, personalization, proactive messaging, omnichannel support (Instagram + Telegram + WhatsApp), real-time analytics, and seamless escalation.</p>
+<p><strong>Aylo AI</strong> supports all 5 methods. At <a href="https://aylo.uz">aylo.uz</a>: 24/7 AI bot, personalization, proactive messaging, omnichannel support (Instagram + Telegram + WhatsApp), real-time analytics, and seamless escalation.</p>
 
-<p>Start your <strong>free 7-day trial</strong> at <a href="https://repli.uz">repli.uz</a> and take your customer service to the next level!</p>"""
+<p>Start your <strong>free 7-day trial</strong> at <a href="https://aylo.uz">aylo.uz</a> and take your customer service to the next level!</p>"""
     },
     {
         "title_uz": "Instagram savdo sahifasi uchun eng yaxshi strategiyalar",
@@ -2276,10 +2276,10 @@ BLOG_POSTS = [
         "title_en": "Best Strategies for an Instagram Sales Page",
         "slug": "instagram-savdo-sahifasi-strategiyalar",
         "cover_image": "https://images.unsplash.com/photo-1432888622747-4eb9a8efeb07?w=1200&h=630&fit=crop",
-        "author": "Repli AI Team",
+        "author": "Aylo AI Team",
         "tags": ["instagram", "savdo", "sahifa", "strategiya", "marketing"],
         "target_keyword": "instagram savdo sahifasi",
-        "meta_title": "Instagram savdo sahifasi uchun eng yaxshi strategiyalar | Repli AI",
+        "meta_title": "Instagram savdo sahifasi uchun eng yaxshi strategiyalar | Aylo AI",
         "meta_description": "Instagram savdo sahifasini qanday optimallashtiramiz? Profil, kontent, Reels, Stories, hashtag, DM avtomatlashtirish va analitika strategiyalari.",
         "read_time": 11,
         "internal_links": [
@@ -2439,9 +2439,9 @@ BLOG_POSTS = [
 <li>Juma: Kelgusi hafta kontent rejasini tayyorlash</li>
 </ol>
 
-<h2>Repli AI qanday yordam beradi?</h2>
+<h2>Aylo AI qanday yordam beradi?</h2>
 
-<p><strong>Repli AI</strong> Instagram savdo sahifangizni keyingi darajaga olib chiqadi. <a href="https://repli.uz">repli.uz</a> platformasi orqali:</p>
+<p><strong>Aylo AI</strong> Instagram savdo sahifangizni keyingi darajaga olib chiqadi. <a href="https://aylo.uz">aylo.uz</a> platformasi orqali:</p>
 
 <ul>
 <li>DM avtomatlashtirish — 3 soniyada javob, 24/7</li>
@@ -2453,7 +2453,7 @@ BLOG_POSTS = [
 <li>Omnichannel — Instagram + Telegram + WhatsApp bitta platformada</li>
 </ul>
 
-<p><a href="https://repli.uz">repli.uz</a> da <strong>7 kunlik bepul sinov</strong> davrini boshlang va Instagram savdolaringizni 3 barobarga oshiring!</p>""",
+<p><a href="https://aylo.uz">aylo.uz</a> da <strong>7 kunlik bepul sinov</strong> davrini boshlang va Instagram savdolaringizni 3 barobarga oshiring!</p>""",
         "content_ru": """<h2>Почему Instagram — мощная торговая площадка?</h2>
 
 <p>Instagram — одна из самых мощных платформ для продаж в Узбекистане. Более 8 миллионов активных пользователей, визуальный формат и умные алгоритмы делают Instagram идеальной площадкой. Статистика: <strong>81%</strong> пользователей изучают товары в Instagram, <strong>72%</strong> совершали покупку после просмотра.</p>
@@ -2486,11 +2486,11 @@ BLOG_POSTS = [
 
 <p>Еженедельно отслеживайте: reach, engagement rate (цель 3-6%), количество DM, конверсию DM→продажа (цель 10-25%), рост подписчиков.</p>
 
-<h2>Как помогает Repli AI?</h2>
+<h2>Как помогает Aylo AI?</h2>
 
-<p><strong>Repli AI</strong> выводит Instagram-продажи на новый уровень. На <a href="https://repli.uz">repli.uz</a>: автоматизация DM (ответ за 3 секунды), comment-триггеры, воронки продаж, CRM-интеграция, аналитика и омниканальность (Instagram + Telegram + WhatsApp).</p>
+<p><strong>Aylo AI</strong> выводит Instagram-продажи на новый уровень. На <a href="https://aylo.uz">aylo.uz</a>: автоматизация DM (ответ за 3 секунды), comment-триггеры, воронки продаж, CRM-интеграция, аналитика и омниканальность (Instagram + Telegram + WhatsApp).</p>
 
-<p>Начните <strong>бесплатный 7-дневный</strong> период на <a href="https://repli.uz">repli.uz</a> и утройте продажи в Instagram!</p>""",
+<p>Начните <strong>бесплатный 7-дневный</strong> период на <a href="https://aylo.uz">aylo.uz</a> и утройте продажи в Instagram!</p>""",
         "content_en": """<h2>Why Instagram Is a Powerful Sales Platform</h2>
 
 <p>Instagram is one of the most powerful sales platforms in Uzbekistan with over 8 million active users. The visual format and smart algorithms make it ideal for selling. Statistics show that <strong>81%</strong> of users research products on Instagram, and <strong>72%</strong> have made a purchase after seeing something on the platform.</p>
@@ -2523,11 +2523,11 @@ BLOG_POSTS = [
 
 <p>Track weekly: reach, engagement rate (target 3-6%), DM count, DM-to-sale conversion (target 10-25%), and follower growth. Optimize content based on data — double down on what works.</p>
 
-<h2>How Repli AI Helps</h2>
+<h2>How Aylo AI Helps</h2>
 
-<p><strong>Repli AI</strong> takes your Instagram sales to the next level. At <a href="https://repli.uz">repli.uz</a>: DM automation (3-second responses), comment triggers, sales funnels, CRM integration, real-time analytics, and omnichannel management (Instagram + Telegram + WhatsApp).</p>
+<p><strong>Aylo AI</strong> takes your Instagram sales to the next level. At <a href="https://aylo.uz">aylo.uz</a>: DM automation (3-second responses), comment triggers, sales funnels, CRM integration, real-time analytics, and omnichannel management (Instagram + Telegram + WhatsApp).</p>
 
-<p>Start your <strong>free 7-day trial</strong> at <a href="https://repli.uz">repli.uz</a> and triple your Instagram sales!</p>"""
+<p>Start your <strong>free 7-day trial</strong> at <a href="https://aylo.uz">aylo.uz</a> and triple your Instagram sales!</p>"""
     },
     {
         "title_uz": "SMM manager uchun AI vositalar — vaqtni tejash",
@@ -2535,10 +2535,10 @@ BLOG_POSTS = [
         "title_en": "AI Tools for SMM Managers — Save Time",
         "slug": "smm-manager-ai-vositalar",
         "cover_image": "https://images.unsplash.com/photo-1611926653458-09294b3142bf?w=1200&h=630&fit=crop",
-        "author": "Repli AI Team",
+        "author": "Aylo AI Team",
         "tags": ["smm", "ai", "vositalar", "marketing", "avtomatlashtirish"],
         "target_keyword": "smm ai vositalar",
-        "meta_title": "SMM manager uchun AI vositalar — vaqtni tejash | Repli AI",
+        "meta_title": "SMM manager uchun AI vositalar — vaqtni tejash | Aylo AI",
         "meta_description": "SMM manager kunlik vazifalarini AI vositalar bilan avtomatlashtiring. Haftasiga 15+ soat tejang. Kontent, analitika, DM — barchasi bitta joyda.",
         "read_time": 10,
         "internal_links": [
@@ -2660,7 +2660,7 @@ BLOG_POSTS = [
 <p>Eng samarali AI vositalar:</p>
 
 <ul>
-<li><strong>Chatbot platformalar:</strong> Repli AI, ManyChat, Chatfuel — DM avtomatlashtirish</li>
+<li><strong>Chatbot platformalar:</strong> Aylo AI, ManyChat, Chatfuel — DM avtomatlashtirish</li>
 <li><strong>Kontent generatsiya:</strong> ChatGPT, Jasper, Copy.ai — matn yaratish</li>
 <li><strong>Dizayn:</strong> Canva AI, Adobe Firefly — vizual kontent</li>
 <li><strong>Analitika:</strong> Sprout Social, Hootsuite — chuqur tahlil</li>
@@ -2669,9 +2669,9 @@ BLOG_POSTS = [
 
 <p>Ammo eng muhimi — bu vositalarni bitta platformaga birlashtirish. Har biri alohida ishlatilsa, vaqt tejash o'rniga yangi muammo paydo bo'ladi.</p>
 
-<h2>Repli AI qanday yordam beradi?</h2>
+<h2>Aylo AI qanday yordam beradi?</h2>
 
-<p><strong>Repli AI</strong> — SMM managerlar uchun all-in-one yechim. <a href="https://repli.uz">repli.uz</a> platformasida siz bir joydan barchasini boshqarasiz:</p>
+<p><strong>Aylo AI</strong> — SMM managerlar uchun all-in-one yechim. <a href="https://aylo.uz">aylo.uz</a> platformasida siz bir joydan barchasini boshqarasiz:</p>
 
 <ul>
 <li><strong>DM avtomatlashtirish:</strong> Instagram, Telegram, WhatsApp — barcha kanallar bitta panelda</li>
@@ -2682,7 +2682,7 @@ BLOG_POSTS = [
 <li><strong>Jamoa boshqaruvi:</strong> Vazifalar, rollar, approval workflow</li>
 </ul>
 
-<p>SMM managerlar uchun maxsus chegirma — <a href="https://repli.uz">repli.uz</a> da <strong>bepul 7 kunlik sinov</strong> davri mavjud. Bugun boshlang va haftasiga 15+ soat tejang!</p>""",
+<p>SMM managerlar uchun maxsus chegirma — <a href="https://aylo.uz">aylo.uz</a> da <strong>bepul 7 kunlik sinov</strong> davri mavjud. Bugun boshlang va haftasiga 15+ soat tejang!</p>""",
 
         "content_ru": """<h2>Ежедневные задачи SMM-менеджера</h2>
 
@@ -2718,11 +2718,11 @@ BLOG_POSTS = [
 
 <p>AI улучшает не только индивидуальную эффективность: автоматическое распределение задач, approval workflow для согласования контента, единая база знаний и шаблонов, быстрый онбординг новых сотрудников.</p>
 
-<h2>Как помогает Repli AI?</h2>
+<h2>Как помогает Aylo AI?</h2>
 
-<p><strong>Repli AI</strong> — комплексное решение для SMM-менеджеров. На платформе <a href="https://repli.uz">repli.uz</a> доступно: автоматизация DM во всех каналах (Instagram, Telegram, WhatsApp), AI чат-бот с ответом за 3 секунды, аналитика в реальном времени, помощник для создания контента, CRM-интеграция и управление командой.</p>
+<p><strong>Aylo AI</strong> — комплексное решение для SMM-менеджеров. На платформе <a href="https://aylo.uz">aylo.uz</a> доступно: автоматизация DM во всех каналах (Instagram, Telegram, WhatsApp), AI чат-бот с ответом за 3 секунды, аналитика в реальном времени, помощник для создания контента, CRM-интеграция и управление командой.</p>
 
-<p>Начните <strong>бесплатный 7-дневный пробный период</strong> на <a href="https://repli.uz">repli.uz</a> и экономьте 15+ часов каждую неделю!</p>""",
+<p>Начните <strong>бесплатный 7-дневный пробный период</strong> на <a href="https://aylo.uz">aylo.uz</a> и экономьте 15+ часов каждую неделю!</p>""",
 
         "content_en": """<h2>The Daily Reality of an SMM Manager</h2>
 
@@ -2758,11 +2758,11 @@ BLOG_POSTS = [
 
 <p>AI improves teamwork as well: automated task distribution, content approval workflows, centralized knowledge bases, and faster onboarding for new team members.</p>
 
-<h2>How Repli AI Helps</h2>
+<h2>How Aylo AI Helps</h2>
 
-<p><strong>Repli AI</strong> is an all-in-one solution for SMM managers. At <a href="https://repli.uz">repli.uz</a>, you get: DM automation across all channels (Instagram, Telegram, WhatsApp), AI chatbot with 3-second responses, real-time analytics, content creation assistant, CRM integration, and team management tools.</p>
+<p><strong>Aylo AI</strong> is an all-in-one solution for SMM managers. At <a href="https://aylo.uz">aylo.uz</a>, you get: DM automation across all channels (Instagram, Telegram, WhatsApp), AI chatbot with 3-second responses, real-time analytics, content creation assistant, CRM integration, and team management tools.</p>
 
-<p>Start your <strong>free 7-day trial</strong> at <a href="https://repli.uz">repli.uz</a> and save 15+ hours every week!</p>"""
+<p>Start your <strong>free 7-day trial</strong> at <a href="https://aylo.uz">aylo.uz</a> and save 15+ hours every week!</p>"""
     },
     {
         "title_uz": "Online do'kon uchun chatbot — buyurtmalarni avtomatlashtirish",
@@ -2770,10 +2770,10 @@ BLOG_POSTS = [
         "title_en": "Chatbot for Online Store — Automate Orders",
         "slug": "online-dokon-chatbot-buyurtma",
         "cover_image": "https://images.unsplash.com/photo-1556742049-0cfed4f6a45d?w=1200&h=630&fit=crop",
-        "author": "Repli AI Team",
+        "author": "Aylo AI Team",
         "tags": ["online", "dokon", "chatbot", "buyurtma", "ecommerce"],
         "target_keyword": "online dokon chatbot",
-        "meta_title": "Online do'kon uchun chatbot — avtomatlashtirish | Repli AI",
+        "meta_title": "Online do'kon uchun chatbot — avtomatlashtirish | Aylo AI",
         "meta_description": "Online do'kon uchun chatbot orqali buyurtmalarni avtomatlashtiring. Savatchani tark etishni kamaytiring, sotuvni 40% ga oshiring. Batafsil qo'llanma.",
         "read_time": 11,
         "internal_links": [
@@ -2904,9 +2904,9 @@ BLOG_POSTS = [
 
 <p>Chatbot narxi oyiga 500 000 — 2 000 000 so'm. <strong>ROI: 8 400% — 33 600%</strong>. Investitsiya birinchi haftadayoq qaytadi.</p>
 
-<h2>Repli AI qanday yordam beradi?</h2>
+<h2>Aylo AI qanday yordam beradi?</h2>
 
-<p><strong>Repli AI</strong> online do'konlar uchun maxsus chatbot yechimini taklif etadi. <a href="https://repli.uz">repli.uz</a> platformasida:</p>
+<p><strong>Aylo AI</strong> online do'konlar uchun maxsus chatbot yechimini taklif etadi. <a href="https://aylo.uz">aylo.uz</a> platformasida:</p>
 
 <ul>
 <li><strong>Mahsulot katalogi:</strong> Chatbot ichida to'liq katalog, qidiruv va filter</li>
@@ -2917,7 +2917,7 @@ BLOG_POSTS = [
 <li><strong>AI tavsiyalar:</strong> Upselling va cross-selling avtomatik</li>
 </ul>
 
-<p><a href="https://repli.uz">repli.uz</a> da <strong>bepul 7 kunlik sinov</strong> davri bilan boshlang va sotuvingizni 40% ga oshiring!</p>""",
+<p><a href="https://aylo.uz">aylo.uz</a> da <strong>bepul 7 kunlik sinov</strong> davri bilan boshlang va sotuvingizni 40% ga oshiring!</p>""",
 
         "content_ru": """<h2>Проблемы интернет-магазинов в Узбекистане</h2>
 
@@ -2953,11 +2953,11 @@ BLOG_POSTS = [
 
 <p>Средний магазин: 50 000 посещений/мес, конверсия 2%, средний чек 200 000 сум = 200 млн сум/мес. После внедрения бота: конверсия 3.2%, чек 230 000 сум = 368 млн сум/мес. <strong>Дополнительный доход: 168 млн сум/мес</strong> при стоимости бота 0.5-2 млн сум.</p>
 
-<h2>Как помогает Repli AI?</h2>
+<h2>Как помогает Aylo AI?</h2>
 
-<p><strong>Repli AI</strong> предлагает специализированное решение для интернет-магазинов на <a href="https://repli.uz">repli.uz</a>: каталог товаров в чате, полная автоматизация заказов, интеграция с Click/Payme/Uzum, омниканальность (Instagram, Telegram, WhatsApp), аналитика продаж и AI-рекомендации для допродаж.</p>
+<p><strong>Aylo AI</strong> предлагает специализированное решение для интернет-магазинов на <a href="https://aylo.uz">aylo.uz</a>: каталог товаров в чате, полная автоматизация заказов, интеграция с Click/Payme/Uzum, омниканальность (Instagram, Telegram, WhatsApp), аналитика продаж и AI-рекомендации для допродаж.</p>
 
-<p>Начните <strong>бесплатный 7-дневный период</strong> на <a href="https://repli.uz">repli.uz</a> и увеличьте продажи на 40%!</p>""",
+<p>Начните <strong>бесплатный 7-дневный период</strong> на <a href="https://aylo.uz">aylo.uz</a> и увеличьте продажи на 40%!</p>""",
 
         "content_en": """<h2>E-commerce Challenges in Uzbekistan</h2>
 
@@ -2993,11 +2993,11 @@ BLOG_POSTS = [
 
 <p>Average store: 50,000 monthly visitors, 2% conversion, 200,000 UZS average order = 200M UZS/month. After chatbot: 3.2% conversion, 230,000 UZS average = 368M UZS/month. <strong>Additional revenue: 168M UZS/month</strong> with bot cost of 0.5-2M UZS. ROI: 8,400-33,600%.</p>
 
-<h2>How Repli AI Helps</h2>
+<h2>How Aylo AI Helps</h2>
 
-<p><strong>Repli AI</strong> offers a specialized e-commerce chatbot at <a href="https://repli.uz">repli.uz</a>: in-chat product catalog, full order automation, Click/Payme/Uzum integration, omnichannel support (Instagram, Telegram, WhatsApp), sales analytics, and AI-powered upselling recommendations.</p>
+<p><strong>Aylo AI</strong> offers a specialized e-commerce chatbot at <a href="https://aylo.uz">aylo.uz</a>: in-chat product catalog, full order automation, Click/Payme/Uzum integration, omnichannel support (Instagram, Telegram, WhatsApp), sales analytics, and AI-powered upselling recommendations.</p>
 
-<p>Start your <strong>free 7-day trial</strong> at <a href="https://repli.uz">repli.uz</a> and boost your sales by 40%!</p>"""
+<p>Start your <strong>free 7-day trial</strong> at <a href="https://aylo.uz">aylo.uz</a> and boost your sales by 40%!</p>"""
     },
     {
         "title_uz": "Multilingual chatbot — 100+ tilda mijozlarga javob",
@@ -3005,10 +3005,10 @@ BLOG_POSTS = [
         "title_en": "Multilingual Chatbot — Respond to Customers in 100+ Languages",
         "slug": "multilingual-chatbot-100-tilda",
         "cover_image": "https://images.unsplash.com/photo-1451187580459-43490279c0fa?w=1200&h=630&fit=crop",
-        "author": "Repli AI Team",
+        "author": "Aylo AI Team",
         "tags": ["multilingual", "til", "chatbot", "ai", "uzbek"],
         "target_keyword": "multilingual chatbot",
-        "meta_title": "Multilingual chatbot — 100+ tilda mijozlarga javob | Repli AI",
+        "meta_title": "Multilingual chatbot — 100+ tilda mijozlarga javob | Aylo AI",
         "meta_description": "Multilingual AI chatbot bilan mijozlarga o'zbek, rus, ingliz va 100+ tilda javob bering. Avtomatik til aniqlash, yuqori sifatli tarjima.",
         "read_time": 10,
         "internal_links": [
@@ -3124,9 +3124,9 @@ BLOG_POSTS = [
 <li><strong>Doimiy o'rganish:</strong> Har bir muloqotdan o'rganib, sifat yaxshilanib boradi</li>
 </ul>
 
-<h2>Repli AI qanday yordam beradi?</h2>
+<h2>Aylo AI qanday yordam beradi?</h2>
 
-<p><strong>Repli AI</strong> — O'zbekiston bozori uchun maxsus ishlab chiqilgan ko'p tilli chatbot platformasi. <a href="https://repli.uz">repli.uz</a> da:</p>
+<p><strong>Aylo AI</strong> — O'zbekiston bozori uchun maxsus ishlab chiqilgan ko'p tilli chatbot platformasi. <a href="https://aylo.uz">aylo.uz</a> da:</p>
 
 <ul>
 <li><strong>100+ tilni qo'llab-quvvatlash:</strong> O'zbek, rus, ingliz va boshqa 100+ tilda ishlay oladi</li>
@@ -3137,7 +3137,7 @@ BLOG_POSTS = [
 <li><strong>Oson sozlash:</strong> Dasturchi kerak emas — 15 daqiqada ishga tushiring</li>
 </ul>
 
-<p><a href="https://repli.uz">repli.uz</a> da <strong>bepul 7 kunlik sinov</strong> bilan boshlang va dunyo bo'ylab mijozlarga xizmat ko'rsating!</p>""",
+<p><a href="https://aylo.uz">aylo.uz</a> da <strong>bepul 7 kunlik sinov</strong> bilan boshlang va dunyo bo'ylab mijozlarga xizmat ko'rsating!</p>""",
 
         "content_ru": """<h2>Многоязычность как бизнес-необходимость</h2>
 
@@ -3173,11 +3173,11 @@ BLOG_POSTS = [
 
 <p>Реальные кейсы: туркомпания в Самарканде (5 языков) — заказы от иностранцев +65%, экспортная компания (8 языков) — время ответа с 4 часов до 10 секунд, доход +120%, EdTech платформа (3 языка) — удовлетворённость 92%, обращения в поддержку -55%.</p>
 
-<h2>Как помогает Repli AI?</h2>
+<h2>Как помогает Aylo AI?</h2>
 
-<p><strong>Repli AI</strong> — мультиязычная чат-бот платформа, разработанная для рынка Узбекистана. На <a href="https://repli.uz">repli.uz</a>: поддержка 100+ языков, автоматическое определение языка, специальная оптимизация для узбекского (латиница и кириллица, диалекты), культурная адаптация, омниканальность и простая настройка за 15 минут.</p>
+<p><strong>Aylo AI</strong> — мультиязычная чат-бот платформа, разработанная для рынка Узбекистана. На <a href="https://aylo.uz">aylo.uz</a>: поддержка 100+ языков, автоматическое определение языка, специальная оптимизация для узбекского (латиница и кириллица, диалекты), культурная адаптация, омниканальность и простая настройка за 15 минут.</p>
 
-<p>Начните <strong>бесплатный 7-дневный период</strong> на <a href="https://repli.uz">repli.uz</a> и обслуживайте клиентов по всему миру!</p>""",
+<p>Начните <strong>бесплатный 7-дневный период</strong> на <a href="https://aylo.uz">aylo.uz</a> и обслуживайте клиентов по всему миру!</p>""",
 
         "content_en": """<h2>Multilingual Business Needs in Uzbekistan</h2>
 
@@ -3213,11 +3213,11 @@ BLOG_POSTS = [
 
 <p>Real case studies: Samarkand tourism company (5 languages) — foreign tourist orders up 65%; Tashkent export firm (8 languages) — response time from 4 hours to 10 seconds, revenue up 120%; EdTech platform (3 languages) — 92% satisfaction rate, support tickets down 55%.</p>
 
-<h2>How Repli AI Helps</h2>
+<h2>How Aylo AI Helps</h2>
 
-<p><strong>Repli AI</strong> is a multilingual chatbot platform built for the Uzbekistan market. At <a href="https://repli.uz">repli.uz</a>: support for 100+ languages, automatic language detection, special Uzbek optimization (Latin and Cyrillic scripts, dialects, mixed language), cultural adaptation, omnichannel support, and setup in 15 minutes — no developer needed.</p>
+<p><strong>Aylo AI</strong> is a multilingual chatbot platform built for the Uzbekistan market. At <a href="https://aylo.uz">aylo.uz</a>: support for 100+ languages, automatic language detection, special Uzbek optimization (Latin and Cyrillic scripts, dialects, mixed language), cultural adaptation, omnichannel support, and setup in 15 minutes — no developer needed.</p>
 
-<p>Start your <strong>free 7-day trial</strong> at <a href="https://repli.uz">repli.uz</a> and serve customers worldwide!</p>"""
+<p>Start your <strong>free 7-day trial</strong> at <a href="https://aylo.uz">aylo.uz</a> and serve customers worldwide!</p>"""
     },
     {
         "title_uz": "AI chatbot ROI — investitsiya qaytimi qanday?",
@@ -3225,10 +3225,10 @@ BLOG_POSTS = [
         "title_en": "AI Chatbot ROI — What Is the Return on Investment?",
         "slug": "ai-chatbot-roi-investitsiya",
         "cover_image": "https://images.unsplash.com/photo-1551288049-bebda4e38f71?w=1200&h=630&fit=crop",
-        "author": "Repli AI Team",
+        "author": "Aylo AI Team",
         "tags": ["roi", "investitsiya", "chatbot", "biznes", "moliya"],
         "target_keyword": "chatbot roi",
-        "meta_title": "AI chatbot ROI — investitsiya qaytimi qanday? | Repli AI",
+        "meta_title": "AI chatbot ROI — investitsiya qaytimi qanday? | Aylo AI",
         "meta_description": "AI chatbot investitsiya qaytimini (ROI) batafsil hisoblang. Kichik, o'rta va yirik biznes uchun real raqamlar. Xarajatlarni tejash va daromadni oshirish.",
         "read_time": 12,
         "internal_links": [
@@ -3278,7 +3278,7 @@ BLOG_POSTS = [
 
 <ul>
 <li>Jami oylik foyda: 3 200 000 + 2 520 000 + 2 700 000 = <strong>8 420 000 so'm</strong></li>
-<li>Chatbot xarajati (Repli AI asosiy tarif): <strong>500 000 so'm/oy</strong></li>
+<li>Chatbot xarajati (Aylo AI asosiy tarif): <strong>500 000 so'm/oy</strong></li>
 <li><strong>ROI = ((8 420 000 - 500 000) / 500 000) × 100% = 1 584%</strong></li>
 <li><strong>Qaytish muddati: 2 kun</strong></li>
 </ul>
@@ -3311,7 +3311,7 @@ BLOG_POSTS = [
 
 <ul>
 <li>Jami oylik foyda: 8 000 000 + 56 000 000 + 64 000 000 + 38 400 000 = <strong>166 400 000 so'm</strong></li>
-<li>Chatbot xarajati (Repli AI biznes tarif): <strong>2 000 000 so'm/oy</strong></li>
+<li>Chatbot xarajati (Aylo AI biznes tarif): <strong>2 000 000 so'm/oy</strong></li>
 <li><strong>ROI = ((166 400 000 - 2 000 000) / 2 000 000) × 100% = 8 220%</strong></li>
 <li><strong>Qaytish muddati: 1 kun</strong></li>
 </ul>
@@ -3345,7 +3345,7 @@ BLOG_POSTS = [
 
 <ul>
 <li>Jami oylik foyda: <strong>1 014 000 000 so'm</strong></li>
-<li>Chatbot xarajati (Repli AI enterprise tarif): <strong>5 000 000 so'm/oy</strong></li>
+<li>Chatbot xarajati (Aylo AI enterprise tarif): <strong>5 000 000 so'm/oy</strong></li>
 <li><strong>ROI = ((1 014 000 000 - 5 000 000) / 5 000 000) × 100% = 20 180%</strong></li>
 <li><strong>Qaytish muddati: bir necha soat</strong></li>
 </ul>
@@ -3393,9 +3393,9 @@ BLOG_POSTS = [
 <li><strong>A/B test qiling:</strong> Turli javob variantlarini sinab, eng samaralini tanlang</li>
 </ol>
 
-<h2>Repli AI qanday yordam beradi?</h2>
+<h2>Aylo AI qanday yordam beradi?</h2>
 
-<p><strong>Repli AI</strong> — O'zbekiston bozori uchun eng optimal narx/sifat nisbatiga ega chatbot platformasi. <a href="https://repli.uz">repli.uz</a> da:</p>
+<p><strong>Aylo AI</strong> — O'zbekiston bozori uchun eng optimal narx/sifat nisbatiga ega chatbot platformasi. <a href="https://aylo.uz">aylo.uz</a> da:</p>
 
 <ul>
 <li><strong>Tariflar:</strong> Oyiga 500 000 so'mdan boshlanadi — kichik biznes uchun ham qulay</li>
@@ -3406,7 +3406,7 @@ BLOG_POSTS = [
 <li><strong>Bepul konsultatsiya:</strong> Biznesingiz uchun ROI hisob-kitobini bepul tayyorlab beramiz</li>
 </ul>
 
-<p><a href="https://repli.uz">repli.uz</a> da <strong>bepul 7 kunlik sinov</strong> bilan boshlang. Investitsiyangiz birinchi haftadayoq qaytishini o'z ko'zingiz bilan ko'ring!</p>""",
+<p><a href="https://aylo.uz">aylo.uz</a> da <strong>bepul 7 kunlik sinov</strong> bilan boshlang. Investitsiyangiz birinchi haftadayoq qaytishini o'z ko'zingiz bilan ko'ring!</p>""",
 
         "content_ru": """<h2>Что такое ROI чат-бота и как его рассчитать?</h2>
 
@@ -3428,11 +3428,11 @@ BLOG_POSTS = [
 
 <p>Juniper Research: AI чат-боты экономят бизнесу <strong>$14 млрд в год</strong> к 2026 году. Gartner: операционные расходы снижаются на <strong>30%</strong>. IBM: расходы на обслуживание клиентов падают на <strong>30-50%</strong>. В Узбекистане ROI выше мирового среднего благодаря выгодному соотношению зарплат операторов и стоимости бота, высокой популярности мессенджеров (Telegram 85%+) и растущему рынку.</p>
 
-<h2>Как помогает Repli AI?</h2>
+<h2>Как помогает Aylo AI?</h2>
 
-<p><strong>Repli AI</strong> предлагает оптимальное соотношение цены и качества для узбекского рынка. На <a href="https://repli.uz">repli.uz</a>: тарифы от 500 000 сум/мес, все каналы в одной платформе, ROI-дашборд в реальном времени, AI-рекомендации для допродаж, детальная аналитика и бесплатная консультация по расчёту ROI для вашего бизнеса.</p>
+<p><strong>Aylo AI</strong> предлагает оптимальное соотношение цены и качества для узбекского рынка. На <a href="https://aylo.uz">aylo.uz</a>: тарифы от 500 000 сум/мес, все каналы в одной платформе, ROI-дашборд в реальном времени, AI-рекомендации для допродаж, детальная аналитика и бесплатная консультация по расчёту ROI для вашего бизнеса.</p>
 
-<p>Начните <strong>бесплатный 7-дневный период</strong> на <a href="https://repli.uz">repli.uz</a> — увидьте окупаемость уже в первую неделю!</p>""",
+<p>Начните <strong>бесплатный 7-дневный период</strong> на <a href="https://aylo.uz">aylo.uz</a> — увидьте окупаемость уже в первую неделю!</p>""",
 
         "content_en": """<h2>What Is Chatbot ROI and How to Calculate It?</h2>
 
@@ -3454,11 +3454,11 @@ BLOG_POSTS = [
 
 <p>Juniper Research: AI chatbots save businesses <strong>$14 billion annually</strong> by 2026. Gartner: operational costs reduced by <strong>30%</strong> on average. IBM: customer service costs drop <strong>30-50%</strong>. Salesforce: 64% of users cite 24/7 availability as the top benefit. Drift: lead generation increased <strong>67%</strong>. Uzbekistan's ROI exceeds global averages due to favorable operator salary-to-bot cost ratios, Telegram's 85%+ penetration, and a rapidly growing digital market.</p>
 
-<h2>How Repli AI Helps</h2>
+<h2>How Aylo AI Helps</h2>
 
-<p><strong>Repli AI</strong> offers the optimal price-to-quality ratio for the Uzbekistan market. At <a href="https://repli.uz">repli.uz</a>: plans from 500,000 UZS/month, all channels in one platform, real-time ROI dashboard, AI-powered upselling, detailed analytics, and a free ROI consultation for your specific business.</p>
+<p><strong>Aylo AI</strong> offers the optimal price-to-quality ratio for the Uzbekistan market. At <a href="https://aylo.uz">aylo.uz</a>: plans from 500,000 UZS/month, all channels in one platform, real-time ROI dashboard, AI-powered upselling, detailed analytics, and a free ROI consultation for your specific business.</p>
 
-<p>Start your <strong>free 7-day trial</strong> at <a href="https://repli.uz">repli.uz</a> and see ROI within the first week!</p>"""
+<p>Start your <strong>free 7-day trial</strong> at <a href="https://aylo.uz">aylo.uz</a> and see ROI within the first week!</p>"""
     },
     {
         "title_uz": "Telegram kanal + bot = sotuv mashina",
@@ -3466,10 +3466,10 @@ BLOG_POSTS = [
         "title_en": "Telegram Channel + Bot = Sales Machine",
         "slug": "telegram-kanal-bot-sotuv-mashina",
         "cover_image": "https://images.unsplash.com/photo-1611606063065-ee7946f0787a?w=1200&h=630&fit=crop",
-        "author": "Repli AI Team",
+        "author": "Aylo AI Team",
         "tags": ["telegram", "kanal", "bot", "sotuv", "strategiya"],
         "target_keyword": "telegram kanal sotuv",
-        "meta_title": "Telegram kanal + bot = sotuv mashina | Repli AI",
+        "meta_title": "Telegram kanal + bot = sotuv mashina | Aylo AI",
         "meta_description": "Telegram kanal va bot sinergiyasi bilan sotuv mashinasini yarating. Obunachi oshirish, engagement va monetizatsiya strategiyalari. Batafsil qo'llanma.",
         "read_time": 11,
         "internal_links": [
@@ -3626,9 +3626,9 @@ BLOG_POSTS = [
 
 <p>Muvaffaqiyat sabablari: kanalda kunlik gul kompozitsiyalari + maslahatlar, bot orqali 30 soniyada buyurtma, bayramlar oldidan avtomatik eslatmalar (bot), referral dastur — har bir taklif uchun 10% chegirma.</p>
 
-<h2>Repli AI qanday yordam beradi?</h2>
+<h2>Aylo AI qanday yordam beradi?</h2>
 
-<p><strong>Repli AI</strong> — Telegram kanal va bot sinergiyasini maksimal darajada ishlatish uchun eng yaxshi platforma. <a href="https://repli.uz">repli.uz</a> da:</p>
+<p><strong>Aylo AI</strong> — Telegram kanal va bot sinergiyasini maksimal darajada ishlatish uchun eng yaxshi platforma. <a href="https://aylo.uz">aylo.uz</a> da:</p>
 
 <ul>
 <li><strong>Telegram bot builder:</strong> Kodlamasdan professional sotuv botini yarating</li>
@@ -3639,7 +3639,7 @@ BLOG_POSTS = [
 <li><strong>Omnichannel:</strong> Telegram + Instagram + WhatsApp — bitta panelda boshqaring</li>
 </ul>
 
-<p><a href="https://repli.uz">repli.uz</a> da <strong>bepul 7 kunlik sinov</strong> bilan boshlang va Telegram kanlingizni sotuv mashinasiga aylantiring!</p>""",
+<p><a href="https://aylo.uz">aylo.uz</a> da <strong>bepul 7 kunlik sinov</strong> bilan boshlang va Telegram kanlingizni sotuv mashinasiga aylantiring!</p>""",
 
         "content_ru": """<h2>Telegram — цифровой рынок Узбекистана</h2>
 
@@ -3673,11 +3673,11 @@ BLOG_POSTS = [
 
 <p>Цветочный магазин «GulBuket» (Ташкент). До: только Instagram (5K подписчиков, 200 заказов/мес, 40 млн сум). После 6 месяцев с Telegram (15K подписчиков) + бот: 650 заказов/мес, 130 млн сум — <strong>рост 225%</strong>.</p>
 
-<h2>Как помогает Repli AI?</h2>
+<h2>Как помогает Aylo AI?</h2>
 
-<p><strong>Repli AI</strong> — лучшая платформа для синергии канала и бота. На <a href="https://repli.uz">repli.uz</a>: конструктор ботов без кода, inline-кнопки, система broadcast с сегментацией и A/B тестами, полная автоматизация заказов, аналитика в реальном времени и омниканальное управление (Telegram + Instagram + WhatsApp).</p>
+<p><strong>Aylo AI</strong> — лучшая платформа для синергии канала и бота. На <a href="https://aylo.uz">aylo.uz</a>: конструктор ботов без кода, inline-кнопки, система broadcast с сегментацией и A/B тестами, полная автоматизация заказов, аналитика в реальном времени и омниканальное управление (Telegram + Instagram + WhatsApp).</p>
 
-<p>Начните <strong>бесплатный 7-дневный период</strong> на <a href="https://repli.uz">repli.uz</a> и превратите свой канал в машину продаж!</p>""",
+<p>Начните <strong>бесплатный 7-дневный период</strong> на <a href="https://aylo.uz">aylo.uz</a> и превратите свой канал в машину продаж!</p>""",
 
         "content_en": """<h2>Telegram — Uzbekistan's Digital Marketplace</h2>
 
@@ -3711,11 +3711,11 @@ BLOG_POSTS = [
 
 <p>"GulBuket" flower shop in Tashkent. Before: Instagram only (5K followers, 200 orders/month, 40M UZS revenue). After 6 months with Telegram channel (15K subscribers) + bot: 650 orders/month, 130M UZS — <strong>225% growth</strong>. Success factors: daily floral content + tips on channel, 30-second ordering via bot, automated holiday reminders, and referral program (10% discount per invite).</p>
 
-<h2>How Repli AI Helps</h2>
+<h2>How Aylo AI Helps</h2>
 
-<p><strong>Repli AI</strong> is the best platform for maximizing channel-bot synergy. At <a href="https://repli.uz">repli.uz</a>: no-code bot builder, inline button integration, broadcast system with segmentation and A/B testing, full order automation (catalog → cart → payment → delivery), real-time analytics, and omnichannel management (Telegram + Instagram + WhatsApp).</p>
+<p><strong>Aylo AI</strong> is the best platform for maximizing channel-bot synergy. At <a href="https://aylo.uz">aylo.uz</a>: no-code bot builder, inline button integration, broadcast system with segmentation and A/B testing, full order automation (catalog → cart → payment → delivery), real-time analytics, and omnichannel management (Telegram + Instagram + WhatsApp).</p>
 
-<p>Start your <strong>free 7-day trial</strong> at <a href="https://repli.uz">repli.uz</a> and turn your Telegram channel into a sales machine!</p>"""
+<p>Start your <strong>free 7-day trial</strong> at <a href="https://aylo.uz">aylo.uz</a> and turn your Telegram channel into a sales machine!</p>"""
     },
 
     # ──────────────────────────────────────────────
@@ -3727,7 +3727,7 @@ BLOG_POSTS = [
         "title_en": "Meta Business Verification — Why It Matters",
         "slug": "meta-business-verificatsiya",
         "cover_image": "https://images.unsplash.com/photo-1611162616305-c69b3fa7fbe0?w=1200&h=630&fit=crop",
-        "author": "Repli AI Team",
+        "author": "Aylo AI Team",
         "tags": ["meta", "verificatsiya", "facebook", "instagram", "xavfsizlik"],
         "target_keyword": "meta business verificatsiya",
         "read_time": 11,
@@ -3735,9 +3735,9 @@ BLOG_POSTS = [
             {"label": "Meta verificatsiya", "section": "meta-verification"},
             {"label": "Integratsiyalar", "section": "integrations"}
         ],
-        "meta_title_uz": "Meta Business Verificatsiya — To'liq Qo'llanma | Repli AI",
-        "meta_title_ru": "Верификация Meta Business — Полное Руководство | Repli AI",
-        "meta_title_en": "Meta Business Verification — Complete Guide | Repli AI",
+        "meta_title_uz": "Meta Business Verificatsiya — To'liq Qo'llanma | Aylo AI",
+        "meta_title_ru": "Верификация Meta Business — Полное Руководство | Aylo AI",
+        "meta_title_en": "Meta Business Verification — Complete Guide | Aylo AI",
         "meta_description_uz": "Meta Business verificatsiya nima, nima uchun kerak, qanday o'tish mumkin? Instagram va WhatsApp API uchun zarur bo'lgan barcha qadamlar.",
         "meta_description_ru": "Что такое верификация Meta Business, зачем нужна и как пройти? Все шаги для доступа к Instagram и WhatsApp API.",
         "meta_description_en": "What is Meta Business verification, why you need it, and how to complete it. All steps for Instagram and WhatsApp API access.",
@@ -3840,11 +3840,11 @@ BLOG_POSTS = [
 
 <p>Jarayonni tezlashtirish uchun maslahatlar: barcha hujjatlarni oldindan tayyorlang, veb-saytingiz to'liq ishlayotganini tekshiring, Facebook sahifangizda kompaniya ma'lumotlari to'liq bo'lsin, va domen verificatsiyasini oldindan bajaring.</p>
 
-<h2>Repli AI qanday yordam beradi?</h2>
+<h2>Aylo AI qanday yordam beradi?</h2>
 
-<p><strong>Repli AI</strong> Meta verificatsiya jarayonida va undan keyin sizga to'liq yordam beradi. <a href="https://repli.uz">repli.uz</a> orqali: verificatsiya bo'yicha konsultatsiya va qo'llab-quvvatlash, Instagram DM avtomatlashtirish (verificatsiyadan keyin darhol ishga tushirish), WhatsApp Business API integratsiyasi, barcha Meta API larni bir platformada boshqarish, va real-time analytics.</p>
+<p><strong>Aylo AI</strong> Meta verificatsiya jarayonida va undan keyin sizga to'liq yordam beradi. <a href="https://aylo.uz">aylo.uz</a> orqali: verificatsiya bo'yicha konsultatsiya va qo'llab-quvvatlash, Instagram DM avtomatlashtirish (verificatsiyadan keyin darhol ishga tushirish), WhatsApp Business API integratsiyasi, barcha Meta API larni bir platformada boshqarish, va real-time analytics.</p>
 
-<p><a href="https://repli.uz">repli.uz</a> da <strong>bepul 7 kunlik sinov</strong> davri bilan boshlang va Meta ekotizimining barcha imkoniyatlarini oching!</p>""",
+<p><a href="https://aylo.uz">aylo.uz</a> da <strong>bepul 7 kunlik sinov</strong> davri bilan boshlang va Meta ekotizimining barcha imkoniyatlarini oching!</p>""",
         "content_ru": """<h2>Что такое верификация Meta Business?</h2>
 
 <p>Верификация Meta Business — это процесс подтверждения подлинности вашего бизнеса на платформах Facebook, Instagram и WhatsApp. После прохождения верификации вы получаете полный доступ к <strong>Meta Business Suite</strong> и всем API-интерфейсам. К 2026 году в Узбекистане верификацию прошли более <strong>12 000 компаний</strong> — рост на 340% по сравнению с 2024 годом.</p>
@@ -3887,11 +3887,11 @@ BLOG_POSTS = [
 
 <p><strong>Instagram API:</strong> до 1000 автоматических сообщений в день (без верификации — только 20). <strong>WhatsApp API:</strong> до 100 000+ сообщений в день, чат-боты, CRM-интеграция. <strong>Facebook API:</strong> Marketing API, Conversions API, Catalog API для полной автоматизации.</p>
 
-<h2>Как помогает Repli AI?</h2>
+<h2>Как помогает Aylo AI?</h2>
 
-<p><strong>Repli AI</strong> помогает на каждом этапе: от консультации по верификации до настройки автоматизации. На <a href="https://repli.uz">repli.uz</a>: мгновенная активация Instagram DM и WhatsApp API после верификации, управление всеми каналами Meta в одной платформе, аналитика в реальном времени.</p>
+<p><strong>Aylo AI</strong> помогает на каждом этапе: от консультации по верификации до настройки автоматизации. На <a href="https://aylo.uz">aylo.uz</a>: мгновенная активация Instagram DM и WhatsApp API после верификации, управление всеми каналами Meta в одной платформе, аналитика в реальном времени.</p>
 
-<p>Начните <strong>бесплатный 7-дневный пробный период</strong> на <a href="https://repli.uz">repli.uz</a> и раскройте весь потенциал Meta для вашего бизнеса!</p>""",
+<p>Начните <strong>бесплатный 7-дневный пробный период</strong> на <a href="https://aylo.uz">aylo.uz</a> и раскройте весь потенциал Meta для вашего бизнеса!</p>""",
         "content_en": """<h2>What Is Meta Business Verification?</h2>
 
 <p>Meta Business verification is the process of confirming your business's authenticity across Facebook, Instagram, and WhatsApp platforms. Once verified, you gain full access to <strong>Meta Business Suite</strong> and all associated APIs. By 2026, over <strong>12,000 companies</strong> in Uzbekistan have completed Meta verification — a 340% increase from 2024.</p>
@@ -3932,11 +3932,11 @@ BLOG_POSTS = [
 
 <p><strong>Instagram API:</strong> up to 1,000 automated messages daily (without verification — only 20). <strong>WhatsApp API:</strong> 100,000+ messages daily, chatbot deployment, CRM integration. <strong>Facebook API:</strong> Marketing API, Conversions API, Catalog API for full automation.</p>
 
-<h2>How Repli AI Helps</h2>
+<h2>How Aylo AI Helps</h2>
 
-<p><strong>Repli AI</strong> supports you through every stage — from verification consultation to post-verification automation setup. At <a href="https://repli.uz">repli.uz</a>: instant Instagram DM and WhatsApp API activation after verification, unified Meta channel management, and real-time analytics.</p>
+<p><strong>Aylo AI</strong> supports you through every stage — from verification consultation to post-verification automation setup. At <a href="https://aylo.uz">aylo.uz</a>: instant Instagram DM and WhatsApp API activation after verification, unified Meta channel management, and real-time analytics.</p>
 
-<p>Start your <strong>free 7-day trial</strong> at <a href="https://repli.uz">repli.uz</a> and unlock the full power of Meta for your business!</p>"""
+<p>Start your <strong>free 7-day trial</strong> at <a href="https://aylo.uz">aylo.uz</a> and unlock the full power of Meta for your business!</p>"""
     },
 
     # ──────────────────────────────────────────────
@@ -3948,16 +3948,16 @@ BLOG_POSTS = [
         "title_en": "Chatbot Analytics — Which Metrics to Track?",
         "slug": "chatbot-analytics-metrikalar",
         "cover_image": "https://images.unsplash.com/photo-1551288049-bebda4e38f71?w=1200&h=630&fit=crop",
-        "author": "Repli AI Team",
+        "author": "Aylo AI Team",
         "tags": ["analytics", "metrika", "chatbot", "kpi", "hisobot"],
         "target_keyword": "chatbot analytics",
         "read_time": 11,
         "internal_links": [
             {"label": "Funksiyalar", "section": "features"}
         ],
-        "meta_title_uz": "Chatbot Analytics — Muhim Metrikalar Qo'llanmasi | Repli AI",
-        "meta_title_ru": "Аналитика Чат-ботов — Руководство по Метрикам | Repli AI",
-        "meta_title_en": "Chatbot Analytics — Essential Metrics Guide | Repli AI",
+        "meta_title_uz": "Chatbot Analytics — Muhim Metrikalar Qo'llanmasi | Aylo AI",
+        "meta_title_ru": "Аналитика Чат-ботов — Руководство по Метрикам | Aylo AI",
+        "meta_title_en": "Chatbot Analytics — Essential Metrics Guide | Aylo AI",
         "meta_description_uz": "Chatbot samaradorligini qanday o'lchash kerak? 10+ muhim metrika, dashboard sozlash, A/B testing va hisobot tayyorlash bo'yicha to'liq qo'llanma.",
         "meta_description_ru": "Как измерить эффективность чат-бота? 10+ ключевых метрик, настройка дашбордов, A/B тестирование и отчётность.",
         "meta_description_en": "How to measure chatbot effectiveness? 10+ key metrics, dashboard setup, A/B testing, and reporting best practices guide.",
@@ -4041,11 +4041,11 @@ BLOG_POSTS = [
 
 <p><strong>Kunlik:</strong> Suhbat hajmi, javob vaqti, kritik xatolar — operatsion monitoring. <strong>Haftalik:</strong> Konversiya, eskalatsiya, top savollar — taktik qarorlar. <strong>Oylik:</strong> CSAT, NPS, ROI, trend tahlili — strategik ko'rib chiqish. <strong>Choraklik:</strong> Chuqur tahlil, raqobatchilar bilan solishtirish, strategiya yangilash.</p>
 
-<h2>Repli AI qanday yordam beradi?</h2>
+<h2>Aylo AI qanday yordam beradi?</h2>
 
-<p><strong>Repli AI</strong> platforma ichida to'liq analytics tizimini taqdim etadi. <a href="https://repli.uz">repli.uz</a> orqali: real-time dashboard barcha muhim metrikalar bilan, A/B testing vositasi — kodlamasdan, avtomatik haftalik va oylik hisobotlar email ga, funnel tahlili har bir bosqich uchun, va AI-asoslangan tavsiyalar optimizatsiya uchun.</p>
+<p><strong>Aylo AI</strong> platforma ichida to'liq analytics tizimini taqdim etadi. <a href="https://aylo.uz">aylo.uz</a> orqali: real-time dashboard barcha muhim metrikalar bilan, A/B testing vositasi — kodlamasdan, avtomatik haftalik va oylik hisobotlar email ga, funnel tahlili har bir bosqich uchun, va AI-asoslangan tavsiyalar optimizatsiya uchun.</p>
 
-<p><a href="https://repli.uz">repli.uz</a> da <strong>bepul 7 kunlik sinov</strong> davri bilan boshlang va chatbotingiz samaradorligini aniq raqamlar bilan o'lchang!</p>""",
+<p><a href="https://aylo.uz">aylo.uz</a> da <strong>bepul 7 kunlik sinov</strong> davri bilan boshlang va chatbotingiz samaradorligini aniq raqamlar bilan o'lchang!</p>""",
         "content_ru": """<h2>Почему аналитика чат-ботов важна?</h2>
 
 <p>Установить чат-бота — только первый шаг. Регулярное измерение и оптимизация его эффективности — ключ к успеху. Чат-боты, оптимизированные на основе аналитики, показывают <strong>в 3-4 раза больше конверсий</strong>. В 2026 году рынок аналитики чат-ботов достиг <strong>$2.8 млрд</strong> — данные стали основой бизнес-решений.</p>
@@ -4088,11 +4088,11 @@ BLOG_POSTS = [
 
 <p><strong>Ежедневно:</strong> объём, время ответа, критические ошибки. <strong>Еженедельно:</strong> конверсия, эскалации, топ-вопросы. <strong>Ежемесячно:</strong> CSAT, NPS, ROI, тренды. <strong>Ежеквартально:</strong> глубокий анализ, сравнение с конкурентами, обновление стратегии.</p>
 
-<h2>Как помогает Repli AI?</h2>
+<h2>Как помогает Aylo AI?</h2>
 
-<p><strong>Repli AI</strong> предоставляет полную аналитику внутри платформы. На <a href="https://repli.uz">repli.uz</a>: дашборд в реальном времени со всеми метриками, A/B тестирование без кода, автоматические отчёты на email, анализ воронки по этапам, AI-рекомендации для оптимизации.</p>
+<p><strong>Aylo AI</strong> предоставляет полную аналитику внутри платформы. На <a href="https://aylo.uz">aylo.uz</a>: дашборд в реальном времени со всеми метриками, A/B тестирование без кода, автоматические отчёты на email, анализ воронки по этапам, AI-рекомендации для оптимизации.</p>
 
-<p>Начните <strong>бесплатный 7-дневный период</strong> на <a href="https://repli.uz">repli.uz</a> и измеряйте эффективность бота точными цифрами!</p>""",
+<p>Начните <strong>бесплатный 7-дневный период</strong> на <a href="https://aylo.uz">aylo.uz</a> и измеряйте эффективность бота точными цифрами!</p>""",
         "content_en": """<h2>Why Chatbot Analytics Matter</h2>
 
 <p>Setting up a chatbot is just the first step. Continuously measuring and optimizing its performance is the real key to success. Analytics-optimized chatbots deliver <strong>3-4x more conversions</strong> than set-and-forget bots. In 2026, the chatbot analytics market reached <strong>$2.8 billion</strong> — proving that data-driven decisions are essential for business growth.</p>
@@ -4135,11 +4135,11 @@ BLOG_POSTS = [
 
 <p><strong>Daily:</strong> volume, response time, critical errors — operational monitoring. <strong>Weekly:</strong> conversion, escalation, top questions — tactical decisions. <strong>Monthly:</strong> CSAT, NPS, ROI, trend analysis — strategic review. <strong>Quarterly:</strong> deep analysis, competitor benchmarking, strategy updates.</p>
 
-<h2>How Repli AI Helps</h2>
+<h2>How Aylo AI Helps</h2>
 
-<p><strong>Repli AI</strong> provides comprehensive analytics built into the platform. At <a href="https://repli.uz">repli.uz</a>: real-time dashboard with all key metrics, no-code A/B testing tools, automated weekly and monthly email reports, funnel analysis for every stage, and AI-powered optimization recommendations.</p>
+<p><strong>Aylo AI</strong> provides comprehensive analytics built into the platform. At <a href="https://aylo.uz">aylo.uz</a>: real-time dashboard with all key metrics, no-code A/B testing tools, automated weekly and monthly email reports, funnel analysis for every stage, and AI-powered optimization recommendations.</p>
 
-<p>Start your <strong>free 7-day trial</strong> at <a href="https://repli.uz">repli.uz</a> and measure your chatbot's performance with precise data!</p>"""
+<p>Start your <strong>free 7-day trial</strong> at <a href="https://aylo.uz">aylo.uz</a> and measure your chatbot's performance with precise data!</p>"""
     },
 
     # ──────────────────────────────────────────────
@@ -4151,16 +4151,16 @@ BLOG_POSTS = [
         "title_en": "AI Personalization — Individual Approach for Every Customer",
         "slug": "ai-personalizatsiya-mijoz",
         "cover_image": "https://images.unsplash.com/photo-1573164713714-d95e436ab8d6?w=1200&h=630&fit=crop",
-        "author": "Repli AI Team",
+        "author": "Aylo AI Team",
         "tags": ["personalizatsiya", "ai", "mijoz", "chatbot", "xizmat"],
         "target_keyword": "ai personalizatsiya",
         "read_time": 10,
         "internal_links": [
             {"label": "Funksiyalar", "section": "features"}
         ],
-        "meta_title_uz": "AI Personalizatsiya — Har Bir Mijozga Individual Xizmat | Repli AI",
-        "meta_title_ru": "AI Персонализация — Индивидуальный Подход к Клиентам | Repli AI",
-        "meta_title_en": "AI Personalization — Individual Customer Experience | Repli AI",
+        "meta_title_uz": "AI Personalizatsiya — Har Bir Mijozga Individual Xizmat | Aylo AI",
+        "meta_title_ru": "AI Персонализация — Индивидуальный Подход к Клиентам | Aylo AI",
+        "meta_title_en": "AI Personalization — Individual Customer Experience | Aylo AI",
         "meta_description_uz": "AI yordamida har bir mijozga individual yondashuv. Personalizatsiya psixologiyasi, data-driven strategiyalar va 40% qoniqish o'sishi.",
         "meta_description_ru": "Индивидуальный подход к каждому клиенту с помощью AI. Психология персонализации, data-driven стратегии и рост удовлетворённости на 40%.",
         "meta_description_en": "Individual approach for every customer using AI. Personalization psychology, data-driven strategies, and 40% satisfaction increase.",
@@ -4212,7 +4212,7 @@ BLOG_POSTS = [
 
 <p><strong>2. Content-Based Filtering:</strong> Mahsulot xususiyatlariga asoslangan. Mijoz qizil ko'ylak ko'rdi → boshqa qizil kiyimlar tavsiya qilinadi. Yangi mijozlar uchun yaxshi ishlaydi — <strong>aniqlik 60-70%</strong>.</p>
 
-<p><strong>3. Hybrid yondashuv:</strong> Ikkala usulni birlashtirish — eng yaxshi natija. Repli AI aynan shu yondashuvni qo'llaydi — <strong>aniqlik 80-90%</strong>.</p>
+<p><strong>3. Hybrid yondashuv:</strong> Ikkala usulni birlashtirish — eng yaxshi natija. Aylo AI aynan shu yondashuvni qo'llaydi — <strong>aniqlik 80-90%</strong>.</p>
 
 <p>O'zbekiston kontekstida tavsiyalar: mavsumiy omillarni hisobga oling (Navro'z, Ramazon, maktab mavsumi), mahalliy trend larni kuzating (masalan, milliy kiyimlar bahorda ko'proq so'raladi), va narx segmentatsiyasini qo'llang (premium vs byudjet mijozlar).</p>
 
@@ -4238,13 +4238,13 @@ BLOG_POSTS = [
 
 <p><strong>Shaffoflik:</strong> Mijozlarga qanday ma'lumotlar yig'ilayotganini va nima uchun ishlatilayotganini aniq tushuntiring. <strong>Rozilik:</strong> Ma'lumotlarni yig'ishdan oldin rozilik oling. <strong>Ma'lumotlar minimalligi:</strong> Faqat zarur ma'lumotlarni yig'ing. <strong>Xavfsizlik:</strong> Ma'lumotlarni shifrlangan holda saqlang. <strong>O'chirish huquqi:</strong> Mijozlarga o'z ma'lumotlarini o'chirish imkonini bering.</p>
 
-<p>O'zbekiston qonunchiligida shaxsiy ma'lumotlar himoyasi to'g'risidagi qonun (<strong>ShMH qonuni</strong>) ga rioya qilish majburiy. Repli AI platformasi barcha mahalliy va xalqaro me'yorlarga mos keladi.</p>
+<p>O'zbekiston qonunchiligida shaxsiy ma'lumotlar himoyasi to'g'risidagi qonun (<strong>ShMH qonuni</strong>) ga rioya qilish majburiy. Aylo AI platformasi barcha mahalliy va xalqaro me'yorlarga mos keladi.</p>
 
-<h2>Repli AI qanday yordam beradi?</h2>
+<h2>Aylo AI qanday yordam beradi?</h2>
 
-<p><strong>Repli AI</strong> personalizatsiya uchun barcha zarur vositalarni taqdim etadi. <a href="https://repli.uz">repli.uz</a> orqali: AI-asoslangan mijoz profillari va segmentatsiya, suhbat tarixini saqlash va kontekstli muloqot, mahsulot tavsiya tizimi (hybrid filtering), dinamik kontent va A/B testing, GDPR va O'zbekiston ShMH qonuniga mos maxfiylik himoyasi, va omnichannel personalizatsiya (Instagram, WhatsApp, Telegram).</p>
+<p><strong>Aylo AI</strong> personalizatsiya uchun barcha zarur vositalarni taqdim etadi. <a href="https://aylo.uz">aylo.uz</a> orqali: AI-asoslangan mijoz profillari va segmentatsiya, suhbat tarixini saqlash va kontekstli muloqot, mahsulot tavsiya tizimi (hybrid filtering), dinamik kontent va A/B testing, GDPR va O'zbekiston ShMH qonuniga mos maxfiylik himoyasi, va omnichannel personalizatsiya (Instagram, WhatsApp, Telegram).</p>
 
-<p><a href="https://repli.uz">repli.uz</a> da <strong>bepul 7 kunlik sinov</strong> davri bilan boshlang va har bir mijozga individual xizmat ko'rsatishni boshlang!</p>""",
+<p><a href="https://aylo.uz">aylo.uz</a> da <strong>bepul 7 kunlik sinov</strong> davri bilan boshlang va har bir mijozga individual xizmat ko'rsatishni boshlang!</p>""",
         "content_ru": """<h2>Что такое персонализация и почему она важна?</h2>
 
 <p>Персонализация — создание <strong>индивидуального опыта</strong> для каждого клиента на основе его предпочтений, поведения и истории. В 2026 году <strong>78%</strong> клиентов ожидают персонализированного обслуживания, а <strong>71%</strong> перестали покупать у брендов без персонализации. Персонализированный чат-бот повышает удовлетворённость клиентов на <strong>40%</strong>, конверсию — на <strong>25-35%</strong>, вероятность повторной покупки — на <strong>60%</strong>.</p>
@@ -4267,7 +4267,7 @@ BLOG_POSTS = [
 
 <h2>Системы рекомендаций</h2>
 
-<p>AI-рекомендации работают тремя способами: <strong>Collaborative Filtering</strong> ("клиенты, которые смотрели это, также интересовались..." — точность 75-85%), <strong>Content-Based</strong> (на основе характеристик товара — точность 60-70%), <strong>Гибридный подход</strong> (комбинация обоих — точность 80-90%). Repli AI использует гибридный подход.</p>
+<p>AI-рекомендации работают тремя способами: <strong>Collaborative Filtering</strong> ("клиенты, которые смотрели это, также интересовались..." — точность 75-85%), <strong>Content-Based</strong> (на основе характеристик товара — точность 60-70%), <strong>Гибридный подход</strong> (комбинация обоих — точность 80-90%). Aylo AI использует гибридный подход.</p>
 
 <h2>Персонализация в масштабе</h2>
 
@@ -4277,11 +4277,11 @@ BLOG_POSTS = [
 
 <p>Баланс между персонализацией и приватностью: прозрачность сбора данных, получение согласия, минимизация данных, шифрование хранения, право на удаление. Соблюдение закона Узбекистана о защите персональных данных обязательно.</p>
 
-<h2>Как помогает Repli AI?</h2>
+<h2>Как помогает Aylo AI?</h2>
 
-<p><strong>Repli AI</strong> предоставляет все инструменты для персонализации. На <a href="https://repli.uz">repli.uz</a>: AI-профили клиентов и сегментация, хранение истории диалогов, гибридная система рекомендаций, динамический контент и A/B тестирование, соответствие GDPR и местному законодательству, омниканальная персонализация.</p>
+<p><strong>Aylo AI</strong> предоставляет все инструменты для персонализации. На <a href="https://aylo.uz">aylo.uz</a>: AI-профили клиентов и сегментация, хранение истории диалогов, гибридная система рекомендаций, динамический контент и A/B тестирование, соответствие GDPR и местному законодательству, омниканальная персонализация.</p>
 
-<p>Начните <strong>бесплатный 7-дневный период</strong> на <a href="https://repli.uz">repli.uz</a> и обеспечьте индивидуальный подход к каждому клиенту!</p>""",
+<p>Начните <strong>бесплатный 7-дневный период</strong> на <a href="https://aylo.uz">aylo.uz</a> и обеспечьте индивидуальный подход к каждому клиенту!</p>""",
         "content_en": """<h2>What Is Personalization and Why It Matters</h2>
 
 <p>Personalization is creating an <strong>individual experience</strong> for each customer based on their preferences, behavior, and history. In 2026, <strong>78%</strong> of customers expect personalized service, and <strong>71%</strong> have stopped buying from brands that lack personalization. A personalized chatbot increases customer satisfaction by <strong>40%</strong>, conversion by <strong>25-35%</strong>, and repeat purchase likelihood by <strong>60%</strong>.</p>
@@ -4302,7 +4302,7 @@ BLOG_POSTS = [
 
 <h2>Product Recommendation Systems</h2>
 
-<p>AI recommendations work through three methods: <strong>Collaborative Filtering</strong> ("customers who viewed this also liked..." — 75-85% accuracy), <strong>Content-Based Filtering</strong> (based on product attributes — 60-70% accuracy), <strong>Hybrid Approach</strong> (combining both — 80-90% accuracy). Repli AI uses the hybrid approach for maximum effectiveness.</p>
+<p>AI recommendations work through three methods: <strong>Collaborative Filtering</strong> ("customers who viewed this also liked..." — 75-85% accuracy), <strong>Content-Based Filtering</strong> (based on product attributes — 60-70% accuracy), <strong>Hybrid Approach</strong> (combining both — 80-90% accuracy). Aylo AI uses the hybrid approach for maximum effectiveness.</p>
 
 <p>In the Uzbekistan context: factor in seasonal trends (Navruz, Ramadan, school season), track local preferences (traditional clothing peaks in spring), and apply price segmentation (premium vs budget customers).</p>
 
@@ -4312,13 +4312,13 @@ BLOG_POSTS = [
 
 <h2>Privacy Considerations</h2>
 
-<p>Balance personalization with privacy: transparency about data collection, obtaining consent, data minimization, encrypted storage, right to deletion. Compliance with Uzbekistan's personal data protection law is mandatory. Repli AI's platform meets all local and international privacy standards.</p>
+<p>Balance personalization with privacy: transparency about data collection, obtaining consent, data minimization, encrypted storage, right to deletion. Compliance with Uzbekistan's personal data protection law is mandatory. Aylo AI's platform meets all local and international privacy standards.</p>
 
-<h2>How Repli AI Helps</h2>
+<h2>How Aylo AI Helps</h2>
 
-<p><strong>Repli AI</strong> provides all tools needed for personalization. At <a href="https://repli.uz">repli.uz</a>: AI-powered customer profiles and segmentation, conversation history storage with contextual recall, hybrid product recommendation engine, dynamic content and A/B testing, GDPR and local law compliance, and omnichannel personalization across Instagram, WhatsApp, and Telegram.</p>
+<p><strong>Aylo AI</strong> provides all tools needed for personalization. At <a href="https://aylo.uz">aylo.uz</a>: AI-powered customer profiles and segmentation, conversation history storage with contextual recall, hybrid product recommendation engine, dynamic content and A/B testing, GDPR and local law compliance, and omnichannel personalization across Instagram, WhatsApp, and Telegram.</p>
 
-<p>Start your <strong>free 7-day trial</strong> at <a href="https://repli.uz">repli.uz</a> and deliver a truly individual experience to every customer!</p>"""
+<p>Start your <strong>free 7-day trial</strong> at <a href="https://aylo.uz">aylo.uz</a> and deliver a truly individual experience to every customer!</p>"""
     },
 
     # ──────────────────────────────────────────────
@@ -4330,7 +4330,7 @@ BLOG_POSTS = [
         "title_en": "Instagram Reels + DM Automation = Viral Sales",
         "slug": "instagram-reels-dm-automation-sotuv",
         "cover_image": "https://images.unsplash.com/photo-1616469829581-73993eb86b02?w=1200&h=630&fit=crop",
-        "author": "Repli AI Team",
+        "author": "Aylo AI Team",
         "tags": ["instagram", "reels", "dm", "viral", "sotuv"],
         "target_keyword": "instagram reels dm",
         "read_time": 11,
@@ -4338,9 +4338,9 @@ BLOG_POSTS = [
             {"label": "Narxlar", "section": "pricing"},
             {"label": "Bosh sahifa", "section": "hero"}
         ],
-        "meta_title_uz": "Instagram Reels + DM Automation = Viral Sotuv | Repli AI",
-        "meta_title_ru": "Instagram Reels + DM Автоматизация = Вирусные Продажи | Repli AI",
-        "meta_title_en": "Instagram Reels + DM Automation = Viral Sales | Repli AI",
+        "meta_title_uz": "Instagram Reels + DM Automation = Viral Sotuv | Aylo AI",
+        "meta_title_ru": "Instagram Reels + DM Автоматизация = Вирусные Продажи | Aylo AI",
+        "meta_title_en": "Instagram Reels + DM Automation = Viral Sales | Aylo AI",
         "meta_description_uz": "Instagram Reels algoritmi, viral kontent formulalari va DM avtomatlashtirish orqali sotuvni oshirish. Hook-story-offer strategiyasi.",
         "meta_description_ru": "Алгоритм Instagram Reels, формулы вирусного контента и автоматизация DM для роста продаж. Стратегия hook-story-offer.",
         "meta_description_en": "Instagram Reels algorithm, viral content formulas, and DM automation for sales growth. Hook-story-offer strategy explained.",
@@ -4418,11 +4418,11 @@ BLOG_POSTS = [
 
 <p><strong>"TechZone" elektronika do'koni:</strong> Comment-to-DM strategiyasi: har bir Reel da "NARX" trigger. O'rtacha Reel ko'rishlari: 50K-200K. DM konversiya: 18%. Oylik qo'shimcha daromad: <strong>85M UZS</strong> — faqat Reels orqali.</p>
 
-<h2>Repli AI qanday yordam beradi?</h2>
+<h2>Aylo AI qanday yordam beradi?</h2>
 
-<p><strong>Repli AI</strong> Instagram Reels + DM automation uchun mukammal platforma. <a href="https://repli.uz">repli.uz</a> orqali: comment-to-DM avtomatlashtirish — kalit so'z triggerlari bilan, DM suhbat oqimlari — mahsulot ko'rsatish dan buyurtmagacha, Instagram API integratsiyasi — to'liq DM boshqaruvi, analytics — qaysi Reel qancha sotuv keltirganini ko'ring, va A/B testing — eng samarali CTA larni toping.</p>
+<p><strong>Aylo AI</strong> Instagram Reels + DM automation uchun mukammal platforma. <a href="https://aylo.uz">aylo.uz</a> orqali: comment-to-DM avtomatlashtirish — kalit so'z triggerlari bilan, DM suhbat oqimlari — mahsulot ko'rsatish dan buyurtmagacha, Instagram API integratsiyasi — to'liq DM boshqaruvi, analytics — qaysi Reel qancha sotuv keltirganini ko'ring, va A/B testing — eng samarali CTA larni toping.</p>
 
-<p><a href="https://repli.uz">repli.uz</a> da <strong>bepul 7 kunlik sinov</strong> davri bilan boshlang va Reels orqali viral sotuvni boshlang!</p>""",
+<p><a href="https://aylo.uz">aylo.uz</a> da <strong>bepul 7 kunlik sinov</strong> davri bilan boshlang va Reels orqali viral sotuvni boshlang!</p>""",
         "content_ru": """<h2>Почему Reels — самый мощный инструмент?</h2>
 
 <p>В 2026 году Instagram Reels — <strong>формат с наибольшим охватом</strong> на платформе. Reels получают <strong>в 3-5 раз больше просмотров</strong>, чем обычные посты. В Узбекистане <strong>67%</strong> пользователей Instagram смотрят Reels ежедневно. Комбинация Reels + DM автоматизация — это <strong>машина вирусных продаж</strong>: Reel привлекает внимание, CTA направляет в DM, чат-бот закрывает продажу. Рост продаж — до <strong>300-500%</strong>.</p>
@@ -4457,11 +4457,11 @@ BLOG_POSTS = [
 
 <p><strong>"StyleUz":</strong> до — 3K подписчиков, 80 заказов/мес, 24M UZS. После 3 месяцев Reels + DM: 28K подписчиков, 450 заказов/мес, 135M UZS — <strong>рост 462%</strong>. <strong>"TechZone":</strong> comment-to-DM с триггером "ЦЕНА", конверсия DM 18%, дополнительный доход <strong>85M UZS/мес</strong> только через Reels.</p>
 
-<h2>Как помогает Repli AI?</h2>
+<h2>Как помогает Aylo AI?</h2>
 
-<p><strong>Repli AI</strong> — идеальная платформа для Reels + DM автоматизации. На <a href="https://repli.uz">repli.uz</a>: comment-to-DM с триггерами по ключевым словам, DM-воронки от показа товара до заказа, полная интеграция Instagram API, аналитика продаж по каждому Reels, A/B тестирование CTA.</p>
+<p><strong>Aylo AI</strong> — идеальная платформа для Reels + DM автоматизации. На <a href="https://aylo.uz">aylo.uz</a>: comment-to-DM с триггерами по ключевым словам, DM-воронки от показа товара до заказа, полная интеграция Instagram API, аналитика продаж по каждому Reels, A/B тестирование CTA.</p>
 
-<p>Начните <strong>бесплатный 7-дневный период</strong> на <a href="https://repli.uz">repli.uz</a> и запустите вирусные продажи через Reels!</p>""",
+<p>Начните <strong>бесплатный 7-дневный период</strong> на <a href="https://aylo.uz">aylo.uz</a> и запустите вирусные продажи через Reels!</p>""",
         "content_en": """<h2>Why Reels Are the Most Powerful Tool</h2>
 
 <p>In 2026, Instagram Reels is the <strong>highest-reach format</strong> on the platform. Reels receive <strong>3-5x more views</strong> than regular posts. In Uzbekistan, <strong>67%</strong> of Instagram users watch Reels daily. The Reels + DM automation combination creates a <strong>viral sales machine</strong>: Reel captures attention, CTA directs to DM, chatbot closes the sale. This chain can drive sales growth of <strong>300-500%</strong>.</p>
@@ -4498,11 +4498,11 @@ BLOG_POSTS = [
 
 <p><strong>"TechZone" electronics:</strong> Comment-to-DM with "PRICE" trigger. Average Reel views: 50K-200K. DM conversion: 18%. Additional monthly revenue: <strong>85M UZS</strong> — from Reels alone.</p>
 
-<h2>How Repli AI Helps</h2>
+<h2>How Aylo AI Helps</h2>
 
-<p><strong>Repli AI</strong> is the perfect platform for Instagram Reels + DM automation. At <a href="https://repli.uz">repli.uz</a>: comment-to-DM automation with keyword triggers, DM conversation flows from product showcase to order, full Instagram API integration, sales analytics per Reel, and A/B testing for optimal CTAs.</p>
+<p><strong>Aylo AI</strong> is the perfect platform for Instagram Reels + DM automation. At <a href="https://aylo.uz">aylo.uz</a>: comment-to-DM automation with keyword triggers, DM conversation flows from product showcase to order, full Instagram API integration, sales analytics per Reel, and A/B testing for optimal CTAs.</p>
 
-<p>Start your <strong>free 7-day trial</strong> at <a href="https://repli.uz">repli.uz</a> and launch viral sales through Reels!</p>"""
+<p>Start your <strong>free 7-day trial</strong> at <a href="https://aylo.uz">aylo.uz</a> and launch viral sales through Reels!</p>"""
     },
 
     # ──────────────────────────────────────────────
@@ -4514,7 +4514,7 @@ BLOG_POSTS = [
         "title_en": "AI Chatbot Trends in 2026 — What's Changing?",
         "slug": "2026-ai-chatbot-trendlari",
         "cover_image": "https://images.unsplash.com/photo-1620712943543-bcc4688e7485?w=1200&h=630&fit=crop",
-        "author": "Repli AI Team",
+        "author": "Aylo AI Team",
         "tags": ["trend", "2026", "ai", "chatbot", "kelajak", "texnologiya"],
         "target_keyword": "ai chatbot trendlar 2026",
         "read_time": 13,
@@ -4522,9 +4522,9 @@ BLOG_POSTS = [
             {"label": "Funksiyalar", "section": "features"},
             {"label": "Bosh sahifa", "section": "hero"}
         ],
-        "meta_title_uz": "2026 AI Chatbot Trendlari — Kelajak Texnologiyalari | Repli AI",
-        "meta_title_ru": "Тренды AI Чат-ботов 2026 — Технологии Будущего | Repli AI",
-        "meta_title_en": "2026 AI Chatbot Trends — Future Technologies | Repli AI",
+        "meta_title_uz": "2026 AI Chatbot Trendlari — Kelajak Texnologiyalari | Aylo AI",
+        "meta_title_ru": "Тренды AI Чат-ботов 2026 — Технологии Будущего | Aylo AI",
+        "meta_title_en": "2026 AI Chatbot Trends — Future Technologies | Aylo AI",
         "meta_description_uz": "2026 yildagi 8+ asosiy AI chatbot trendlari: multimodal AI, emotsional intellekt, proaktiv xabarlar, ovozli AI va boshqalar.",
         "meta_description_ru": "8+ главных трендов AI чат-ботов в 2026: мультимодальный AI, эмоциональный интеллект, проактивные сообщения, голосовой AI.",
         "meta_description_en": "8+ major AI chatbot trends in 2026: multimodal AI, emotional intelligence, proactive messaging, voice AI, and more.",
@@ -4578,7 +4578,7 @@ BLOG_POSTS = [
 
 <p>2026-yilda chatbot yaratish uchun dasturlash bilimi shart emas. <strong>No-code platformalar</strong> vizual interfeys orqali murakkab chatbot oqimlarini yaratish imkonini beradi — drag-and-drop usulida.</p>
 
-<p><strong>Bozor holati:</strong> No-code chatbot platformalar bozori 2026-yilda <strong>$3.1 milliard</strong>. Bizneslarning <strong>68%</strong> i no-code yechimlarni afzal ko'radi — chunki ishlab chiqish vaqti <strong>5-10 baravar qisqa</strong> va narxi <strong>80% past</strong>. Repli AI ham no-code yondashuvni qo'llaydi — har qanday biznes egasi 30 daqiqada chatbot yaratishi mumkin.</p>
+<p><strong>Bozor holati:</strong> No-code chatbot platformalar bozori 2026-yilda <strong>$3.1 milliard</strong>. Bizneslarning <strong>68%</strong> i no-code yechimlarni afzal ko'radi — chunki ishlab chiqish vaqti <strong>5-10 baravar qisqa</strong> va narxi <strong>80% past</strong>. Aylo AI ham no-code yondashuvni qo'llaydi — har qanday biznes egasi 30 daqiqada chatbot yaratishi mumkin.</p>
 
 <h3>Trend 7: AI Agents — avtonom agentlar</h3>
 
@@ -4608,11 +4608,11 @@ BLOG_POSTS = [
 
 <p>Ekspertlar bashoratlari: <strong>2027:</strong> bizneslarning 90%+ i chatbot ishlatadi, voice AI mainstream bo'ladi. <strong>2028:</strong> AI Agents oddiy chatbotlarni siqib chiqaradi, bozor hajmi $15.5B. <strong>2029:</strong> hyper-personalizatsiya standartga aylanadi, chatbotsiz biznes "telefonsiz biznes" ga teng bo'ladi. <strong>2030:</strong> AI va inson o'rtasidagi farq suhbatda sezilmay qoladi.</p>
 
-<h2>Repli AI qanday yordam beradi?</h2>
+<h2>Aylo AI qanday yordam beradi?</h2>
 
-<p><strong>Repli AI</strong> barcha zamonaviy trendlarni qo'llab-quvvatlaydi va doimiy yangilanib boradi. <a href="https://repli.uz">repli.uz</a> orqali: no-code chatbot yaratish — 30 daqiqada tayyor, multimodal AI — matn, rasm va ovozni tushunadi, emotsional intellekt — mijoz kayfiyatiga moslashadi, proaktiv xabarlar — avtomatik follow-up va takliflar, omnichannel — Instagram, WhatsApp, Telegram bir platformada, conversational commerce — chatbot ichida to'liq sotuv jarayoni, va real-time analytics barcha metrikalar bilan.</p>
+<p><strong>Aylo AI</strong> barcha zamonaviy trendlarni qo'llab-quvvatlaydi va doimiy yangilanib boradi. <a href="https://aylo.uz">aylo.uz</a> orqali: no-code chatbot yaratish — 30 daqiqada tayyor, multimodal AI — matn, rasm va ovozni tushunadi, emotsional intellekt — mijoz kayfiyatiga moslashadi, proaktiv xabarlar — avtomatik follow-up va takliflar, omnichannel — Instagram, WhatsApp, Telegram bir platformada, conversational commerce — chatbot ichida to'liq sotuv jarayoni, va real-time analytics barcha metrikalar bilan.</p>
 
-<p><a href="https://repli.uz">repli.uz</a> da <strong>bepul 7 kunlik sinov</strong> davri bilan boshlang va AI chatbot kelajagiga hozirdan tayyorlaning!</p>""",
+<p><a href="https://aylo.uz">aylo.uz</a> da <strong>bepul 7 kunlik sinov</strong> davri bilan boshlang va AI chatbot kelajagiga hozirdan tayyorlaning!</p>""",
         "content_ru": """<h2>Индустрия AI чат-ботов в 2026 году</h2>
 
 <p>Глобальный рынок AI чат-ботов в 2026 году достиг <strong>$9.4 млрд</strong> и к 2028 году вырастет до <strong>$15.5 млрд</strong> — среднегодовой рост <strong>23.3%</strong>. Уже <strong>85%</strong> бизнесов используют или внедряют чат-боты. В Узбекистане этот показатель — <strong>42%</strong> с быстрым ростом. 2026 год стал переломным — несколько революционных технологий одновременно достигли зрелости.</p>
@@ -4653,11 +4653,11 @@ BLOG_POSTS = [
 
 <p><strong>2027:</strong> 90%+ бизнесов с чат-ботами, Voice AI мейнстрим. <strong>2028:</strong> AI Agents вытесняют обычных ботов, рынок $15.5B. <strong>2029:</strong> гиперперсонализация — стандарт. <strong>2030:</strong> разница между AI и человеком в чате неразличима.</p>
 
-<h2>Как помогает Repli AI?</h2>
+<h2>Как помогает Aylo AI?</h2>
 
-<p><strong>Repli AI</strong> поддерживает все современные тренды. На <a href="https://repli.uz">repli.uz</a>: no-code создание за 30 минут, мультимодальный AI, эмоциональный интеллект, проактивные сообщения, омниканальность (Instagram, WhatsApp, Telegram), conversational commerce и аналитика в реальном времени.</p>
+<p><strong>Aylo AI</strong> поддерживает все современные тренды. На <a href="https://aylo.uz">aylo.uz</a>: no-code создание за 30 минут, мультимодальный AI, эмоциональный интеллект, проактивные сообщения, омниканальность (Instagram, WhatsApp, Telegram), conversational commerce и аналитика в реальном времени.</p>
 
-<p>Начните <strong>бесплатный 7-дневный период</strong> на <a href="https://repli.uz">repli.uz</a> и подготовьтесь к будущему AI чат-ботов уже сегодня!</p>""",
+<p>Начните <strong>бесплатный 7-дневный период</strong> на <a href="https://aylo.uz">aylo.uz</a> и подготовьтесь к будущему AI чат-ботов уже сегодня!</p>""",
         "content_en": """<h2>The AI Chatbot Industry in 2026</h2>
 
 <p>The global AI chatbot market reached <strong>$9.4 billion</strong> in 2026 and is projected to grow to <strong>$15.5 billion</strong> by 2028 — a <strong>23.3% CAGR</strong>. Already <strong>85%</strong> of businesses use or are implementing chatbot technology. In Uzbekistan, this figure stands at <strong>42%</strong> and growing rapidly. 2026 marks a turning point — several revolutionary technologies have simultaneously reached maturity.</p>
@@ -4702,17 +4702,17 @@ BLOG_POSTS = [
 
 <p><strong>2027:</strong> 90%+ businesses use chatbots, Voice AI goes mainstream. <strong>2028:</strong> AI Agents replace basic chatbots, market reaches $15.5B. <strong>2029:</strong> hyper-personalization becomes standard. <strong>2030:</strong> the difference between AI and human in conversation becomes indistinguishable.</p>
 
-<h2>How Repli AI Helps</h2>
+<h2>How Aylo AI Helps</h2>
 
-<p><strong>Repli AI</strong> supports all modern trends and continuously evolves. At <a href="https://repli.uz">repli.uz</a>: no-code bot creation in 30 minutes, multimodal AI understanding text, images, and voice, emotional intelligence adapting to customer mood, proactive messaging with automated follow-ups, omnichannel support (Instagram, WhatsApp, Telegram), conversational commerce with full in-chat sales, and real-time analytics across all metrics.</p>
+<p><strong>Aylo AI</strong> supports all modern trends and continuously evolves. At <a href="https://aylo.uz">aylo.uz</a>: no-code bot creation in 30 minutes, multimodal AI understanding text, images, and voice, emotional intelligence adapting to customer mood, proactive messaging with automated follow-ups, omnichannel support (Instagram, WhatsApp, Telegram), conversational commerce with full in-chat sales, and real-time analytics across all metrics.</p>
 
-<p>Start your <strong>free 7-day trial</strong> at <a href="https://repli.uz">repli.uz</a> and prepare for the AI chatbot future today!</p>"""
+<p>Start your <strong>free 7-day trial</strong> at <a href="https://aylo.uz">aylo.uz</a> and prepare for the AI chatbot future today!</p>"""
     },
 ]
 
 
 class Command(BaseCommand):
-    help = "Seed 20 SEO-optimized blog posts for Repli AI landing page"
+    help = "Seed 20 SEO-optimized blog posts for Aylo AI landing page"
 
     def handle(self, *args, **options):
         created_count = 0

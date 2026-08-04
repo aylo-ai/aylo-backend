@@ -20,6 +20,7 @@ from apps.integration.gateways.telegram import send_telegram_message
 from apps.shared.ai_service import knowledge_base, media
 from apps.shared.ai_service.agent import agent
 from apps.shared.addons.validations import raise_validation_error
+from apps.shared.file_validation import validate_audio, validate_document
 from apps.shared.addons.enums import (
     ConversationPlatforms, ConversationStatuses, MessageTypes, SenderTypes,
 )
@@ -212,8 +213,17 @@ class MessageSerializer(serializers.ModelSerializer, SubscriptionValidationMixin
         return None
 
     def validate(self, attrs):
+        # Bound the audio before `create()` reads it into memory and pays for a
+        # transcription. Unchecked, a 100 MB upload buffered in the worker and
+        # blocked the request on Whisper for the full proxy timeout.
+        #
+        # Deliberately above the update short-circuit below: MessageRetrieveView
+        # is a RetrieveUpdateDestroyAPIView that exposes `audio_file`, so a PATCH
+        # could otherwise store any size and any extension unchecked.
+        validate_audio(attrs.get("audio_file"))
+
         # On an update the message already has its conversation and the content
-        # may not be re-sent, so both checks below only apply to a create.
+        # may not be re-sent, so the checks below only apply to a create.
         if self.instance is not None:
             return attrs
 
@@ -245,7 +255,12 @@ class MessageSerializer(serializers.ModelSerializer, SubscriptionValidationMixin
         sender = validated_data.get("sender")
         if audio_file:
             audio_bytes = audio_file.read()
-            transcribed_text, _, _ = media.transcribe_audio(audio_bytes, filename=audio_file.name)
+            # Not `_`: unpacking into it would rebind gettext's `_` as a local
+            # for this whole method, so the `_("Request obyekti kerak")` above
+            # raised UnboundLocalError instead of a clean validation error.
+            transcribed_text, _in_tokens, _out_tokens = media.transcribe_audio(
+                audio_bytes, filename=audio_file.name
+            )
             validated_data["message_content"] = transcribed_text
             validated_data["message_type"] = MessageTypes.AUDIO.value
         else:
@@ -320,10 +335,11 @@ class AssistantFileUploadSerializer(serializers.ModelSerializer, SubscriptionVal
         for file in files:
             if not file:
                 continue
-            if not hasattr(file, 'size') or not hasattr(file, 'name'):
-                raise_validation_error(message=f"Invalid file object: {file}")
-            if file.size > 30 * 1024 * 1024:  # 30MB limit
-                raise_validation_error(message=f"File {file.name} exceeds the 30MB size limit.")
+            if not hasattr(file, "size") or not hasattr(file, "name"):
+                raise_validation_error(message=_("Yaroqsiz fayl obyekti"))
+            # Size *and* extension. The old check was size-only, so any file type
+            # at all could be stored and served back from the API's own origin.
+            validate_document(file)
         return attrs
 
     def create(self, validated_data):
@@ -408,9 +424,10 @@ class UpdateFileUploadSerializer(serializers.ModelSerializer, SubscriptionValida
             if not file:
                 continue
             if not hasattr(file, 'size') or not hasattr(file, 'name'):
-                raise_validation_error(message=f"Invalid file object: {file}")
-            if file.size > 30 * 1024 * 1024:
-                raise_validation_error(message=f"Fayl {file.name} 30MB dan katta")
+                raise_validation_error(message=_("Yaroqsiz fayl obyekti"))
+            # Same rules as the create path — this serializer's create() stores
+            # new rows, so a size-only check here bypassed the allowlist.
+            validate_document(file)
         return attrs
 
     def create(self, validated_data):
