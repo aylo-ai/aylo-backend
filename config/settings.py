@@ -110,6 +110,11 @@ REST_FRAMEWORK = {
         # Account creation and token minting.
         "auth_register": "10/minute",
         "token_refresh": "20/minute",
+        # Google sign-in. Looser than OTP because one real sign-in is two hits
+        # (login + callback) and retrying a dismissed consent screen is normal,
+        # but still bounded — the login leg writes a state key into Redis per
+        # call, so an unthrottled endpoint is a free way to fill it.
+        "google_auth": "20/minute",
     },
 }
 

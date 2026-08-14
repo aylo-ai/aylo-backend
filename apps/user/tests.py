@@ -6,6 +6,7 @@ verification gate on registration, notification scoping and OAuth CSRF — witho
 touching the network.
 """
 from unittest import mock
+from urllib.parse import parse_qs, urlparse
 
 from django.core import mail
 from django.test import TestCase, override_settings
@@ -327,6 +328,7 @@ class NotificationScopingTests(TestCase):
         self.assertTrue(self.note.is_read)
 
 
+@NO_THROTTLE
 class GoogleOAuthCsrfTests(TestCase):
     def setUp(self):
         self.client = APIClient()
@@ -345,6 +347,7 @@ class GoogleOAuthCsrfTests(TestCase):
         self.assertEqual(response.status_code, 400)
 
 
+@NO_THROTTLE
 class GoogleOAuthEmailVerificationTests(TestCase):
     """H1 (2026-07-22) — an unverified Google email claim must not match or
     link to an existing account with that email (account-takeover vector)."""
@@ -359,6 +362,9 @@ class GoogleOAuthEmailVerificationTests(TestCase):
         redis = mock.MagicMock()
         redis.delete.return_value = 1  # state found and consumed
         token_response = mock.Mock()
+        # `status_code` matters: the view now refuses to read an id_token out of a
+        # non-200 token-exchange response, so a bare Mock() would fail the check.
+        token_response.status_code = 200
         token_response.json.return_value = {"id_token": "raw-token"}
         with mock.patch("apps.user.views.redis_connection", redis), \
                 mock.patch("apps.user.views.requests.post", return_value=token_response), \
@@ -388,6 +394,14 @@ class GoogleOAuthEmailVerificationTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.victim.refresh_from_db()
         self.assertEqual(self.victim.sub, "google-sub")
+
+    def test_linking_records_google_as_the_auth_type(self):
+        self.callback({
+            "sub": "google-sub", "email": "victim@example.com",
+            "email_verified": True, "name": "Vic Tim",
+        })
+        self.victim.refresh_from_db()
+        self.assertEqual(self.victim.auth_type, "google")
 
 
 @NO_THROTTLE
@@ -459,3 +473,83 @@ class StaffRoleEscalationTests(TestCase):
         )
 
         self.assertEqual(response.status_code, 400)
+
+
+@NO_THROTTLE
+class GoogleOAuthTokenExchangeTests(TestCase):
+    """A failed exchange with Google must not be mistaken for a successful one."""
+
+    def setUp(self):
+        self.client = APIClient()
+
+    def test_a_non_200_from_google_is_rejected_without_creating_a_user(self):
+        redis = mock.MagicMock()
+        redis.delete.return_value = 1
+        token_response = mock.Mock()
+        token_response.status_code = 400
+        token_response.json.return_value = {
+            "error": "redirect_uri_mismatch",
+            "error_description": "Bad Request",
+        }
+        with mock.patch("apps.user.views.redis_connection", redis), \
+                mock.patch("apps.user.views.requests.post", return_value=token_response):
+            response = self.client.get(
+                "/api/v1/user/accounts/google/login/callback/?code=abc&state=ok"
+            )
+
+        self.assertEqual(response.status_code, 400)
+        self.assertFalse(User.objects.exists())
+
+    def test_an_unparseable_body_from_google_is_rejected(self):
+        redis = mock.MagicMock()
+        redis.delete.return_value = 1
+        token_response = mock.Mock()
+        token_response.status_code = 502
+        token_response.json.side_effect = ValueError("not json")
+        with mock.patch("apps.user.views.redis_connection", redis), \
+                mock.patch("apps.user.views.requests.post", return_value=token_response):
+            response = self.client.get(
+                "/api/v1/user/accounts/google/login/callback/?code=abc&state=ok"
+            )
+
+        self.assertEqual(response.status_code, 400)
+
+
+@NO_THROTTLE
+class GoogleOAuthConfigTests(TestCase):
+    """An unconfigured deployment should say so, not send users to Google with
+    `client_id=None` and let Google render the error."""
+
+    def setUp(self):
+        self.client = APIClient()
+
+    def test_login_reports_unavailable_when_the_client_id_is_missing(self):
+        redis = mock.MagicMock()
+        with mock.patch("apps.user.views.GOOGLE_CLIENT_ID", None), \
+                mock.patch("apps.user.views.redis_connection", redis):
+            response = self.client.get("/api/v1/user/accounts/google/login/")
+
+        self.assertEqual(response.status_code, 503)
+        # No state should have been minted for a flow that can't start.
+        redis.setex.assert_not_called()
+
+    def test_login_redirects_to_google_when_configured(self):
+        redis = mock.MagicMock()
+        with mock.patch("apps.user.views.GOOGLE_CLIENT_ID", "client-id"), \
+                mock.patch("apps.user.views.GOOGLE_REDIRECT_URI",
+                           "https://app.test/api/auth/google/callback"), \
+                mock.patch("apps.user.views.redis_connection", redis):
+            response = self.client.get("/api/v1/user/accounts/google/login/")
+
+        self.assertEqual(response.status_code, 302)
+        self.assertTrue(
+            response["Location"].startswith(
+                "https://accounts.google.com/o/oauth2/v2/auth?"
+            )
+        )
+        # The state in the URL is the one we put in Redis, so the caller can pin
+        # it to the browser and the callback can check both.
+        state = parse_qs(urlparse(response["Location"]).query)["state"][0]
+        self.assertEqual(
+            redis.setex.call_args.args[0], f"google_oauth_state:{state}"
+        )

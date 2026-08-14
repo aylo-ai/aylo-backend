@@ -285,10 +285,31 @@ GOOGLE_STATE_TTL = 600  # seconds a login attempt's state token stays valid
 
 
 class GoogleLoginView(APIView):
+    # Explicit rather than relying on DRF's AllowAny default: sign-in must keep
+    # working if a global DEFAULT_PERMISSION_CLASSES is ever introduced.
+    permission_classes = [permissions.AllowAny, ]
+    # Unauthenticated and it writes to Redis on every hit, so it needs a ceiling
+    # for the same reason send-otp does.
+    throttle_classes = (ScopedRateThrottle,)
+    throttle_scope = "google_auth"
+
     def get(self, request):
+        if not GOOGLE_CLIENT_ID or not GOOGLE_REDIRECT_URI:
+            # Without these, `urlencode` would happily build a consent URL
+            # containing `client_id=None` and Google would show the user its own
+            # error page. Fail here, where the caller can render something sane.
+            logger.error("Google OAuth is not configured (client id / redirect uri)")
+            return error_response(
+                message=_("Google orqali kirish sozlanmagan"),
+                code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            )
+
         google_auth_url = "https://accounts.google.com/o/oauth2/v2/auth"
         # A one-time state token defends the callback against login-CSRF: only a
-        # code that comes back with a state we issued is accepted.
+        # code that comes back with a state we issued is accepted. The caller is
+        # expected to pin this value to the browser that started the flow (the
+        # frontend BFF puts it in an httpOnly cookie) — Redis alone proves only
+        # that *some* browser started a login, not that this one did.
         state = secrets.token_urlsafe(32)
         redis_connection.setex(f"google_oauth_state:{state}", GOOGLE_STATE_TTL, "1")
         params = {
@@ -305,6 +326,10 @@ class GoogleLoginView(APIView):
 
 
 class GoogleAuthCallbackView(APIView):
+    permission_classes = [permissions.AllowAny, ]
+    throttle_classes = (ScopedRateThrottle,)
+    throttle_scope = "google_auth"
+
     def get(self, request):
         try:
             state = request.GET.get("state")
@@ -325,7 +350,24 @@ class GoogleAuthCallbackView(APIView):
                 "grant_type": "authorization_code",
             }
             token_response = requests.post(token_url, data=data, timeout=30)
-            raw_id_token = token_response.json().get("id_token")
+            try:
+                token_payload = token_response.json()
+            except ValueError:
+                token_payload = {}
+
+            if token_response.status_code != 200:
+                # Google's own diagnosis of what went wrong — almost always a
+                # redirect_uri that doesn't match the console, or a reused code.
+                # Log it rather than letting it surface as "ID token topilmadi",
+                # which sends whoever is debugging in the wrong direction.
+                logger.error(
+                    "Google token exchange failed (%s): %s",
+                    token_response.status_code,
+                    token_payload.get("error_description") or token_payload.get("error"),
+                )
+                return error_response(message=_("Google token almashinuvi amalga oshmadi"), code=400)
+
+            raw_id_token = token_payload.get("id_token")
             if not raw_id_token:
                 return error_response(message=_("ID token topilmadi"), code=400)
 
@@ -366,9 +408,13 @@ class GoogleAuthCallbackView(APIView):
                     auth_type=AuthTypes.GOOGLE.value,
                 )
             elif not user.sub:
-                # Link an existing email account to this Google identity.
+                # Link an existing email account to this Google identity. The
+                # account can now be signed into with Google, so record that —
+                # leaving auth_type as the original method misreports how the
+                # user actually authenticates.
                 user.sub = sub
-                user.save(update_fields=["sub", "updated_time"])
+                user.auth_type = AuthTypes.GOOGLE.value
+                user.save(update_fields=["sub", "auth_type", "updated_time"])
 
             tokens = user.tokens()
             return success_response(message=_("Foydalanuvchi muvaffaqiyatli autentifikatsiya qilindi"), data=tokens, code=status.HTTP_200_OK)
