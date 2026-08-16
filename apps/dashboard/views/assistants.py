@@ -1,21 +1,18 @@
 """Dashboard assistant, assistant-file and prompt-template endpoints."""
-from rest_framework import generics, filters
-from rest_framework.views import APIView
 from django_filters.rest_framework import DjangoFilterBackend
+from rest_framework import filters, generics
+from rest_framework.views import APIView
 
-from apps.user.models import User
 from apps.assistant.models import Assistant, AssistantFileUpload, PromptTemplate
-from apps.assistant.serializers import AssistantSerializer, AssistantFileUploadSerializer
-from apps.shared.permissions import IsAdmin, IsDashboardUser
-from apps.shared.pagination import StandardResultsSetPagination
+from apps.assistant.serializers import AssistantFileUploadSerializer, AssistantSerializer
 from apps.dashboard.filters import AssistantFilter
 from apps.dashboard.models import AuditLog
 from apps.dashboard.serializers.assistants import (
-    DashboardAssistantListSerializer,
+    AssistantFileFilterSerializer,
     DashboardAssistantCreateSerializer,
     DashboardAssistantCreateUserSerializer,
     DashboardAssistantFileUploadSerializer,
-    AssistantFileFilterSerializer,
+    DashboardAssistantListSerializer,
     DashboardPromptTemplateSerializer,
 )
 from apps.dashboard.views.base import get_client_ip
@@ -27,7 +24,10 @@ from apps.dashboard.views.mixins import (
     DashboardRetrieveMixin,
     DashboardStatsListMixin,
 )
-from apps.shared.addons.validations import success_response, error_response
+from apps.shared.addons.validations import error_response, success_response
+from apps.shared.pagination import StandardResultsSetPagination
+from apps.shared.permissions import IsAdmin, IsDashboardUser
+from apps.user.models import User
 
 
 class DashboardAssistantList(DashboardStatsListMixin, generics.ListCreateAPIView):

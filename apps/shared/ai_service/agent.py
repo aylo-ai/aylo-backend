@@ -330,9 +330,9 @@ agent = Agent()
 
 def respond(assistant, conversation, user_input: str) -> str:
     """Run a turn, persist the reply and publish it. Returns the text to send."""
+    from apps.assistant.services.conversation import conversation_service
     from apps.shared.addons.enums import SenderTypes
     from apps.shared.addons.redis import publish_message_to_ws
-    from apps.assistant.services.conversation import conversation_service
 
     result = agent.run(assistant, conversation, user_input)
 

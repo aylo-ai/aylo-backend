@@ -133,7 +133,8 @@ class FileCleanupTests(TestCase):
         from apps.assistant.models import Assistant, Conversation
         from apps.payment.models import Subscription
         from apps.shared.addons.enums import (
-            ConversationStatuses, SubscriptionStatuses,
+            ConversationStatuses,
+            SubscriptionStatuses,
         )
         from apps.user.models import User
 

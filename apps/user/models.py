@@ -3,13 +3,13 @@ from random import randint
 from django.contrib.auth.models import AbstractUser
 from django.db import models
 from django.db.models import Q
+from faker import Faker
 from rest_framework_simplejwt.tokens import RefreshToken
 
 from apps.payment.models import Subscription
-from apps.shared.addons.enums import AuthTypes, UserRoles, NotificationTypes
+from apps.shared.addons.enums import AuthTypes, NotificationTypes, UserRoles
 from apps.shared.models import BaseModel
 
-from faker import Faker
 fake = Faker()
 
 
@@ -128,8 +128,8 @@ class Notification(BaseModel):
 
     def __str__(self):
         return self.title
-    
-    class Meta: 
+
+    class Meta:
         db_table = "notification"
         indexes = [
             models.Index(fields=['user']),

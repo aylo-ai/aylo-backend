@@ -1,8 +1,9 @@
-from django.utils.translation import gettext_lazy as _
 from django.utils import timezone
+from django.utils.translation import gettext_lazy as _
 
-from apps.shared.addons.validations import raise_validation_error
 from apps.shared.addons.enums import IntegrationTypes, SubscriptionStatuses
+from apps.shared.addons.validations import raise_validation_error
+
 
 class SubscriptionValidationMixin:
     """
@@ -39,7 +40,7 @@ class SubscriptionValidationMixin:
             raise_validation_error(message=_("Sizning obunangiz muddati tugagan. Iltimos, obunangizni yangilang."))
 
         return subscription
-            
+
 
     def validate_assistant_count(self, subscription):
         assistants = subscription.assistants.count()

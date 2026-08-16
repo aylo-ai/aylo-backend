@@ -5,13 +5,11 @@ from datetime import timedelta
 from django.db.models import Count
 from django.http import HttpResponse
 from django.utils import timezone
-from rest_framework import generics, filters
-from rest_framework.views import APIView
 from django_filters.rest_framework import DjangoFilterBackend
+from rest_framework import filters, generics
+from rest_framework.views import APIView
 
 from apps.assistant.models import Lead
-from apps.shared.permissions import IsDashboardUser
-from apps.shared.pagination import StandardResultsSetPagination
 from apps.dashboard.filters import LeadFilter
 from apps.dashboard.serializers.leads import DashboardLeadSerializer
 from apps.dashboard.views.mixins import (
@@ -20,6 +18,8 @@ from apps.dashboard.views.mixins import (
     DashboardRetrieveMixin,
 )
 from apps.shared.addons.validations import success_response
+from apps.shared.pagination import StandardResultsSetPagination
+from apps.shared.permissions import IsDashboardUser
 
 
 class DashboardLeadList(DashboardListMixin, generics.ListAPIView):

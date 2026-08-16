@@ -1,6 +1,6 @@
 from django.urls import path
-import apps.assistant.views as views
 
+import apps.assistant.views as views
 
 urlpatterns = [
     path("assistant/", views.AssistantListCreateView.as_view()),

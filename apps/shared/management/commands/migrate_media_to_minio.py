@@ -31,8 +31,8 @@ bucket as well.
 import boto3
 from botocore.exceptions import ClientError
 from django.conf import settings
-from django.core.management.base import BaseCommand, CommandError
 from django.core.files.storage import storages
+from django.core.management.base import BaseCommand, CommandError
 
 # Every (model, field) pair whose objects live in the media bucket.
 MEDIA_FIELDS = [

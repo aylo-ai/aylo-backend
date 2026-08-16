@@ -1,13 +1,18 @@
+from django.utils.translation import gettext_lazy as _
+from drf_spectacular.types import OpenApiTypes
+from drf_spectacular.utils import extend_schema_field
 from rest_framework import serializers
 from rest_framework_simplejwt.tokens import RefreshToken, TokenError
-from drf_spectacular.utils import extend_schema_field
-from drf_spectacular.types import OpenApiTypes
-from django.utils.translation import gettext_lazy as _
 
-from apps.shared.addons.validations import raise_validation_error, check_number, check_email_phone_number
-from apps.shared.addons.verification import check_verification_status, is_email_verified
-from apps.user.models import User, PrivacyPolicy, UserAgreement, Notification
 from apps.shared.addons.enums import AuthTypes, UserRoles
+from apps.shared.addons.validations import (
+    check_email_phone_number,
+    check_number,
+    raise_validation_error,
+)
+from apps.shared.addons.verification import check_verification_status, is_email_verified
+from apps.user.models import Notification, PrivacyPolicy, User, UserAgreement
+
 
 class SendCodeSerializer(serializers.Serializer): # noqa
     phone_number = serializers.CharField(required=False)
@@ -16,10 +21,10 @@ class SendCodeSerializer(serializers.Serializer): # noqa
     def validate(self, attrs):
         phone_number = attrs.get('phone_number')
         email = attrs.get('email')
-        
+
         if not phone_number and not email:
             raise_validation_error(message=_("Telefon raqam yoki email kiritilmagan"))
-        
+
         if phone_number:
             if not check_number(phone_number):
                 raise_validation_error(message=_("Notog'ri telefon raqam kiritilgan"))
@@ -198,7 +203,7 @@ class UserSerializer(serializers.ModelSerializer):
             'subscription',
             "integrations",
         ]
-    
+
     @extend_schema_field(OpenApiTypes.OBJECT)
     def get_integrations(self, obj): # noqa
         integrations = obj.integrations.filter(assistant__isnull=True)
@@ -341,19 +346,19 @@ class AddStaffSerializer(serializers.ModelSerializer):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.fields['email_or_phone_number'] = serializers.CharField(required=False)
-        
+
     class Meta:
         model = User
         fields = [
             'id',
-            'first_name', 
+            'first_name',
             'last_name',
         ]
         extra_kwargs = {
             'first_name': {'required': True},
             'last_name': {'required': True},
         }
-        
+
     def validate(self, attrs):
         first_name = attrs.get('first_name')
         last_name = attrs.get('last_name')
@@ -373,7 +378,7 @@ class AddStaffSerializer(serializers.ModelSerializer):
                 data = {
                     "phone_number": email_or_phone_number,
                 }
-                    
+
         elif auth_data == "email":
             if User.objects.filter(email=email_or_phone_number).exists():
                 raise_validation_error(message=_("Bu email allaqachon ro'yxatdan o'tgan"))
@@ -395,12 +400,12 @@ class AddStaffSerializer(serializers.ModelSerializer):
         data["created_by"] = self.context['request'].user
         data["user_role"] = UserRoles.STAFF.value
         return data
-    
+
     def create(self, validated_data):
         user = User.objects.create(**validated_data)
         user.save()
         return user
-    
+
     def to_representation(self, instance):
         data = super().to_representation(instance)
         data["tokens"] = instance.tokens()

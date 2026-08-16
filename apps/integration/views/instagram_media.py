@@ -4,7 +4,7 @@ from django.utils.translation import gettext_lazy as _
 from rest_framework import generics, permissions
 from rest_framework.views import APIView
 
-from apps.integration.models import Integration, InstagramMedia
+from apps.integration.models import InstagramMedia, Integration
 from apps.integration.serializers import InstagramMediaSerializer
 from apps.integration.views.mixins import (
     IntegrationOwnedQuerysetMixin,

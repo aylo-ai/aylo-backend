@@ -2,17 +2,25 @@ from datetime import timedelta
 
 from django.db import transaction
 from django.utils.timezone import now
+from django.utils.translation import gettext_lazy as _
 from rest_framework import generics, permissions
 from rest_framework.throttling import ScopedRateThrottle
 from rest_framework.views import APIView
 
-from apps.payment.models import Feature, PricingPackage, Card, Subscription, Transaction, RetryPayment
-from apps.shared.addons.enums import SubscriptionStatuses
 import apps.payment.serializers as serializers
+from apps.payment.models import (
+    Card,
+    Feature,
+    PricingPackage,
+    RetryPayment,
+    Subscription,
+    Transaction,
+)
 from apps.payment.services.billing import remove_payme_card
-from apps.shared.addons.validations import success_response, error_response
+from apps.shared.addons.enums import SubscriptionStatuses
+from apps.shared.addons.validations import error_response, success_response
 from apps.shared.permissions import IsAdmin
-from django.utils.translation import gettext_lazy as _
+
 
 class FeatureListCreateView(generics.ListCreateAPIView):
     queryset = Feature.objects.filter(is_active=True)
@@ -251,14 +259,9 @@ class PaymeGetVerifyCodeView(generics.CreateAPIView):
 class PaymeVerifyCodeView(generics.CreateAPIView):
     serializer_class = serializers.PaymeVerifyCodeSerializer
     permission_classes = (permissions.IsAuthenticated,)
-<<<<<<< HEAD
     # Guesses a 6-digit code against a card token; must not be free to retry.
     throttle_classes = (ScopedRateThrottle,)
     throttle_scope = "payment_card"
-=======
-    # The SMS code is short and numeric — bound the guess rate.
-    throttle_scope = "payme_verify"
->>>>>>> 473f4c3bed1052b8f0214fd63847c983cff0e728
 
     def create(self, request, *args, **kwargs):
         serializer = self.get_serializer(

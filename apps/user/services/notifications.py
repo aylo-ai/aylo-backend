@@ -5,15 +5,14 @@ replaced by `shared.ai_service.agent`; only the notification helpers remain.
 """
 import logging
 
-from django.utils.translation import gettext_lazy as _
 from django.conf import settings
 from django.core.mail import send_mail
-
-from apps.shared.addons.enums import SubscriptionStatuses, NotificationTypes
-from apps.shared.addons.verification import send_playmobile_sms
+from django.utils.translation import gettext_lazy as _
 
 # Re-exported: several modules import send_telegram_message from here.
 from apps.integration.gateways.telegram import send_telegram_message  # noqa: F401
+from apps.shared.addons.enums import NotificationTypes, SubscriptionStatuses
+from apps.shared.addons.verification import send_playmobile_sms
 
 logger = logging.getLogger(__name__)
 

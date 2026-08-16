@@ -4,8 +4,8 @@ from django.conf import settings
 from django.db import connection
 from rest_framework.views import APIView
 
-from apps.shared.permissions import IsAdmin
 from apps.shared.addons.validations import success_response
+from apps.shared.permissions import IsAdmin
 
 
 class DashboardSystemHealthView(APIView):

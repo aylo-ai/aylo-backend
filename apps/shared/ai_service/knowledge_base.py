@@ -5,11 +5,11 @@ does is get files in and out of a store and keep `Assistant.vector_id` accurate.
 """
 import logging
 import mimetypes
-import time
 from io import BytesIO
 from typing import Iterable, List, Optional, Tuple
 
 import requests
+
 from apps.shared import http
 
 from .client import get_client

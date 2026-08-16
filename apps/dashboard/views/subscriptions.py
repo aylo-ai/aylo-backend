@@ -2,14 +2,10 @@
 from datetime import timedelta
 
 from django.utils import timezone
-from rest_framework import generics, filters
-from rest_framework.views import APIView
 from django_filters.rest_framework import DjangoFilterBackend
+from rest_framework import filters, generics
+from rest_framework.views import APIView
 
-from apps.payment.models import Subscription
-from apps.shared.permissions import IsDashboardUser, CanManageFinance
-from apps.shared.addons.enums import SubscriptionStatuses
-from apps.shared.pagination import StandardResultsSetPagination
 from apps.dashboard.filters import SubscriptionFilter
 from apps.dashboard.models import AuditLog
 from apps.dashboard.serializers.subscriptions import (
@@ -19,7 +15,11 @@ from apps.dashboard.serializers.subscriptions import (
 )
 from apps.dashboard.views.base import get_client_ip, subscription_repr
 from apps.dashboard.views.mixins import DashboardRetrieveMixin, DashboardStatsListMixin
-from apps.shared.addons.validations import success_response, error_response
+from apps.payment.models import Subscription
+from apps.shared.addons.enums import SubscriptionStatuses
+from apps.shared.addons.validations import error_response, success_response
+from apps.shared.pagination import StandardResultsSetPagination
+from apps.shared.permissions import CanManageFinance, IsDashboardUser
 
 
 class DashboardSubscriptionList(DashboardStatsListMixin, generics.ListAPIView):

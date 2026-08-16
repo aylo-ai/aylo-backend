@@ -10,6 +10,7 @@ from io import BytesIO
 from typing import Optional, Tuple
 
 import requests
+
 from apps.shared import http
 
 from .client import TRANSCRIBE_MODEL, VISION_MODEL, get_client

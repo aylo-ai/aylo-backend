@@ -3,14 +3,13 @@ import logging
 import time
 from datetime import timedelta
 
+from celery import shared_task
 from django.utils.timezone import now
 
-from celery import shared_task
-
 from apps.assistant.models import Conversation
-from apps.shared.addons.enums import BroadcastStatuses, IntegrationTypes
 from apps.integration.gateways.instagram import instagram_service
 from apps.integration.gateways.telegram import send_telegram_message
+from apps.shared.addons.enums import BroadcastStatuses, IntegrationTypes
 
 from ..models import Broadcast, Integration
 

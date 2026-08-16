@@ -1,6 +1,6 @@
 from django.urls import path
-import apps.payment.views as views
 
+import apps.payment.views as views
 
 urlpatterns = [
     path("features/", views.FeatureListCreateView.as_view()),

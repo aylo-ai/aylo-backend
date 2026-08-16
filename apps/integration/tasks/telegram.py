@@ -1,18 +1,18 @@
 """Telegram channel tasks: text, voice and photo messages from bot webhooks."""
 import logging
 
-from apps.shared import http
 from celery import shared_task
 
-from apps.assistant.utils import cancel_pending_follow_ups
-from apps.shared.ai_service import media
-from apps.shared.ai_service.agent import respond
 from apps.assistant.services.conversation import conversation_service
-from apps.shared.addons.enums import ConversationStatuses, SenderTypes
-from apps.shared.addons.redis import publish_message_to_ws
+from apps.assistant.utils import cancel_pending_follow_ups
 from apps.integration.gateways.telegram import send_telegram_action, send_telegram_message
 from apps.integration.models import Integration
+from apps.shared import http
 from apps.shared.addons.crypto import mask_secret
+from apps.shared.addons.enums import ConversationStatuses, SenderTypes
+from apps.shared.addons.redis import publish_message_to_ws
+from apps.shared.ai_service import media
+from apps.shared.ai_service.agent import respond
 
 logger = logging.getLogger(__name__)
 

@@ -12,9 +12,9 @@ from django.test import TestCase, override_settings
 from rest_framework.test import APIClient
 from rest_framework_simplejwt.tokens import RefreshToken
 
-from apps.user.models import User, Notification
 from apps.shared.addons import verification
 from apps.shared.addons.enums import NotificationTypes, UserRoles
+from apps.user.models import Notification, User
 
 # Throttling stores its history in the default cache; DummyCache makes every
 # request pass so rate limits never make these tests flaky.
@@ -489,14 +489,6 @@ class StaffRoleEscalationTests(TestCase):
 
         self.assertEqual(response.status_code, 200)
 
-    def test_staff_is_refused_the_dashboard_otp_login(self):
-        staff = User.objects.create(
-            phone_number="+998900000103", first_name="Emp", last_name="Loyee",
-            user_role=UserRoles.STAFF.value,
-        )
-        response = self.client.post(
-            "/api/v1/dashboard/send-otp/login/",
-            {"phone_number": staff.phone_number},
     def test_a_rejected_id_token_leaks_no_verification_detail(self):
         """The reason a token failed (wrong audience, expired, bad issuer) tells
         an attacker how to fix their forgery — it belongs in the log only."""
@@ -689,8 +681,6 @@ class LogoutRevocationTests(TestCase):
         )
 
         self.assertEqual(response.status_code, 400)
-<<<<<<< HEAD
-=======
 
     def test_a_deactivated_users_access_token_stops_working(self):
         access = str(RefreshToken.for_user(self.user).access_token)
@@ -904,4 +894,3 @@ class StaffScopingTests(TestCase):
 
         self.assertIn(response.status_code, (403, 404))
         self.assertFalse(User.objects.filter(email="g@example.com").exists())
->>>>>>> 473f4c3bed1052b8f0214fd63847c983cff0e728

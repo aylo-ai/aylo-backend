@@ -2,22 +2,24 @@ from django.contrib.postgres.fields import ArrayField
 from django.db import models
 from django.utils import timezone
 from django.utils.timezone import now
-from apps.shared.fields import EncryptedCharField, EncryptedTextField
-from apps.shared.models import BaseModel
-from apps.shared.storages import build_media_key
+
 from apps.integration.models import Integration
 from apps.shared.addons.enums import (
     AssistantLanguages,
+    ConversationPlatforms,
+    ConversationStatuses,
+    FileTypes,
+    FollowUpLogStatus,
+    LeadStatuses,
+    MessageStatuses,
+    MessageTypes,
     PersonalityStyles,
     SenderTypes,
-    MessageStatuses,
-    ConversationStatuses,
-    MessageTypes,
-    ConversationPlatforms,
-    FileTypes,
-    LeadStatuses,
-    FollowUpLogStatus,
 )
+from apps.shared.fields import EncryptedCharField, EncryptedTextField
+from apps.shared.models import BaseModel
+from apps.shared.storages import build_media_key
+
 
 def assistant_file_path(instance, filename):
     return build_media_key(f"assistant/{instance.assistant_id}/files", filename)
@@ -199,8 +201,8 @@ class Message(BaseModel):
         return f"Message from {self.sender} in conversation {self.conversation.id}"
 
     def save(self, *args, **kwargs):
-        from apps.user.services.notifications import notify_user_about_low_tokens
         from apps.payment.models import Subscription
+        from apps.user.services.notifications import notify_user_about_low_tokens
 
         if self.conversation:
             # Bump conversation activity with a single UPDATE, no full save.
@@ -252,8 +254,8 @@ class Settings(BaseModel):
 
 class AssistantFileUpload(BaseModel):
     assistant = models.ForeignKey(
-        "Assistant", 
-        on_delete=models.CASCADE, 
+        "Assistant",
+        on_delete=models.CASCADE,
         related_name="files"
     )
     website_url = models.URLField(max_length=255, null=True, blank=True)

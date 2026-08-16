@@ -1,32 +1,41 @@
-from django.utils.translation import gettext_lazy as _
+from django.db.models import Count, Sum
 from django.http import FileResponse
-from django.db.models import Sum, Count
-from rest_framework import permissions, filters, generics, views
+from django.utils.translation import gettext_lazy as _
 from django_filters.rest_framework import DjangoFilterBackend
+from rest_framework import filters, generics, permissions, views
 from rest_framework.exceptions import NotFound
 
-from apps.assistant.models import (
-    Assistant, AssistantFileUpload, Conversation, Message, Lead, PromptTemplate,
-    FollowUpConfig, FollowUpStage, FollowUpLog,
-)
-from apps.shared.addons.validations import success_response, error_response
-from apps.shared.ai_service import knowledge_base
-from apps.shared.addons.redis import publish_new_message_to_ws
 from apps.assistant.filters import LeadFilter
-from apps.assistant.utils import owned_assistants
-from apps.assistant.serializers import (AssistantSerializer,
-    ConversationSerializer,
-    MessageSerializer,
+from apps.assistant.models import (
+    Assistant,
+    AssistantFileUpload,
+    Conversation,
+    FollowUpConfig,
+    FollowUpLog,
+    FollowUpStage,
+    Lead,
+    Message,
+    PromptTemplate,
+)
+from apps.assistant.serializers import (
     AssistantFileUploadSerializer,
+    AssistantSerializer,
     ConversationRetrieveSerializer,
-    UpdateFileUploadSerializer,
-    MessageBulkReadSerializer,
-    LeadSerializer,
-    LeadExportSerializer,
-    PromptTemplateListSerializer,
+    ConversationSerializer,
     FollowUpConfigSerializer,
+    FollowUpLogSerializer,
     FollowUpStageSerializer,
-    FollowUpLogSerializer)
+    LeadExportSerializer,
+    LeadSerializer,
+    MessageBulkReadSerializer,
+    MessageSerializer,
+    PromptTemplateListSerializer,
+    UpdateFileUploadSerializer,
+)
+from apps.assistant.utils import owned_assistants
+from apps.shared.addons.redis import publish_new_message_to_ws
+from apps.shared.addons.validations import error_response, success_response
+from apps.shared.ai_service import knowledge_base
 
 
 class AssistantListCreateView(generics.ListCreateAPIView):

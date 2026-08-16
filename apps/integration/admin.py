@@ -2,7 +2,18 @@ from django.contrib import admin
 
 from apps.shared.addons.crypto import mask_secret
 
-from .models import Integration, TelegramGroupIntegration, InstagramMedia, InstagramCommentResponse, CommentTriggerWord, CommentResponseButton, Step, Transition, Flow,InstagramUserState
+from .models import (
+    CommentResponseButton,
+    CommentTriggerWord,
+    Flow,
+    InstagramCommentResponse,
+    InstagramMedia,
+    InstagramUserState,
+    Integration,
+    Step,
+    TelegramGroupIntegration,
+    Transition,
+)
 
 
 @admin.register(Integration)
@@ -137,4 +148,3 @@ admin.site.register(Step)
 admin.site.register(Flow)
 admin.site.register(InstagramUserState)
 admin.site.register(Transition)
-    

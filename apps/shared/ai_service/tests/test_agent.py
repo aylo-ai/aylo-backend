@@ -11,8 +11,12 @@ from apps.shared.ai_service import agent as agent_module
 from apps.shared.ai_service.agent import Agent, AgentResult
 
 from .factories import (
-    bad_request, make_assistant, make_conversation, make_response,
-    rate_limited, server_error,
+    bad_request,
+    make_assistant,
+    make_conversation,
+    make_response,
+    rate_limited,
+    server_error,
 )
 
 

@@ -1,24 +1,8 @@
-from rest_framework.request import Request
 from rest_framework.permissions import IsAuthenticated
+from rest_framework.request import Request
 
 from apps.shared.addons.enums import UserRoles
 
-<<<<<<< HEAD
-User = get_user_model()
-
-# Roles that may see the internal admin console at all.
-#
-# `UserRoles.STAFF` is deliberately NOT here. The only thing in the codebase
-# that ever mints a `staff` account is `AddStaffView`
-# (`POST /api/v1/user/add-staff/`) — a *customer-facing* "add my employee"
-# feature that any customer may call and that returns the new account's JWT in
-# its own 201 body. While `staff` was a dashboard role, that made customer →
-# platform-admin privilege escalation a two-request operation: create an
-# employee, then use the token it hands you against `IsDashboardUser` routes
-# such as `/dashboard/users/`, `/dashboard/cards/`, `/dashboard/transactions/`
-# and `/dashboard/search/`, none of which scope their querysets by tenant.
-# Internal console roles are super_admin / admin / manager / support_agent.
-=======
 # Roles that may use the *internal* admin dashboard (`/api/v1/dashboard/…`):
 # every user, assistant, conversation, transaction and subscription on the
 # platform, across all tenants.
@@ -28,7 +12,6 @@ User = get_user_model()
 # returns a ready-to-use token pair. While STAFF was a dashboard role, that
 # endpoint was a self-service privilege escalation from "one tenant" to "read
 # and write the whole platform".
->>>>>>> 473f4c3bed1052b8f0214fd63847c983cff0e728
 DASHBOARD_ROLES = [
     UserRoles.SUPER_ADMIN.value,
     UserRoles.ADMIN.value,

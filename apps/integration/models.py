@@ -26,8 +26,8 @@ class Integration(BaseModel):
     ENCRYPTED_HASH_LOOKUPS = {"api_token": "api_token_hash"}
 
     assistant = models.ForeignKey(
-        'assistant.Assistant', 
-        on_delete=models.CASCADE, 
+        'assistant.Assistant',
+        on_delete=models.CASCADE,
         related_name='integrations',
         null=True, blank=True
     )
@@ -176,7 +176,7 @@ class InstagramCommentResponse(BaseModel):
 
     def __str__(self):
         return f"{self.private_message_template} - {self.comment_message_template}"
-    
+
     def delete(self, *args, **kwargs):
         self.instagram_media.all().delete()
         super().delete(*args, **kwargs)
@@ -190,10 +190,10 @@ class CommentTriggerWord(BaseModel):
 
     def __str__(self):
         return f"Comment Trigger Word {self.trigger_word}"
-    
+
     class Meta:
         db_table = 'comment_trigger_word'
-        ordering = ['-created_time']    
+        ordering = ['-created_time']
 
 class CommentResponseButton(BaseModel):
     text = models.CharField(max_length=255)

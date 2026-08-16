@@ -15,7 +15,7 @@ from rest_framework.views import APIView
 
 from apps.assistant.utils import owned_assistants
 from apps.integration.gateways.instagram import instagram_service
-from apps.integration.models import Integration, InstagramCommentResponse
+from apps.integration.models import InstagramCommentResponse, Integration
 from apps.integration.throttles import MetaDataRequestThrottle, OAuthCallbackThrottle
 from apps.shared import http
 from apps.shared.addons.enums import IntegrationTypes

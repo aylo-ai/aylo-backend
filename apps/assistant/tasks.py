@@ -1,24 +1,31 @@
 import logging
 from datetime import timedelta
 
+from celery import shared_task
 from django.db import transaction
-from django.db.models import Subquery, OuterRef, Exists
+from django.db.models import Exists, OuterRef, Subquery
 from django.utils import timezone
 from django.utils.timezone import now
 
-from celery import shared_task
-
 from apps.assistant.models import (
-    Assistant, Message, Lead,
-    FollowUpConfig, FollowUpLog, Conversation,
+    Assistant,
+    Conversation,
+    FollowUpConfig,
+    FollowUpLog,
+    Lead,
+    Message,
 )
+from apps.integration.gateways.instagram import instagram_service
+from apps.integration.gateways.telegram import send_telegram_message
 from apps.integration.models import TelegramGroupIntegration
 from apps.shared.addons.enums import (
-    IntegrationTypes, ConversationPlatforms, SenderTypes,
-    MessageTypes, FollowUpLogStatus, LeadStatuses,
+    ConversationPlatforms,
+    FollowUpLogStatus,
+    IntegrationTypes,
+    LeadStatuses,
+    MessageTypes,
+    SenderTypes,
 )
-from apps.integration.gateways.telegram import send_telegram_message
-from apps.integration.gateways.instagram import instagram_service
 from apps.shared.addons.redis import publish_message_to_ws
 
 logger = logging.getLogger(__name__)
@@ -31,7 +38,7 @@ def daily_statistics_assistant():
     for assistant in assistants:
         print(f"Assistant: {assistant.name}")
         telegram_integrations = assistant.integrations.filter(integration_type=IntegrationTypes.TELEGRAM.value)
-        
+
         if not telegram_integrations.exists():
             print(f"No Telegram integration found for assistant: {assistant.name}")
             continue
@@ -55,14 +62,14 @@ def daily_statistics_assistant():
 📞 **Telefon qoldirganlar:** {phone_number_leave}
 """
         print(f"Message: {message}")
-        
+
         for telegram_integration in telegram_integrations:
             telegram_groups = TelegramGroupIntegration.objects.filter(integration=telegram_integration).all()
-            
+
             if not telegram_groups.exists():
                 print(f"No Telegram groups found for integration: {telegram_integration.id}")
                 continue
-            
+
             for telegram_group in telegram_groups:
                 try:
                     send_telegram_message(telegram_group.group_id, message, telegram_integration.api_token)
@@ -73,15 +80,15 @@ def daily_statistics_assistant():
 def get_daily_lead_statistics(assistant_id, target_date):
     assistant = Assistant.objects.get(id=assistant_id)
     daily_lead_instagram = assistant.leads.filter(
-        created_time__date=target_date, 
+        created_time__date=target_date,
         platform=ConversationPlatforms.INSTAGRAM.value
     ).count()
     daily_lead_telegram = assistant.leads.filter(
-        created_time__date=target_date, 
+        created_time__date=target_date,
         platform=ConversationPlatforms.TELEGRAM.value
     ).count()
     phone_number_leave = assistant.leads.filter(
-        created_time__date=target_date, 
+        created_time__date=target_date,
         phone_number__isnull=False
     ).count()
 
@@ -90,20 +97,20 @@ def get_daily_lead_statistics(assistant_id, target_date):
 
 def get_daily_conversation_statistics(assistant_id, target_date):
     assistant = Assistant.objects.get(id=assistant_id)
-    
+
     new_conversations = assistant.conversations.filter(
         created_time__date=target_date
     ).count()
-    
+
     conversations_before_today = assistant.conversations.filter(
         created_time__date__lt=target_date
     )
-    
+
     existing_conversations = Message.objects.filter(
         conversation__in=conversations_before_today,
         created_time__date=target_date
     ).values_list('conversation_id', flat=True).distinct().count()
-    
+
     return new_conversations, existing_conversations
 
 

@@ -4,7 +4,7 @@ from typing import Optional
 
 from redis import Redis
 
-from config.settings import REDIS_CREDENTIALS, REDIS_HOST, REDIS_PORT, REDIS_DB, REDIS_PASSWORD
+from config.settings import REDIS_DB, REDIS_HOST, REDIS_PASSWORD, REDIS_PORT
 
 redis_connection: Optional[Redis] = None
 

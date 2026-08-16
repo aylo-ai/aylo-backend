@@ -2,7 +2,7 @@ from django.contrib import admin
 
 from apps.shared.addons.crypto import mask_secret
 
-from .models import Feature, PricingPackage, Transaction, Card, Balance, Subscription, RetryPayment
+from .models import Balance, Card, Feature, PricingPackage, RetryPayment, Subscription, Transaction
 
 
 @admin.register(Feature)

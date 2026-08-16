@@ -1,7 +1,7 @@
 """Integration serializers for the dashboard."""
 from rest_framework import serializers
 
-from apps.assistant.models import Conversation, Message, Lead
+from apps.assistant.models import Conversation, Lead, Message
 from apps.integration.models import Integration
 from apps.shared.addons.enums import ConversationPlatforms, IntegrationTypes
 

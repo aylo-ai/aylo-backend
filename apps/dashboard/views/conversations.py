@@ -1,19 +1,16 @@
 """Dashboard conversation and message endpoints."""
 from django.utils import timezone
-from rest_framework import generics, filters
-from rest_framework.views import APIView
 from django_filters.rest_framework import DjangoFilterBackend
+from rest_framework import filters, generics
+from rest_framework.views import APIView
 
 from apps.assistant.models import Conversation, Message
 from apps.assistant.serializers import MessageSerializer
-from apps.shared.permissions import IsDashboardUser
-from apps.shared.addons.enums import ConversationStatuses
-from apps.shared.pagination import StandardResultsSetPagination
 from apps.dashboard.filters import ConversationFilter
 from apps.dashboard.models import AuditLog
 from apps.dashboard.serializers.conversations import (
-    DashboardConversationSerializer,
     DashboardConversationListSerializer,
+    DashboardConversationSerializer,
 )
 from apps.dashboard.views.base import get_client_ip
 from apps.dashboard.views.mixins import (
@@ -22,7 +19,10 @@ from apps.dashboard.views.mixins import (
     DashboardPartialUpdateMixin,
     DashboardStatsListMixin,
 )
-from apps.shared.addons.validations import success_response, error_response
+from apps.shared.addons.enums import ConversationStatuses
+from apps.shared.addons.validations import error_response, success_response
+from apps.shared.pagination import StandardResultsSetPagination
+from apps.shared.permissions import IsDashboardUser
 
 
 class DashboardConversationList(DashboardStatsListMixin, generics.ListAPIView):

@@ -1,19 +1,19 @@
 """Dashboard overview, statistics, AI-cost breakdown and global search."""
-from django.db.models import Q, Sum, Count, F
+from django.db.models import Count, F, Q, Sum
 from django.utils import timezone
 from rest_framework.views import APIView
 
-from apps.user.models import User
 from apps.assistant.models import Assistant, Conversation, Message
-from apps.payment.models import Transaction
-from apps.shared.permissions import IsDashboardUser
-from apps.shared.addons.enums import SenderTypes
 from apps.dashboard.serializers.overview import (
-    DashboardSerializer,
     DashboardEnhancedStatsSerializer,
+    DashboardSerializer,
     DashboardStatisticsSerializer,
 )
+from apps.payment.models import Transaction
+from apps.shared.addons.enums import SenderTypes
 from apps.shared.addons.validations import success_response
+from apps.shared.permissions import IsDashboardUser
+from apps.user.models import User
 
 
 class DashboardView(APIView):

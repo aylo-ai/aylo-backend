@@ -1,11 +1,17 @@
 from django.contrib import admin
 
-from apps.shared.addons.crypto import mask_secret
 from apps.assistant.models import (
-    Assistant, Message, Conversation, AssistantFileUpload, Lead, Integration,
-    FollowUpConfig, FollowUpStage, FollowUpLog,
+    Assistant,
+    AssistantFileUpload,
+    Conversation,
+    FollowUpConfig,
+    FollowUpLog,
+    FollowUpStage,
+    Integration,
+    Lead,
+    Message,
 )
-
+from apps.shared.addons.crypto import mask_secret
 
 
 class IntegrationInline(admin.TabularInline):
@@ -44,7 +50,7 @@ class LeadAdmin(admin.ModelAdmin):
             'fields': ('full_name', 'phone_number', 'email', 'product', 'metadata','assistant','status','contacted', 'platform')
         }),
     )
-        
+
 
 class MessageInline(admin.TabularInline):
     model = Message

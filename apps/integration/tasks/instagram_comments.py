@@ -10,12 +10,12 @@ import logging
 from datetime import datetime
 
 import pytz
-from apps.shared import http
 from celery import shared_task
 
-from apps.shared.ai_service.agent import respond
 from apps.assistant.services.conversation import conversation_service
 from apps.integration.gateways.instagram import instagram_service
+from apps.shared import http
+from apps.shared.ai_service.agent import respond
 
 from ..models import Flow, InstagramCommentResponse, InstagramMedia, Integration
 

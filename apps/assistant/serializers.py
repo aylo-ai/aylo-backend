@@ -1,28 +1,37 @@
 import json
 import logging
-from io import BytesIO
-from openpyxl import Workbook
 from datetime import datetime
+from io import BytesIO
 
-from rest_framework import serializers
 from django.core.exceptions import ValidationError
-from django.utils.translation import gettext_lazy as _
 from django.utils.timezone import localtime
-
+from django.utils.translation import gettext_lazy as _
+from openpyxl import Workbook
+from rest_framework import serializers
 
 from apps.assistant.models import (
-    Assistant, Conversation, Message, AssistantFileUpload, Lead, PromptTemplate,
-    FollowUpConfig, FollowUpStage, FollowUpLog,
+    Assistant,
+    AssistantFileUpload,
+    Conversation,
+    FollowUpConfig,
+    FollowUpLog,
+    FollowUpStage,
+    Lead,
+    Message,
+    PromptTemplate,
 )
+from apps.shared.addons.enums import (
+    ConversationPlatforms,
+    ConversationStatuses,
+    MessageTypes,
+    SenderTypes,
+)
+from apps.shared.addons.redis import publish_message_to_ws_assistant
+from apps.shared.addons.validations import raise_validation_error
 from apps.shared.ai_service import knowledge_base, media
 from apps.shared.ai_service.agent import agent
-from apps.shared.addons.validations import raise_validation_error
 from apps.shared.file_validation import validate_audio, validate_document
-from apps.shared.addons.enums import (
-    ConversationPlatforms, ConversationStatuses, MessageTypes, SenderTypes,
-)
 from apps.shared.mixins import SubscriptionValidationMixin
-from apps.shared.addons.redis import publish_message_to_ws_assistant
 
 logger = logging.getLogger(__name__)
 
@@ -59,7 +68,6 @@ class AssistantSerializer(serializers.ModelSerializer,
             "integrations",
             "prompt_template",
         ]
-<<<<<<< HEAD
         # `user` is the tenancy column. While it was writable, `PATCH
         # /assistant/<own id>/ {"user": "<someone else's id>"}` silently moved
         # the assistant into that account: it then counted against the victim's
@@ -68,13 +76,6 @@ class AssistantSerializer(serializers.ModelSerializer,
         # and the dashboard's create path both pass `user=` to `save()`, which
         # a read-only field does not block.
         read_only_fields = ["created_time", "updated_time", "user"]
-=======
-        # `user` is the tenant boundary. The create view sets it from the
-        # request; leaving it writable let `PATCH /chat/assistant/<id>/` with a
-        # `user` in the body hand the assistant — and every conversation, lead
-        # and knowledge-base file hanging off it — to another account.
-        read_only_fields = ["user", "created_time", "updated_time"]
->>>>>>> 473f4c3bed1052b8f0214fd63847c983cff0e728
 
     def get_integrations(self, obj):  # noqa
         telegram_count = obj.integrations.filter(integration_type="telegram").exists()
@@ -179,7 +180,6 @@ class ConversationRetrieveSerializer(serializers.ModelSerializer, SubscriptionVa
             "created_time",
             "updated_time",
         ]
-<<<<<<< HEAD
         # This serializer only ever serves retrieve/update. A writable
         # `assistant` let `PATCH /conversation/<own id>/` re-parent the
         # conversation onto another tenant's assistant, pushing attacker-written
@@ -187,12 +187,6 @@ class ConversationRetrieveSerializer(serializers.ModelSerializer, SubscriptionVa
         # their assistant — by `ConversationSerializer`.
         read_only_fields = ["created_time", "updated_time", "assistant"]
 
-=======
-        # Same tenant boundary as `ConversationSerializer`: this serializer backs
-        # PATCH/PUT on `/chat/conversation/<id>/`, where a writable `assistant`
-        # would move the conversation into another account's inbox.
-        read_only_fields = ["assistant", "created_time", "updated_time"]
->>>>>>> 473f4c3bed1052b8f0214fd63847c983cff0e728
 
     def to_representation(self, instance):
         response = super().to_representation(instance)

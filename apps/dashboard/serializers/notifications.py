@@ -1,8 +1,8 @@
 """Notification serializers for the dashboard."""
 from rest_framework import serializers
 
-from apps.shared.addons.enums import NotificationTypes
 from apps.dashboard.serializers.common import StrictCharField
+from apps.shared.addons.enums import NotificationTypes
 
 
 class NotificationSendSerializer(serializers.Serializer):

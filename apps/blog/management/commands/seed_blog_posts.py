@@ -2,11 +2,10 @@
 Django management command to seed SEO-optimized blog posts for Aylo AI.
 """
 
-import json
 from django.core.management.base import BaseCommand
 from django.utils import timezone
-from apps.blog.models import BlogPost
 
+from apps.blog.models import BlogPost
 
 BLOG_POSTS = [
     {

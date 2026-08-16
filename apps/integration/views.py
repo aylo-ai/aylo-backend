@@ -1,13 +1,14 @@
-import logging
-from apps.shared import http
 import base64
 import functools
 import hashlib
 import hmac
-import re
-import time
 import json
+import logging
+import re
 import secrets
+import time
+
+from apps.shared import http
 
 logger = logging.getLogger(__name__)
 
@@ -28,55 +29,72 @@ WEBHOOK_DEDUP_TTL_SECONDS = 6 * 60 * 60
 # exfiltration: `?referer=attacker.example` posts client_id/client_secret there.
 AMOCRM_HOST_RE = re.compile(r"^[a-z0-9][a-z0-9-]{0,62}\.amocrm\.(ru|com)$")
 
+from urllib.parse import urlencode
+
+from django.conf import settings
 from django.db import transaction
 from django.db.models import Q
-from django.conf import settings
-from urllib.parse import urlencode
 from django.http import HttpResponse
-from rest_framework.views import APIView
-from rest_framework import generics, permissions
 from django.utils.translation import gettext_lazy as _
+from rest_framework import generics, permissions
+from rest_framework.views import APIView
 
-from config.settings import INSTAGRAM_CLIENT_ID, INSTAGRAM_CLIENT_SECRET, INSTAGRAM_REDIRECT_URI
-from apps.shared.addons.enums import IntegrationTypes
+from apps.assistant.models import Assistant
+from apps.integration.gateways.instagram import instagram_service
 from apps.integration.gateways.telegram import (
     handle_bot_added_to_group,
     handle_bot_removed_from_group,
     telegram_webhook_secret,
 )
-from apps.shared.addons.validations import success_response, error_response
+from apps.shared.addons.enums import IntegrationTypes
+from apps.shared.addons.validations import error_response, success_response
 from apps.shared.permissions import IsCustomer
-from apps.integration.gateways.instagram import instagram_service
-from apps.assistant.models import Assistant
-from .models import Integration, TelegramGroupIntegration, InstagramMedia, CommentTriggerWord, InstagramCommentResponse, Flow, Transition, Step, CommentResponseButton, Broadcast
-from .serializers import (IntegrationCreateSerializer,
-                        IntegrationSerializer,
-                        SendUserMessageSerializer,
-                        SendIntegrationMessageSerializer,
-                        TelegramGroupSerializer,
-                        InstagramMediaSerializer,
-                        CommentTriggerWordSerializer,
-                        InstagramCommentResponseSerializer,
-                        InstagramCommentResponseFlowSerializer,
-                        TransitionSerializer,
-                        StepSerializer,
-                        CommentResponseButtonSerializer,
-                        BroadcastSerializer)
-from .tasks import (process_instagram_message,
-                    process_voice_task,
-                    process_photo_task,
-                    process_instagram_comment,
-                    WAIT_SECONDS,
-                    process_collected_messages,
-                    handle_postback_event_task,
-                    send_message_integration_task)
+from config.settings import INSTAGRAM_CLIENT_ID, INSTAGRAM_CLIENT_SECRET, INSTAGRAM_REDIRECT_URI
+
+from .models import (
+    Broadcast,
+    CommentResponseButton,
+    CommentTriggerWord,
+    Flow,
+    InstagramCommentResponse,
+    InstagramMedia,
+    Integration,
+    Step,
+    TelegramGroupIntegration,
+    Transition,
+)
+from .serializers import (
+    BroadcastSerializer,
+    CommentResponseButtonSerializer,
+    CommentTriggerWordSerializer,
+    InstagramCommentResponseFlowSerializer,
+    InstagramCommentResponseSerializer,
+    InstagramMediaSerializer,
+    IntegrationCreateSerializer,
+    IntegrationSerializer,
+    SendIntegrationMessageSerializer,
+    SendUserMessageSerializer,
+    StepSerializer,
+    TelegramGroupSerializer,
+    TransitionSerializer,
+)
+from .tasks import (
+    WAIT_SECONDS,
+    handle_postback_event_task,
+    process_collected_messages,
+    process_instagram_comment,
+    process_instagram_message,
+    process_photo_task,
+    process_voice_task,
+    send_message_integration_task,
+)
+
 try:
     from .tasks import process_shared_post_message
 except ImportError:
     process_shared_post_message = None
 
 from apps.shared.addons.redis import redis_client
-
 
 
 class IntegrationListView(generics.ListAPIView):
@@ -89,7 +107,7 @@ class IntegrationListView(generics.ListAPIView):
         return Integration.objects.filter(
             Q(user=user) | Q(assistant__user=user)
         ).distinct()
-    
+
     def list(self, request, *args, **kwargs):
         queryset = self.get_queryset()
         serializer = self.get_serializer(queryset, many=True)
@@ -876,7 +894,7 @@ class InstagramPostListView(APIView):
             return success_response(message=_("Instagram post muvaffaqiyatli olindi"), code=200, data=all_posts)
         else:
             return error_response(message=_("Instagram post topilmadi"), code=400)
-        
+
 
 class CommentTriggerWordListCreateView(generics.CreateAPIView):
     queryset = CommentTriggerWord.objects.all()
@@ -943,7 +961,7 @@ class InstagramCommentResponseListCreateView(generics.ListCreateAPIView):
             integration = Integration.objects.get(id=integration_id, integration_type=IntegrationTypes.INSTAGRAM.value)
         except Integration.DoesNotExist:
             return error_response(message=_("Integration topilmadi"), code=404)
-        
+
         serializer = self.get_serializer(data=request.data, context={"integration": integration})
         serializer.is_valid(raise_exception=True)
         serializer.save()
@@ -1020,7 +1038,7 @@ class InstagramMediaRetrieveView(generics.RetrieveUpdateDestroyAPIView):
         instance = self.get_object()
         self.perform_destroy(instance)
         return success_response(message=_("Instagram media muvaffaqiyatli o'chirildi"), code=204)
-    
+
 
 class InstagramCommentResponseFlowListCreateView(generics.ListCreateAPIView):
     queryset = Flow.objects.all()
@@ -1030,13 +1048,13 @@ class InstagramCommentResponseFlowListCreateView(generics.ListCreateAPIView):
     def get_queryset(self):
         id = self.kwargs.get('pk')
         return self.queryset.filter(comment_response_id=id)
-    
+
     def get_serializer_context(self):
         """Pass pk to serializer context for linking"""
         context = super().get_serializer_context()
         context["comment_response_id"] = self.kwargs.get("pk")
         return context
-    
+
 
 class InstagramFlowTransitionListCreateView(generics.ListCreateAPIView):
     queryset = Transition.objects.all()
@@ -1063,7 +1081,7 @@ class InstagramFlowTransitionListCreateView(generics.ListCreateAPIView):
             to_step = datum.get("to_step")
             from_step_id = getattr(from_step, "id", from_step)
             to_step_id = getattr(to_step, "id", to_step)
-            
+
             # Steps must belong to the same flow
             if from_step:
                 if not Step.objects.filter(id=from_step_id, flow_id=flow_id).exists():
@@ -1338,26 +1356,26 @@ class AmoCRMOAuthInstallView(APIView):
             # Get parameters from request
             subdomain = 'repli'
             user_id = request.user.id
-            
+
             if not subdomain:
                 return error_response(
-                    message="Subdomain is required", 
+                    message="Subdomain is required",
                     code=400
                 )
-            
+
             # Use credentials from settings
             client_id = getattr(settings, 'AMOCRM_CLIENT_ID', None)
             client_secret = getattr(settings, 'AMOCRM_SECRET_KEY', None)
-            
+
             if not client_id or not client_secret:
                 return error_response(
-                    message="amoCRM credentials not configured", 
+                    message="amoCRM credentials not configured",
                     code=500
                 )
-            
+
             # Generate state parameter for security
             state = secrets.token_urlsafe(32)
-            
+
             # Store state and user info in redis for verification. The client
             # secret is deliberately NOT stored: it lives in settings, and
             # copying it into a 5-minute Redis key only widened where it can
@@ -1371,7 +1389,7 @@ class AmoCRMOAuthInstallView(APIView):
                     'client_id': client_id,
                 })
             )
-            
+
             # Build OAuth authorization URL
             redirect_uri = f"{settings.BASE_URL}/api/v1/integration/amocrm/"
             auth_params = {
@@ -1380,9 +1398,9 @@ class AmoCRMOAuthInstallView(APIView):
                 'redirect_uri': redirect_uri,
                 'state': state
             }
-            
+
             auth_url = f"https://www.amocrm.ru/oauth?{urlencode(auth_params)}"
-            
+
             return success_response(
                 data={
                     'auth_url': auth_url,
@@ -1392,7 +1410,7 @@ class AmoCRMOAuthInstallView(APIView):
                 message="amoCRM OAuth URL generated successfully",
                 code=200
             )
-            
+
         except Exception:
             logger.exception("Error generating amoCRM OAuth URL")
             return error_response(
@@ -1470,7 +1488,7 @@ class AmoCRMOAuthHandlerView(APIView):
                 'redirect_uri': f"{settings.BASE_URL}/api/v1/integration/amocrm/",
                 'code': code
             }
-            
+
             token_response = http.post(token_url, data=token_data)
 
             if token_response.status_code != 200:
@@ -1503,19 +1521,19 @@ class AmoCRMOAuthHandlerView(APIView):
                     message="Failed to get user information from amoCRM",
                     code=400
                 )
-            
+
             user_info = user_response.json()
             account_id = user_info.get('id')
             # Create or update integration
             from apps.assistant.models import Assistant
             assistant = Assistant.objects.filter(user_id=user_id).first()
-            
+
             if not assistant:
                 return error_response(
                     message="No assistant found for user",
                     code=404
                 )
-            
+
             integration, created = Integration.objects.get_or_create(
                 assistant=assistant,
                 integration_type=IntegrationTypes.AMOCRM.value,
@@ -1532,7 +1550,7 @@ class AmoCRMOAuthHandlerView(APIView):
                     }
                 }
             )
-            
+
             if not created:
                 # Update existing integration. `metadata` is nullable, so it
                 # has to be read through a default — `None.update(...)` used to
@@ -1549,10 +1567,10 @@ class AmoCRMOAuthHandlerView(APIView):
                 })
                 integration.metadata = metadata
                 integration.save()
-            
+
             # Clean up state
             redis_client.delete(f"amocrm_oauth_state:{state}")
-            
+
             return success_response(
                 data={
                     'integration_id': str(integration.id),
@@ -1563,7 +1581,7 @@ class AmoCRMOAuthHandlerView(APIView):
                 message="amoCRM integration successful",
                 code=200
             )
-            
+
         except Exception:
             logger.exception("Error processing amoCRM OAuth callback")
             return error_response(
@@ -1574,7 +1592,7 @@ class AmoCRMOAuthHandlerView(APIView):
 
 class AmoCRMTokenRefreshView(APIView):
     permission_classes = [permissions.IsAuthenticated]
-    
+
     def post(self, request):
         try:
             integration_id = request.data.get('integration_id')
@@ -1583,7 +1601,7 @@ class AmoCRMTokenRefreshView(APIView):
                     message="Integration ID is required",
                     code=400
                 )
-            
+
             # Scoped to the caller: this endpoint took any integration id and
             # handed back that integration's fresh access token, so any logged-in
             # user could refresh — and read — another tenant's amoCRM credentials.
@@ -1628,9 +1646,9 @@ class AmoCRMTokenRefreshView(APIView):
                 'client_secret': client_secret,
                 'refresh_token': refresh_token
             }
-            
+
             token_response = http.post(token_url, data=token_data)
-            
+
             if token_response.status_code != 200:
                 logger.warning("amoCRM token refresh failed with status %s", token_response.status_code)
                 return error_response(
@@ -1671,7 +1689,7 @@ class AmoCRMTokenRefreshView(APIView):
 
 class AmoCRMSetPipelineView(APIView):
     permission_classes = [permissions.IsAuthenticated]
-    
+
     def post(self, request):
         try:
             integration_id = request.data.get('integration_id')
@@ -1713,9 +1731,9 @@ class AmoCRMSetPipelineView(APIView):
                 'Authorization': f'Bearer {access_token}',
                 'Content-Type': 'application/json'
             }
-            
+
             pipeline_response = http.get(pipeline_url, headers=headers)
-            
+
             if pipeline_response.status_code != 200:
                 logger.warning("amoCRM pipeline lookup failed with status %s", pipeline_response.status_code)
                 return error_response(
@@ -1751,7 +1769,7 @@ class AmoCRMSetPipelineView(APIView):
                 message=_("Pipeline o'rnatishda xatolik"),
                 code=500
             )
-        
+
 class BillzSecretTokenHandlerView(generics.CreateAPIView):
     serializer_class = IntegrationSerializer
     permission_classes = [permissions.IsAuthenticated]
@@ -1761,7 +1779,7 @@ class BillzSecretTokenHandlerView(generics.CreateAPIView):
         context = super().get_serializer_context()
         context['assistant_id'] = self.kwargs.get('pk')
         return context
-    
+
     def create(self, request, *args, **kwargs):
         api_token = request.data.get('api_token')
         assistant_id = self.kwargs.get('pk')
@@ -1798,5 +1816,5 @@ class BillzSecretTokenHandlerView(generics.CreateAPIView):
         transaction.on_commit(
             functools.partial(fetch_and_save_billz_products.delay, str(integration.id))
         )
-        
+
         return success_response(message=_("Billz secret token muvaffaqiyatli yaratildi"), data=serializer.data, code=201)

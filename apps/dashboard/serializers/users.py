@@ -1,14 +1,14 @@
 """User serializers for the dashboard."""
-from rest_framework import serializers
 from django.utils.translation import gettext_lazy as _
+from rest_framework import serializers
 
 from apps.assistant.models import Conversation, Message
 from apps.assistant.serializers import AssistantSerializer
+from apps.dashboard.serializers.common import serialize_subscription
+from apps.dashboard.serializers.transactions import DashboardTransactionSerializer
 from apps.integration.serializers import IntegrationSerializer
 from apps.shared.addons.enums import SenderTypes, UserRoles
 from apps.user.models import User
-from apps.dashboard.serializers.common import serialize_subscription
-from apps.dashboard.serializers.transactions import DashboardTransactionSerializer
 
 
 class DashboardUserSerializer(serializers.ModelSerializer):

@@ -1,16 +1,16 @@
 """Dashboard notification endpoints."""
-from rest_framework import generics, filters
+from rest_framework import filters, generics
 from rest_framework.views import APIView
 
-from apps.user.models import User, Notification
-from apps.user.serializers import NotificationSerializer
-from apps.shared.permissions import IsAdmin, IsDashboardUser
-from apps.shared.pagination import StandardResultsSetPagination
 from apps.dashboard.models import AuditLog
 from apps.dashboard.serializers.notifications import NotificationSendSerializer
 from apps.dashboard.views.base import get_client_ip
 from apps.dashboard.views.mixins import DashboardListMixin
-from apps.shared.addons.validations import success_response, error_response
+from apps.shared.addons.validations import error_response, success_response
+from apps.shared.pagination import StandardResultsSetPagination
+from apps.shared.permissions import IsAdmin, IsDashboardUser
+from apps.user.models import Notification, User
+from apps.user.serializers import NotificationSerializer
 
 
 class DashboardNotificationList(DashboardListMixin, generics.ListAPIView):

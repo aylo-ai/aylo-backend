@@ -1,12 +1,11 @@
 import logging
 
 import requests
-from apps.shared import http
-
 from django.conf import settings
 from django.db import transaction
 
 from apps.integration.models import Flow, InstagramUserState, Step
+from apps.shared import http
 from apps.shared.addons.enums import ActionType
 
 logger = logging.getLogger(__name__)

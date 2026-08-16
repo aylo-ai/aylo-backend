@@ -19,13 +19,13 @@ from apps.integration.gateways.telegram import (
 )
 from apps.integration.models import Integration, TelegramGroupIntegration
 from apps.integration.serializers import TelegramGroupSerializer
-from apps.integration.views.mixins import IntegrationOwnedQuerysetMixin
 from apps.integration.tasks import (
     WAIT_SECONDS,
     process_collected_messages,
     process_photo_task,
     process_voice_task,
 )
+from apps.integration.views.mixins import IntegrationOwnedQuerysetMixin
 from apps.shared.addons.redis import redis_client
 from apps.shared.addons.validations import error_response, success_response
 

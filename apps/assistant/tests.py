@@ -5,13 +5,15 @@ Both paths used to raise AttributeError against methods that no longer existed o
 """
 from unittest import mock
 
-from django.test import TestCase
+from django.test import TestCase, override_settings
 
 from apps.assistant.models import (
-    Assistant, AssistantFileUpload, Conversation, Lead, Message,
+    Assistant,
+    AssistantFileUpload,
+    Conversation,
+    Lead,
+    Message,
 )
-from django.test import override_settings
-
 from apps.assistant.serializers import AssistantFileUploadSerializer, MessageSerializer
 from apps.shared.addons.enums import ConversationStatuses, SenderTypes, SubscriptionStatuses
 from apps.shared.ai_service.agent import AgentResult
@@ -253,6 +255,7 @@ class EndpointScopingTests(TestCase):
 
     def setUp(self):
         from rest_framework.test import APIClient
+
         from apps.user.models import User
 
         self.owner = make_subscribed_user()

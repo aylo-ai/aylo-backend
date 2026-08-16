@@ -1,12 +1,6 @@
 """Dashboard billing-catalog endpoints: features, pricing packages, balances, cards."""
 from rest_framework import generics
 
-from apps.payment.models import Balance, Card, Feature, PricingPackage
-from apps.payment.serializers import (
-    BalanceSerializer, CardSerializer, PricingPackageSerializer,
-)
-from apps.shared.permissions import IsAdmin, IsDashboardUser
-from apps.shared.pagination import StandardResultsSetPagination
 from apps.dashboard.models import AuditLog
 from apps.dashboard.serializers.catalog import (
     DashboardFeatureSerializer,
@@ -20,7 +14,15 @@ from apps.dashboard.views.mixins import (
     DashboardPartialUpdateMixin,
     DashboardRetrieveMixin,
 )
+from apps.payment.models import Balance, Card, Feature, PricingPackage
+from apps.payment.serializers import (
+    BalanceSerializer,
+    CardSerializer,
+    PricingPackageSerializer,
+)
 from apps.shared.addons.validations import success_response
+from apps.shared.pagination import StandardResultsSetPagination
+from apps.shared.permissions import IsAdmin, IsDashboardUser
 
 
 class DashboardBalanceList(DashboardListMixin, generics.ListAPIView):

@@ -1,4 +1,5 @@
 from django.urls import path
+
 from apps.landing.views import LandingLeadCreateView, LeadBotWebhookView
 
 urlpatterns = [

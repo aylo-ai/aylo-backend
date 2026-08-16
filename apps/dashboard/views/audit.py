@@ -1,13 +1,13 @@
 """Dashboard audit-log endpoints."""
-from rest_framework import generics, filters
 from django_filters.rest_framework import DjangoFilterBackend
+from rest_framework import filters, generics
 
-from apps.shared.permissions import IsAdmin
-from apps.shared.pagination import StandardResultsSetPagination
 from apps.dashboard.filters import AuditLogFilter
 from apps.dashboard.models import AuditLog
 from apps.dashboard.serializers.audit import AuditLogSerializer
 from apps.dashboard.views.mixins import DashboardListMixin
+from apps.shared.pagination import StandardResultsSetPagination
+from apps.shared.permissions import IsAdmin
 
 
 class DashboardAuditLogList(DashboardListMixin, generics.ListAPIView):

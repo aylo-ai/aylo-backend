@@ -1,18 +1,18 @@
 import hmac
 import logging
 import os
-import requests
-from apps.shared import http
 from random import randint
 
-from config.settings import redis_connection
-from apps.shared.addons.payloads import get_playmobile_payload
-
-from django.core.mail import send_mail
+import requests
 from django.conf import settings
+from django.core.mail import send_mail
 from django.template.loader import render_to_string
 from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
+
+from apps.shared import http
+from apps.shared.addons.payloads import get_playmobile_payload
+from config.settings import redis_connection
 
 logger = logging.getLogger(__name__)
 
@@ -126,7 +126,6 @@ def verify_code_cache(phone_number, code):
     return False, "Code is incorrect"
 
 
-<<<<<<< HEAD
 def send_sms_text(phone_number, text):
     message_id = f"aylo_{randint(100000, 999999)}"
     payload = get_playmobile_payload(phone_number, message_id, originator, text)
@@ -139,8 +138,6 @@ def send_sms_text(phone_number, text):
     return response if response.status_code == 200 else None
 
 
-=======
->>>>>>> 473f4c3bed1052b8f0214fd63847c983cff0e728
 EMAIL_CODE_TTL = 300  # seconds the emailed code stays valid
 
 

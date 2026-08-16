@@ -1,20 +1,32 @@
-from rest_framework import serializers
-from django.db.models import Sum, Count
+from django.db.models import Count, Sum
+from django.db.models.functions import TruncDay, TruncMonth
 from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
-from django.db.models.functions import TruncDay, TruncMonth
+from rest_framework import serializers
 
-from apps.assistant.models import Conversation, Assistant, Message, PromptTemplate, Lead, AssistantFileUpload
-from apps.assistant.serializers import AssistantSerializer, MessageSerializer
-from apps.integration.serializers import IntegrationSerializer
-from apps.payment.models import Transaction, Subscription, PricingPackage, Feature
-from apps.payment.serializers import FeatureSerializer
-from apps.dashboard.models import AuditLog
-from apps.shared.file_validation import validate_document
-from apps.shared.addons.enums import (
-    SenderTypes, UserRoles, PaymentStatuses, MessageTypes, ConversationStatuses,
-    NotificationTypes, SubscriptionStatuses,
+from apps.assistant.models import (
+    Assistant,
+    AssistantFileUpload,
+    Conversation,
+    Lead,
+    Message,
+    PromptTemplate,
 )
+from apps.assistant.serializers import AssistantSerializer, MessageSerializer
+from apps.dashboard.models import AuditLog
+from apps.integration.serializers import IntegrationSerializer
+from apps.payment.models import Feature, PricingPackage, Subscription, Transaction
+from apps.payment.serializers import FeatureSerializer
+from apps.shared.addons.enums import (
+    ConversationStatuses,
+    MessageTypes,
+    NotificationTypes,
+    PaymentStatuses,
+    SenderTypes,
+    SubscriptionStatuses,
+    UserRoles,
+)
+from apps.shared.file_validation import validate_document
 from apps.user.models import User
 
 

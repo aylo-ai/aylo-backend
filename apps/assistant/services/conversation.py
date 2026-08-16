@@ -10,17 +10,16 @@ import logging
 from io import BytesIO
 from shutil import which
 
-from apps.shared import http
-from pydub import AudioSegment
-
 from django.core.files.base import ContentFile
 from django.utils.text import slugify
 from django.utils.translation import gettext_lazy as _
+from pydub import AudioSegment
 
 from apps.assistant.models import Conversation, Message
-from apps.shared.addons.enums import ConversationStatuses, MessageTypes, SenderTypes
-from apps.shared.addons.redis import publish_message_to_ws_assistant
 from apps.integration.gateways.telegram import send_telegram_message
+from apps.shared import http
+from apps.shared.addons.enums import ConversationStatuses, MessageTypes
+from apps.shared.addons.redis import publish_message_to_ws_assistant
 from apps.shared.addons.validations import success_response
 from apps.shared.ai_service import media
 

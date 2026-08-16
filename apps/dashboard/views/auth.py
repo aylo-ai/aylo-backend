@@ -1,14 +1,14 @@
 """Dashboard OTP login endpoints."""
-from rest_framework.views import APIView
 from rest_framework.throttling import AnonRateThrottle
+from rest_framework.views import APIView
 
-from apps.user.models import User
 from apps.dashboard.serializers.auth import (
     DashboardSendOtpLoginSerializer,
     DashboardVerifyOtpLoginSerializer,
 )
-from apps.shared.addons.validations import success_response, error_response
+from apps.shared.addons.validations import error_response, success_response
 from apps.shared.addons.verification import send_code, verify_code_cache
+from apps.user.models import User
 
 
 class DashboardSendOtpLoginView(APIView):

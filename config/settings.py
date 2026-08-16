@@ -1,11 +1,12 @@
 import os
 import sys
-import redis
-from pathlib import Path
-from dotenv import load_dotenv
 from datetime import timedelta
-from django.utils.translation import gettext_lazy as _
+from pathlib import Path
+
+import redis
 from celery.schedules import crontab
+from django.utils.translation import gettext_lazy as _
+from dotenv import load_dotenv
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 load_dotenv()
@@ -289,16 +290,12 @@ CORS_ALLOWED_ORIGINS = [
     "https://app.repli.uz",
     "https://admin.repli.uz",
     "https://dashboard.repli.uz",
-<<<<<<< HEAD
-    "https://df04-82-215-100-92.ngrok-free.app",
-=======
     "https://dev-app.repli.uz",
     "https://dev-api.repli.uz",
     # NOTE: no ngrok/tunnel hosts here. `CORS_ALLOW_CREDENTIALS` is on, and an
     # ephemeral `*.ngrok-free.app` subdomain is handed back out once the tunnel
     # that held it closes — whoever claims it next can read authenticated
     # responses from this API cross-origin.
->>>>>>> 473f4c3bed1052b8f0214fd63847c983cff0e728
 ]
 
 CORS_ALLOW_METHODS = [
@@ -365,13 +362,6 @@ SIMPLE_JWT = {
     "SLIDING_TOKEN_REFRESH_LIFETIME": timedelta(days=1),
 }
 
-<<<<<<< HEAD
-# The single source of truth for languages. There must be a matching
-# `locale/<code>/LC_MESSAGES/django.po` for every entry — a code listed here
-# without a catalog silently serves the Uzbek source strings instead.
-# `ko` is Korean; the catalog lived under `kn` (which is Kannada) until the
-# 2026-07-30 i18n pass, so `ko` clients got nothing at all.
-=======
 # Response headers and cookie flags that only make sense once the site is served
 # over TLS — turning them on under `DEBUG` breaks plain-http local development
 # (the session cookie would never be sent back, so `/admin/` cannot log in).
@@ -390,7 +380,6 @@ if not DEBUG:
     # redirect to itself. Enable it in the same change that adds the TLS server
     # block — see the change report for 2026-08-04.
 
->>>>>>> 473f4c3bed1052b8f0214fd63847c983cff0e728
 LANGUAGES = [
     ('uz', _('Uzbek')),
     ('ru', _('Russian')),
@@ -543,10 +532,6 @@ INSTAGRAM_REDIRECT_URI = os.environ.get("INSTAGRAM_REDIRECT_URI")
 INSTAGRAM_VERIFY_TOKEN = os.environ.get("INSTAGRAM_VERIFY_TOKEN", "")
 INSTAGRAM_APP_SECRET = os.environ.get("INSTAGRAM_APP_SECRET", "")
 
-<<<<<<< HEAD
-# Ceiling on a whole request body, uploads included. nginx enforces the same
-# 100 MB at the edge (client_max_body_size), so this is the second line.
-=======
 # --- Webhook authenticity secrets ---------------------------------------
 # Telegram does not sign webhook payloads. The only control it offers is the
 # `secret_token` registered with setWebhook and returned in the
@@ -559,7 +544,6 @@ TELEGRAM_WEBHOOK_SECRET = os.environ.get("TELEGRAM_WEBHOOK_SECRET", "")
 # own token (LEAD_BOT_TOKEN) and its own webhook.
 LEAD_BOT_WEBHOOK_SECRET = os.environ.get("LEAD_BOT_WEBHOOK_SECRET", "")
 
->>>>>>> 473f4c3bed1052b8f0214fd63847c983cff0e728
 DATA_UPLOAD_MAX_MEMORY_SIZE = 104857600  # 100 MB
 
 # How much of a single uploaded file is buffered in RAM before Django spills it

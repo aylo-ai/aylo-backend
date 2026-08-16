@@ -1,12 +1,8 @@
 """Dashboard integration endpoints."""
-from rest_framework import generics, filters
 from django_filters.rest_framework import DjangoFilterBackend
+from rest_framework import filters, generics
 
 from apps.assistant.models import Conversation, Lead
-from apps.integration.models import Integration
-from apps.integration.serializers import IntegrationSerializer
-from apps.shared.permissions import IsDashboardUser
-from apps.shared.pagination import StandardResultsSetPagination
 from apps.dashboard.filters import IntegrationFilter
 from apps.dashboard.serializers.integrations import DashboardIntegrationListSerializer
 from apps.dashboard.views.mixins import (
@@ -15,6 +11,10 @@ from apps.dashboard.views.mixins import (
     DashboardRetrieveMixin,
     DashboardStatsListMixin,
 )
+from apps.integration.models import Integration
+from apps.integration.serializers import IntegrationSerializer
+from apps.shared.pagination import StandardResultsSetPagination
+from apps.shared.permissions import IsDashboardUser
 
 
 class DashboardIntegrationList(DashboardStatsListMixin, generics.ListAPIView):

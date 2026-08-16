@@ -1,9 +1,17 @@
-from django.db import models
 from django.core.validators import MinValueValidator
+from django.db import models
+
+from apps.shared.addons.enums import (
+    CurrencyType,
+    PaymentMethods,
+    PaymentStatuses,
+    PricingPackageType,
+    SubscriptionStatuses,
+    TransactionTypes,
+)
 from apps.shared.fields import EncryptedTextField
 from apps.shared.models import BaseModel
-from apps.shared.addons.enums import PaymentMethods, PaymentStatuses, CurrencyType, \
-                                    TransactionTypes, PricingPackageType, SubscriptionStatuses
+
 
 class Feature(BaseModel):
     name = models.CharField(max_length=100)
@@ -42,7 +50,7 @@ class PricingPackage(BaseModel):
     features = models.ManyToManyField(Feature, related_name='pricing_packages', blank=True)
     is_active = models.BooleanField(default=True)
     is_popular = models.BooleanField(default=False)
-    
+
     class Meta:
         db_table = 'pricing_package'
         ordering = ["-created_time"]
@@ -132,8 +140,8 @@ class Subscription(BaseModel):
     )
     start_date = models.DateField(null=True, blank=True)
     end_date = models.DateField(null=True, blank=True)
-    status = models.CharField(max_length=100, 
-                              choices=SubscriptionStatuses.choices(), 
+    status = models.CharField(max_length=100,
+                              choices=SubscriptionStatuses.choices(),
                               default=SubscriptionStatuses.INACTIVE.value)
     next_payment_date = models.DateField(null=True, blank=True)
     retry_count = models.IntegerField(default=0)
@@ -162,7 +170,7 @@ class RetryPayment(BaseModel):
     status = models.CharField(max_length=100, choices=PaymentStatuses.choices())
     retry_date = models.DateTimeField(null=True, blank=True)
     error_message = models.TextField(null=True, blank=True)
-    
+
     class Meta:
         db_table = "retry_payment"
         ordering = ["-created_time"]

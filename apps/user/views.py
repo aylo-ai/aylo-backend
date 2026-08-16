@@ -1,30 +1,38 @@
 import logging
 import secrets
-import requests
 from urllib.parse import urlencode
-from django.shortcuts import redirect
+
+import requests
 from django.db.models import Q
-
-from google.oauth2 import id_token as google_id_token
-from google.auth.transport import requests as google_requests
-
+from django.shortcuts import redirect
+from django.utils.translation import gettext_lazy as _
 from django_filters.rest_framework import DjangoFilterBackend
-from rest_framework import generics, status, permissions
+from google.auth.transport import requests as google_requests
+from google.oauth2 import id_token as google_id_token
+from rest_framework import generics, permissions, status
 from rest_framework.throttling import ScopedRateThrottle
 from rest_framework.views import APIView
 from rest_framework_simplejwt.exceptions import TokenError
 from rest_framework_simplejwt.tokens import RefreshToken
-from django.utils.translation import gettext_lazy as _
 
-from config.settings import redis_connection, GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, GOOGLE_REDIRECT_URI
 import apps.user.serializers as serializers
+from apps.shared.addons.enums import AuthTypes, UserRoles
 from apps.shared.addons.validations import error_response, success_response
-from apps.shared.addons.verification import send_code
-from apps.user.models import User, PrivacyPolicy, UserAgreement, Notification
-from apps.shared.addons.verification import send_email_code, verify_email_code, verify_code_cache
+from apps.shared.addons.verification import (
+    send_code,
+    send_email_code,
+    verify_code_cache,
+    verify_email_code,
+)
 from apps.shared.permissions import IsAdmin, IsAdminOrCustomer
-from apps.shared.addons.enums import UserRoles, AuthTypes
+from apps.user.models import Notification, PrivacyPolicy, User, UserAgreement
 from apps.user.services.throttles import OtpSendIdentifierThrottle, OtpVerifyIdentifierThrottle
+from config.settings import (
+    GOOGLE_CLIENT_ID,
+    GOOGLE_CLIENT_SECRET,
+    GOOGLE_REDIRECT_URI,
+    redis_connection,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -206,7 +214,6 @@ class LogoutView(APIView):
         # Both branches say the same thing to the client; the exception class
         # belonged in the log, not in a user-facing message.
         except TokenError:
-<<<<<<< HEAD
             logger.info("Logout rejected: invalid refresh token")
             return error_response(
                 code=status.HTTP_400_BAD_REQUEST, message=_("Noto'g'ri refresh token")
@@ -215,12 +222,7 @@ class LogoutView(APIView):
             logger.exception("Logout failed while blacklisting refresh token")
             return error_response(
                 code=status.HTTP_400_BAD_REQUEST, message=_("Noto'g'ri refresh token")
-=======
             # Already expired, already blacklisted, or forged — all of them mean
-            # the same thing to the caller.
-            return error_response(
-                code=status.HTTP_400_BAD_REQUEST, message=_("Noto'g'ri refresh token")
->>>>>>> 473f4c3bed1052b8f0214fd63847c983cff0e728
             )
 
 

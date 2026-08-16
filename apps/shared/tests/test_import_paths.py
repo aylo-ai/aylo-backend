@@ -33,16 +33,16 @@ class SingleImportPathTests(SimpleTestCase):
         self.assertEqual(loaded, [], f"duplicate module objects loaded: {loaded}")
 
     def test_singletons_have_one_identity(self):
-        from apps.shared.addons.redis import redis_client
-        from apps.shared.ai_service.agent import agent
         from apps.assistant.services.conversation import conversation_service
-
-        # Re-importing through the same (only) path must yield the same object.
-        from apps.shared.addons.redis import redis_client as redis_again
-        from apps.shared.ai_service.agent import agent as agent_again
         from apps.assistant.services.conversation import (
             conversation_service as service_again,
         )
+        from apps.shared.addons.redis import redis_client
+
+        # Re-importing through the same (only) path must yield the same object.
+        from apps.shared.addons.redis import redis_client as redis_again
+        from apps.shared.ai_service.agent import agent
+        from apps.shared.ai_service.agent import agent as agent_again
 
         self.assertIs(redis_client, redis_again)
         self.assertIs(agent, agent_again)

@@ -7,10 +7,6 @@ from rest_framework import generics, permissions
 
 from apps.integration.gateways.instagram import instagram_service
 from apps.integration.models import Integration
-from apps.integration.views.mixins import (
-    IntegrationOwnedQuerysetMixin,
-    owned_integrations,
-)
 from apps.integration.serializers import (
     IntegrationCreateSerializer,
     IntegrationSerializer,
@@ -18,6 +14,10 @@ from apps.integration.serializers import (
     SendUserMessageSerializer,
 )
 from apps.integration.tasks import send_message_integration_task
+from apps.integration.views.mixins import (
+    IntegrationOwnedQuerysetMixin,
+    owned_integrations,
+)
 from apps.shared.addons.enums import IntegrationTypes
 from apps.shared.addons.validations import error_response, success_response
 from apps.shared.permissions import IsCustomer

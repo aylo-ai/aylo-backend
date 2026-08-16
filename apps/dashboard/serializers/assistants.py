@@ -1,7 +1,7 @@
 """Assistant, assistant-file and prompt-template serializers for the dashboard."""
 from rest_framework import serializers
 
-from apps.assistant.models import Assistant, PromptTemplate, AssistantFileUpload
+from apps.assistant.models import Assistant, AssistantFileUpload, PromptTemplate
 from apps.shared.addons.enums import IntegrationTypes
 
 

@@ -1,7 +1,7 @@
 """Subscription serializers for the dashboard."""
 from rest_framework import serializers
 
-from apps.payment.models import Subscription, PricingPackage
+from apps.payment.models import PricingPackage, Subscription
 
 
 class DashboardSubscriptionSerializer(serializers.ModelSerializer):

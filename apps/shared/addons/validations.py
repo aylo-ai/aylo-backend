@@ -1,8 +1,8 @@
-import string
 import re
-from django.utils.translation import gettext_lazy as _
+import string
 
 import phonenumbers
+from django.utils.translation import gettext_lazy as _
 from rest_framework import status
 from rest_framework.exceptions import APIException, _get_error_details
 from rest_framework.response import Response
@@ -64,7 +64,7 @@ def check_number(phone_number):
         return phonenumbers.is_valid_number(phone_number)
     except phonenumbers.NumberParseException:
         return False
-    
+
 def check_email_phone_number(email_phone_number):
     """
     Check if the provided email or phone number is valid.
@@ -84,7 +84,7 @@ def check_email_phone_number(email_phone_number):
         return {
             "message": "Invalid email or phone number format."
         }
-    
+
 
 
 def phone_number_validation(value):  # noqa

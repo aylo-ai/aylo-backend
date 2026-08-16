@@ -1,29 +1,35 @@
-from apps.shared import http
-
-from rest_framework import serializers
-from django.utils.translation import gettext_lazy as _
 from django.shortcuts import get_object_or_404
+from django.utils.translation import gettext_lazy as _
+from rest_framework import serializers
 
-
-from apps.assistant.models import Conversation, Assistant
-from apps.assistant.utils import owned_assistants
-from apps.shared.addons.enums import IntegrationTypes, ConversationPlatforms, ConversationStatuses
-from apps.integration.gateways.telegram import telegram_get_me, set_telegram_webhook, get_webhook_info, send_telegram_message
+from apps.assistant.models import Assistant, Conversation
 from apps.assistant.services.conversation import conversation_service
+from apps.assistant.utils import owned_assistants
+from apps.integration.gateways.telegram import (
+    get_webhook_info,
+    send_telegram_message,
+    set_telegram_webhook,
+    telegram_get_me,
+)
+from apps.shared import http
+from apps.shared.addons.enums import ConversationPlatforms, ConversationStatuses, IntegrationTypes
 from apps.shared.addons.validations import raise_validation_error, success_response
 from apps.shared.file_validation import validate_image
 from apps.shared.mixins import SubscriptionValidationMixin
-from .models import (Integration,
-                    TelegramGroupIntegration,
-                    InstagramMedia,
-                    CommentTriggerWord,
-                    InstagramCommentResponse,
-                    CommentResponseButton,
-                    Step,
-                    Transition,
-                    Flow,
-                    InstagramUserState,
-                    Broadcast)
+
+from .models import (
+    Broadcast,
+    CommentResponseButton,
+    CommentTriggerWord,
+    Flow,
+    InstagramCommentResponse,
+    InstagramMedia,
+    InstagramUserState,
+    Integration,
+    Step,
+    TelegramGroupIntegration,
+    Transition,
+)
 
 
 def _non_null_int(value, default=0):
@@ -276,7 +282,7 @@ class InstagramMediaSerializer(serializers.ModelSerializer):
         data.setdefault("like_count", instance.like_count)
         data.setdefault("children", instance.children)
         return data
-                
+
 
 class CommentTriggerWordSerializer(serializers.ModelSerializer):
     # The column is `blank=True`, which would make DRF treat it as optional and
@@ -293,9 +299,9 @@ class CommentTriggerWordSerializer(serializers.ModelSerializer):
     def validate_trigger_word(self, value):
         if not value or not value.strip():
             raise serializers.ValidationError(_("Trigger word bo'sh bo'lishi mumkin emas"))
-        
+
         return value.strip()
-    
+
 class CommentResponseButtonSerializer(serializers.ModelSerializer):
     class Meta:
         model = CommentResponseButton
@@ -377,13 +383,13 @@ class InstagramCommentResponseSerializer(serializers.ModelSerializer):
                 media.like_count = media_data.get('like_count', media.like_count)
                 media.save()
             instagram_media_objs.append(media)
-        
+
         if instagram_media_objs:
             instance.instagram_media.add(*instagram_media_objs)
 
         instance.save()
         return instance
-    
+
     def update(self, instance, validated_data):
         """Replace the trigger's words / media **links**, not the shared rows.
 
@@ -463,18 +469,18 @@ class InstagramCommentResponseSerializer(serializers.ModelSerializer):
                     media.delete()
 
         return instance
-    
+
     def to_representation(self, instance):
         data = super().to_representation(instance)
         flow = instance.flows.first()
-        
+
         if flow:
             last_step = flow.steps.filter(end_point=True).first()
-            
+
             conversion_rate = 0
             if last_step and last_step.count > 0:
                 conversion_rate = round((flow.total_count / last_step.count) * 100)
-            
+
             data['flow'] = {
                 "total_count": flow.total_count,
                 "conversion": conversion_rate
@@ -484,14 +490,14 @@ class InstagramCommentResponseSerializer(serializers.ModelSerializer):
                 "total_count": 0,
                 "conversion": 0
             }
-        
+
         return data
-    
+
 class TransitionListSerializer(serializers.ListSerializer):
     def create(self, validated_data):
         transitions = [Transition(**item) for item in validated_data]
         return Transition.objects.bulk_create(transitions)
-    
+
 class TransitionSerializer(serializers.ModelSerializer):
     class Meta:
         model = Transition

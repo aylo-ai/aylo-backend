@@ -18,10 +18,11 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 os.environ.setdefault("DJANGO_SETTINGS_MODULE", "config.settings")
 django.setup()
 
-from apps.assistant.models import Assistant, Conversation, Lead  # noqa: E402
 from shared.addons.enums import ConversationStatuses  # noqa: E402
 from shared.ai_service import knowledge_base  # noqa: E402
 from shared.ai_service.agent import agent  # noqa: E402
+
+from apps.assistant.models import Assistant, Conversation, Lead  # noqa: E402
 
 CATALOGUE = """
 SMOKE TEST PRODUCT CATALOGUE

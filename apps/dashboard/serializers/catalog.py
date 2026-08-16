@@ -1,13 +1,13 @@
 """Pricing-package and feature catalog serializers for the dashboard."""
-from rest_framework import serializers
 from django.db.models import Sum
+from rest_framework import serializers
 
-from apps.assistant.models import Conversation, Assistant, Message
-from apps.payment.models import PricingPackage, Feature
+from apps.assistant.models import Assistant, Conversation, Message
+from apps.dashboard.serializers.common import StrictCharField
+from apps.payment.models import Feature, PricingPackage
 from apps.payment.serializers import FeatureSerializer
 from apps.shared.addons.enums import SenderTypes, SubscriptionStatuses
 from apps.user.models import User
-from apps.dashboard.serializers.common import StrictCharField
 
 
 class DashboardPricingPackageDetailSerializer(serializers.ModelSerializer):

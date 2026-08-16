@@ -1,8 +1,8 @@
-from rest_framework import generics, permissions, filters
 from django_filters.rest_framework import DjangoFilterBackend
+from rest_framework import filters, generics, permissions
 
-from apps.blog.models import BlogPost
 import apps.blog.serializers as serializers
+from apps.blog.models import BlogPost
 from apps.shared.addons.validations import success_response
 
 

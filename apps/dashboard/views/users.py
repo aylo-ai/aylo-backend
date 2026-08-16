@@ -3,25 +3,25 @@ import csv
 
 from django.db.models import Q
 from django.http import HttpResponse
-from rest_framework import generics, filters
-from rest_framework.views import APIView
 from django_filters.rest_framework import DjangoFilterBackend
+from rest_framework import filters, generics
+from rest_framework.views import APIView
 
-from apps.user.models import User
-from apps.shared.permissions import IsAdmin, IsDashboardUser, CanManageUsers
-from apps.shared.addons.enums import UserRoles
-from apps.shared.pagination import StandardResultsSetPagination
 from apps.dashboard.filters import UserFilter
 from apps.dashboard.models import AuditLog
 from apps.dashboard.serializers.users import (
-    DashboardUserSerializer,
-    DashboardUserListSerializer,
     ChangeRoleSerializer,
+    DashboardUserListSerializer,
+    DashboardUserSerializer,
     UserBulkActionSerializer,
 )
 from apps.dashboard.views.base import get_client_ip
 from apps.dashboard.views.mixins import DashboardRetrieveMixin
-from apps.shared.addons.validations import success_response, error_response
+from apps.shared.addons.enums import UserRoles
+from apps.shared.addons.validations import error_response, success_response
+from apps.shared.pagination import StandardResultsSetPagination
+from apps.shared.permissions import CanManageUsers, IsAdmin, IsDashboardUser
+from apps.user.models import User
 
 
 class DashboardUserList(generics.ListAPIView):

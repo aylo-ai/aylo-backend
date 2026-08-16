@@ -1,9 +1,8 @@
 """Instagram button-flow tasks: postback handling and step delivery."""
 import logging
 
-from django.db import transaction
-
 from celery import shared_task
+from django.db import transaction
 
 from apps.integration.gateways.instagram import instagram_service
 

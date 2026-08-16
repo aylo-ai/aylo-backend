@@ -7,6 +7,7 @@ assistant's knowledge base actually needs. Used by the Billz sync tasks in
 import logging
 
 import requests
+
 from apps.shared import http
 
 logger = logging.getLogger(__name__)

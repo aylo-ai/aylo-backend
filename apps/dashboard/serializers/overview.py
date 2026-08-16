@@ -1,13 +1,16 @@
 """Dashboard overview, enhanced-stats and time-series statistics serializers."""
-from rest_framework import serializers
-from django.db.models import Sum, Count
-from django.utils import timezone
+from django.db.models import Count, Sum
 from django.db.models.functions import TruncDay, TruncMonth
+from django.utils import timezone
+from rest_framework import serializers
 
-from apps.assistant.models import Conversation, Assistant, Message
-from apps.payment.models import Transaction, Subscription
+from apps.assistant.models import Assistant, Conversation, Message
+from apps.payment.models import Subscription, Transaction
 from apps.shared.addons.enums import (
-    SenderTypes, PaymentStatuses, MessageTypes, ConversationStatuses,
+    ConversationStatuses,
+    MessageTypes,
+    PaymentStatuses,
+    SenderTypes,
     SubscriptionStatuses,
 )
 from apps.user.models import User

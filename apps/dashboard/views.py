@@ -4,68 +4,87 @@ from datetime import timedelta
 from django.db.models import Count, Q
 from django.http import HttpResponse
 from django.utils import timezone
-from rest_framework import generics, filters
-from rest_framework.views import APIView
-from rest_framework.throttling import AnonRateThrottle
 from django_filters.rest_framework import DjangoFilterBackend
+from rest_framework import filters, generics
+from rest_framework.throttling import AnonRateThrottle
+from rest_framework.views import APIView
 
-from apps.user.models import User, Notification
-from apps.user.serializers import NotificationSerializer
-from apps.assistant.serializers import (
-    AssistantSerializer, MessageSerializer, AssistantFileUploadSerializer,
+from apps.assistant.models import (
+    Assistant,
+    AssistantFileUpload,
+    Conversation,
+    Lead,
+    Message,
+    PromptTemplate,
 )
-from apps.assistant.models import Assistant, Conversation, Message, AssistantFileUpload, PromptTemplate, Lead
-from apps.payment.models import Transaction, Subscription, Balance, Card, Feature, PricingPackage
-from apps.payment.serializers import (
-    BalanceSerializer, CardSerializer, PricingPackageSerializer,
+from apps.assistant.serializers import (
+    AssistantFileUploadSerializer,
+    AssistantSerializer,
+    MessageSerializer,
+)
+from apps.dashboard.filters import (
+    AssistantFilter,
+    AuditLogFilter,
+    ConversationFilter,
+    IntegrationFilter,
+    LeadFilter,
+    SubscriptionFilter,
+    TransactionFilter,
+    UserFilter,
+)
+from apps.dashboard.models import AuditLog
+from apps.dashboard.serializers import (
+    AssistantFileFilterSerializer,
+    AuditLogSerializer,
+    ChangeRoleSerializer,
+    DashboardAssistantCreateSerializer,
+    DashboardAssistantCreateUserSerializer,
+    DashboardAssistantFileUploadSerializer,
+    DashboardAssistantListSerializer,
+    DashboardConversationListSerializer,
+    DashboardConversationSerializer,
+    DashboardEnhancedStatsSerializer,
+    DashboardFeatureSerializer,
+    DashboardIntegrationListSerializer,
+    DashboardLeadSerializer,
+    DashboardPricingPackageDetailSerializer,
+    DashboardPromptTemplateSerializer,
+    DashboardSendOtpLoginSerializer,
+    DashboardSerializer,
+    DashboardStatisticsSerializer,
+    DashboardSubscriptionSerializer,
+    DashboardSubscriptionUpdateSerializer,
+    DashboardTransactionSerializer,
+    DashboardUserListSerializer,
+    DashboardUserSerializer,
+    DashboardVerifyOtpLoginSerializer,
+    NotificationSendSerializer,
+    RefundSerializer,
+    SubscriptionExtendSerializer,
+    TransactionBulkActionSerializer,
+    UserBulkActionSerializer,
 )
 from apps.integration.models import InstagramCommentResponse, Integration
 from apps.integration.serializers import InstagramCommentResponseSerializer, IntegrationSerializer
-from apps.shared.permissions import IsAdmin, IsDashboardUser, CanManageUsers, CanManageFinance
+from apps.payment.models import Balance, Card, Feature, PricingPackage, Subscription, Transaction
+from apps.payment.serializers import (
+    BalanceSerializer,
+    CardSerializer,
+    PricingPackageSerializer,
+)
 from apps.shared.addons.enums import (
-    UserRoles, PaymentStatuses, ConversationStatuses, SenderTypes,
+    ConversationStatuses,
+    PaymentStatuses,
+    SenderTypes,
     SubscriptionStatuses,
+    UserRoles,
 )
-from apps.shared.pagination import StandardResultsSetPagination
-from apps.dashboard.filters import (
-    SubscriptionFilter, TransactionFilter, UserFilter,
-    AssistantFilter, ConversationFilter, IntegrationFilter,
-    LeadFilter, AuditLogFilter,
-)
-from apps.dashboard.serializers import (
-    DashboardConversationSerializer,
-    DashboardConversationListSerializer,
-    DashboardSendOtpLoginSerializer,
-    DashboardVerifyOtpLoginSerializer,
-    DashboardSerializer,
-    DashboardUserSerializer,
-    DashboardStatisticsSerializer,
-    DashboardEnhancedStatsSerializer,
-    DashboardUserListSerializer,
-    DashboardSubscriptionSerializer,
-    DashboardPromptTemplateSerializer,
-    DashboardTransactionSerializer,
-    DashboardLeadSerializer,
-    DashboardIntegrationListSerializer,
-    DashboardAssistantListSerializer,
-    DashboardAssistantCreateSerializer,
-    DashboardAssistantFileUploadSerializer,
-    DashboardPricingPackageDetailSerializer,
-    AuditLogSerializer,
-    ChangeRoleSerializer,
-    RefundSerializer,
-    UserBulkActionSerializer,
-    TransactionBulkActionSerializer,
-    NotificationSendSerializer,
-    DashboardAssistantCreateUserSerializer,
-    AssistantFileFilterSerializer,
-    SubscriptionExtendSerializer,
-    DashboardSubscriptionUpdateSerializer,
-    DashboardFeatureSerializer,
-)
-from apps.dashboard.models import AuditLog
-from apps.shared.addons.validations import success_response, error_response
+from apps.shared.addons.validations import error_response, success_response
 from apps.shared.addons.verification import send_code, verify_code_cache
+from apps.shared.pagination import StandardResultsSetPagination
+from apps.shared.permissions import CanManageFinance, CanManageUsers, IsAdmin, IsDashboardUser
+from apps.user.models import Notification, User
+from apps.user.serializers import NotificationSerializer
 
 
 def get_client_ip(request):
@@ -1215,8 +1234,8 @@ class DashboardSystemHealthView(APIView):
 
     def get(self, request, *args, **kwargs):
         import redis as redis_lib
-        from django.db import connection
         from django.conf import settings
+        from django.db import connection
 
         health = {
             'database': {'status': 'unknown', 'detail': ''},
@@ -1290,7 +1309,7 @@ class DashboardAICostBreakdownView(APIView):
     permission_classes = [IsDashboardUser]
 
     def get(self, request, *args, **kwargs):
-        from django.db.models import Sum, Count, F
+        from django.db.models import Count, F, Sum
 
         period = request.query_params.get('period', '30d')
         now = timezone.now().date()
@@ -1519,7 +1538,7 @@ class DashboardGlobalSearch(APIView):
                 'id': str(t.id),
                 'title': f'{t.amount} {t.currency} - {t.status}',
                 'subtitle': t.user.username if t.user else 'Unknown',
-                'url': f'/transactions',
+                'url': '/transactions',
             })
 
         return success_response(data={'results': results}, message='Search completed', code=200)

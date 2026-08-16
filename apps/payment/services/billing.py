@@ -1,13 +1,17 @@
 import logging
 import random
-from datetime import timedelta, datetime
-
-from apps.shared import http
+from datetime import datetime, timedelta
 
 from apps.payment.models import Balance, Transaction
+from apps.shared import http
+from apps.shared.addons.enums import (
+    NotificationTypes,
+    PaymentStatuses,
+    SubscriptionStatuses,
+    TransactionTypes,
+)
 from apps.user.models import Notification
 from config import settings
-from apps.shared.addons.enums import TransactionTypes, PaymentStatuses, SubscriptionStatuses, NotificationTypes
 
 logger = logging.getLogger(__name__)
 
@@ -106,7 +110,7 @@ def send_create_card_request(card_number, card_expiry):
         "method": "cards.create",
         "params": {
             "card":{
-                "number": card_number, 
+                "number": card_number,
                 "expire": card_expiry},
             "save": True,
         }
@@ -117,7 +121,7 @@ def send_create_card_request(card_number, card_expiry):
     )
     return _json_body(response)
 
-    
+
 def send_verify_code_request(card_token):
     """Verify a card code in Payme."""
     payload = {
@@ -129,7 +133,7 @@ def send_verify_code_request(card_token):
         settings.PAYME_API_URL, json=payload, headers=headers
     )
     return _json_body(response)
-    
+
 def verify_payme_card_token(card_token, verify_code):
     """Verify a card in Payme."""
     payload = {
@@ -141,7 +145,7 @@ def verify_payme_card_token(card_token, verify_code):
         settings.PAYME_API_URL, json=payload, headers=headers
     )
     return _json_body(response)
-    
+
 
 def commit_payme_receipt(card_token, receipt_id):
     """Commit a receipt in Payme."""
