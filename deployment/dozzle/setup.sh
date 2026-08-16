@@ -11,6 +11,11 @@
 # users.yml is gitignored — it is a host secret, like .env.
 #
 # Re-run to add another user; the new entry is appended to the existing file.
+#
+# nginx denies /_logs/ to every remote address (deployment/nginx/api.aylo.uz.conf),
+# so reach the viewer through an SSH tunnel:
+#   ssh -N -L 8080:127.0.0.1:8080 root@api.aylo.uz
+#   open http://127.0.0.1:8080/_logs/
 set -euo pipefail
 
 USERNAME="${1:-}"
@@ -34,7 +39,7 @@ if [ "$PASSWORD" != "$PASSWORD_CONFIRM" ]; then
     exit 1
 fi
 if [ "${#PASSWORD}" -lt 12 ]; then
-    echo "Use at least 12 characters — this page is reachable from the internet." >&2
+    echo "Use at least 12 characters — this login guards every container log." >&2
     exit 1
 fi
 
