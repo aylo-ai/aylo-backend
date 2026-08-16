@@ -78,7 +78,7 @@ class AssistantSerializer(serializers.ModelSerializer,
             "is_instagram_integration": instagram_count,
             "is_widget_integration": widget_count,
         }
-    
+
     def validate(self, attrs):
         user = self.context.get("request").user
         self.validate_subscription(user.subscription)
@@ -268,20 +268,11 @@ class MessageSerializer(serializers.ModelSerializer, SubscriptionValidationMixin
         sender = validated_data.get("sender")
         if audio_file:
             audio_bytes = audio_file.read()
-<<<<<<< HEAD
-            # Not `_`: that name is gettext, and binding it here makes it a
-            # local for the whole method — the `_("Request obyekti kerak")`
-            # above then raises UnboundLocalError (a 500) instead of the
-            # validation error it is meant to raise.
-            transcribed_text, _input_tokens, _output_tokens = media.transcribe_audio(
-                audio_bytes, filename=audio_file.name,
-=======
             # Not `_`: unpacking into it would rebind gettext's `_` as a local
             # for this whole method, so the `_("Request obyekti kerak")` above
             # raised UnboundLocalError instead of a clean validation error.
             transcribed_text, _in_tokens, _out_tokens = media.transcribe_audio(
                 audio_bytes, filename=audio_file.name
->>>>>>> 52bec15459250531c273f2ed013db1b3fff8d784
             )
             validated_data["message_content"] = transcribed_text
             validated_data["message_type"] = MessageTypes.AUDIO.value
@@ -368,7 +359,7 @@ class AssistantFileUploadSerializer(serializers.ModelSerializer, SubscriptionVal
         request = self.context.get("request")
         files = self.context.get('files')
         assistant = self.context.get("assistant")
-        
+
         if not assistant:
             raise_validation_error(message=_("Assistant kerak"))
 
@@ -463,7 +454,7 @@ class UpdateFileUploadSerializer(serializers.ModelSerializer, SubscriptionValida
             raise_validation_error(message=_("Request obyekt kerak"))
         files = self.context.get('files')
         assistant = self.context.get("assistant")
-        
+
         if not files or not assistant:
             raise_validation_error(message=_("Fayl va assistant kerak"))
 
@@ -567,7 +558,7 @@ class LeadSerializer(serializers.ModelSerializer):
         # bypassing the ownership check the view had already performed.
         read_only_fields = ["assistant", "created_time", "updated_time"]
 
-    
+
 class LeadExportSerializer(serializers.Serializer):
     def export_leads(self, assistant_id):
         """Build the leads workbook in memory.
