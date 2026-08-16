@@ -32,7 +32,6 @@ app.conf.task_routes = {
     'apps.integration.tasks.update_billz_products_hourly': {'queue': 'sync'},
     'apps.integration.tasks.fetch_and_save_billz_products': {'queue': 'sync'},
     # Assistant file tasks
-    'apps.assistant.tasks.save_uploaded_file': {'queue': 'sync'},
     'apps.assistant.tasks.daily_statistics_assistant': {'queue': 'sync'},
     'apps.assistant.tasks.process_follow_ups': {'queue': 'sync'},
 }

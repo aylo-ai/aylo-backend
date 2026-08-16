@@ -29,7 +29,10 @@ ALLOWED_HOSTS = os.environ.get(
 # Tests intentionally simulate outages (OpenAI down, Redis down, …) and the
 # fail-soft code logs them. Silence logging during test runs so a green run
 # reads green — only real test failures show up.
-TESTING = "test" in sys.argv
+# `sys.argv[1:2]` rather than `"test" in sys.argv`, which also matched innocent
+# tokens such as `loaddata test` or `--output test`; the pytest check catches
+# runs that never go through manage.py.
+TESTING = sys.argv[1:2] == ["test"] or "PYTEST_CURRENT_TEST" in os.environ
 if TESTING:
     import logging
 
@@ -114,8 +117,8 @@ REST_FRAMEWORK = {
 }
 
 SPECTACULAR_SETTINGS = {
-    "TITLE": "Repli new brand AI system",
-    "DESCRIPTION": "Repli.uz swagger docs (rest api service)",
+    "TITLE": "Aylo new brand AI system",
+    "DESCRIPTION": "Aylo.uz swagger docs (rest api service)",
     "VERSION": "1.0.0",
     "SERVE_INCLUDE_SCHEMA": False,
     "SWAGGER_UI_DIST": "SIDECAR",
@@ -220,12 +223,15 @@ CORS_ALLOWED_ORIGINS = [
     "https://app.aylo.uz",
     "https://admin.aylo.uz",
     "https://dashboard.aylo.uz",
+    "https://dev-app.aylo.uz",
+    "https://dev-api.aylo.uz",
+    # Previous brand. Kept deliberately: any frontend, mobile client or webhook
+    # still pointing at repli.uz would start failing CORS the moment these go,
+    # and there is no security cost to listing a domain we control.
     "https://repli.uz",
     "https://app.repli.uz",
     "https://admin.repli.uz",
     "https://dashboard.repli.uz",
-    "https://dev-app.repli.uz",
-    "https://dev-api.repli.uz",
     "https://df04-82-215-100-92.ngrok-free.app",
 ]
 
@@ -320,9 +326,14 @@ STATIC_URL = "/static/"  # URL for serving static files
 STATIC_ROOT = os.path.join(BASE_DIR, "staticfiles")
 
 
-# # Media files (user-uploaded content)
-MEDIA_URL = "/media/"  # URL for serving media files
-MEDIA_ROOT = os.path.join(BASE_DIR, "media")  # Directory for storing media files
+# Media files (user-uploaded content) are NOT served from the local filesystem —
+# they live in MinIO and are reached through presigned URLs. See the object
+# storage block further down.
+#
+# MEDIA_ROOT is unused by the object-storage backend and kept only because
+# third-party code reads it. Uploads too large for FILE_UPLOAD_MAX_MEMORY_SIZE
+# spill to FILE_UPLOAD_TEMP_DIR (the system temp dir), never here.
+MEDIA_ROOT = os.path.join(BASE_DIR, "media")
 
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 AUTH_USER_MODEL = "user.User"
@@ -437,29 +448,120 @@ INSTAGRAM_REDIRECT_URI = os.environ.get("INSTAGRAM_REDIRECT_URI")
 INSTAGRAM_VERIFY_TOKEN = os.environ.get("INSTAGRAM_VERIFY_TOKEN", "")
 INSTAGRAM_APP_SECRET = os.environ.get("INSTAGRAM_APP_SECRET", "")
 
+# Ceiling on a whole request body, uploads included. nginx enforces the same
+# 100 MB at the edge (client_max_body_size), so this is the second line.
 DATA_UPLOAD_MAX_MEMORY_SIZE = 104857600  # 100 MB
-FILE_UPLOAD_MAX_MEMORY_SIZE = 104857600  # 100 MB
+
+# How much of a single uploaded file is buffered in RAM before Django spills it
+# to a temp file. This is deliberately NOT 100 MB: at that value a handful of
+# concurrent large uploads can exhaust the container's memory, and gunicorn
+# workers get OOM-killed mid-request. 5 MB keeps ordinary images and audio in
+# memory while streaming knowledge-base documents to disk.
+FILE_UPLOAD_MAX_MEMORY_SIZE = 5 * 1024 * 1024  # 5 MB
+
+# Uploaded files must never be world-readable on the local disk while they are
+# staged on their way to object storage.
+FILE_UPLOAD_PERMISSIONS = 0o600
 
 
-#AWS Bucket S3 Settings
-AWS_ACCESS_KEY_ID = os.environ.get("AWS_ACCESS_KEY_ID")
-AWS_SECRET_ACCESS_KEY = os.environ.get("AWS_SECRET_ACCESS_KEY")
-AWS_S3_CUSTOM_DOMAIN = os.environ.get("AWS_S3_CUSTOM_DOMAIN")
+# --- Object storage (MinIO, S3-compatible) -----------------------------------
+#
+# The bucket is private. Nothing is served by anonymous URL; apps.shared.storages
+# .MediaStorage hands out presigned URLs that expire after MINIO_URL_EXPIRY.
+#
+# Configuration goes through STORAGES["default"]["OPTIONS"] rather than the
+# global AWS_* settings, so the legacy AWS credentials below can coexist without
+# django-storages picking them up by accident.
+MINIO_ACCESS_KEY = os.environ.get("MINIO_ACCESS_KEY")
+MINIO_SECRET_KEY = os.environ.get("MINIO_SECRET_KEY")
+MINIO_BUCKET_NAME = os.environ.get("MINIO_BUCKET_NAME", "aylo-media")
 
-# File storage
-AWS_STORAGE_BUCKET_NAME = os.environ.get("AWS_STORAGE_BUCKET_NAME")
-AWS_S3_REGION_NAME = os.environ.get("AWS_S3_REGION_NAME")
+# Internal endpoint the app and Celery workers use for reads and writes.
+MINIO_ENDPOINT_URL = os.environ.get("MINIO_ENDPOINT_URL", "http://minio:9000")
 
+# Public origin (scheme + host, no path) that presigned URLs are signed against
+# and that browsers fetch from. Empty in local development, where the internal
+# endpoint is already reachable from the browser.
+MINIO_PUBLIC_URL = os.environ.get("MINIO_PUBLIC_URL", "").rstrip("/")
 
+# `or` rather than a default argument: os.environ.get returns "" for a key that
+# is present but blank in .env, and int("") is a ValueError at import — the
+# container would never boot, with a traceback that names neither the file nor
+# the variable.
+MINIO_URL_EXPIRY = int(os.environ.get("MINIO_URL_EXPIRY") or 3600)
 
-MEDIA_URL = '/media/'
+# Server-side encryption at rest. Off by default and deliberately so: MinIO
+# rejects PutObject with an SSE header unless a KMS is configured
+# (MINIO_KMS_SECRET_KEY on the server), so switching this on without that turns
+# every upload into a 500. Enable both together, and back the key up — losing it
+# loses the objects. Host-level disk encryption covers the same threat without
+# the key-management burden.
+MINIO_SERVER_SIDE_ENCRYPTION = os.environ.get("MINIO_SERVER_SIDE_ENCRYPTION", "")
+
+MEDIA_URL = f"/{MINIO_BUCKET_NAME}/"
 
 STORAGES = {
     "default": {
-        "BACKEND": "storages.backends.s3boto3.S3Boto3Storage",
+        "BACKEND": "apps.shared.storages.MediaStorage",
+        "OPTIONS": {
+            "bucket_name": MINIO_BUCKET_NAME,
+            "endpoint_url": MINIO_ENDPOINT_URL,
+            "public_endpoint_url": MINIO_PUBLIC_URL or None,
+            "access_key": MINIO_ACCESS_KEY,
+            "secret_key": MINIO_SECRET_KEY,
+            "querystring_expire": MINIO_URL_EXPIRY,
+            # MinIO only implements path-style addressing; the virtual-host
+            # style boto3 defaults to would resolve <bucket>.minio, which does
+            # not exist on the compose network.
+            "addressing_style": "path",
+            "signature_version": "s3v4",
+            # MinIO ignores the region but SigV4 requires one in the signature,
+            # and it must be identical on both the signing and serving side.
+            "region_name": os.environ.get("MINIO_REGION_NAME", "us-east-1"),
+            # django-storages sets an object's ContentType from the client's
+            # multipart part header, so an allowlisted `.txt` can be stored as
+            # `text/html` and would render as a page on the API's own origin.
+            # Forcing a download disposition makes the stored type inert
+            # regardless of what the uploader claimed.
+            "object_parameters": {
+                "ContentDisposition": "attachment",
+                **(
+                    {"ServerSideEncryption": MINIO_SERVER_SIDE_ENCRYPTION}
+                    if MINIO_SERVER_SIDE_ENCRYPTION
+                    else {}
+                ),
+            },
+        },
     },
     "staticfiles": {"BACKEND": "django.contrib.staticfiles.storage.StaticFilesStorage"},
 }
+
+# Tests must never touch a real bucket. Without this, any test that saves a
+# FileField issues a live PutObject — which "passed" only because this checkout
+# has no credentials, and would have written test fixtures straight into
+# production MinIO the moment it did. CLAUDE.md §5 requires offline tests; this
+# is what enforces it for storage. apps/shared/tests/test_storage.py asserts it.
+if TESTING:
+    STORAGES["default"] = {"BACKEND": "django.core.files.storage.InMemoryStorage"}
+
+
+# Google service-account key used to read Docs and Sheets. This was a hardcoded
+# path to a key committed inside apps/shared/addons/ — point it at a file
+# mounted into the container instead, and keep the key out of the repository.
+GOOGLE_SERVICE_ACCOUNT_FILE = os.environ.get(
+    "GOOGLE_SERVICE_ACCOUNT_FILE",
+    os.path.join(BASE_DIR, "secrets", "google-service-account.json"),
+)
+
+
+# --- AWS S3 (legacy) ---------------------------------------------------------
+# Read only by `manage.py migrate_media_to_minio`, which copies objects out of
+# the old bucket. Nothing else should reference these. Delete once the
+# migration has been verified.
+AWS_ACCESS_KEY_ID = os.environ.get("AWS_ACCESS_KEY_ID")
+AWS_SECRET_ACCESS_KEY = os.environ.get("AWS_SECRET_ACCESS_KEY")
+AWS_STORAGE_BUCKET_NAME = os.environ.get("AWS_STORAGE_BUCKET_NAME")
+AWS_S3_REGION_NAME = os.environ.get("AWS_S3_REGION_NAME")
 
 CELERY_BEAT_SCHEDULE = {
     'process-monthly-subscriptions': {

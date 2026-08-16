@@ -11,6 +11,7 @@ from apps.shared.addons.enums import IntegrationTypes, ConversationPlatforms, Co
 from apps.integration.gateways.telegram import telegram_get_me, set_telegram_webhook, get_webhook_info, send_telegram_message
 from apps.assistant.services.conversation import conversation_service
 from apps.shared.addons.validations import raise_validation_error, success_response
+from apps.shared.file_validation import validate_image
 from apps.shared.mixins import SubscriptionValidationMixin
 from .models import (Integration,
                     TelegramGroupIntegration,
@@ -519,7 +520,13 @@ class StepSerializer(serializers.ModelSerializer):
         model = Step
         fields = ["id", "action", "extra_button", "start_point", "end_point", "count", "extra_buttons", "message_image","message_content","condition_type","transitions"]
 
-    
+    def validate_message_image(self, value):
+        # ImageField already runs Pillow's verify(), which rejects SVG and
+        # catches decompression bombs — but nothing bounded the byte size, so
+        # this was the one upload field with no limit at all.
+        return validate_image(value)
+
+
 
 class InstagramCommentResponseFlowSerializer(serializers.ModelSerializer):
     steps = StepSerializer(many=True, write_only=True)

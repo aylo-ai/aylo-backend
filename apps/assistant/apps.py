@@ -11,3 +11,11 @@ class AssistantConfig(AppConfig):
         from apps.assistant import ai_tools
 
         ai_tools.register_tools()
+
+        # Stored objects follow their rows into the void — including on cascade
+        # and bulk deletes, which a Model.delete() override never sees.
+        from apps.assistant.models import AssistantFileUpload, Message
+        from apps.shared.file_cleanup import register_file_cleanup
+
+        register_file_cleanup(Message, "audio_file")
+        register_file_cleanup(AssistantFileUpload, "file")

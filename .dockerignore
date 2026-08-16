@@ -5,6 +5,15 @@
 *.pem
 *.key
 
+# Service-account keys. A Google private key was committed under
+# apps/shared/addons/ and `COPY . /app` baked it into every image built from
+# this tree. Mount credentials at runtime instead — see
+# GOOGLE_SERVICE_ACCOUNT_FILE.
+secrets/
+*-cred.json
+*service-account*.json
+*credentials*.json
+
 .git
 .github
 .venv

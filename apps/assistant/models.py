@@ -3,6 +3,7 @@ from django.db import models
 from django.utils import timezone
 from django.utils.timezone import now
 from apps.shared.models import BaseModel
+from apps.shared.storages import build_media_key
 from apps.integration.models import Integration
 from apps.shared.addons.enums import (
     AssistantLanguages,
@@ -18,11 +19,15 @@ from apps.shared.addons.enums import (
 )
 
 def assistant_file_path(instance, filename):
-    return f"assistant/{instance.assistant.id}/files/{filename}"
+    return build_media_key(f"assistant/{instance.assistant_id}/files", filename)
 
 
 def assistant_audio_path(instance, filename):
-    return f"assistant/{instance.conversation.assistant.id}/conversation/{instance.conversation.id}/audio/{filename}"
+    conversation = instance.conversation
+    return build_media_key(
+        f"assistant/{conversation.assistant_id}/conversation/{conversation.id}/audio",
+        filename,
+    )
 
 
 class PromptTemplate(BaseModel):
@@ -247,7 +252,11 @@ class AssistantFileUpload(BaseModel):
         related_name="files"
     )
     website_url = models.URLField(max_length=255, null=True, blank=True)
-    file = models.FileField(upload_to=assistant_file_path)
+    # max_length matches Message.audio_file. Left at Django's default of 100 this
+    # column could not hold its own key prefix (10 + 36-char UUID + 7 = 53 chars
+    # before the filename), which silently truncated long names onto colliding
+    # keys and raised SuspiciousFileOperation on the longest ones.
+    file = models.FileField(upload_to=assistant_file_path, max_length=255)
     filename = models.CharField(max_length=255, null=True, blank=True)
     google_sheet_doc_id = models.CharField(max_length=255, null=True, blank=True)
     file_type = models.CharField(
@@ -267,10 +276,6 @@ class AssistantFileUpload(BaseModel):
             self.filename = self.file.name
         super().save(*args, **kwargs)
 
-    def delete(self, *args, **kwargs):
-        if self.file:
-            self.file.delete(save=False)
-        super(AssistantFileUpload, self).delete(*args, **kwargs)
 
 class Lead(BaseModel):
     assistant = models.ForeignKey(

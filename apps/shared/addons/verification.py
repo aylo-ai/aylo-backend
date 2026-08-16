@@ -57,7 +57,7 @@ def clear_verified_flag(identifier):
 
 def send_playmobile_sms(phone_number, message):
     # Send SMS
-    message_id = f"repliuz_{randint(100000, 999999)}"
+    message_id = f"aylo_{randint(100000, 999999)}"
     payload = get_playmobile_payload(phone_number, message_id, originator, message)
     try:
         response = http.post(
@@ -81,7 +81,7 @@ def send_code(phone_number):
     if redis_connection.get(phone_number):
         return False, "Code already sent"
     code = generate_code()
-    message = f"Repli.uz! Sizning tasdiqlash kodingiz - {code}\n"
+    message = f"Aylo.uz! Sizning tasdiqlash kodingiz - {code}\n"
     success, message = send_playmobile_sms(phone_number, message)
     # success, message = True, "Code sent successfully"
     if not success:
@@ -117,7 +117,7 @@ def verify_code_cache(phone_number, code):
 
 
 def send_sms_text(phone_number, text):
-    message_id = f"repliuz_{randint(100000, 999999)}"
+    message_id = f"aylo_{randint(100000, 999999)}"
     payload = get_playmobile_payload(phone_number, message_id, originator, text)
     response = http.post(
         PLAY_MOBILE_URL,

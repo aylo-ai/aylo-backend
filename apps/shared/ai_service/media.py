@@ -95,6 +95,8 @@ def _download(url: str) -> Optional[bytes]:
         response = http.get(url, timeout=30)
         response.raise_for_status()
     except requests.RequestException as exc:
-        logger.error("Could not download %s: %s", url, exc)
+        # Log the object path only. A presigned URL's query string is a bearer
+        # credential for someone else's file.
+        logger.error("Could not download %s: %s", url.split("?")[0], exc)
         return None
     return response.content or None

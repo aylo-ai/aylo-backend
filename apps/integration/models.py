@@ -10,6 +10,7 @@ from apps.shared.addons.enums import (
     IntegrationTypes,
 )
 from apps.shared.models import BaseModel
+from apps.shared.storages import build_media_key
 
 
 class Integration(BaseModel):
@@ -108,7 +109,15 @@ class InstagramMedia(BaseModel):
         ordering = ['-created_time']
 
 def comment_response_image_path(instance, filename):
-    return f"integrtion/{instance.id}/image/{filename}"
+    # The old prefix was the misspelled "integrtion/<step id>/image/", flat and
+    # with no flow in the path — nothing a per-tenant bucket policy or lifecycle
+    # rule could match on. Existing rows keep their stored keys; only new
+    # uploads use this layout.
+    #
+    # The step id is deliberately NOT in the key: build_media_key already
+    # guarantees uniqueness, and two UUIDs plus this prefix came to 137 chars of
+    # overhead — enough to overflow the column on its own.
+    return build_media_key(f"integration/flows/{instance.flow_id}/image", filename)
 
 class InstagramCommentResponse(BaseModel):
     integration = models.ForeignKey(Integration, on_delete=models.CASCADE, related_name='instagram_comment_responses', blank=True, null=True)
@@ -170,7 +179,12 @@ class Step(BaseModel):
     action = models.CharField(max_length=255, choices=ActionType.choices(), default=ActionType.MESSAGE.value)
     condition_type = models.CharField(max_length=255, choices=ConditionType.choices(), default=ConditionType.SUBSCRIBED.value)
     extra_button = models.ManyToManyField(CommentResponseButton, related_name='steps')
-    message_image = models.ImageField(upload_to=comment_response_image_path, null=True, blank=True)
+    # max_length=255 like the other media fields. At Django's default of 100 the
+    # key prefix alone overflowed the column and every image upload raised
+    # SuspiciousFileOperation — a 500 on the flow-create endpoint.
+    message_image = models.ImageField(
+        upload_to=comment_response_image_path, null=True, blank=True, max_length=255
+    )
     flow = models.ForeignKey(Flow, on_delete=models.CASCADE, related_name='steps')
     start_point = models.BooleanField(default=False)
     end_point = models.BooleanField(default=False)
