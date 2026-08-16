@@ -1,4 +1,6 @@
 from django.contrib import admin
+
+from apps.shared.addons.crypto import mask_secret
 from apps.assistant.models import (
     Assistant, Message, Conversation, AssistantFileUpload, Lead, Integration,
     FollowUpConfig, FollowUpStage, FollowUpLog,
@@ -69,19 +71,26 @@ class ConversationAdmin(admin.ModelAdmin):
     actions_on_top = True
     actions_on_bottom = True
     date_hierarchy = 'start_time'
-    readonly_fields = ('start_time', 'end_time')
+    readonly_fields = ('start_time', 'end_time', 'bot_token_masked')
     inlines = [MessageInline]  # 👉 Shu yerga qo‘shiladi
 
     fieldsets = (
+        # `token` is the Telegram bot token, copied onto every conversation. It
+        # was an editable input here, so the change form handed the credential
+        # to anyone with conversation access; it is masked and read-only now.
         (None, {
-            'fields': ('assistant', 'status', 'thread_id', 'user_id', 
-            'username', 'token','client_full_name','client_phone_email', 'platform',)
+            'fields': ('assistant', 'status', 'thread_id', 'user_id',
+            'username', 'bot_token_masked', 'client_full_name', 'client_phone_email', 'platform',)
         }),
         ('System', {
             'fields': ('start_time', 'end_time'),
             'classes': ('collapse',)
         }),
     )
+
+    @admin.display(description="Bot token")
+    def bot_token_masked(self, obj):
+        return mask_secret(obj.token)
 
 
 

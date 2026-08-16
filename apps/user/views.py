@@ -24,12 +24,21 @@ from apps.user.models import User, PrivacyPolicy, UserAgreement, Notification
 from apps.shared.addons.verification import send_email_code, verify_email_code, verify_code_cache
 from apps.shared.permissions import IsAdmin, IsAdminOrCustomer
 from apps.shared.addons.enums import UserRoles, AuthTypes
+from apps.user.services.throttles import OtpSendIdentifierThrottle, OtpVerifyIdentifierThrottle
 
 logger = logging.getLogger(__name__)
 
+
 class SendCodeView(generics.GenericAPIView):
+    """Public by design — sending an OTP is step one of sign-up and login.
+
+    `DEFAULT_PERMISSION_CLASSES` is unset, so an omitted `permission_classes`
+    already means AllowAny; it is spelled out here so "public" reads as a
+    decision rather than an oversight.
+    """
     serializer_class = serializers.SendCodeSerializer
-    throttle_classes = (ScopedRateThrottle,)
+    permission_classes = [permissions.AllowAny, ]
+    throttle_classes = (ScopedRateThrottle, OtpSendIdentifierThrottle)
     throttle_scope = "otp_send"
 
     def post(self, request, *args, **kwargs):
@@ -54,8 +63,10 @@ class SendCodeView(generics.GenericAPIView):
 
 
 class VerifyCodeView(generics.GenericAPIView):
+    """Public by design — this is the login/sign-up step itself."""
     serializer_class = serializers.VerifyCodeSerializer
-    throttle_classes = (ScopedRateThrottle,)
+    permission_classes = [permissions.AllowAny, ]
+    throttle_classes = (ScopedRateThrottle, OtpVerifyIdentifierThrottle)
     throttle_scope = "otp_verify"
 
     def post(self, request, *args, **kwargs):
@@ -87,10 +98,22 @@ class VerifyCodeView(generics.GenericAPIView):
 
 
 class UserRegisterView(generics.CreateAPIView):
+<<<<<<< HEAD
     """Handles creating and listing Users."""
     serializer_class = serializers.RegisterUserSerializer
     throttle_classes = (ScopedRateThrottle,)
     throttle_scope = "auth_register"
+=======
+    """Completes sign-up for an identifier that already passed the OTP step.
+
+    Public by design: the caller has no account yet. The serializer refuses any
+    phone/email that is not currently marked verified in Redis, so this cannot
+    be used to mint accounts for identifiers the caller does not control.
+    """
+    queryset = User.objects.all()
+    serializer_class = serializers.RegisterUserSerializer
+    permission_classes = [permissions.AllowAny, ]
+>>>>>>> 473f4c3bed1052b8f0214fd63847c983cff0e728
 
     def create(self, request, *args, **kwargs):
         serializer = self.get_serializer(data=request.data)
@@ -168,11 +191,17 @@ class LogoutView(APIView):
     permission_classes = (permissions.IsAuthenticated,)
 
     def post(self, request, *args, **kwargs):
-        serializer = self.serializer_class(data=self.request.data)
+        serializer = self.serializer_class(data=request.data)
         serializer.is_valid(raise_exception=True)
         try:
-            refresh_token = self.request.data["refresh_token"]
-            token = RefreshToken(refresh_token)
+            token = RefreshToken(serializer.validated_data["refresh_token"])
+            # A refresh token is a bearer credential: without this check any
+            # authenticated caller who got hold of somebody else's token could
+            # blacklist it and log that user out at will.
+            if str(token.get("user_id")) != str(request.user.id):
+                return error_response(
+                    code=status.HTTP_400_BAD_REQUEST, message=_("Noto'g'ri refresh token")
+                )
             token.blacklist()
             return success_response(
                 message=_("Siz muvaffaqiyatli chiqdingiz"), code=status.HTTP_205_RESET_CONTENT
@@ -180,6 +209,7 @@ class LogoutView(APIView):
         # Both branches say the same thing to the client; the exception class
         # belonged in the log, not in a user-facing message.
         except TokenError:
+<<<<<<< HEAD
             logger.info("Logout rejected: invalid refresh token")
             return error_response(
                 code=status.HTTP_400_BAD_REQUEST, message=_("Noto'g'ri refresh token")
@@ -188,6 +218,12 @@ class LogoutView(APIView):
             logger.exception("Logout failed while blacklisting refresh token")
             return error_response(
                 code=status.HTTP_400_BAD_REQUEST, message=_("Noto'g'ri refresh token")
+=======
+            # Already expired, already blacklisted, or forged — all of them mean
+            # the same thing to the caller.
+            return error_response(
+                code=status.HTTP_400_BAD_REQUEST, message=_("Noto'g'ri refresh token")
+>>>>>>> 473f4c3bed1052b8f0214fd63847c983cff0e728
             )
 
 
@@ -285,6 +321,9 @@ GOOGLE_STATE_TTL = 600  # seconds a login attempt's state token stays valid
 
 
 class GoogleLoginView(APIView):
+    """Public by design — the start of the Google OAuth redirect dance."""
+    permission_classes = [permissions.AllowAny, ]
+
     def get(self, request):
         google_auth_url = "https://accounts.google.com/o/oauth2/v2/auth"
         # A one-time state token defends the callback against login-CSRF: only a
@@ -305,6 +344,13 @@ class GoogleLoginView(APIView):
 
 
 class GoogleAuthCallbackView(APIView):
+    """Public by design — Google redirects the browser here with the code.
+
+    Authorisation comes from the one-time `state` we issued plus server-side
+    verification of the ID token's signature, issuer, audience and expiry.
+    """
+    permission_classes = [permissions.AllowAny, ]
+
     def get(self, request):
         try:
             state = request.GET.get("state")
@@ -335,10 +381,12 @@ class GoogleAuthCallbackView(APIView):
                 user_info = google_id_token.verify_oauth2_token(
                     raw_id_token, google_requests.Request(), GOOGLE_CLIENT_ID
                 )
-            except ValueError as verify_error:
-                return error_response(
-                    message=f"{_('Invalid ID token')}: {verify_error}", code=400
-                )
+            except ValueError:
+                # The reason (bad audience, expired, wrong issuer, …) is useful
+                # to us and to an attacker probing the flow — log it, don't
+                # echo it.
+                logger.warning("Google ID token verification failed", exc_info=True)
+                return error_response(message=_("Invalid ID token"), code=400)
 
             sub = user_info.get("sub")
             if not sub:

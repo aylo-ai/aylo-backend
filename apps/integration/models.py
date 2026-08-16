@@ -1,6 +1,7 @@
 from django.db import models
 from django.db.models import Q
 
+from apps.shared.addons import crypto
 from apps.shared.addons.enums import (
     ActionType,
     BroadcastStatuses,
@@ -9,11 +10,21 @@ from apps.shared.addons.enums import (
     FlowType,
     IntegrationTypes,
 )
+from apps.shared.fields import (
+    EncryptedJSONField,
+    EncryptedLookupQuerySet,
+    EncryptedTextField,
+)
 from apps.shared.models import BaseModel
 from apps.shared.storages import build_media_key
 
 
 class Integration(BaseModel):
+    #: `api_token` is encrypted, so it cannot be matched in SQL. Every lookup by
+    #: bot token is rewritten onto this deterministic digest column by
+    #: `EncryptedLookupQuerySet` — see apps/shared/fields.py.
+    ENCRYPTED_HASH_LOOKUPS = {"api_token": "api_token_hash"}
+
     assistant = models.ForeignKey(
         'assistant.Assistant', 
         on_delete=models.CASCADE, 
@@ -29,8 +40,14 @@ class Integration(BaseModel):
     name = models.CharField(max_length=255)
     description = models.TextField(null=True, blank=True)
     is_active = models.BooleanField(default=True)
-    api_token = models.TextField(null=True, blank=True)
-    refresh_token = models.TextField(null=True, blank=True)  
+    # Credentials — Telegram bot tokens and Instagram / amoCRM / Billz OAuth
+    # tokens. Encrypted at rest; a database dump no longer hands an attacker
+    # full control of every customer's bot.
+    api_token = EncryptedTextField(null=True, blank=True)
+    refresh_token = EncryptedTextField(null=True, blank=True)
+    api_token_hash = models.CharField(
+        max_length=crypto.HASH_HEX_LENGTH, null=True, blank=True, editable=False
+    )
     integration_type = models.CharField(max_length=50, choices=IntegrationTypes.choices())
     is_comment_response = models.BooleanField(default=False)
 
@@ -39,10 +56,37 @@ class Integration(BaseModel):
     instagram_user_id = models.CharField(max_length=50, null=True, blank=True)  # IG user ID
     instagram_account_id = models.CharField(max_length=50, null=True, blank=True)  # IG account ID
     instagram_username = models.CharField(max_length=100, null=True, blank=True)  # IG username
-    metadata = models.JSONField(null=True, blank=True)
+    # Holds the amoCRM refresh token, client_id and the account's user_info
+    # payload, so it is as sensitive as `api_token` itself.
+    metadata = EncryptedJSONField(null=True, blank=True)
+
+    objects = EncryptedLookupQuerySet.as_manager()
 
     def __str__(self):
         return self.name
+
+    def save(self, *args, **kwargs):
+        """Keep `api_token_hash` in step with `api_token` on every write."""
+        self.api_token_hash = crypto.hash_secret(self.api_token)
+        update_fields = kwargs.get("update_fields")
+        if update_fields is not None and "api_token" in update_fields:
+            kwargs["update_fields"] = [*update_fields, "api_token_hash"]
+        super().save(*args, **kwargs)
+
+    @classmethod
+    def assistant_for_bot_token(cls, bot_token):
+        """Assistant behind a Telegram bot token, or ``None``.
+
+        Replaces `Assistant.objects.filter(integrations__api_token=...)`: a
+        joined lookup starts from `Assistant.objects`, which does not carry the
+        encrypted-column rewrite, so it has to resolve the integration first.
+        """
+        integration = (
+            cls.objects.filter(api_token=bot_token)
+            .select_related("assistant")
+            .first()
+        )
+        return integration.assistant if integration else None
 
     @classmethod
     def instagram_by_id(cls, instagram_id):
@@ -73,6 +117,9 @@ class Integration(BaseModel):
             # webhook; Postgres needs one index per branch of the OR.
             models.Index(fields=["instagram_user_id"], name="integration_ig_user_idx"),
             models.Index(fields=["instagram_account_id"], name="integration_ig_acct_idx"),
+            # Every inbound Telegram webhook resolves the integration by bot
+            # token, which now means a lookup on the digest column.
+            models.Index(fields=["api_token_hash"], name="integration_token_hash_idx"),
         ]
 
 

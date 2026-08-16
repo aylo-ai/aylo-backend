@@ -156,19 +156,18 @@ class LoginRefreshSerializer(serializers.Serializer):  # noqa
     @staticmethod
     def get_token_object(refresh_token):
         try:
-            token_obj = RefreshToken(refresh_token)
-            return token_obj
+            # `RefreshToken(...)` verifies the signature and expiry *and* checks
+            # the blacklist, so a rotated or logged-out token is rejected here.
+            return RefreshToken(refresh_token)
         except TokenError:
-            raise raise_validation_error(message=_("Refresh token noto'g'ri kiritilgan"))
+            raise_validation_error(message=_("Refresh token noto'g'ri kiritilgan"))
 
     @staticmethod
     def get_user_id_from_token(token_obj):
         user_id = token_obj.get('user_id', None)
-        try:
-            user = User.objects.get(id=user_id)
-            return user
-        except User.DoesNotExist:
-            return None
+        # `is_active=True`: deactivating an account must stop it minting fresh
+        # access tokens, not merely stop the ones it already holds.
+        return User.objects.filter(id=user_id, is_active=True).first()
 
     @staticmethod
     def generate_tokens(user, refresh_token):
@@ -278,6 +277,12 @@ class UpdateProfileSerializer(serializers.ModelSerializer):
             "username",
             "phone_number",
         ]
+        # `update()` never wrote `phone_number` anyway, but leaving it writable
+        # attached the model's uniqueness check to it: PATCHing an arbitrary
+        # number answered "this phone number is already registered", which is a
+        # free account-enumeration oracle. Changing the number has to go back
+        # through OTP verification, so the field is output-only here.
+        read_only_fields = ["id", "phone_number"]
 
         extra_kwargs = {
             "first_name": {"required": True},
@@ -307,43 +312,6 @@ class UpdateProfileSerializer(serializers.ModelSerializer):
 
 class LogoutSerializer(serializers.Serializer): # noqa
     refresh_token = serializers.CharField(required=True)
-
-
-class AddUserSerializer(serializers.Serializer):  # noqa
-    first_name = serializers.CharField(required=True)
-    last_name = serializers.CharField(required=True)
-    phone_number = serializers.CharField(required=True)
-    user_role = serializers.CharField(required=True)
-
-    def validate(self, attrs):
-        phone_number = attrs.get('phone_number')
-        if not check_number(phone_number):
-            raise_validation_error(message=_("Notog'ri telefon raqam kiritilgan"))
-        if User.objects.filter(phone_number=phone_number).exists():
-            raise_validation_error(message=_("Bu telefon raqam allaqachon ro'yxatdan o'tgan"))
-
-        return attrs
-
-    def create(self, validated_data):
-        context = self.context.get('request')
-        company = context.user.company
-        user = User.objects.create(
-            first_name=validated_data.get('first_name'),
-            last_name=validated_data.get('last_name'),
-            phone_number=validated_data.get('phone_number'),
-            user_role=validated_data.get('user_role'),
-            company=company
-        )
-        return user
-
-
-class DeleteCompanyUsersSerializer(serializers.Serializer):  # noqa
-    user_ids = serializers.ListField(child=serializers.UUIDField(), required=True)
-
-    def validate_user_ids(self, value):  # noqa
-        if not value:
-            raise_validation_error(message=_("Foydalanuvchilar tanlanmagan"))
-        return value
 
 
 class PrivacyPolicySerializer(serializers.ModelSerializer):
@@ -466,3 +434,7 @@ class NotificationSerializer(serializers.ModelSerializer):
             # with, so clients can't show "2h ago" or order by recency.
             'created_time',
         ]
+        # The update endpoint exists so a client can mark a notification read.
+        # Everything else is written by the platform — a recipient rewriting the
+        # title/content/type of a notice they were sent is not a feature.
+        read_only_fields = ['id', 'title', 'content', 'type', 'created_time']

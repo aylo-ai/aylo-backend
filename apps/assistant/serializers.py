@@ -10,9 +10,8 @@ from django.utils.translation import gettext_lazy as _
 from django.utils.timezone import localtime
 
 
-from apps.assistant.services.google import process_google_doc
 from apps.assistant.models import (
-    Assistant, Conversation, Message, Settings, AssistantFileUpload, Lead, PromptTemplate,
+    Assistant, Conversation, Message, AssistantFileUpload, Lead, PromptTemplate,
     FollowUpConfig, FollowUpStage, FollowUpLog,
 )
 from apps.shared.ai_service import knowledge_base, media
@@ -60,6 +59,7 @@ class AssistantSerializer(serializers.ModelSerializer,
             "integrations",
             "prompt_template",
         ]
+<<<<<<< HEAD
         # `user` is the tenancy column. While it was writable, `PATCH
         # /assistant/<own id>/ {"user": "<someone else's id>"}` silently moved
         # the assistant into that account: it then counted against the victim's
@@ -68,6 +68,13 @@ class AssistantSerializer(serializers.ModelSerializer,
         # and the dashboard's create path both pass `user=` to `save()`, which
         # a read-only field does not block.
         read_only_fields = ["created_time", "updated_time", "user"]
+=======
+        # `user` is the tenant boundary. The create view sets it from the
+        # request; leaving it writable let `PATCH /chat/assistant/<id>/` with a
+        # `user` in the body hand the assistant — and every conversation, lead
+        # and knowledge-base file hanging off it — to another account.
+        read_only_fields = ["user", "created_time", "updated_time"]
+>>>>>>> 473f4c3bed1052b8f0214fd63847c983cff0e728
 
     def get_integrations(self, obj):  # noqa
         telegram_count = obj.integrations.filter(integration_type="telegram").exists()
@@ -110,10 +117,11 @@ class ConversationSerializer(serializers.ModelSerializer,
             "created_time",
             "updated_time",
         ]
-        read_only_fields = ["created_time", "updated_time"]
-        extra_kwargs = {
-            "assistant": {"required": False},
-        }
+        # `assistant` comes from the URL, which the view has already ownership-
+        # checked. A writable field here let the body override it and file the
+        # conversation (and every message in it) under somebody else's
+        # assistant.
+        read_only_fields = ["assistant", "created_time", "updated_time"]
 
     def validate(self, attrs):
         assistant = self.context.get("assistant_id")
@@ -171,6 +179,7 @@ class ConversationRetrieveSerializer(serializers.ModelSerializer, SubscriptionVa
             "created_time",
             "updated_time",
         ]
+<<<<<<< HEAD
         # This serializer only ever serves retrieve/update. A writable
         # `assistant` let `PATCH /conversation/<own id>/` re-parent the
         # conversation onto another tenant's assistant, pushing attacker-written
@@ -178,6 +187,12 @@ class ConversationRetrieveSerializer(serializers.ModelSerializer, SubscriptionVa
         # their assistant — by `ConversationSerializer`.
         read_only_fields = ["created_time", "updated_time", "assistant"]
 
+=======
+        # Same tenant boundary as `ConversationSerializer`: this serializer backs
+        # PATCH/PUT on `/chat/conversation/<id>/`, where a writable `assistant`
+        # would move the conversation into another account's inbox.
+        read_only_fields = ["assistant", "created_time", "updated_time"]
+>>>>>>> 473f4c3bed1052b8f0214fd63847c983cff0e728
 
     def to_representation(self, instance):
         response = super().to_representation(instance)
@@ -208,9 +223,15 @@ class MessageSerializer(serializers.ModelSerializer, SubscriptionValidationMixin
             "answered_by",
             "answered_by_name",
         ]
-        read_only_fields = ["created_time", "updated_time", "answered_by", "answered_by_name"]
+        # `conversation` is read-only for the same reason `Lead.assistant` is:
+        # the view resolves it from the URL after checking ownership, and a
+        # writable field let `PATCH /chat/message/<id>/` re-file the message
+        # into another tenant's conversation.
+        read_only_fields = [
+            "conversation", "created_time", "updated_time",
+            "answered_by", "answered_by_name",
+        ]
         extra_kwargs = {
-            "conversation": {"required": False},
             "message_content": {"required": False},
         }
 
@@ -245,10 +266,12 @@ class MessageSerializer(serializers.ModelSerializer, SubscriptionValidationMixin
         if not message_content and not audio_file:
             raise_validation_error(message=_("Xabar matni yoki audio fayl kerak"))
 
-        # The conversation comes from the URL (`MessageListCreateView` puts it in
-        # the context); falling back to the body keeps the serializer usable
-        # from any caller rather than 400-ing whenever the context is absent.
-        conversation = self.context.get("conversation_id") or attrs.get("conversation")
+        # The conversation always comes from the URL — `MessageListCreateView`
+        # puts it in the context after checking that the caller owns it. The
+        # field itself is read-only, so there is no body to fall back to.
+        conversation = self.context.get("conversation_id")
+        if conversation is None:
+            raise_validation_error(message=_("Conversation topilmadi"))
         try:
             conversation = Conversation.objects.get(id=getattr(conversation, "id", conversation))
         except (Conversation.DoesNotExist, ValidationError, ValueError):
@@ -268,10 +291,17 @@ class MessageSerializer(serializers.ModelSerializer, SubscriptionValidationMixin
         sender = validated_data.get("sender")
         if audio_file:
             audio_bytes = audio_file.read()
+<<<<<<< HEAD
             # Not `_`: unpacking into it would rebind gettext's `_` as a local
             # for this whole method, so the `_("Request obyekti kerak")` above
             # raised UnboundLocalError instead of a clean validation error.
             transcribed_text, _in_tokens, _out_tokens = media.transcribe_audio(
+=======
+            # Not `_`: binding `_` here makes it a local for the whole function,
+            # so the `_("Request obyekti kerak")` call above raises
+            # UnboundLocalError (a 500) instead of the intended 400.
+            transcribed_text, _lang, _duration = media.transcribe_audio(
+>>>>>>> 473f4c3bed1052b8f0214fd63847c983cff0e728
                 audio_bytes, filename=audio_file.name
             )
             validated_data["message_content"] = transcribed_text
@@ -295,22 +325,6 @@ class MessageSerializer(serializers.ModelSerializer, SubscriptionValidationMixin
         )
 
 
-class SettingsSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = Settings
-        fields = [
-            "id",
-            "assistant",
-            "timezone",
-            "language",
-            "notification_preferences",
-            "escalation_rules",
-            "created_time",
-            "updated_time",
-        ]
-        read_only_fields = ["created_time", "updated_time"]
-
-
 class AssistantFileUploadSerializer(serializers.ModelSerializer, SubscriptionValidationMixin):
     class Meta:
         model = AssistantFileUpload
@@ -324,10 +338,14 @@ class AssistantFileUploadSerializer(serializers.ModelSerializer, SubscriptionVal
             "created_time",
             "updated_time",
         ]
-        read_only_fields = ["created_time", "updated_time"]
-        extra_kwargs = {
-            "assistant": {"required": False},
-        }
+        # `assistant` always comes from the URL via the context, never the body.
+        # It was writable, and `AssistantFileUploadRetrieveView.update()` feeds
+        # this serializer straight to `ModelSerializer.update()` — so
+        # `PATCH /chat/assistant-files/<id>/ {"assistant": "<victim id>"}`
+        # moved the row into another tenant's knowledge base, and the next
+        # DELETE then called `knowledge_base.delete_file()` against the victim's
+        # vector store.
+        read_only_fields = ["assistant", "created_time", "updated_time"]
 
     def validate(self, attrs):
         files = self.context.get("files")
@@ -412,10 +430,10 @@ class UpdateFileUploadSerializer(serializers.ModelSerializer, SubscriptionValida
             "created_time",
             "updated_time",
         ]
-        read_only_fields = ["created_time", "updated_time"]
-        extra_kwargs = {
-            "assistant": {"required": False},
-        }
+        # Same tenant boundary as `AssistantFileUploadSerializer`: `create()`
+        # reads the assistant off the context, which the view resolved from the
+        # URL after an ownership check.
+        read_only_fields = ["assistant", "created_time", "updated_time"]
 
     def validate(self, attrs):
         request = self.context.get("request")
@@ -500,40 +518,6 @@ class MessageBulkReadSerializer(serializers.Serializer):
         if not message_ids:
             raise_validation_error(message=_("Xabar ID lari kiritilmagan"))
         return attrs
-
-class AssistantFileGoogleDocSerializer(serializers.Serializer):
-    sheet_doc_url = serializers.CharField(required=True)
-    assistant_id = serializers.UUIDField(required=True)
-    file_type = serializers.CharField(read_only=True)
-
-    def validate(self, attrs):
-        sheet_doc_url = attrs.get('sheet_doc_url')
-        assistant_id = attrs.get('assistant_id')
-        if not sheet_doc_url:
-            raise_validation_error(message=_("Sheet URL kiritilmagan"))
-        if not assistant_id:
-            raise_validation_error(message=_("Assistant ID kiritilmagan"))
-        try:
-            assistant = Assistant.objects.get(id=assistant_id)
-        except Assistant.DoesNotExist:
-            raise_validation_error(message=_("Assistant topilmadi"))
-
-        attrs['sheet_doc_url'] = sheet_doc_url
-        attrs['assistant'] = assistant
-        return attrs
-
-    def create(self, validated_data):
-        sheet_doc_url = validated_data.get('sheet_doc_url')
-        assistant = validated_data.get('assistant')
-        response = process_google_doc(sheet_doc_url, assistant)
-        file_url = response.get("file_url")
-        if assistant and file_url:
-            store_id = knowledge_base.ensure_store(assistant)
-            knowledge_base.add_file(store_id, file_url)
-
-        validated_data["file_type"] = response.get("file_type")
-        return validated_data
-
 
 class LeadSerializer(serializers.ModelSerializer):
     class Meta:

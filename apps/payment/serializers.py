@@ -175,6 +175,7 @@ class CardCreateSerializer(serializers.ModelSerializer):
             "is_verified",
         )
         extra_kwargs = {
+<<<<<<< HEAD
             # The Payme card token is a chargeable credential: whoever holds it
             # can attach the card to an account and bill it. It has to come in
             # (the client gets it from Payme), but echoing it back in the 201
@@ -190,6 +191,12 @@ class CardCreateSerializer(serializers.ModelSerializer):
             "expiry_date",
             "is_verified",
         )
+=======
+            # The Payme card token can charge the customer's card. Accepted on
+            # write, never echoed back — the create response used to return it.
+            "card_token": {"write_only": True},
+        }
+>>>>>>> 473f4c3bed1052b8f0214fd63847c983cff0e728
 
     def validate_card_token(self, value):
         """Validate the card token with the Payme system."""

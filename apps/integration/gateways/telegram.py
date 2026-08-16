@@ -1,11 +1,15 @@
+import hashlib
+import hmac
 import logging
 import re
 from bs4 import BeautifulSoup
 import json
+from django.conf import settings
 from django.utils.translation import gettext_lazy as _
 from apps.shared import http
 from datetime import datetime
 from apps.integration.models import Integration, TelegramGroupIntegration
+from apps.shared.addons.crypto import mask_secret
 from apps.shared.addons.validations import error_response
 
 logger = logging.getLogger(__name__)
@@ -151,11 +155,42 @@ def delete_telegram_message(chat_id, message_id, token):
     return response
 
 
+def telegram_webhook_secret(bot_token):
+    """Per-bot value for Telegram's ``secret_token`` handshake.
+
+    Telegram does not sign webhook payloads; the only authenticity control it
+    offers is a shared secret registered with ``setWebhook`` and echoed back in
+    the ``X-Telegram-Bot-Api-Secret-Token`` header of every delivery.
+
+    The secret is derived — HMAC(server key, bot token) — rather than stored, so
+    every bot gets a distinct value with no new column and no state to keep in
+    sync: the webhook can recompute it from the token in its own URL path.
+    Returns "" when no server key is configured, which makes the webhook fail
+    closed instead of accepting forged updates.
+    """
+    server_key = getattr(settings, "TELEGRAM_WEBHOOK_SECRET", "")
+    if not server_key or not bot_token:
+        return ""
+    return hmac.new(
+        server_key.encode("utf-8"), str(bot_token).encode("utf-8"), hashlib.sha256,
+    ).hexdigest()
+
+
 def set_telegram_webhook(bot_token, webhook_url):
     url = f"https://api.telegram.org/bot{bot_token}/setWebhook"
     payload = {
         'url': webhook_url
     }
+    secret_token = telegram_webhook_secret(bot_token)
+    if secret_token:
+        payload['secret_token'] = secret_token
+    else:
+        # Registering without a secret leaves the webhook unauthenticated, and
+        # the view rejects every delivery — surface it at registration time.
+        logger.error(
+            "TELEGRAM_WEBHOOK_SECRET is not configured; the registered webhook "
+            "will reject every update"
+        )
     # The webhook URL embeds the bot token in its path — never log it.
     response = http.post(url, data=payload)
     if response.status_code == 200:
@@ -180,6 +215,7 @@ def get_webhook_info(bot_token):
 
 
 def handle_bot_added_to_group(chat_id, chat_title, bot_token):
+<<<<<<< HEAD
     logger.info("Bot added to Telegram group %s", chat_id)
     integration = Integration.objects.filter(api_token=bot_token).first()
     if not integration:
@@ -198,6 +234,28 @@ def handle_bot_added_to_group(chat_id, chat_title, bot_token):
 
 def handle_bot_removed_from_group(chat_id):
     logger.info("Bot removed from Telegram group %s", chat_id)
+=======
+    logger.info("Bot added to group %s (%s)", chat_title, chat_id)
+    # `api_token` is encrypted at rest; the manager rewrites this onto the
+    # deterministic `api_token_hash` column (apps/shared/fields.py).
+    integration = Integration.objects.filter(api_token=bot_token).first()
+    if not integration:
+        # The bot token is a live credential — log a masked suffix only.
+        logger.warning("No integration found for bot token %s", mask_secret(bot_token))
+        return error_response(message=_("Integration topilmadi"), code=404)
+
+    if not TelegramGroupIntegration.objects.filter(integration=integration, group_id=chat_id).exists():
+        TelegramGroupIntegration.objects.create(
+            integration=integration, group_id=chat_id, group_title=chat_title
+        )
+        logger.info("Created Telegram group %s (%s)", chat_title, chat_id)
+    else:
+        logger.info("Telegram group %s (%s) already registered", chat_title, chat_id)
+
+
+def handle_bot_removed_from_group(chat_id, chat_title):
+    logger.info("Bot removed from group %s (%s)", chat_title, chat_id)
+>>>>>>> 473f4c3bed1052b8f0214fd63847c983cff0e728
     TelegramGroupIntegration.objects.filter(group_id=chat_id).delete()
 
 
