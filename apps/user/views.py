@@ -45,10 +45,10 @@ class SendCodeView(generics.GenericAPIView):
 
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
-        
+
         phone_number = serializer.data.get("phone_number")
         email = serializer.data.get("email")
-        
+
         if phone_number:
             success, message = send_code(phone_number)
         elif email:
@@ -56,7 +56,7 @@ class SendCodeView(generics.GenericAPIView):
             # success, message = True, "Code sent successfully"
         else:
             return error_response(message=_("Telefon raqam yoki email kiritilmagan"), code=status.HTTP_400_BAD_REQUEST)
-            
+
         if success:
             return success_response(data=serializer.data, message=message, code=status.HTTP_200_OK)
         return error_response(message=message, code=status.HTTP_400_BAD_REQUEST)
@@ -98,12 +98,10 @@ class VerifyCodeView(generics.GenericAPIView):
 
 
 class UserRegisterView(generics.CreateAPIView):
-<<<<<<< HEAD
     """Handles creating and listing Users."""
     serializer_class = serializers.RegisterUserSerializer
     throttle_classes = (ScopedRateThrottle,)
     throttle_scope = "auth_register"
-=======
     """Completes sign-up for an identifier that already passed the OTP step.
 
     Public by design: the caller has no account yet. The serializer refuses any
@@ -113,25 +111,24 @@ class UserRegisterView(generics.CreateAPIView):
     queryset = User.objects.all()
     serializer_class = serializers.RegisterUserSerializer
     permission_classes = [permissions.AllowAny, ]
->>>>>>> 473f4c3bed1052b8f0214fd63847c983cff0e728
 
     def create(self, request, *args, **kwargs):
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         serializer.save()
-        
+
         # Clear verification cache for both phone and email
         phone_number = serializer.data.get("phone_number")
         email = serializer.data.get("email")
-        
+
         if phone_number:
             redis_connection.delete(f"{phone_number}_verified")
             redis_connection.delete(phone_number)
-        
+
         if email:
             redis_connection.delete(f"{email}_verified")
             redis_connection.delete(email)
-            
+
         return success_response(
             data=serializer.data,
             message=_("Foydalanuvchi muvaffaqiyatli yaratildi"),
@@ -315,8 +312,8 @@ class UserAgreementRetrieveView(generics.RetrieveUpdateDestroyAPIView):
             message=_("User agreement muvaffaqiyatli yangilandi"),
             code=status.HTTP_200_OK
         )
-    
-    
+
+
 GOOGLE_STATE_TTL = 600  # seconds a login attempt's state token stays valid
 
 
@@ -431,7 +428,7 @@ class AddStaffView(generics.CreateAPIView):
     def create(self, request, *args, **kwargs):
         if request.user.created_by is not None:
             return error_response(message=_("Uzur jigar sizda hodim yaratish huquqi yo'q"), code=403)
-        
+
         serializer = self.get_serializer(data=request.data, context={"request": request})
         serializer.is_valid(raise_exception=True)
         serializer.save()
@@ -440,7 +437,7 @@ class AddStaffView(generics.CreateAPIView):
             data=serializer.data,
             code=status.HTTP_201_CREATED
         )
-        
+
 
 class StaffListView(generics.ListAPIView):
     serializer_class = serializers.StaffListSerializer
@@ -480,7 +477,7 @@ class NotificationListView(generics.ListAPIView):
         if getattr(self, "swagger_fake_view", False):
             return Notification.objects.none()
         return Notification.objects.filter(user=self.request.user)
-    
+
 
 class NotificationUpdateView(generics.UpdateAPIView):
     serializer_class = serializers.NotificationSerializer

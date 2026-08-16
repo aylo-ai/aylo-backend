@@ -1069,7 +1069,6 @@ class DeferredTaskDispatchTests(TestCase):
         self.assertTrue(Broadcast.objects.filter(id=queued_id).exists())
 
 
-<<<<<<< HEAD
 class TenancyFixture(TestCase):
     """Two tenants and one fully populated automation tree for the first.
 
@@ -1647,7 +1646,6 @@ class TelegramWebhookSecretHandlingTests(TestCase):
             response = self.client.post(
                 self.url(self.integration.api_token),
                 data={"message": {"chat": {"id": 1, "type": "private"}, "text": "hi"}},
-=======
 # ──────────────────────────────────────────────────────────────────────────
 # Webhook authenticity, replay suppression and fail-soft degradation
 # (2026-08-04 hardening sweep)
@@ -2120,12 +2118,10 @@ class MetaSignedRequestTests(TestCase):
             response = self.client.post(
                 self.DEAUTH_URL,
                 {"signed_request": self.signed_request({"user_id": "ig-user-9"})},
->>>>>>> 473f4c3bed1052b8f0214fd63847c983cff0e728
                 content_type="application/json",
             )
 
         self.assertEqual(response.status_code, 200)
-<<<<<<< HEAD
         joined = "\n".join(logs.output)
         self.assertNotIn("SUPER-SECRET-BOT-TOKEN", joined)
         self.assertNotIn("BOT-TOKEN", joined)  # not even a suffix
@@ -2178,7 +2174,6 @@ class TelegramGatewaySecretHandlingTests(TestCase):
             ).exists()
         )
         self.assertNotIn("SUPER-SECRET-BOT-TOKEN", "\n".join(logs.output))
-=======
         self.assertFalse(Integration.objects.filter(id=self.integration.id).exists())
 
     def test_a_forged_signed_request_keeps_the_integration(self):
@@ -2366,4 +2361,3 @@ class AmoCRMTenancyTests(TestCase):
 
         self.assertEqual(response.status_code, 400)
         self.http.post.assert_not_called()
->>>>>>> 473f4c3bed1052b8f0214fd63847c983cff0e728

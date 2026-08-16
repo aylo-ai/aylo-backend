@@ -85,7 +85,7 @@ def send_telegram_message(chat_id, text, token, entities=None):
         "parse_mode": "html",
         "disable_web_page_preview": True,
     }
-    
+
     response = http.post(url, json=data)
     response_data = response.json()
     if not response_data.get("ok"):
@@ -215,7 +215,6 @@ def get_webhook_info(bot_token):
 
 
 def handle_bot_added_to_group(chat_id, chat_title, bot_token):
-<<<<<<< HEAD
     logger.info("Bot added to Telegram group %s", chat_id)
     integration = Integration.objects.filter(api_token=bot_token).first()
     if not integration:
@@ -234,7 +233,6 @@ def handle_bot_added_to_group(chat_id, chat_title, bot_token):
 
 def handle_bot_removed_from_group(chat_id):
     logger.info("Bot removed from Telegram group %s", chat_id)
-=======
     logger.info("Bot added to group %s (%s)", chat_title, chat_id)
     # `api_token` is encrypted at rest; the manager rewrites this onto the
     # deterministic `api_token_hash` column (apps/shared/fields.py).
@@ -255,7 +253,6 @@ def handle_bot_removed_from_group(chat_id):
 
 def handle_bot_removed_from_group(chat_id, chat_title):
     logger.info("Bot removed from group %s (%s)", chat_title, chat_id)
->>>>>>> 473f4c3bed1052b8f0214fd63847c983cff0e728
     TelegramGroupIntegration.objects.filter(group_id=chat_id).delete()
 
 

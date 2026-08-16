@@ -291,17 +291,10 @@ class MessageSerializer(serializers.ModelSerializer, SubscriptionValidationMixin
         sender = validated_data.get("sender")
         if audio_file:
             audio_bytes = audio_file.read()
-<<<<<<< HEAD
             # Not `_`: unpacking into it would rebind gettext's `_` as a local
             # for this whole method, so the `_("Request obyekti kerak")` above
             # raised UnboundLocalError instead of a clean validation error.
             transcribed_text, _in_tokens, _out_tokens = media.transcribe_audio(
-=======
-            # Not `_`: binding `_` here makes it a local for the whole function,
-            # so the `_("Request obyekti kerak")` call above raises
-            # UnboundLocalError (a 500) instead of the intended 400.
-            transcribed_text, _lang, _duration = media.transcribe_audio(
->>>>>>> 473f4c3bed1052b8f0214fd63847c983cff0e728
                 audio_bytes, filename=audio_file.name
             )
             validated_data["message_content"] = transcribed_text

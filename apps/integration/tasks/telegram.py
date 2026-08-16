@@ -28,15 +28,8 @@ def process_message_task(self, chat_id, user_message, bot_token, chat_username=N
     """
     assistant = Integration.assistant_for_bot_token(bot_token)
     if not assistant:
-<<<<<<< HEAD
-        # The bot token is the credential for the customer's bot — log that a
-        # delivery went unmatched, never the token that would let a reader take
-        # the bot over.
-        logger.warning("[-] No assistant found for the bot token on this delivery")
-=======
         # The bot token is a live credential — only ever log a masked suffix.
         logger.warning("[-] No assistant found for bot token %s", mask_secret(bot_token))
->>>>>>> 473f4c3bed1052b8f0214fd63847c983cff0e728
         return
 
     if user_message == '/start':

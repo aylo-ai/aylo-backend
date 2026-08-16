@@ -142,7 +142,6 @@ REST_FRAMEWORK = {
         # Per client IP.
         "otp_send": "5/minute",
         "otp_verify": "10/minute",
-<<<<<<< HEAD
         # Card lifecycle against Payme. `payme/get-verify-token/` makes Payme
         # SMS a verification code to the *card holder* for whatever PAN the
         # caller typed, so unthrottled it is an SMS-bombing and card-validity
@@ -153,7 +152,6 @@ REST_FRAMEWORK = {
         # Account creation and token minting.
         "auth_register": "10/minute",
         "token_refresh": "20/minute",
-=======
         # Per phone number / email (apps.user.services.throttles). The per-IP
         # scopes above do not bound an attack on one account — rotating source
         # addresses resets them — and they let one NAT'd user lock out everyone
@@ -172,7 +170,6 @@ REST_FRAMEWORK = {
         "public_read": "60/minute",
         # Payme card verification codes — an SMS code brute-force surface.
         "payme_verify": "10/minute",
->>>>>>> 473f4c3bed1052b8f0214fd63847c983cff0e728
     },
 }
 
@@ -505,7 +502,7 @@ if REDIS_PASSWORD:
 else:
     CELERY_BROKER_URL = f"redis://{REDIS_HOST}:{REDIS_PORT}/{REDIS_DB}"
     CELERY_RESULT_BACKEND = f"redis://{REDIS_HOST}:{REDIS_PORT}/{REDIS_DB}"
-    
+
 REDIS_CREDENTIALS: dict[str, str | int | bool] = {
     "db": REDIS_DB,
     "host": REDIS_HOST,

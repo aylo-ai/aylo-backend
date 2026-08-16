@@ -431,7 +431,6 @@ class GoogleOAuthEmailVerificationTests(TestCase):
         self.victim.refresh_from_db()
         self.assertEqual(self.victim.sub, "google-sub")
 
-<<<<<<< HEAD
 
 @NO_THROTTLE
 class StaffRoleEscalationTests(TestCase):
@@ -498,7 +497,6 @@ class StaffRoleEscalationTests(TestCase):
         response = self.client.post(
             "/api/v1/dashboard/send-otp/login/",
             {"phone_number": staff.phone_number},
-=======
     def test_a_rejected_id_token_leaks_no_verification_detail(self):
         """The reason a token failed (wrong audience, expired, bad issuer) tells
         an attacker how to fix their forgery — it belongs in the log only."""
@@ -687,7 +685,6 @@ class LogoutRevocationTests(TestCase):
 
         response = self.client.post(
             "/api/v1/user/auth/login/refresh/", {"refresh_token": str(refresh)},
->>>>>>> 473f4c3bed1052b8f0214fd63847c983cff0e728
             format="json",
         )
 

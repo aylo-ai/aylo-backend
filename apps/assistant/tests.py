@@ -451,7 +451,6 @@ class ChatEndpointRegressionTests(TestCase):
         self.assertEqual(self.assistant.name, "Renamed")
 
 
-<<<<<<< HEAD
 class MassAssignmentTenancyTests(TestCase):
     """Tenancy columns were writable through the customer-facing serializers.
 
@@ -602,7 +601,6 @@ class MessageCreateWithoutRequestTests(TestCase):
         serializer = MessageSerializer()
         with self.assertRaises(CustomValidationError):
             serializer.create({"sender": SenderTypes.USER.value})
-=======
 # ---------------------------------------------------------------------------
 # Tenant isolation (IDOR) and mass assignment
 # ---------------------------------------------------------------------------
@@ -1368,4 +1366,3 @@ class StaffTenantAccessTests(TenantFixtureMixin, TestCase):
 
         self.assertEqual(response.status_code, 403)
         self.assertTrue(Assistant.objects.filter(pk=self.assistant.pk).exists())
->>>>>>> 473f4c3bed1052b8f0214fd63847c983cff0e728

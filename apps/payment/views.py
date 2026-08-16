@@ -6,7 +6,7 @@ from rest_framework import generics, permissions
 from rest_framework.throttling import ScopedRateThrottle
 from rest_framework.views import APIView
 
-from apps.payment.models import Feature, PricingPackage, Card, Subscription, Transaction, RetryPayment  
+from apps.payment.models import Feature, PricingPackage, Card, Subscription, Transaction, RetryPayment
 from apps.shared.addons.enums import SubscriptionStatuses
 import apps.payment.serializers as serializers
 from apps.payment.services.billing import remove_payme_card
@@ -232,17 +232,11 @@ class CardDetailView(generics.RetrieveUpdateAPIView):
 class PaymeGetVerifyCodeView(generics.CreateAPIView):
     serializer_class = serializers.PaymeGetVerifyCodeSerializer
     permission_classes = (permissions.IsAuthenticated,)
-<<<<<<< HEAD
     # Payme sends the verification SMS to the phone registered against the card
     # number in the body — a number the caller picks. Unthrottled, this is an
     # SMS flood and a PAN-validity oracle pointed at strangers.
     throttle_classes = (ScopedRateThrottle,)
     throttle_scope = "payment_card"
-=======
-    # Each call makes Payme send an SMS to the cardholder. Unbounded, one
-    # account can pump SMS at any card number the attacker chooses.
-    throttle_scope = "payme_verify"
->>>>>>> 473f4c3bed1052b8f0214fd63847c983cff0e728
 
     def create(self, request, *args, **kwargs):
         serializer = self.get_serializer(
@@ -253,7 +247,7 @@ class PaymeGetVerifyCodeView(generics.CreateAPIView):
         return success_response(
             message=_("Verification code sent successfully"), data=data
         )
-    
+
 class PaymeVerifyCodeView(generics.CreateAPIView):
     serializer_class = serializers.PaymeVerifyCodeSerializer
     permission_classes = (permissions.IsAuthenticated,)
@@ -364,7 +358,7 @@ class SubscriptionCreateView(generics.CreateAPIView):
         serializer.is_valid(raise_exception=True)
         serializer.save()
         return success_response(message=_("Obuna muvaffaqiyatli yaratildi"), data=serializer.data)
-    
+
 
 class SubscriptionUpdateView(generics.CreateAPIView):
     serializer_class = serializers.SubscriptionUpdateSerializer
@@ -380,7 +374,7 @@ class SubscriptionUpdateView(generics.CreateAPIView):
 
 class SubscriptionCancellationView(APIView):
     permission_classes = [permissions.IsAuthenticated]
-    
+
     def post(self, request, *args, **kwargs):
         user = request.user
 
@@ -399,13 +393,13 @@ class SubscriptionCancellationView(APIView):
         subscription.status = SubscriptionStatuses.CANCELLED.value
         subscription.cancellation_reason = cancellation_reason
         subscription.save()
-        
+
         return success_response(
             message=_("Obuna muvaffaqiyatli bekor qilindi"),
             data={"reason": subscription.cancellation_reason},
             code=200
         )
-    
+
 class TransactionListView(generics.ListAPIView):
     serializer_class = serializers.TransactionSerializer
     permission_classes = (permissions.IsAuthenticated,)
@@ -429,17 +423,17 @@ class RetryPaymentListView(generics.ListAPIView):
             subscription_id=subscription_id,
             subscription__users=self.request.user,
         )
-    
+
 class SubscriptionUpdateAutoRenewView(generics.UpdateAPIView):
     serializer_class = serializers.SubscriptionUpdateAutoRenewSerializer
     permission_classes = (permissions.IsAuthenticated,)
 
     def get_queryset(self):
         return Subscription.objects.filter(users=self.request.user)
-    
+
     def update(self, request, *args, **kwargs):
         instance = self.get_object()
-        serializer = self.get_serializer(instance, data=request.data, partial=True) 
+        serializer = self.get_serializer(instance, data=request.data, partial=True)
         serializer.is_valid(raise_exception=True)
         serializer.save()
         return success_response(message=_("Obuna muvaffaqiyatli tahrirlandi"), data=serializer.data)

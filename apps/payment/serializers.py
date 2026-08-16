@@ -175,7 +175,6 @@ class CardCreateSerializer(serializers.ModelSerializer):
             "is_verified",
         )
         extra_kwargs = {
-<<<<<<< HEAD
             # The Payme card token is a chargeable credential: whoever holds it
             # can attach the card to an account and bill it. It has to come in
             # (the client gets it from Payme), but echoing it back in the 201
@@ -191,12 +190,6 @@ class CardCreateSerializer(serializers.ModelSerializer):
             "expiry_date",
             "is_verified",
         )
-=======
-            # The Payme card token can charge the customer's card. Accepted on
-            # write, never echoed back — the create response used to return it.
-            "card_token": {"write_only": True},
-        }
->>>>>>> 473f4c3bed1052b8f0214fd63847c983cff0e728
 
     def validate_card_token(self, value):
         """Validate the card token with the Payme system."""
@@ -237,7 +230,7 @@ class CardCreateSerializer(serializers.ModelSerializer):
             is_default=True,
         )
         return card
-    
+
 class PaymeGetVerifyCodeSerializer(serializers.Serializer):  # noqa
     number = serializers.CharField()
     expire = serializers.CharField()
@@ -290,7 +283,7 @@ class PaymeVerifyCodeSerializer(serializers.Serializer):  # noqa
         token = attrs.get("token")
         code = attrs.get("code")
         if not token or not code:
-            raise_validation_error(message=_("Token va kod talab qilinadi")) 
+            raise_validation_error(message=_("Token va kod talab qilinadi"))
         return attrs
 
     def create(self, validated_data):
@@ -566,7 +559,7 @@ class SubscriptionUpdateAutoRenewSerializer(serializers.ModelSerializer):
     class Meta:
         model = Subscription
         fields = ["auto_renew"]
-   
+
 class RetryPaymentSerializer(serializers.ModelSerializer):
     class Meta:
         model = RetryPayment
@@ -590,7 +583,7 @@ class SubscriptionUpdateSerializer(serializers.Serializer):
         user = self.context.get("request").user
         if not user.subscription:
             raise_validation_error(message=_("Sizda obuna mavjud emas."))
-        
+
         if not pricing_package_id or not card_id:
             raise_validation_error(message=_("Narx paketi ID va karta ID talab qilinadi"))
         try:
@@ -611,7 +604,7 @@ class SubscriptionUpdateSerializer(serializers.Serializer):
         attrs["card"] = card
         attrs["pricing_package"] = pricing_package
         return attrs
-    
+
     def create(self, validated_data):
         user = self.context.get("request").user
         card = validated_data.get("card")
@@ -665,7 +658,7 @@ class SubscriptionUpdateSerializer(serializers.Serializer):
             subscription.retry_count = 0
             subscription.last_payment_date = timezone.now().date()
             subscription.grace_period_days = 0
-            subscription.status = SubscriptionStatuses.ACTIVE.value 
+            subscription.status = SubscriptionStatuses.ACTIVE.value
             subscription.pricing_package = pricing_package
             subscription.remained_request_count = pricing_package.request_count
             subscription.save()
@@ -680,5 +673,3 @@ class SubscriptionUpdateSerializer(serializers.Serializer):
                     "is_active": subscription.status
                 }
             }
-            
-            

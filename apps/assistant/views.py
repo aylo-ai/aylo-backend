@@ -276,7 +276,7 @@ class AssistantFileUploadListCreateView(generics.ListCreateAPIView):
             data=serializer.data,
             code=201,
         )
-    
+
 
 class AssistantFileUploadUpdateView(generics.CreateAPIView):
     queryset = AssistantFileUpload.objects.all()
@@ -334,7 +334,7 @@ class AssistantFileUploadRetrieveView(generics.RetrieveUpdateDestroyAPIView):
 
     def update(self, request, *args, **kwargs):
         instance = self.get_object()
-        serializer = self.get_serializer(instance, data=request.data, context={'assistant': instance.assistant, 
+        serializer = self.get_serializer(instance, data=request.data, context={'assistant': instance.assistant,
                                                                                'files': request.FILES.getlist('file')}, partial=True)
         serializer.is_valid(raise_exception=True)
         self.perform_update(serializer)
@@ -407,7 +407,7 @@ class LeadListCreateView(generics.ListCreateAPIView):
         # retrieved or deleted again.
         serializer.save(assistant_id=assistant_id)
         return success_response(message=_("Lead muvaffaqiyatli yaratildi"), data=serializer.data, code=201)
-    
+
 
 class LeadRetrieveView(generics.RetrieveUpdateDestroyAPIView):
     queryset = Lead.objects.all()
@@ -418,24 +418,24 @@ class LeadRetrieveView(generics.RetrieveUpdateDestroyAPIView):
         return Lead.objects.filter(
             assistant__in=owned_assistants(self.request.user),
         )
-    
+
     def retrieve(self, request, *args, **kwargs):
         instance = self.get_object()
         serializer = self.get_serializer(instance)
         return success_response(data=serializer.data, message=_("Lead muvaffaqiyatli olindi"), code=200)
-    
+
     def update(self, request, *args, **kwargs):
         instance = self.get_object()
         serializer = self.get_serializer(instance, data=request.data, partial=kwargs.pop('partial', False))
         serializer.is_valid(raise_exception=True)
         serializer.save()
         return success_response(message=_("Lead muvaffaqiyatli o'zgartirildi"), data=serializer.data, code=200)
-    
+
     def destroy(self, request, *args, **kwargs):
         instance = self.get_object()
         self.perform_destroy(instance)
         return success_response(message=_("Lead muvaffaqiyatli o'chirildi"), code=204)
-    
+
 
 class ExportLeadsView(views.APIView):
     serializer_class = LeadExportSerializer
@@ -545,18 +545,6 @@ class FollowUpStageListCreateView(generics.ListCreateAPIView):
 
     def create(self, request, *args, **kwargs):
         assistant_id = self.kwargs.get('pk')
-<<<<<<< HEAD
-        # `owned_assistants()`, not a hand-rolled Q: with `created_by` unset the
-        # `Q(user=request.user.created_by)` leg becomes `Q(user=None)` and
-        # matches every ownerless assistant, letting any customer configure
-        # follow-ups on them.
-=======
-        # `owned_assistants()`, not a hand-rolled `Q(user=…) | Q(user=…created_by)`:
-        # `created_by` is None for every ordinary customer, so the second leg
-        # became `Q(user=None)` and matched every *ownerless* assistant on the
-        # platform — any authenticated user could attach follow-up stages (and
-        # therefore outbound messages) to one.
->>>>>>> 473f4c3bed1052b8f0214fd63847c983cff0e728
         assistant = owned_assistants(request.user).filter(id=assistant_id).first()
         if not assistant:
             raise NotFound(_("Assistant topilmadi"))
