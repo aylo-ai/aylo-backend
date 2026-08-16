@@ -1,12 +1,3 @@
-# Compose overlay for the small dev host (1 vCPU / 2 GB).
-#
-# The defaults in compose.yml are sized for the production box: 4 gunicorn
-# workers + 4 + 2 celery processes will exhaust memory on a 2 GB VM and get
-# OOM-killed mid-request. The dev deploy workflow copies this file to
-# compose.override.yml so docker compose picks it up automatically.
-#
-# Web concurrency itself comes from WEB_CONCURRENCY in the env file.
-
 services:
   web-green:
     restart: unless-stopped
@@ -35,9 +26,6 @@ services:
   redis:
     mem_limit: 192m
 
-  # Log viewer — only running when the `logs` profile is up. Dozzle buffers
-  # recent lines per open stream, so cap it rather than let a chatty container
-  # push the box into swap.
   dozzle:
     mem_limit: 128m
 

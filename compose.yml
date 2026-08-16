@@ -9,24 +9,20 @@ services:
     command: ./deployment/start.sh
     volumes:
       - /var/www/static:/app/staticfiles
-      # Google service-account key, mounted read-only at runtime instead of
-      # being baked into the image. See GOOGLE_SERVICE_ACCOUNT_FILE.
+
       - ./secrets:/app/secrets:ro
-    # Loopback-only: nginx is the sole public listener and proxies to this
-    # port. Publishing on 0.0.0.0 would expose gunicorn directly, bypassing
-    # TLS, client_max_body_size and the host access log.
     ports:
       - 127.0.0.1:8001:8000
     depends_on:
       redis:
         condition: service_started
+
       postgres:
         condition: service_started
-      # Not just `minio`: wait for the bucket and the scoped app user to exist.
-      # A cold `compose up` could otherwise accept an upload before the bootstrap
-      # had run, and fail it with NoSuchBucket.
+
       minio-init:
         condition: service_completed_successfully
+
     networks:
       - backend-net
     profiles:
@@ -46,10 +42,9 @@ services:
     command: ./deployment/start.sh
     volumes:
       - /var/www/static:/app/staticfiles
-      # Google service-account key, mounted read-only at runtime instead of
-      # being baked into the image. See GOOGLE_SERVICE_ACCOUNT_FILE.
+
       - ./secrets:/app/secrets:ro
-    # Loopback-only — see the note on web-blue.
+
     ports:
       - 127.0.0.1:8002:8000
     depends_on:
@@ -57,9 +52,6 @@ services:
         condition: service_started
       postgres:
         condition: service_started
-      # Not just `minio`: wait for the bucket and the scoped app user to exist.
-      # A cold `compose up` could otherwise accept an upload before the bootstrap
-      # had run, and fail it with NoSuchBucket.
       minio-init:
         condition: service_completed_successfully
     networks:
@@ -92,9 +84,9 @@ services:
     restart: unless-stopped
     volumes:
       - /var/www/static:/app/staticfiles
-      # Google service-account key, mounted read-only at runtime instead of
-      # being baked into the image. See GOOGLE_SERVICE_ACCOUNT_FILE.
+
       - ./secrets:/app/secrets:ro
+
     networks:
       - backend-net
 
@@ -107,9 +99,9 @@ services:
     restart: unless-stopped
     volumes:
       - /var/www/static:/app/staticfiles
-      # Google service-account key, mounted read-only at runtime instead of
-      # being baked into the image. See GOOGLE_SERVICE_ACCOUNT_FILE.
+
       - ./secrets:/app/secrets:ro
+
     networks:
       - backend-net
 
@@ -125,34 +117,16 @@ services:
     networks:
       - backend-net
 
-  # --- Object storage --------------------------------------------------------
-  #
-  # All user media (knowledge-base documents, message audio, campaign images)
-  # lives here instead of AWS S3. MinIO speaks the S3 API, so Django reaches it
-  # through the same django-storages/boto3 backend — only the endpoint changes.
-  #
-  # The bucket is PRIVATE. Nothing is served by anonymous URL; Django issues
-  # short-lived presigned URLs. See deployment/minio/init.sh.
   minio:
-    image: minio/minio:RELEASE.2025-04-22T22-12-26Z
+    image: minio/minio:RELEASE.2025-09-07T16-13-09Z-cpuv1
     command: server /data --console-address ":9001"
     restart: unless-stopped
     environment:
-      # `:?` makes compose refuse to start when these are unset or empty.
-      # Verified against a real `docker compose up` with both blank: MinIO boots,
-      # answers /minio/health/live with 200 and is reported `Healthy`, but no
-      # credential authenticates — not even minioadmin. The bootstrap then hangs
-      # and every upload 403s with InvalidAccessKeyId, which reads like a MinIO or
-      # nginx fault a long way from the actual cause. Fail at `up` instead.
       MINIO_ROOT_USER: ${MINIO_ROOT_USER:?set MINIO_ROOT_USER in .env}
       MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:?set MINIO_ROOT_PASSWORD in .env}
-      # Browser console is an admin surface; it is not exposed through nginx.
       MINIO_BROWSER: ${MINIO_BROWSER:-off}
     volumes:
       - minio-data:/data
-    # Loopback-only, same rule as web-blue/web-green and dozzle: nginx is the
-    # sole public listener. 9000 is the S3 API, 9001 the admin console — the
-    # console must never be reachable from the LAN or the internet.
     ports:
       - 127.0.0.1:9000:9000
       - 127.0.0.1:9001:9001
@@ -167,10 +141,8 @@ services:
     cap_drop:
       - ALL
 
-  # Idempotent bootstrap: creates the bucket, forces anonymous access off, and
-  # provisions the scoped application credential. Exits 0 and stays exited.
   minio-init:
-    image: minio/mc:RELEASE.2025-04-16T18-13-26Z
+    image: minio/minio:RELEASE.2025-09-07T16-13-09Z-cpuv1
     env_file: .env
     entrypoint: ["/bin/sh", "/init/init.sh"]
     volumes:
@@ -196,18 +168,6 @@ services:
     networks:
       - backend-net
 
-  # --- Log viewer (profile: logs) -------------------------------------------
-  #
-  # Start with:  docker compose --profile logs up -d
-  # Setup:       deployment/dozzle/setup.sh  (creates the login before first run)
-  #
-  # Two containers, ~40 MB total. Dozzle never touches the Docker socket: it
-  # talks to a read-only HAProxy in front of it, so a compromised viewer cannot
-  # create, exec into, or delete containers even if it wanted to.
-
-  # Read-only Docker API gateway. CONTAINERS+INFO+EVENTS is the whole allowlist
-  # Dozzle needs; every other API section (IMAGES, EXEC, VOLUMES, SECRETS, SWARM, …)
-  # defaults to 0 and returns 403. POST=0 makes the entire API read-only.
   docker-socket-proxy:
     image: tecnativa/docker-socket-proxy:v0.5.0
     restart: unless-stopped
@@ -218,11 +178,10 @@ services:
       POST: 0
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock:ro
-    # No `ports`: reachable only from logs-net, never from the host or LAN.
     networks:
       - logs-net
     read_only: true
-    # The entrypoint renders haproxy.cfg into /tmp at boot; /run holds the pid.
+
     tmpfs:
       - /run
       - /tmp
@@ -240,26 +199,18 @@ services:
     image: amir20/dozzle:v10.6.13
     restart: unless-stopped
     environment:
-      # Talk to the proxy, not to a mounted socket.
       DOZZLE_REMOTE_HOST: tcp://docker-socket-proxy:2375
-      # Served under a path prefix by nginx — must match the location block in
-      # deployment/nginx/api.aylo.uz.conf.
       DOZZLE_BASE: /_logs
       DOZZLE_HOSTNAME: aylochat
-      # Only this project's containers; anything else on the host stays hidden.
       DOZZLE_FILTER: label=com.docker.compose.project=aylochat
-      # Login required. Users live in deployment/dozzle/users.yml.
       DOZZLE_AUTH_PROVIDER: simple
       DOZZLE_AUTH_TTL: 8h
-      # Read-only viewer: no start/stop/restart, no container shells.
       DOZZLE_ENABLE_ACTIONS: "false"
       DOZZLE_ENABLE_SHELL: "false"
       DOZZLE_NO_ANALYTICS: "true"
       DOZZLE_LEVEL: warn
     volumes:
       - ./deployment/dozzle/users.yml:/data/users.yml:ro
-    # Loopback-only — nginx terminates TLS and is the sole public listener,
-    # same rule as web-blue/web-green above.
     ports:
       - 127.0.0.1:8080:8080
     depends_on:
@@ -272,12 +223,6 @@ services:
       - /tmp
     cap_drop:
       - ALL
-    # `security_opt: [no-new-privileges:true]` belongs here too, but it makes
-    # execve fail with EPERM on some kernels (reproduced on 7.0.0-28-generic,
-    # where it breaks every image including alpine). Check the host first:
-    #   docker run --rm --security-opt no-new-privileges:true alpine:3 echo ok
-    # If that prints ok, add the option to both services above. With cap_drop
-    # ALL the bounding set is already empty, so it adds little on top.
     profiles:
       - logs
 
@@ -290,7 +235,5 @@ volumes:
 networks:
   backend-net:
     driver: bridge
-  # Isolated from backend-net: the log viewer has no route to postgres, redis
-  # or the app containers, only to the socket proxy.
   logs-net:
     driver: bridge
