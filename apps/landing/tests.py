@@ -141,8 +141,13 @@ class LandingLeadCreateTests(TestCase):
     def setUp(self):
         cache.clear()
         self.client = APIClient()
-        self.http = mock.patch("apps.landing.views.http").start()
+        # The send loop itself lives in `apps.landing.notifications` — it is
+        # shared with the custom-package request in `apps.payment`. The view
+        # still guards on its own token before composing the message, so both
+        # constants have to be patched.
+        self.http = mock.patch("apps.landing.notifications.http").start()
         mock.patch("apps.landing.views.LEAD_BOT_TOKEN", "lead-bot-token").start()
+        mock.patch("apps.landing.notifications.LEAD_BOT_TOKEN", "lead-bot-token").start()
         self.addCleanup(mock.patch.stopall)
 
     def payload(self, **overrides):

@@ -1,3 +1,4 @@
+from django.utils.translation import gettext_lazy as _
 from rest_framework import serializers
 
 from apps.landing.models import LandingLead
@@ -11,5 +12,7 @@ class LandingLeadSerializer(serializers.ModelSerializer):
     def validate_phone_number(self, value):
         cleaned = value.strip().replace(" ", "").replace("-", "")
         if len(cleaned) < 9:
-            raise serializers.ValidationError("Telefon raqam kamida 9 ta raqamdan iborat bo'lishi kerak.")
+            raise serializers.ValidationError(
+                _("Telefon raqam kamida 9 ta raqamdan iborat bo'lishi kerak.")
+            )
         return cleaned

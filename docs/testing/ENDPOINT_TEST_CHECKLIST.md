@@ -1,6 +1,6 @@
 # Endpoint Test Checklist
 
-Auto-generated from the live URL resolver on 2026-08-01 by walking `django.urls.get_resolver()` the same way `api-doctor` does. This is the working checklist for the **[test-writer](../../.claude/agents/test-writer.md)** agent and for your own manual review — regenerate the table (not the `Reviewed` column) with the **endpoint-test-checklist** skill whenever routes change.
+Auto-generated from the live URL resolver on 2026-08-17 by walking `django.urls.get_resolver()` the same way `api-doctor` does. This is the working checklist for the **[test-writer](../../.claude/agents/test-writer.md)** agent and for your own manual review — regenerate the table (not the `Reviewed` column) with the **endpoint-test-checklist** skill whenever routes change.
 
 ## How to use this file
 
@@ -21,7 +21,7 @@ Auto-generated from the live URL resolver on 2026-08-01 by walking `django.urls.
 
 | Method | Path | View | Coverage | Reviewed |
 |---|---|---|---|---|
-| GET,PUT,PATCH,DELETE | `api/v1/chat/assistant-files/<uuid:pk>/` | `AssistantFileUploadRetrieveView` | none | [ ] |
+| GET,PUT,PATCH,DELETE | `api/v1/chat/assistant-files/<uuid:pk>/` | `AssistantFileUploadRetrieveView` | heuristic (apps/assistant/tests.py) | [ ] |
 | GET,POST | `api/v1/chat/assistant/` | `AssistantListCreateView` | heuristic (apps/assistant/tests.py) | [ ] |
 | GET,PUT,PATCH,DELETE | `api/v1/chat/assistant/<uuid:pk>/` | `AssistantRetrieveView` | heuristic (apps/assistant/tests.py) | [ ] |
 | GET,POST | `api/v1/chat/assistant/<uuid:pk>/conversation/` | `ConversationListCreateView` | heuristic (apps/assistant/tests.py) | [ ] |
@@ -32,17 +32,17 @@ Auto-generated from the live URL resolver on 2026-08-01 by walking `django.urls.
 | GET,POST | `api/v1/chat/assistant/<uuid:pk>/leads/` | `LeadListCreateView` | heuristic (apps/assistant/tests.py) | [ ] |
 | POST | `api/v1/chat/assistant/<uuid:pk>/update-file/` | `AssistantFileUploadUpdateView` | heuristic (apps/assistant/tests.py) | [ ] |
 | GET,POST | `api/v1/chat/assistant/<uuid:pk>/upload-file/` | `AssistantFileUploadListCreateView` | heuristic (apps/assistant/tests.py) | [ ] |
-| GET | `api/v1/chat/assistant/token-stats/` | `AssistantTokenStatsView` | none | [ ] |
+| GET | `api/v1/chat/assistant/token-stats/` | `AssistantTokenStatsView` | heuristic (apps/assistant/tests.py) | [ ] |
 | GET,PUT,PATCH,DELETE | `api/v1/chat/conversation/<uuid:pk>/` | `ConversationRetrieveView` | heuristic (apps/assistant/tests.py) | [ ] |
 | GET,POST | `api/v1/chat/conversation/<uuid:pk>/message/` | `MessageListCreateView` | heuristic (apps/assistant/tests.py) | [ ] |
 | GET | `api/v1/chat/conversation/<uuid:pk>/messages/` | `ConversationMessagesListView` | heuristic (apps/assistant/tests.py) | [ ] |
 | PUT,PATCH | `api/v1/chat/conversation/<uuid:pk>/messages/bulk-read/` | `MessageBulkReadView` | heuristic (apps/assistant/tests.py) | [ ] |
-| GET,PUT,PATCH,DELETE | `api/v1/chat/follow-up/stage/<uuid:pk>/` | `FollowUpStageDetailView` | none | [ ] |
-| GET,PUT,PATCH,DELETE | `api/v1/chat/lead/<uuid:pk>/` | `LeadRetrieveView` | none | [ ] |
+| GET,PUT,PATCH,DELETE | `api/v1/chat/follow-up/stage/<uuid:pk>/` | `FollowUpStageDetailView` | heuristic (apps/assistant/tests.py) | [ ] |
+| GET,PUT,PATCH,DELETE | `api/v1/chat/lead/<uuid:pk>/` | `LeadRetrieveView` | heuristic (apps/assistant/tests.py) | [ ] |
 | GET,PUT,PATCH,DELETE | `api/v1/chat/message/<uuid:pk>/` | `MessageRetrieveView` | heuristic (apps/assistant/tests.py) | [ ] |
 | GET | `api/v1/chat/prompt-templates/` | `PromptTemplateListView` | none | [ ] |
 
-_assistant: 15/20 have some coverage; 5 have none._
+_assistant: 19/20 have some coverage; 1 have none._
 
 
 ## `blog` — blog — marketing content
@@ -90,7 +90,7 @@ _blog: 0/2 have some coverage; 2 have none._
 | GET,PUT,PATCH,DELETE | `api/v1/dashboard/prompts/<uuid:pk>/` | `DashboardPromptTemplateDetail` | none | [ ] |
 | GET | `api/v1/dashboard/search/` | `DashboardGlobalSearch` | none | [ ] |
 | POST | `api/v1/dashboard/send-otp/login/` | `DashboardSendOtpLoginView` | none | [ ] |
-| GET | `api/v1/dashboard/statistics/` | `DashboardStatisticsView` | none | [ ] |
+| GET | `api/v1/dashboard/statistics/` | `DashboardStatisticsView` | heuristic (apps/user/tests.py) | [ ] |
 | GET | `api/v1/dashboard/statistics/ai-costs/` | `DashboardAICostBreakdownView` | none | [ ] |
 | GET | `api/v1/dashboard/subscriptions/` | `DashboardSubscriptionList` | heuristic (apps/dashboard/tests.py) | [ ] |
 | GET,PUT,PATCH,DELETE | `api/v1/dashboard/subscriptions/<uuid:pk>/` | `DashboardSubscriptionDetail` | written (apps/dashboard/tests.py — DashboardSubscriptionDetailPermissionTests) | [ ] |
@@ -110,7 +110,7 @@ _blog: 0/2 have some coverage; 2 have none._
 | GET | `api/v1/dashboard/users/export/` | `DashboardUserExport` | none | [ ] |
 | POST | `api/v1/dashboard/verify-otp/login/` | `DashboardVerifyOtpLoginView` | none | [ ] |
 
-_dashboard: 11/50 have some coverage; 39 have none._
+_dashboard: 12/50 have some coverage; 38 have none._
 
 
 ## `integration` — integration — Telegram, Instagram, amoCRM, Billz, broadcasts
@@ -118,23 +118,23 @@ _dashboard: 11/50 have some coverage; 39 have none._
 | Method | Path | View | Coverage | Reviewed |
 |---|---|---|---|---|
 | GET,POST | `api/v1/integration/<uuid:integration_id>/instagram/comment-responses/` | `InstagramCommentResponseListCreateView` | heuristic (apps/integration/tests.py) | [ ] |
-| GET | `api/v1/integration/amocrm/` | `AmoCRMOAuthHandlerView` | none | [ ] |
+| GET | `api/v1/integration/amocrm/` | `AmoCRMOAuthHandlerView` | heuristic (apps/integration/tests.py) | [ ] |
 | GET | `api/v1/integration/amocrm/install/` | `AmoCRMOAuthInstallView` | none | [ ] |
-| POST | `api/v1/integration/amocrm/refresh/` | `AmoCRMTokenRefreshView` | none | [ ] |
-| POST | `api/v1/integration/amocrm/set-pipeline/` | `AmoCRMSetPipelineView` | none | [ ] |
+| POST | `api/v1/integration/amocrm/refresh/` | `AmoCRMTokenRefreshView` | heuristic (apps/integration/tests.py) | [ ] |
+| POST | `api/v1/integration/amocrm/set-pipeline/` | `AmoCRMSetPipelineView` | heuristic (apps/integration/tests.py) | [ ] |
 | POST | `api/v1/integration/assistant/<uuid:pk>/billz/` | `BillzSecretTokenHandlerView` | heuristic (apps/integration/tests.py) | [ ] |
 | GET,POST | `api/v1/integration/assistant/<uuid:pk>/integration/` | `IntegrationListCreateView` | heuristic (apps/integration/tests.py) | [ ] |
 | GET,POST | `api/v1/integration/broadcast/` | `BroadcastListCreateView` | heuristic (apps/integration/tests.py) | [ ] |
 | GET | `api/v1/integration/broadcast/recipients-count/<uuid:integration_id>/` | `BroadcastRecipientsCountView` | none | [ ] |
 | GET | `api/v1/integration/broadcast/recipients/<uuid:integration_id>/` | `BroadcastRecipientsListView` | none | [ ] |
 | GET,PUT,PATCH,DELETE | `api/v1/integration/buttons/<uuid:pk>/` | `CommentResponseButtonRetrieveUpdateDestroyView` | heuristic (apps/integration/tests.py) | [ ] |
-| GET,POST | `api/v1/integration/comment-response/flow/<uuid:pk>/transition/` | `InstagramFlowTransitionListCreateView` | none | [ ] |
-| GET,POST | `api/v1/integration/comment-responses/<uuid:pk>/flow/` | `InstagramCommentResponseFlowListCreateView` | none | [ ] |
+| GET,POST | `api/v1/integration/comment-response/flow/<uuid:pk>/transition/` | `InstagramFlowTransitionListCreateView` | heuristic (apps/integration/tests.py) | [ ] |
+| GET,POST | `api/v1/integration/comment-responses/<uuid:pk>/flow/` | `InstagramCommentResponseFlowListCreateView` | heuristic (apps/integration/tests.py) | [ ] |
 | GET,PUT,PATCH,DELETE | `api/v1/integration/flow/<uuid:pk>/` | `FlowRetrieveUpdateDestroyView` | heuristic (apps/integration/tests.py) | [ ] |
 | GET | `api/v1/integration/instagram/callback/` | `InstagramCallbackView` | heuristic (apps/integration/tests.py) | [ ] |
 | GET,PUT,PATCH,DELETE | `api/v1/integration/instagram/comment-responses/<uuid:pk>/` | `InstagramCommentResponseRetrieveView` | heuristic (apps/integration/tests.py) | [ ] |
-| POST | `api/v1/integration/instagram/data-deletion/` | `InstagramDataDeletionView` | none | [ ] |
-| POST | `api/v1/integration/instagram/deauthorize/` | `InstagramDeauthorizeView` | none | [ ] |
+| POST | `api/v1/integration/instagram/data-deletion/` | `InstagramDataDeletionView` | heuristic (apps/integration/tests.py) | [ ] |
+| POST | `api/v1/integration/instagram/deauthorize/` | `InstagramDeauthorizeView` | heuristic (apps/integration/tests.py) | [ ] |
 | GET,POST | `api/v1/integration/instagram/webhook/` | `InstagramWebhookView` | heuristic (apps/integration/tests.py) | [ ] |
 | GET,PUT,PATCH,DELETE | `api/v1/integration/intagram-media/<uuid:pk>/` | `InstagramMediaRetrieveView` | none | [ ] |
 | GET | `api/v1/integration/integration-list/` | `IntegrationListView` | none | [ ] |
@@ -142,25 +142,25 @@ _dashboard: 11/50 have some coverage; 39 have none._
 | GET | `api/v1/integration/integration/<uuid:pk>/instagram/posts/` | `InstagramPostListView` | heuristic (apps/integration/tests.py) | [ ] |
 | GET | `api/v1/integration/integration/<uuid:pk>/telegram-group/` | `TelegramGroupListView` | heuristic (apps/integration/tests.py) | [ ] |
 | POST | `api/v1/integration/send-telegram-message/` | `SendUserMessageView` | none | [ ] |
-| POST | `api/v1/integration/send/integration/<uuid:pk>/` | `SendIntegrationMessageView` | none | [ ] |
+| POST | `api/v1/integration/send/integration/<uuid:pk>/` | `SendIntegrationMessageView` | heuristic (apps/integration/tests.py) | [ ] |
 | GET,PUT,PATCH,DELETE | `api/v1/integration/steps/<uuid:pk>/` | `StepRetrieveUpdateDestroyView` | heuristic (apps/integration/tests.py) | [ ] |
-| GET,PUT,PATCH,DELETE | `api/v1/integration/telegram-group/<uuid:pk>/` | `TelegramGroupUpdateDestroyView` | none | [ ] |
-| POST | `api/v1/integration/telegram/webhook/<str:bot_token>/` | `TelegramWebhookView` | heuristic (apps/shared/tests/test_telegram_webhook_logging.py) | [ ] |
+| GET,PUT,PATCH,DELETE | `api/v1/integration/telegram-group/<uuid:pk>/` | `TelegramGroupUpdateDestroyView` | heuristic (apps/integration/tests.py) | [ ] |
+| POST | `api/v1/integration/telegram/webhook/<str:bot_token>/` | `TelegramWebhookView` | heuristic (apps/integration/tests.py) | [ ] |
 | GET,PUT,PATCH,DELETE | `api/v1/integration/transition/<uuid:pk>/` | `TransitionRetrieveUpdateDestroyView` | heuristic (apps/integration/tests.py) | [ ] |
 | POST | `api/v1/integration/trigger-words/` | `CommentTriggerWordListCreateView` | none | [ ] |
 | GET,PUT,PATCH,DELETE | `api/v1/integration/trigger-words/<uuid:pk>/` | `CommentTriggerWordRetrieveView` | none | [ ] |
 
-_integration: 15/32 have some coverage; 17 have none._
+_integration: 24/32 have some coverage; 8 have none._
 
 
 ## `landing` — landing — public marketing site leads
 
 | Method | Path | View | Coverage | Reviewed |
 |---|---|---|---|---|
-| POST | `api/v1/landing/lead-bot/webhook/` | `LeadBotWebhookView` | none | [ ] |
-| POST | `api/v1/landing/lead/` | `LandingLeadCreateView` | none | [ ] |
+| POST | `api/v1/landing/lead-bot/webhook/` | `LeadBotWebhookView` | heuristic (apps/landing/tests.py) | [ ] |
+| POST | `api/v1/landing/lead/` | `LandingLeadCreateView` | heuristic (apps/landing/tests.py) | [ ] |
 
-_landing: 0/2 have some coverage; 2 have none._
+_landing: 2/2 have some coverage; 0 have none._
 
 
 ## `payment` — payment — subscriptions, cards, transactions
@@ -171,23 +171,24 @@ _landing: 0/2 have some coverage; 2 have none._
 | GET,PUT,PATCH | `api/v1/payment/cards/<uuid:pk>/` | `CardDetailView` | heuristic (apps/payment/tests.py) | [ ] |
 | DELETE | `api/v1/payment/cards/<uuid:pk>/remove/` | `CardRemoveView` | heuristic (apps/payment/tests.py) | [ ] |
 | POST | `api/v1/payment/cards/<uuid:pk>/set-default/` | `SetDefaultCard` | heuristic (apps/payment/tests.py) | [ ] |
-| GET,POST | `api/v1/payment/features/` | `FeatureListCreateView` | none | [ ] |
-| GET,PUT,PATCH,DELETE | `api/v1/payment/features/<uuid:pk>/` | `FeatureRetrieveView` | none | [ ] |
+| GET,POST | `api/v1/payment/features/` | `FeatureListCreateView` | heuristic (apps/payment/tests.py) | [ ] |
+| GET,PUT,PATCH,DELETE | `api/v1/payment/features/<uuid:pk>/` | `FeatureRetrieveView` | heuristic (apps/payment/tests.py) | [ ] |
 | POST | `api/v1/payment/manual-payment/` | `ManualSubscriptionPaymentView` | none | [ ] |
-| POST | `api/v1/payment/payme/card/add/` | `CardCreateWithPaymeView` | none | [ ] |
-| POST | `api/v1/payment/payme/card/pay-subscription/` | `PayWithCard` | none | [ ] |
-| POST | `api/v1/payment/payme/card/update-subscription/` | `SubscriptionUpdateView` | none | [ ] |
-| POST | `api/v1/payment/payme/get-verify-token/` | `PaymeGetVerifyCodeView` | none | [ ] |
-| POST | `api/v1/payment/payme/verify-code/` | `PaymeVerifyCodeView` | none | [ ] |
+| POST | `api/v1/payment/payme/card/add/` | `CardCreateWithPaymeView` | heuristic (apps/payment/tests.py) | [ ] |
+| POST | `api/v1/payment/payme/card/pay-subscription/` | `PayWithCard` | heuristic (apps/payment/tests.py) | [ ] |
+| POST | `api/v1/payment/payme/card/update-subscription/` | `SubscriptionUpdateView` | heuristic (apps/payment/tests.py) | [ ] |
+| POST | `api/v1/payment/payme/get-verify-token/` | `PaymeGetVerifyCodeView` | heuristic (apps/payment/tests.py) | [ ] |
+| POST | `api/v1/payment/payme/verify-code/` | `PaymeVerifyCodeView` | heuristic (apps/payment/tests.py) | [ ] |
 | GET,POST | `api/v1/payment/pricing-packages/` | `PricingPackageListCreateView` | heuristic (apps/payment/tests.py) | [ ] |
 | GET,PUT,PATCH,DELETE | `api/v1/payment/pricing-packages/<uuid:pk>/` | `PricingPackageRetrieveView` | heuristic (apps/payment/tests.py) | [ ] |
+| POST | `api/v1/payment/pricing-packages/<uuid:pk>/request/` | `CustomPackageRequestCreateView` | heuristic (apps/payment/tests.py) | [ ] |
 | GET | `api/v1/payment/retry-payments/subscription/<uuid:pk>/` | `RetryPaymentListView` | heuristic (apps/payment/tests.py) | [ ] |
 | PUT,PATCH | `api/v1/payment/subscriptions/<uuid:pk>/` | `SubscriptionUpdateAutoRenewView` | heuristic (apps/payment/tests.py) | [ ] |
 | POST | `api/v1/payment/subscriptions/cancel/` | `SubscriptionCancellationView` | heuristic (apps/payment/tests.py) | [ ] |
 | POST | `api/v1/payment/subscriptions/create/` | `SubscriptionCreateView` | heuristic (apps/payment/tests.py) | [ ] |
 | GET | `api/v1/payment/transactions/` | `TransactionListView` | none | [ ] |
 
-_payment: 10/19 have some coverage; 9 have none._
+_payment: 18/20 have some coverage; 2 have none._
 
 
 ## `user` — user — auth, accounts, staff, notifications
@@ -196,28 +197,28 @@ _payment: 10/19 have some coverage; 9 have none._
 |---|---|---|---|---|
 | GET | `api/v1/user/accounts/google/login/` | `GoogleLoginView` | heuristic (apps/user/tests.py) | [ ] |
 | GET | `api/v1/user/accounts/google/login/callback/` | `GoogleAuthCallbackView` | heuristic (apps/user/tests.py) | [ ] |
-| POST | `api/v1/user/add-staff/` | `AddStaffView` | none | [ ] |
-| POST | `api/v1/user/auth/login/refresh/` | `LoginRefreshView` | none | [ ] |
-| POST | `api/v1/user/auth/logout/` | `LogoutView` | none | [ ] |
+| POST | `api/v1/user/add-staff/` | `AddStaffView` | heuristic (apps/user/tests.py) | [ ] |
+| POST | `api/v1/user/auth/login/refresh/` | `LoginRefreshView` | heuristic (apps/user/tests.py) | [ ] |
+| POST | `api/v1/user/auth/logout/` | `LogoutView` | heuristic (apps/user/tests.py) | [ ] |
 | GET | `api/v1/user/auth/profile/` | `UserProfileGetView` | heuristic (apps/user/tests.py) | [ ] |
 | POST | `api/v1/user/auth/register/` | `UserRegisterView` | heuristic (apps/user/tests.py) | [ ] |
 | POST | `api/v1/user/auth/send-otp/` | `SendCodeView` | heuristic (apps/user/tests.py) | [ ] |
-| PUT,PATCH | `api/v1/user/auth/update-user/` | `UpdateProfileView` | none | [ ] |
+| PUT,PATCH | `api/v1/user/auth/update-user/` | `UpdateProfileView` | heuristic (apps/user/tests.py) | [ ] |
 | POST | `api/v1/user/auth/verify-otp/` | `VerifyCodeView` | heuristic (apps/user/tests.py) | [ ] |
 | PUT,PATCH | `api/v1/user/notification/<uuid:pk>/` | `NotificationUpdateView` | heuristic (apps/user/tests.py) | [ ] |
 | GET | `api/v1/user/notifications/` | `NotificationListView` | none | [ ] |
 | GET,POST | `api/v1/user/privacy-policy/` | `PrivacyPolicyListCreateView` | none | [ ] |
 | GET,PUT,PATCH,DELETE | `api/v1/user/privacy-policy/<uuid:pk>/` | `PrivacyPolicyRetrieveView` | none | [ ] |
-| GET | `api/v1/user/staff/` | `StaffListView` | none | [ ] |
-| DELETE | `api/v1/user/staff/<uuid:pk>/` | `StaffDeleteView` | none | [ ] |
+| GET | `api/v1/user/staff/` | `StaffListView` | heuristic (apps/user/tests.py) | [ ] |
+| DELETE | `api/v1/user/staff/<uuid:pk>/` | `StaffDeleteView` | heuristic (apps/user/tests.py) | [ ] |
 | GET,POST | `api/v1/user/user-agreement/` | `UserAgreementListCreateView` | none | [ ] |
 | GET,PUT,PATCH,DELETE | `api/v1/user/user-agreement/<uuid:pk>/` | `UserAgreementRetrieveView` | none | [ ] |
 
-_user: 7/18 have some coverage; 11 have none._
+_user: 13/18 have some coverage; 5 have none._
 
 
 ## Totals
 
-- 143 endpoints across 7 apps.
-- 58 have some coverage; **85 have none** — start `test-writer` there.
+- 144 endpoints across 7 apps.
+- 88 have some coverage; **56 have none** — start `test-writer` there.
 - 0 carried over as `Reviewed` from the previous version of this file.

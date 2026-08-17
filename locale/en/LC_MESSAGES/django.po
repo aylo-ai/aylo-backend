@@ -1108,3 +1108,23 @@ msgstr "Kazakh"
 #: config/settings.py:288
 msgid "Korean"
 msgstr "Korean"
+
+#: apps/payment/views.py:153
+msgid "Arizangiz qabul qilindi. Savdo bo'limi tez orada bog'lanadi."
+msgstr "Your request has been received. Our sales team will contact you shortly."
+
+#: apps/payment/serializers.py:571 apps/payment/serializers.py:662
+msgid "Bu paket kompaniyalar uchun individual shakllantiriladi. Iltimos, ariza qoldiring — savdo bo'limi siz bilan bog'lanadi."
+msgstr "This package is tailored individually for companies. Please leave a request — our sales team will contact you."
+
+#: apps/payment/views.py:138
+msgid "Bu paketni to'g'ridan-to'g'ri xarid qilish mumkin."
+msgstr "This package can be purchased directly."
+
+#: apps/payment/serializers.py:146
+msgid "Suhbatlar soni manfiy bo'lishi mumkin emas."
+msgstr "The number of conversations cannot be negative."
+
+#: apps/payment/serializers.py:139
+msgid "Telefon raqam kamida 9 ta raqamdan iborat bo'lishi kerak."
+msgstr "The phone number must contain at least 9 digits."

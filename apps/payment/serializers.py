@@ -11,6 +11,7 @@ from rest_framework import serializers
 from apps.payment.models import (
     Balance,
     Card,
+    CustomPackageRequest,
     Feature,
     PricingPackage,
     RetryPayment,
@@ -82,6 +83,15 @@ class BalanceSerializer(serializers.ModelSerializer):
         ]
 
 class PricingPackageSerializer(serializers.ModelSerializer):
+    # The pricing page has to tell a priced tier from the "for companies" one:
+    # a custom package carries no chargeable price, so the card renders a
+    # contact-sales button instead of a number and a "subscribe" call.
+    #
+    # The derived boolean, not the raw `type` enum — `PublicCatalogueTests`
+    # deliberately pins this payload to what the pricing page needs, and the
+    # internal plan classification is not part of that.
+    is_custom = serializers.BooleanField(read_only=True)
+
     class Meta:
         model = PricingPackage
         fields = [
@@ -89,6 +99,7 @@ class PricingPackageSerializer(serializers.ModelSerializer):
             "name",
             "price",
             "discount_price",
+            "is_custom",
             "currency",
             "description",
             "features",
@@ -125,6 +136,49 @@ class PricingPackageSerializer(serializers.ModelSerializer):
         data["features"] = FeatureSerializer(instance.features, many=True).data
         return data
 
+
+
+class CustomPackageRequestSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = CustomPackageRequest
+        fields = [
+            "id",
+            "company_name",
+            "full_name",
+            "phone_number",
+            "email",
+            "expected_conversations",
+            "comment",
+            "created_time",
+        ]
+        read_only_fields = ["id", "created_time"]
+
+    def validate_phone_number(self, value):
+        # Same rule as the landing lead form — sales calls this number back.
+        cleaned = re.sub(r"[\s\-()]", "", str(value or ""))
+        if len(re.sub(r"\D", "", cleaned)) < 9:
+            raise_validation_error(
+                message=_("Telefon raqam kamida 9 ta raqamdan iborat bo'lishi kerak.")
+            )
+        return cleaned
+
+    def validate_expected_conversations(self, value):
+        if value is not None and value < 0:
+            raise_validation_error(
+                message=_("Suhbatlar soni manfiy bo'lishi mumkin emas.")
+            )
+        return value
+
+    def create(self, validated_data):
+        request = self.context.get("request")
+        user = getattr(request, "user", None)
+        return CustomPackageRequest.objects.create(
+            pricing_package=self.context.get("pricing_package"),
+            # The pricing page is public, so most of these arrive without a
+            # token; attach the account only when there actually is one.
+            user=user if user is not None and user.is_authenticated else None,
+            **validated_data,
+        )
 
 
 class CardSerializer(serializers.ModelSerializer):
@@ -530,6 +584,17 @@ class SubscriptionSerializer(serializers.ModelSerializer):
         except PricingPackage.DoesNotExist:
             raise_validation_error(message=_("Narx paketi topilmadi."))
 
+        # The company tier has no fixed price — subscribing to it would create a
+        # subscription nothing can ever charge. Sales agrees the terms first and
+        # then assigns a package from the dashboard.
+        if pricing_package.is_custom:
+            raise_validation_error(
+                message=_(
+                    "Bu paket kompaniyalar uchun individual shakllantiriladi. "
+                    "Iltimos, ariza qoldiring — savdo bo'limi siz bilan bog'lanadi."
+                )
+            )
+
         attrs["pricing_package"] = pricing_package
         return attrs
 
@@ -611,6 +676,15 @@ class SubscriptionUpdateSerializer(serializers.Serializer):
                 raise_validation_error(message=_("Narx paketi hozirda faol emas."))
             if pricing_package.type == PricingPackageType.FREE.value:
                 raise_validation_error(message=_("Bu tekin paketni yangilash mumkin emas."))
+            # Same reason as in SubscriptionSerializer: there is no agreed
+            # amount to put on the Payme receipt for a custom tier.
+            if pricing_package.is_custom:
+                raise_validation_error(
+                    message=_(
+                        "Bu paket kompaniyalar uchun individual shakllantiriladi. "
+                        "Iltimos, ariza qoldiring — savdo bo'limi siz bilan bog'lanadi."
+                    )
+                )
         except PricingPackage.DoesNotExist:
             raise_validation_error(message=_("Narx paketi topilmadi."))
 
