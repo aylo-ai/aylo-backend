@@ -2,7 +2,7 @@
 
 `POST /api/v1/payment/subscriptions/create/` only accepts an existing, active
 `PricingPackage`, so a fresh database has nothing for the sign-up flow's plan
-step to offer. This command creates the standard Free / Pro / Korporativ ladder
+step to offer. This command creates the standard Free / Basic / Pro ladder
 and is idempotent — it matches on package name and updates in place, so it is
 safe to re-run after changing a price or a limit.
 
@@ -33,7 +33,7 @@ FEATURES = [
     {"name": "Ustuvor qo'llab-quvvatlash", "icon": "headset"},
 ]
 
-# The paid tier's price is pinned to the "989,000 so'mdan boshlanadi" claim
+# The paid tier's price is pinned to the "699,000 so'mdan boshlanadi" claim
 # published in the marketing blog (apps/blog/management/commands/seed_blog_posts.py) —
 # keep the two in sync if either changes.
 PACKAGES = [
@@ -52,16 +52,16 @@ PACKAGES = [
         "features": ["AI agent", "Veb-sayt vidjeti", "Bilimlar bazasi"],
     },
     {
-        "name": "Pro",
-        "type": PricingPackageType.PRO.value,
-        "price": 989000,
+        "name": "Basic",
+        "type": PricingPackageType.BASIC.value,
+        "price": 699000,
         "discount_price": None,
         "description": (
-            "Eng ko'p tanlanadigan paket — oyiga 5 000 ta suhbat, Telegram va "
+            "Eng ko'p tanlanadigan paket — oyiga 2 000 ta suhbat, Telegram va "
             "Instagram orqali to'liq muloqot, lidlarni boshqarish, follow-up "
             "avtomatlashtirish va CRM integratsiyalari."
         ),
-        "request_count": 5000,
+        "request_count": 2000,
         "duration_days": 30,
         "is_popular": True,
         "features": [
@@ -78,21 +78,26 @@ PACKAGES = [
         ],
     },
     {
-        # No price: sales agrees it per company. `PricingPackage.is_custom`
-        # keys off `type`, and the subscribe/upgrade endpoints refuse it — a
-        # company posts to `pricing-packages/<id>/request/` instead.
-        "name": "Korporativ",
+        # No price and no fixed limit: both are agreed per company.
+        # `PricingPackage.is_custom` keys off `type`, and the subscribe/upgrade
+        # endpoints refuse it — a company posts to
+        # `pricing-packages/<id>/request/` and names the volume it needs.
+        "name": "Pro",
         "type": PricingPackageType.CUSTOM.value,
         "price": 0,
         "discount_price": None,
         "description": (
-            "Kompaniyalar uchun individual yechim — cheksiz suhbatlar, jamoa "
-            "a'zolari, maxsus integratsiyalar va ustuvor qo'llab-quvvatlash. "
-            "Narx va shartlar biznesingizga moslab kelishiladi."
+            "Kompaniyalar uchun individual yechim — suhbatlar va tokenlar soni "
+            "biznesingizga moslab kelishiladi, barcha imkoniyatlar to'liq "
+            "ochiq: jamoa a'zolari, maxsus integratsiyalar va ustuvor "
+            "qo'llab-quvvatlash."
         ),
+        # 0 means "not fixed here" — sales sets the agreed volume on the
+        # subscription once the deal closes.
         "request_count": 0,
         "duration_days": 30,
         "is_popular": False,
+        # Everything, by definition: this is the all-inclusive tier.
         "features": [feature["name"] for feature in FEATURES],
     },
 ]
@@ -101,11 +106,11 @@ PACKAGES = [
 # part of the ladder. They are deactivated rather than deleted — existing
 # subscriptions still point at them, and `Subscription.pricing_package` is the
 # only record of what a customer actually bought.
-RETIRED_PACKAGE_NAMES = ["Basic"]
+RETIRED_PACKAGE_NAMES = ["Korporativ"]
 
 
 class Command(BaseCommand):
-    help = "Create or update the Free / Pro / Korporativ pricing packages."
+    help = "Create or update the Free / Basic / Pro pricing packages."
 
     @transaction.atomic
     def handle(self, *args, **options):
