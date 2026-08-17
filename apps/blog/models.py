@@ -9,7 +9,7 @@ class BlogPost(BaseModel):
     excerpt = models.TextField(max_length=500, help_text="Short description for SEO meta and cards")
     content = models.TextField(help_text="Full blog post content in HTML or Markdown")
     cover_image = models.URLField(max_length=500, null=True, blank=True)
-    author = models.CharField(max_length=100, default="Repli AI Team")
+    author = models.CharField(max_length=100, default="Aylo AI Team")
     tags = models.JSONField(default=list, blank=True, help_text="List of tags for filtering")
     target_keyword = models.CharField(max_length=200, null=True, blank=True, help_text="Primary SEO keyword")
     meta_title = models.CharField(max_length=70, null=True, blank=True, help_text="SEO title (max 70 chars)")

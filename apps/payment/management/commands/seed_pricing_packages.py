@@ -38,7 +38,7 @@ PACKAGES = [
         "price": 0,
         "discount_price": None,
         "description": (
-            "Repli AI bilan tanishish uchun — 1 ta AI agent, veb-sayt vidjeti va "
+            "Aylo AI bilan tanishish uchun — 1 ta AI agent, veb-sayt vidjeti va "
             "asosiy bilimlar bazasi bilan bepul sinab ko'ring."
         ),
         "request_count": 100,

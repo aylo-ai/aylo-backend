@@ -3,7 +3,7 @@ name: endpoint-test-checklist
 description: >-
   Regenerate and read docs/testing/ENDPOINT_TEST_CHECKLIST.md (per-endpoint
   test-tracking) and docs/testing/ENDPOINT_PERMISSIONS.md (per-endpoint
-  permission matrix) for repli-backend. Use when the user wants to see which
+  permission matrix) for aylo-backend. Use when the user wants to see which
   endpoints have no test coverage or which permission class gates a route,
   wants either doc refreshed after routes changed, asks "what's untested",
   "what permission does X endpoint need", "refresh the checklist/matrix", or

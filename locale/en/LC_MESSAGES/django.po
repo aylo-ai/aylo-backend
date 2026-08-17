@@ -1,15 +1,15 @@
-# Repli.uz backend translations.
+# Aylo.uz backend translations.
 # Source strings (msgid) are Uzbek — translate from Uzbek, not from English.
 # Regenerate references with `manage.py makemessages -l <lang>` inside the
 # container (gettext ships in deployment/Dockerfile).
 #
 msgid ""
 msgstr ""
-"Project-Id-Version: repli-backend\n"
+"Project-Id-Version: aylo-backend\n"
 "Report-Msgid-Bugs-To: \n"
 "POT-Creation-Date: 2026-07-30 22:08\n"
 "PO-Revision-Date: 2026-07-30 22:08\n"
-"Last-Translator: Repli.uz <info@repli.uz>\n"
+"Last-Translator: Aylo.uz <info@aylo.uz>\n"
 "Language-Team: English\n"
 "Language: en\n"
 "MIME-Version: 1.0\n"
@@ -982,16 +982,16 @@ msgid "Email yoki telefon raqam noto'g'ri kiritilgan"
 msgstr "Email or phone number entered incorrectly"
 
 #: apps/user/services/notifications.py:23
-msgid "Hurmatli {user.first_name}, sizning repli.uz dagi obuna tugadi. Iltimos, platformaga kirib, to'lovni qayta amalga oshiring."
-msgstr "Dear {user.first_name}, your repli.uz subscription has ended. Please log in to the platform and repeat the payment."
+msgid "Hurmatli {user.first_name}, sizning aylo.uz dagi obuna tugadi. Iltimos, platformaga kirib, to'lovni qayta amalga oshiring."
+msgstr "Dear {user.first_name}, your aylo.uz subscription has ended. Please log in to the platform and repeat the payment."
 
 #: apps/user/services/notifications.py:39
 msgid "Warning: Your subscription has expired"
 msgstr "Warning: Your subscription has expired"
 
 #: apps/user/services/notifications.py:41
-msgid "Hurmatli {user.first_name}, sizning repli.uz dagi obuna to'lovingiz muvaffaqiyatsiz amalga oshirildi. Iltimos, platformaga kirib, to'lovni qayta amalga oshiring."
-msgstr "Dear {user.first_name}, your subscription payment on repli.uz was unsuccessful. Please log in to the platform and try the payment again."
+msgid "Hurmatli {user.first_name}, sizning aylo.uz dagi obuna to'lovingiz muvaffaqiyatsiz amalga oshirildi. Iltimos, platformaga kirib, to'lovni qayta amalga oshiring."
+msgstr "Dear {user.first_name}, your subscription payment on aylo.uz was unsuccessful. Please log in to the platform and try the payment again."
 
 #: apps/user/services/notifications.py:59
 msgid "Warning message sent to your email"
@@ -1006,8 +1006,8 @@ msgid "Low Token Count Warning"
 msgstr "Low Token Count Warning"
 
 #: apps/user/services/notifications.py:79
-msgid "Hurmatli {user.first_name}, sizning repli.uz dagi so'rovlar soningiz {count} tadan kam qoldi. Iltimos, platformaga kirib, obunangizni yangilang."
-msgstr "Dear {user.first_name}, your request count on repli.uz is below {count}. Please log in to the platform and renew your subscription."
+msgid "Hurmatli {user.first_name}, sizning aylo.uz dagi so'rovlar soningiz {count} tadan kam qoldi. Iltimos, platformaga kirib, obunangizni yangilang."
+msgstr "Dear {user.first_name}, your request count on aylo.uz is below {count}. Please log in to the platform and renew your subscription."
 
 #: apps/user/views.py:113
 msgid "Foydalanuvchi muvaffaqiyatli yaratildi"

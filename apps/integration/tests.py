@@ -24,8 +24,8 @@ ACCOUNT_ID = "ig-account-1"
 class ChannelTestCase(TestCase):
     def setUp(self):
         self.assistant = Assistant.objects.create(
-            name="Repli Bot",
-            company_name="Repli",
+            name="Aylo Bot",
+            company_name="Aylo",
             system_prompt="You sell phones.",
             fallback_message="Sorry, please try again shortly.",
             greeting_message="Welcome!",
@@ -1427,7 +1427,7 @@ class AmoCRMTenancyTests(TenancyFixture):
             assistant=self.assistant, user=self.owner, name="amo",
             integration_type=IntegrationTypes.AMOCRM.value,
             api_token="OLD-ACCESS",
-            metadata={"subdomain": "repli.amocrm.ru", "client_id": "cid",
+            metadata={"subdomain": "aylo.amocrm.ru", "client_id": "cid",
                       "refresh_token": "OLD-REFRESH"},
         )
 
@@ -1516,7 +1516,7 @@ class AmoCRMCallbackHostTests(TestCase):
     def test_the_host_check_rejects_smuggled_authorities(self):
         from apps.integration.views.amocrm import is_amocrm_host
 
-        self.assertTrue(is_amocrm_host("repli.amocrm.ru"))
+        self.assertTrue(is_amocrm_host("aylo.amocrm.ru"))
         self.assertTrue(is_amocrm_host("amocrm.ru"))
         for bad in (
             "", None, "evil.com", "amocrm.ru.evil.com", "notamocrm.ru",
@@ -1537,7 +1537,7 @@ class AmoCRMCallbackHostTests(TestCase):
             http_mock.post.return_value = token
 
             response = self.client.get(
-                self.URL, {"code": "c", "state": "s", "referer": "repli.amocrm.ru"},
+                self.URL, {"code": "c", "state": "s", "referer": "aylo.amocrm.ru"},
             )
 
         # It got past the host check and tried the exchange (which the fake

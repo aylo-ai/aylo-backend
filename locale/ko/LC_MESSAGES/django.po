@@ -1,15 +1,15 @@
-# Repli.uz backend translations.
+# Aylo.uz backend translations.
 # Source strings (msgid) are Uzbek — translate from Uzbek, not from English.
 # Regenerate references with `manage.py makemessages -l <lang>` inside the
 # container (gettext ships in deployment/Dockerfile).
 #
 msgid ""
 msgstr ""
-"Project-Id-Version: repli-backend\n"
+"Project-Id-Version: aylo-backend\n"
 "Report-Msgid-Bugs-To: \n"
 "POT-Creation-Date: 2026-07-30 22:08\n"
 "PO-Revision-Date: 2026-07-30 22:08\n"
-"Last-Translator: Repli.uz <info@repli.uz>\n"
+"Last-Translator: Aylo.uz <info@aylo.uz>\n"
 "Language-Team: 한국어\n"
 "Language: ko\n"
 "MIME-Version: 1.0\n"
@@ -982,16 +982,16 @@ msgid "Email yoki telefon raqam noto'g'ri kiritilgan"
 msgstr "이메일 또는 전화번호가 잘못 입력되었습니다"
 
 #: apps/user/services/notifications.py:23
-msgid "Hurmatli {user.first_name}, sizning repli.uz dagi obuna tugadi. Iltimos, platformaga kirib, to'lovni qayta amalga oshiring."
-msgstr "{user.first_name}님, repli.uz 구독이 종료되었습니다. 플랫폼에 로그인하여 결제를 다시 진행해 주세요."
+msgid "Hurmatli {user.first_name}, sizning aylo.uz dagi obuna tugadi. Iltimos, platformaga kirib, to'lovni qayta amalga oshiring."
+msgstr "{user.first_name}님, aylo.uz 구독이 종료되었습니다. 플랫폼에 로그인하여 결제를 다시 진행해 주세요."
 
 #: apps/user/services/notifications.py:39
 msgid "Warning: Your subscription has expired"
 msgstr "경고: 구독이 만료되었습니다"
 
 #: apps/user/services/notifications.py:41
-msgid "Hurmatli {user.first_name}, sizning repli.uz dagi obuna to'lovingiz muvaffaqiyatsiz amalga oshirildi. Iltimos, platformaga kirib, to'lovni qayta amalga oshiring."
-msgstr "존경하는 {user.first_name}님, repli.uz에서의 구독 결제가 실패했습니다. 플랫폼에 로그인하여 결제를 다시 진행해주세요."
+msgid "Hurmatli {user.first_name}, sizning aylo.uz dagi obuna to'lovingiz muvaffaqiyatsiz amalga oshirildi. Iltimos, platformaga kirib, to'lovni qayta amalga oshiring."
+msgstr "존경하는 {user.first_name}님, aylo.uz에서의 구독 결제가 실패했습니다. 플랫폼에 로그인하여 결제를 다시 진행해주세요."
 
 #: apps/user/services/notifications.py:59
 msgid "Warning message sent to your email"
@@ -1006,8 +1006,8 @@ msgid "Low Token Count Warning"
 msgstr "토큰 수 부족 경고"
 
 #: apps/user/services/notifications.py:79
-msgid "Hurmatli {user.first_name}, sizning repli.uz dagi so'rovlar soningiz {count} tadan kam qoldi. Iltimos, platformaga kirib, obunangizni yangilang."
-msgstr "존경하는 {user.first_name}님, repli.uz의 요청 수가 {count}개 미만으로 남았습니다. 플랫폼에 로그인하여 구독을 갱신해주세요."
+msgid "Hurmatli {user.first_name}, sizning aylo.uz dagi so'rovlar soningiz {count} tadan kam qoldi. Iltimos, platformaga kirib, obunangizni yangilang."
+msgstr "존경하는 {user.first_name}님, aylo.uz의 요청 수가 {count}개 미만으로 남았습니다. 플랫폼에 로그인하여 구독을 갱신해주세요."
 
 #: apps/user/views.py:113
 msgid "Foydalanuvchi muvaffaqiyatli yaratildi"

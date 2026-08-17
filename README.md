@@ -1,6 +1,6 @@
 # AI Service
 
-The brain behind Repli's chatbot. It reads an incoming customer message, decides
+The brain behind Aylo's chatbot. It reads an incoming customer message, decides
 what to do, and replies in natural language — on any channel, in real time.
 
 Powered entirely by **OpenAI** (chat, vision, voice, and vector-store knowledge).

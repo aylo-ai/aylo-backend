@@ -5,7 +5,7 @@ conventions — follow them on every task.
 
 ## 1. Project overview
 
-`repli-backend` is the Django REST backend for Repli.uz — an AI assistant / chatbot
+`aylo-backend` is the Django REST backend for Aylo.uz — an AI assistant / chatbot
 platform integrated with Telegram and Instagram, with subscription billing.
 
 - **Stack:** Django 5.1 · Django REST Framework · Celery · PostgreSQL · Redis ·

@@ -142,7 +142,7 @@ class LeadBotWebhookView(APIView):
         if new_status in ("member", "administrator"):
             self._send(
                 chat_id,
-                "👋 Salom! Men Repli AI lead notification botiman.\n\n"
+                "👋 Salom! Men Aylo AI lead notification botiman.\n\n"
                 "Leadlarni shu guruhga olish uchun parolni kiriting:\n"
                 "<code>/verify parol</code>",
             )

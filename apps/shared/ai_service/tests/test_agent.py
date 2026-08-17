@@ -67,7 +67,7 @@ class ChainTests(AgentTestCase):
         kwargs = self.kwargs_at(0)
         self.assertNotIn("previous_response_id", kwargs)
         self.assertEqual(kwargs["input"][0]["role"], "developer")
-        self.assertIn("Repli", kwargs["input"][0]["content"])
+        self.assertIn("Aylo", kwargs["input"][0]["content"])
 
     def test_follow_up_reuses_chain_without_resending_instructions(self):
         self.set_responses(

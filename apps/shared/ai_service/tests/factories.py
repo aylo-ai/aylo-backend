@@ -16,8 +16,8 @@ from apps.shared.addons.enums import ConversationStatuses
 
 def make_assistant(**overrides) -> Assistant:
     defaults = {
-        "name": "Repli Bot",
-        "company_name": "Repli",
+        "name": "Aylo Bot",
+        "company_name": "Aylo",
         "system_prompt": "You sell phones.",
         "fallback_message": "Sorry, please try again shortly.",
         "vector_id": "vs_test",

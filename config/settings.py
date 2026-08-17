@@ -114,8 +114,8 @@ REST_FRAMEWORK = {
 }
 
 SPECTACULAR_SETTINGS = {
-    "TITLE": "Repli new brand AI system",
-    "DESCRIPTION": "Repli.uz swagger docs (rest api service)",
+    "TITLE": "Aylo new brand AI system",
+    "DESCRIPTION": "Aylo.uz swagger docs (rest api service)",
     "VERSION": "1.0.0",
     "SERVE_INCLUDE_SCHEMA": False,
     "SWAGGER_UI_DIST": "SIDECAR",

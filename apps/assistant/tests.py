@@ -34,7 +34,7 @@ class MessageSerializerTests(TestCase):
 
     def setUp(self):
         self.assistant = Assistant.objects.create(
-            name="Repli Bot", company_name="Repli",
+            name="Aylo Bot", company_name="Aylo",
             fallback_message="Sorry, try again shortly.", vector_id="vs_test",
             user=make_subscribed_user(),
         )
@@ -103,7 +103,7 @@ class ConversationCreateTests(TestCase):
         from apps.assistant.serializers import ConversationSerializer
 
         assistant = Assistant.objects.create(
-            name="Repli Bot", company_name="Repli", vector_id="vs_test", ai_enabled=False,
+            name="Aylo Bot", company_name="Aylo", vector_id="vs_test", ai_enabled=False,
         )
         with mock.patch("apps.assistant.serializers.publish_message_to_ws_assistant"):
             conversation = ConversationSerializer().create({"assistant": assistant})
@@ -128,7 +128,7 @@ class MessageQuotaTests(TestCase):
             username=f"owner-{remained}", auth_type="email",
             email=f"owner-{remained}@example.com", subscription=subscription,
         )
-        return Assistant.objects.create(name="Bot", company_name="Repli", user=user)
+        return Assistant.objects.create(name="Bot", company_name="Aylo", user=user)
 
     def _conversation(self, assistant):
         return Conversation.objects.create(
@@ -182,7 +182,7 @@ class MessageQuotaTests(TestCase):
 class FileUploadTests(TestCase):
     def setUp(self):
         self.assistant = Assistant.objects.create(
-            name="Repli Bot", company_name="Repli", user=make_subscribed_user(),
+            name="Aylo Bot", company_name="Aylo", user=make_subscribed_user(),
         )
         self.ensure = mock.patch(
             "apps.assistant.serializers.knowledge_base.ensure_store", return_value="vs_new"
@@ -243,7 +243,7 @@ class EndpointScopingTests(TestCase):
 
         self.owner = make_subscribed_user()
         self.assistant = Assistant.objects.create(
-            name="Repli Bot", company_name="Repli", user=self.owner,
+            name="Aylo Bot", company_name="Aylo", user=self.owner,
         )
         self.conversation = Conversation.objects.create(
             assistant=self.assistant, platform="website",
@@ -318,7 +318,7 @@ class ChatEndpointRegressionTests(TestCase):
 
         self.owner = make_subscribed_user()
         self.assistant = Assistant.objects.create(
-            name="Repli Bot", company_name="Repli", vector_id="vs_test",
+            name="Aylo Bot", company_name="Aylo", vector_id="vs_test",
             user=self.owner,
         )
         self.conversation = Conversation.objects.create(
