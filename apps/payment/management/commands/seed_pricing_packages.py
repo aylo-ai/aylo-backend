@@ -2,9 +2,14 @@
 
 `POST /api/v1/payment/subscriptions/create/` only accepts an existing, active
 `PricingPackage`, so a fresh database has nothing for the sign-up flow's plan
-step to offer. This command creates the standard Free / Basic / Pro ladder and
-is idempotent — it matches on package name and updates in place, so it is safe
-to re-run after changing a price or a limit.
+step to offer. This command creates the standard Free / Pro / Korporativ ladder
+and is idempotent — it matches on package name and updates in place, so it is
+safe to re-run after changing a price or a limit.
+
+The last tier is a *custom* package: it carries no chargeable price, the
+self-service subscribe and upgrade paths refuse it, and an interested company
+posts to `pricing-packages/<id>/request/` instead. See
+`PricingPackage.is_custom`.
 """
 
 from django.core.management.base import BaseCommand
@@ -28,7 +33,7 @@ FEATURES = [
     {"name": "Ustuvor qo'llab-quvvatlash", "icon": "headset"},
 ]
 
-# Entry paid price is pinned to the "299,000 so'mdan boshlanadi" claim already
+# The paid tier's price is pinned to the "989,000 so'mdan boshlanadi" claim
 # published in the marketing blog (apps/blog/management/commands/seed_blog_posts.py) —
 # keep the two in sync if either changes.
 PACKAGES = [
@@ -38,7 +43,7 @@ PACKAGES = [
         "price": 0,
         "discount_price": None,
         "description": (
-            "Repli AI bilan tanishish uchun — 1 ta AI agent, veb-sayt vidjeti va "
+            "Aylo AI bilan tanishish uchun — 1 ta AI agent, veb-sayt vidjeti va "
             "asosiy bilimlar bazasi bilan bepul sinab ko'ring."
         ),
         "request_count": 100,
@@ -47,15 +52,16 @@ PACKAGES = [
         "features": ["AI agent", "Veb-sayt vidjeti", "Bilimlar bazasi"],
     },
     {
-        "name": "Basic",
-        "type": PricingPackageType.CUSTOM.value,
-        "price": 299000,
-        "discount_price": 239000,
+        "name": "Pro",
+        "type": PricingPackageType.PRO.value,
+        "price": 989000,
+        "discount_price": None,
         "description": (
-            "O'sib borayotgan biznes uchun — Telegram va Instagram orqali mijozlar "
-            "bilan to'liq muloqot, lidlarni boshqarish va avtomatik follow-up xabarlar."
+            "Eng ko'p tanlanadigan paket — oyiga 5 000 ta suhbat, Telegram va "
+            "Instagram orqali to'liq muloqot, lidlarni boshqarish, follow-up "
+            "avtomatlashtirish va CRM integratsiyalari."
         ),
-        "request_count": 2000,
+        "request_count": 5000,
         "duration_days": 30,
         "is_popular": True,
         "features": [
@@ -66,27 +72,40 @@ PACKAGES = [
             "Bilimlar bazasi",
             "Lidlarni boshqarish va eksport",
             "Follow-up avtomatlashtirish",
+            "Ommaviy xabarnoma (broadcast)",
+            "amoCRM integratsiyasi",
+            "Billz integratsiyasi",
         ],
     },
     {
-        "name": "Pro",
-        "type": PricingPackageType.PRO.value,
-        "price": 699000,
+        # No price: sales agrees it per company. `PricingPackage.is_custom`
+        # keys off `type`, and the subscribe/upgrade endpoints refuse it — a
+        # company posts to `pricing-packages/<id>/request/` instead.
+        "name": "Korporativ",
+        "type": PricingPackageType.CUSTOM.value,
+        "price": 0,
         "discount_price": None,
         "description": (
-            "Katta hajmdagi murojaatlar uchun — jamoa bilan ishlash, amoCRM/Billz "
-            "integratsiyasi, ommaviy xabarnomalar va ustuvor yordam."
+            "Kompaniyalar uchun individual yechim — cheksiz suhbatlar, jamoa "
+            "a'zolari, maxsus integratsiyalar va ustuvor qo'llab-quvvatlash. "
+            "Narx va shartlar biznesingizga moslab kelishiladi."
         ),
-        "request_count": 10000,
+        "request_count": 0,
         "duration_days": 30,
         "is_popular": False,
         "features": [feature["name"] for feature in FEATURES],
     },
 ]
 
+# Tiers that were seeded by an earlier version of this command and are no longer
+# part of the ladder. They are deactivated rather than deleted — existing
+# subscriptions still point at them, and `Subscription.pricing_package` is the
+# only record of what a customer actually bought.
+RETIRED_PACKAGE_NAMES = ["Basic"]
+
 
 class Command(BaseCommand):
-    help = "Create or update the Free / Basic / Pro pricing packages."
+    help = "Create or update the Free / Pro / Korporativ pricing packages."
 
     @transaction.atomic
     def handle(self, *args, **options):
@@ -113,10 +132,21 @@ class Command(BaseCommand):
                 },
             )
             package.features.set(features[name] for name in spec["features"])
+            price = "negotiated" if package.is_custom else f"{package.price} {package.currency}"
             self.stdout.write(
                 self.style.SUCCESS(
                     f"{'Created' if created else 'Updated'} {package.name} "
-                    f"({package.price} {package.currency}, "
-                    f"{package.request_count} requests)"
+                    f"({price}, {package.request_count} requests)"
+                )
+            )
+
+        retired = PricingPackage.objects.filter(
+            name__in=RETIRED_PACKAGE_NAMES, is_active=True,
+        ).update(is_active=False)
+        if retired:
+            self.stdout.write(
+                self.style.WARNING(
+                    f"Deactivated {retired} retired package(s): "
+                    f"{', '.join(RETIRED_PACKAGE_NAMES)}"
                 )
             )

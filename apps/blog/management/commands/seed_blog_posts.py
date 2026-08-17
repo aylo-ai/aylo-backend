@@ -927,7 +927,7 @@ BLOG_POSTS = [
 <li><strong>Kontekstni eslab qoladi:</strong> Mijozning avvalgi suhbatlari va xaridlarini hisobga oladi</li>
 <li><strong>O'rganib boradi:</strong> Har bir suhbatdan o'rganib, vaqt o'tishi bilan yaxshilanadi</li>
 <li><strong>Oson sozlash:</strong> Dasturlash bilimi shart emas — vizual interfeys orqali 30 daqiqada sozlang</li>
-<li><strong>Arzon narx:</strong> AI chatbot imkoniyatlari oyiga atigi 299,000 so'mdan boshlanadi</li>
+<li><strong>Arzon narx:</strong> AI chatbot imkoniyatlari oyiga atigi 989,000 so'mdan boshlanadi</li>
 <li><strong>Barcha kanallar:</strong> Instagram, Telegram, WhatsApp — bitta AI barcha kanallarda ishlaydi</li>
 </ul>
 
@@ -971,7 +971,7 @@ BLOG_POSTS = [
 
 <p><strong>Aylo AI</strong> — современная AI-чатбот платформа, созданная специально для бизнеса в Узбекистане. На <a href="https://aylo.uz">aylo.uz</a> вы получаете все преимущества AI-чатбота по цене обычного.</p>
 
-<p>Особенности: идеальное понимание узбекского языка (включая разговорные формы и диалекты), запоминание контекста, самообучение, визуальный конструктор без программирования, поддержка Instagram + Telegram + WhatsApp, от 299 000 сум/месяц.</p>
+<p>Особенности: идеальное понимание узбекского языка (включая разговорные формы и диалекты), запоминание контекста, самообучение, визуальный конструктор без программирования, поддержка Instagram + Telegram + WhatsApp, от 989 000 сум/месяц.</p>
 
 <p>Начните <strong>7-дневный бесплатный период</strong> на <a href="https://aylo.uz">aylo.uz</a> и убедитесь в разнице сами!</p>""",
         "content_en": """<h2>What Is a Chatbot and How Does It Work?</h2>
@@ -1013,7 +1013,7 @@ BLOG_POSTS = [
 
 <p><strong>Aylo AI</strong> is a modern AI chatbot platform built specifically for businesses in Uzbekistan. At <a href="https://aylo.uz">aylo.uz</a>, you get all AI chatbot advantages at rule-based chatbot prices.</p>
 
-<p>Key features: perfect understanding of Uzbek language (including colloquial forms), context memory, self-learning, visual no-code builder, Instagram + Telegram + WhatsApp support, starting from 299,000 sum/month.</p>
+<p>Key features: perfect understanding of Uzbek language (including colloquial forms), context memory, self-learning, visual no-code builder, Instagram + Telegram + WhatsApp support, starting from 989,000 sum/month.</p>
 
 <p>Start your <strong>7-day free trial</strong> at <a href="https://aylo.uz">aylo.uz</a> and see the difference yourself!</p>"""
     },

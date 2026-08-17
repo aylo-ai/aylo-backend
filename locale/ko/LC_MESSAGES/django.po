@@ -1108,3 +1108,23 @@ msgstr "카자흐어"
 #: config/settings.py:288
 msgid "Korean"
 msgstr "한국어"
+
+#: apps/payment/views.py:153
+msgid "Arizangiz qabul qilindi. Savdo bo'limi tez orada bog'lanadi."
+msgstr "요청이 접수되었습니다. 영업팀이 곧 연락드리겠습니다."
+
+#: apps/payment/serializers.py:571 apps/payment/serializers.py:662
+msgid "Bu paket kompaniyalar uchun individual shakllantiriladi. Iltimos, ariza qoldiring — savdo bo'limi siz bilan bog'lanadi."
+msgstr "이 요금제는 기업별로 맞춤 구성됩니다. 문의를 남겨 주시면 영업팀이 연락드립니다."
+
+#: apps/payment/views.py:138
+msgid "Bu paketni to'g'ridan-to'g'ri xarid qilish mumkin."
+msgstr "이 요금제는 바로 구매할 수 있습니다."
+
+#: apps/payment/serializers.py:146
+msgid "Suhbatlar soni manfiy bo'lishi mumkin emas."
+msgstr "대화 수는 음수일 수 없습니다."
+
+#: apps/payment/serializers.py:139
+msgid "Telefon raqam kamida 9 ta raqamdan iborat bo'lishi kerak."
+msgstr "전화번호는 최소 9자리 이상이어야 합니다."

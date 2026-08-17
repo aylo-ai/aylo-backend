@@ -15,7 +15,13 @@ from django.core.cache import cache
 from django.test import TestCase, override_settings
 from rest_framework.test import APIClient
 
-from apps.payment.models import Card, PricingPackage, RetryPayment, Subscription
+from apps.payment.models import (
+    Card,
+    CustomPackageRequest,
+    PricingPackage,
+    RetryPayment,
+    Subscription,
+)
 from apps.user.models import User
 from apps.shared.addons.enums import (
     PaymentStatuses,
@@ -122,8 +128,8 @@ class PlanSelectionTests(TestCase):
             request_count=100, duration_days=30,
         )
         self.paid = PricingPackage.objects.create(
-            name="Basic", type=PricingPackageType.CUSTOM.value, price=199000,
-            request_count=2000, duration_days=30,
+            name="Pro", type=PricingPackageType.PRO.value, price=989000,
+            request_count=5000, duration_days=30,
         )
         self.user = User.objects.create(username="new-signup", auth_type="email")
         self.client = APIClient()
@@ -167,7 +173,7 @@ class PlanSelectionTests(TestCase):
         screen would need a second round-trip to name the plan."""
         response = self.select(self.paid)
 
-        self.assertEqual(response.data["data"]["pricing_package"]["name"], "Basic")
+        self.assertEqual(response.data["data"]["pricing_package"]["name"], "Pro")
 
     def test_a_second_plan_cannot_be_stacked_on_an_active_one(self):
         self.select(self.free)
@@ -216,6 +222,176 @@ class PlanSelectionTests(TestCase):
         )
 
         self.assertEqual(response.status_code, 401)
+
+
+@override_settings(
+    CACHES={"default": {"BACKEND": "django.core.cache.backends.dummy.DummyCache"}}
+)
+class CustomPackageTests(TestCase):
+    """The last tier of the ladder is priced per company, so there is no amount
+    to put on a Payme receipt. Self-service subscribe and upgrade must refuse
+    it, and the interested company must land in `CustomPackageRequest` instead.
+    """
+
+    def setUp(self):
+        self.custom = PricingPackage.objects.create(
+            name="Korporativ", type=PricingPackageType.CUSTOM.value, price=0,
+            request_count=0, duration_days=30,
+        )
+        self.pro = PricingPackage.objects.create(
+            name="Pro", type=PricingPackageType.PRO.value, price=989000,
+            request_count=5000, duration_days=30, is_popular=True,
+        )
+        self.request_url = f"/api/v1/payment/pricing-packages/{self.custom.id}/request/"
+        self.user = User.objects.create(username="company-owner", auth_type="email")
+        self.client = APIClient()
+        self.client.force_authenticate(self.user)
+
+    def payload(self, **overrides):
+        data = {
+            "company_name": "Aylo LLC",
+            "full_name": "Ali Valiyev",
+            "phone_number": "+998 90 123-45-67",
+            "email": "ali@aylo.uz",
+            "expected_conversations": 50000,
+            "comment": "Bizga maxsus integratsiya kerak",
+        }
+        data.update(overrides)
+        return data
+
+    # -- listing -----------------------------------------------------------
+
+    def test_the_list_marks_the_custom_tier(self):
+        response = APIClient().get("/api/v1/payment/pricing-packages/")
+
+        self.assertEqual(response.status_code, 200)
+        by_name = {package["name"]: package for package in response.data}
+        self.assertTrue(by_name["Korporativ"]["is_custom"])
+        self.assertFalse(by_name["Pro"]["is_custom"])
+
+    def test_the_list_comes_back_as_a_ladder(self):
+        """The pricing page renders this order verbatim: cheapest first, the
+        quote-only tier last — not the model's default `-created_time`."""
+        PricingPackage.objects.create(
+            name="Free", type=PricingPackageType.FREE.value, price=0,
+            request_count=100, duration_days=30,
+        )
+
+        response = APIClient().get("/api/v1/payment/pricing-packages/")
+
+        self.assertEqual(
+            [package["name"] for package in response.data],
+            ["Free", "Pro", "Korporativ"],
+        )
+
+    def test_the_popular_tier_carries_its_price_and_conversation_limit(self):
+        response = APIClient().get("/api/v1/payment/pricing-packages/")
+
+        popular = next(p for p in response.data if p["is_popular"])
+        self.assertEqual(popular["name"], "Pro")
+        self.assertEqual(popular["request_count"], 5000)
+        self.assertEqual(float(popular["price"]), 989000.0)
+
+    # -- self-service paths refuse it --------------------------------------
+
+    def test_the_custom_tier_cannot_be_subscribed_to(self):
+        response = self.client.post(
+            CREATE_URL, {"pricing_package": str(self.custom.id)}, format="json",
+        )
+
+        self.assertEqual(response.status_code, 400)
+        self.user.refresh_from_db()
+        self.assertIsNone(self.user.subscription)
+
+    def test_the_custom_tier_cannot_be_upgraded_to(self):
+        subscription = Subscription.objects.create(
+            pricing_package=self.pro, status=SubscriptionStatuses.ACTIVE.value,
+        )
+        self.user.subscription = subscription
+        self.user.save()
+        card = Card.objects.create(
+            user=self.user, card_token="tok", card_number="8600123412341234",
+            expiry_date="12/30", is_verified=True,
+        )
+
+        with mock.patch("apps.payment.serializers.create_payme_receipt") as receipt:
+            response = self.client.post(
+                "/api/v1/payment/payme/card/update-subscription/",
+                {"pricing_package_id": str(self.custom.id), "card_id": str(card.id)},
+                format="json",
+            )
+
+        self.assertEqual(response.status_code, 400)
+        receipt.assert_not_called()
+        subscription.refresh_from_db()
+        self.assertEqual(subscription.pricing_package, self.pro)
+
+    # -- the contact-sales request -----------------------------------------
+
+    def test_a_company_can_request_a_quote(self):
+        with mock.patch("apps.payment.views.notify_custom_package_request") as notify:
+            response = self.client.post(self.request_url, self.payload(), format="json")
+
+        self.assertEqual(response.status_code, 201)
+        request_obj = CustomPackageRequest.objects.get()
+        self.assertEqual(request_obj.company_name, "Aylo LLC")
+        self.assertEqual(request_obj.pricing_package, self.custom)
+        self.assertEqual(request_obj.user, self.user)
+        self.assertEqual(request_obj.expected_conversations, 50000)
+        # Stored normalised — sales dials it straight from the dashboard.
+        self.assertEqual(request_obj.phone_number, "+998901234567")
+        notify.assert_called_once()
+
+    def test_an_anonymous_visitor_can_request_a_quote(self):
+        """The pricing page is public; most companies have no account yet."""
+        with mock.patch("apps.payment.views.notify_custom_package_request"):
+            response = APIClient().post(self.request_url, self.payload(), format="json")
+
+        self.assertEqual(response.status_code, 201)
+        self.assertIsNone(CustomPackageRequest.objects.get().user)
+
+    def test_a_short_phone_number_is_rejected(self):
+        response = self.client.post(
+            self.request_url, self.payload(phone_number="12345"), format="json",
+        )
+
+        self.assertEqual(response.status_code, 400)
+        self.assertFalse(CustomPackageRequest.objects.exists())
+
+    def test_a_priced_package_has_no_quote_form(self):
+        response = self.client.post(
+            f"/api/v1/payment/pricing-packages/{self.pro.id}/request/",
+            self.payload(), format="json",
+        )
+
+        self.assertEqual(response.status_code, 400)
+        self.assertFalse(CustomPackageRequest.objects.exists())
+
+    def test_a_failing_sales_notification_does_not_lose_the_request(self):
+        with mock.patch(
+            "apps.payment.services.notifications.send_to_lead_groups",
+            side_effect=RuntimeError("telegram down"),
+        ):
+            response = self.client.post(self.request_url, self.payload(), format="json")
+
+        self.assertEqual(response.status_code, 201)
+        self.assertTrue(CustomPackageRequest.objects.exists())
+
+    def test_the_sales_alert_escapes_attacker_markup(self):
+        """The company name is public free text rendered with parse_mode=HTML."""
+        with mock.patch(
+            "apps.payment.services.notifications.send_to_lead_groups"
+        ) as send:
+            response = self.client.post(
+                self.request_url,
+                self.payload(company_name='<a href="http://evil">Aylo</a>'),
+                format="json",
+            )
+
+        self.assertEqual(response.status_code, 201)
+        sent = send.call_args[0][0]
+        self.assertNotIn('<a href="http://evil">', sent)
+        self.assertIn("&lt;a href=", sent)
 
 
 class SubscriptionCancellationTests(TestCase):
@@ -325,7 +501,6 @@ class PricingPackageValidationTests(TestCase):
         self.assertEqual(response.status_code, 200)
 
 
-<<<<<<< HEAD
 # Throttling keeps its history in the default cache, which the test runner does
 # not reset between tests; the payment endpoints below are now scope-throttled,
 # so make the limit a no-op wherever the rate itself is not what's under test.
@@ -517,7 +692,6 @@ class PaymentThrottleTests(TestCase):
 
         self.assertIn(200, codes, "the endpoint must still work for a normal caller")
         self.assertIn(429, codes, "an unbounded caller must eventually be throttled")
-=======
 # ──────────────────────────────────────────────────────────────────────────
 # Public catalogue exposure and abuse bounds (2026-08-04 hardening sweep)
 # ──────────────────────────────────────────────────────────────────────────
@@ -547,12 +721,14 @@ class PublicCatalogueTests(TestCase):
         from django.core.cache import cache
 
         cache.clear()  # throttle history lives in the cache
+        # PRO, not CUSTOM: `PricingPackageType.CUSTOM` now marks the quote-only
+        # "for companies" tier, and these two are ordinary paid packages.
         self.package = PricingPackage.objects.create(
-            name="Basic", type=PricingPackageType.CUSTOM.value, price=199000,
+            name="Basic", type=PricingPackageType.PRO.value, price=199000,
             request_count=2000, duration_days=30,
         )
         self.retired = PricingPackage.objects.create(
-            name="Retired", type=PricingPackageType.CUSTOM.value, price=1,
+            name="Retired", type=PricingPackageType.PRO.value, price=1,
             request_count=1, duration_days=30, is_active=False,
         )
         self.client = APIClient()
@@ -574,8 +750,12 @@ class PublicCatalogueTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(
             set(response.data["data"]),
+            # `is_custom` is derived from `type`, not the enum itself: the
+            # pricing page needs to know which card is quote-only, but the
+            # internal plan classification stays out of the public payload.
             {"id", "name", "price", "discount_price", "currency", "description",
-             "features", "request_count", "duration_days", "is_popular"},
+             "features", "request_count", "duration_days", "is_popular",
+             "is_custom"},
         )
 
     def test_anonymous_cannot_create_a_package(self):
@@ -662,4 +842,3 @@ class PaymeVerificationThrottleTests(TestCase):
         response = APIClient().post("/api/v1/payment/payme/verify-code/", {}, format="json")
 
         self.assertIn(response.status_code, (401, 403))
->>>>>>> 473f4c3bed1052b8f0214fd63847c983cff0e728

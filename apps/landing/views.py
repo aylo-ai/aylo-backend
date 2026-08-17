@@ -13,6 +13,7 @@ from rest_framework.permissions import AllowAny
 from rest_framework.views import APIView
 
 from apps.landing.models import LandingLead, LeadNotificationGroup
+from apps.landing.notifications import send_to_lead_groups
 from apps.landing.serializers import LandingLeadSerializer
 from apps.shared import http
 from apps.shared.addons.validations import error_response, success_response
@@ -78,19 +79,7 @@ def notify_telegram_groups(lead: LandingLead):
         f"🕐 <b>Vaqt:</b> {now}"
     )
 
-    for group in groups:
-        try:
-            http.post(
-                f"https://api.telegram.org/bot{LEAD_BOT_TOKEN}/sendMessage",
-                json={
-                    "chat_id": group.group_id,
-                    "text": text,
-                    "parse_mode": "HTML",
-                },
-                timeout=5,
-            )
-        except Exception:
-            logger.exception("Failed to notify lead group %s", group.group_id)
+    send_to_lead_groups(text)
 
 
 @method_decorator(csrf_exempt, name="dispatch")

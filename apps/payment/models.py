@@ -58,6 +58,51 @@ class PricingPackage(BaseModel):
     def __str__(self):
         return self.name
 
+    @property
+    def is_custom(self):
+        """The "for companies" tier — priced per customer, not off the shelf.
+
+        There is no number to charge, so the self-service paths refuse it
+        (`SubscriptionSerializer` / `SubscriptionUpdateSerializer`) and the
+        pricing page renders a "contact us" call to action instead of a price.
+        The interested company posts to `pricing-packages/<id>/request/`, which
+        stores a `CustomPackageRequest` for sales.
+        """
+        return self.type == PricingPackageType.CUSTOM.value
+
+
+class CustomPackageRequest(BaseModel):
+    """A company asking for a quote on the custom pricing tier.
+
+    Deliberately open to anonymous callers: the pricing page is public and the
+    people who fill this in have usually not signed up yet. `user` is filled
+    only when the request arrives with a token.
+    """
+    pricing_package = models.ForeignKey(
+        PricingPackage, on_delete=models.SET_NULL,
+        related_name="custom_requests", null=True, blank=True,
+    )
+    user = models.ForeignKey(
+        "user.User", on_delete=models.SET_NULL,
+        related_name="custom_package_requests", null=True, blank=True,
+    )
+    company_name = models.CharField(max_length=255)
+    full_name = models.CharField(max_length=255)
+    phone_number = models.CharField(max_length=50)
+    email = models.EmailField(null=True, blank=True)
+    expected_conversations = models.IntegerField(
+        null=True, blank=True, validators=[MinValueValidator(0)],
+    )
+    comment = models.TextField(blank=True, default="")
+    is_processed = models.BooleanField(default=False)
+
+    class Meta:
+        db_table = "custom_package_request"
+        ordering = ["-created_time"]
+
+    def __str__(self):
+        return f"{self.company_name} — {self.phone_number}"
+
 
 class Transaction(BaseModel):
     amount = models.DecimalField(max_digits=20, decimal_places=2)

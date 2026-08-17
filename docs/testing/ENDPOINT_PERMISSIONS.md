@@ -1,6 +1,6 @@
 # Endpoint Permission Matrix
 
-Auto-generated from the live URL resolver on 2026-08-01 — every view's actual `permission_classes` (or, where `get_permissions()` is overridden, a hand-maintained note on the real per-method split). Regenerate with:
+Auto-generated from the live URL resolver on 2026-08-17 — every view's actual `permission_classes` (or, where `get_permissions()` is overridden, a hand-maintained note on the real per-method split). Regenerate with:
 
 ```bash
 .venv/bin/python .claude/skills/endpoint-test-checklist/scripts/permissions_matrix.py
@@ -171,6 +171,7 @@ If a view's `get_permissions()` changes, update `OVERRIDE_NOTES` in that script 
 | POST | `api/v1/payment/payme/verify-code/` | `PaymeVerifyCodeView` | Any authenticated user — must be owner-scoped in get_queryset/get_object |
 | GET,POST | `api/v1/payment/pricing-packages/` | `PricingPackageListCreateView` | GET → Public (AllowAny); POST → Admin/super_admin only (IsAdmin) |
 | GET,PUT,PATCH,DELETE | `api/v1/payment/pricing-packages/<uuid:pk>/` | `PricingPackageRetrieveView` | Method-dependent (get_permissions overridden — base: IsAdmin). Read the view. |
+| POST | `api/v1/payment/pricing-packages/<uuid:pk>/request/` | `CustomPackageRequestCreateView` | Public — no auth required |
 | GET | `api/v1/payment/retry-payments/subscription/<uuid:pk>/` | `RetryPaymentListView` | Any authenticated user — must be owner-scoped in get_queryset/get_object |
 | PUT,PATCH | `api/v1/payment/subscriptions/<uuid:pk>/` | `SubscriptionUpdateAutoRenewView` | Any authenticated user — must be owner-scoped in get_queryset/get_object |
 | POST | `api/v1/payment/subscriptions/cancel/` | `SubscriptionCancellationView` | Any authenticated user — must be owner-scoped in get_queryset/get_object |

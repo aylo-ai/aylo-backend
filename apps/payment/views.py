@@ -1,6 +1,7 @@
 from datetime import timedelta
 
 from django.db import transaction
+from django.db.models import Case, IntegerField, Value, When
 from django.utils.timezone import now
 from django.utils.translation import gettext_lazy as _
 from rest_framework import generics, permissions
@@ -17,7 +18,8 @@ from apps.payment.models import (
     Transaction,
 )
 from apps.payment.services.billing import remove_payme_card
-from apps.shared.addons.enums import SubscriptionStatuses
+from apps.payment.services.notifications import notify_custom_package_request
+from apps.shared.addons.enums import PricingPackageType, SubscriptionStatuses
 from apps.shared.addons.validations import error_response, success_response
 from apps.shared.permissions import IsAdmin
 
@@ -79,7 +81,17 @@ class FeatureRetrieveView(generics.RetrieveUpdateDestroyAPIView):
 
 
 class PricingPackageListCreateView(generics.ListCreateAPIView):
-    queryset = PricingPackage.objects.filter(is_active=True)
+    # The pricing page renders this list top to bottom, so it has to come back
+    # as a ladder: cheapest first, with the custom "for companies" tier pinned
+    # last regardless of its (absent) price. The model's default `-created_time`
+    # ordering put whichever package was seeded most recently at the front.
+    queryset = PricingPackage.objects.filter(is_active=True).annotate(
+        is_custom_tier=Case(
+            When(type=PricingPackageType.CUSTOM.value, then=Value(1)),
+            default=Value(0),
+            output_field=IntegerField(),
+        )
+    ).order_by("is_custom_tier", "price", "created_time")
     serializer_class = serializers.PricingPackageSerializer
     permission_classes = [IsAdmin]
     throttle_scope = "public_read"
@@ -125,6 +137,48 @@ class PricingPackageRetrieveView(generics.RetrieveUpdateDestroyAPIView):
         instance = self.get_object()
         self.perform_destroy(instance)
         return success_response(message=_("Narx paketi muvaffaqiyatli o'chirildi"), code=204)
+
+
+class CustomPackageRequestCreateView(generics.CreateAPIView):
+    """Contact-sales form behind the "for companies" pricing card.
+
+    Open to anonymous callers — the pricing page is public and the companies
+    filling this in usually have no account yet — so it is rate limited like
+    the landing lead form it mirrors.
+    """
+
+    serializer_class = serializers.CustomPackageRequestSerializer
+    permission_classes = (permissions.AllowAny,)
+    throttle_classes = (ScopedRateThrottle,)
+    throttle_scope = "landing_lead"
+
+    def create(self, request, *args, **kwargs):
+        package = PricingPackage.objects.filter(
+            id=self.kwargs.get("pk"), is_active=True,
+        ).first()
+        if package is None:
+            return error_response(message=_("Narx paketi topilmadi."))
+        if not package.is_custom:
+            return error_response(
+                message=_("Bu paketni to'g'ridan-to'g'ri xarid qilish mumkin.")
+            )
+
+        serializer = self.get_serializer(
+            data=request.data,
+            context={"request": request, "pricing_package": package},
+        )
+        serializer.is_valid(raise_exception=True)
+        instance = serializer.save()
+
+        # Sales lives in Telegram; a failed notification must not lose the
+        # request we already stored, so the fan-out swallows its own errors.
+        notify_custom_package_request(instance)
+
+        return success_response(
+            message=_("Arizangiz qabul qilindi. Savdo bo'limi tez orada bog'lanadi."),
+            data=serializer.data,
+            code=201,
+        )
 
 
 class CardListView(generics.ListAPIView):

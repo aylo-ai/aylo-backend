@@ -2,7 +2,16 @@ from django.contrib import admin
 
 from apps.shared.addons.crypto import mask_secret
 
-from .models import Balance, Card, Feature, PricingPackage, RetryPayment, Subscription, Transaction
+from .models import (
+    Balance,
+    Card,
+    CustomPackageRequest,
+    Feature,
+    PricingPackage,
+    RetryPayment,
+    Subscription,
+    Transaction,
+)
 
 
 @admin.register(Feature)
@@ -13,10 +22,22 @@ class FeatureAdmin(admin.ModelAdmin):
 
 @admin.register(PricingPackage)
 class PricingPackageAdmin(admin.ModelAdmin):
-    list_display = ('name', 'price', 'description', 'request_count', 'created_time')
+    list_display = ('name', 'type', 'price', 'request_count', 'is_popular', 'is_active', 'created_time')
     search_fields = ('name', 'price', 'description')
+    list_filter = ('type', 'is_active', 'is_popular')
     filter_horizontal = ('features',)
     readonly_fields = ('created_time', 'updated_time')
+
+
+@admin.register(CustomPackageRequest)
+class CustomPackageRequestAdmin(admin.ModelAdmin):
+    list_display = (
+        'company_name', 'full_name', 'phone_number',
+        'expected_conversations', 'is_processed', 'created_time',
+    )
+    search_fields = ('company_name', 'full_name', 'phone_number', 'email')
+    list_filter = ('is_processed', 'pricing_package')
+    readonly_fields = ('created_time', 'updated_time', 'user', 'pricing_package')
 
 
 @admin.register(Transaction)
