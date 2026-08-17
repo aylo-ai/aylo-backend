@@ -325,7 +325,6 @@ class PricingPackageValidationTests(TestCase):
         self.assertEqual(response.status_code, 200)
 
 
-<<<<<<< HEAD
 # Throttling keeps its history in the default cache, which the test runner does
 # not reset between tests; the payment endpoints below are now scope-throttled,
 # so make the limit a no-op wherever the rate itself is not what's under test.
@@ -517,7 +516,6 @@ class PaymentThrottleTests(TestCase):
 
         self.assertIn(200, codes, "the endpoint must still work for a normal caller")
         self.assertIn(429, codes, "an unbounded caller must eventually be throttled")
-=======
 # ──────────────────────────────────────────────────────────────────────────
 # Public catalogue exposure and abuse bounds (2026-08-04 hardening sweep)
 # ──────────────────────────────────────────────────────────────────────────
@@ -662,4 +660,3 @@ class PaymeVerificationThrottleTests(TestCase):
         response = APIClient().post("/api/v1/payment/payme/verify-code/", {}, format="json")
 
         self.assertIn(response.status_code, (401, 403))
->>>>>>> 473f4c3bed1052b8f0214fd63847c983cff0e728

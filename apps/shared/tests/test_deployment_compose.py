@@ -47,24 +47,16 @@ class DozzleHardeningTests(SimpleTestCase):
         self.assertEqual(env["DOZZLE_ENABLE_SHELL"], "false")
 
     def test_dozzle_shows_only_this_projects_containers(self):
-<<<<<<< HEAD
-        """Pinned to whatever this compose file's project is — renaming the stack
-        must not silently widen the viewer to every container on the host."""
-        self.assertEqual(
-            self.dozzle["environment"]["DOZZLE_FILTER"],
-            f"label=com.docker.compose.project={self.project}",
-=======
         """Derived from compose's own `name:` rather than hardcoded.
 
         The two were independently spelled, so renaming the project would have
         left the filter pointing at a label nothing carries — and Dozzle would
-        show an empty container list.
+        show an empty container list. Renaming the stack must not silently
+        widen the viewer to every container on the host either.
         """
-        project = load_compose()["name"]
         self.assertEqual(
             self.dozzle["environment"]["DOZZLE_FILTER"],
-            f"label=com.docker.compose.project={project}",
->>>>>>> 52bec15459250531c273f2ed013db1b3fff8d784
+            f"label=com.docker.compose.project={self.project}",
         )
 
     def test_dozzle_publishes_on_loopback_only(self):
