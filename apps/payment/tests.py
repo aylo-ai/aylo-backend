@@ -127,9 +127,11 @@ class PlanSelectionTests(TestCase):
             name="Free", type=PricingPackageType.FREE.value, price=0,
             request_count=100, duration_days=30,
         )
+        # BASIC, not CUSTOM: `PricingPackageType.CUSTOM` marks the quote-only
+        # "Pro" tier, which self-service subscription refuses.
         self.paid = PricingPackage.objects.create(
-            name="Pro", type=PricingPackageType.PRO.value, price=989000,
-            request_count=5000, duration_days=30,
+            name="Basic", type=PricingPackageType.BASIC.value, price=699000,
+            request_count=2000, duration_days=30,
         )
         self.user = User.objects.create(username="new-signup", auth_type="email")
         self.client = APIClient()
@@ -173,7 +175,7 @@ class PlanSelectionTests(TestCase):
         screen would need a second round-trip to name the plan."""
         response = self.select(self.paid)
 
-        self.assertEqual(response.data["data"]["pricing_package"]["name"], "Pro")
+        self.assertEqual(response.data["data"]["pricing_package"]["name"], "Basic")
 
     def test_a_second_plan_cannot_be_stacked_on_an_active_one(self):
         self.select(self.free)
@@ -234,13 +236,14 @@ class CustomPackageTests(TestCase):
     """
 
     def setUp(self):
+        # "Pro" is the top, all-inclusive tier: custom price, custom volume.
         self.custom = PricingPackage.objects.create(
-            name="Korporativ", type=PricingPackageType.CUSTOM.value, price=0,
+            name="Pro", type=PricingPackageType.CUSTOM.value, price=0,
             request_count=0, duration_days=30,
         )
-        self.pro = PricingPackage.objects.create(
-            name="Pro", type=PricingPackageType.PRO.value, price=989000,
-            request_count=5000, duration_days=30, is_popular=True,
+        self.priced = PricingPackage.objects.create(
+            name="Basic", type=PricingPackageType.BASIC.value, price=699000,
+            request_count=2000, duration_days=30, is_popular=True,
         )
         self.request_url = f"/api/v1/payment/pricing-packages/{self.custom.id}/request/"
         self.user = User.objects.create(username="company-owner", auth_type="email")
@@ -266,8 +269,8 @@ class CustomPackageTests(TestCase):
 
         self.assertEqual(response.status_code, 200)
         by_name = {package["name"]: package for package in response.data}
-        self.assertTrue(by_name["Korporativ"]["is_custom"])
-        self.assertFalse(by_name["Pro"]["is_custom"])
+        self.assertTrue(by_name["Pro"]["is_custom"])
+        self.assertFalse(by_name["Basic"]["is_custom"])
 
     def test_the_list_comes_back_as_a_ladder(self):
         """The pricing page renders this order verbatim: cheapest first, the
@@ -281,16 +284,16 @@ class CustomPackageTests(TestCase):
 
         self.assertEqual(
             [package["name"] for package in response.data],
-            ["Free", "Pro", "Korporativ"],
+            ["Free", "Basic", "Pro"],
         )
 
     def test_the_popular_tier_carries_its_price_and_conversation_limit(self):
         response = APIClient().get("/api/v1/payment/pricing-packages/")
 
         popular = next(p for p in response.data if p["is_popular"])
-        self.assertEqual(popular["name"], "Pro")
-        self.assertEqual(popular["request_count"], 5000)
-        self.assertEqual(float(popular["price"]), 989000.0)
+        self.assertEqual(popular["name"], "Basic")
+        self.assertEqual(popular["request_count"], 2000)
+        self.assertEqual(float(popular["price"]), 699000.0)
 
     # -- self-service paths refuse it --------------------------------------
 
@@ -305,7 +308,7 @@ class CustomPackageTests(TestCase):
 
     def test_the_custom_tier_cannot_be_upgraded_to(self):
         subscription = Subscription.objects.create(
-            pricing_package=self.pro, status=SubscriptionStatuses.ACTIVE.value,
+            pricing_package=self.priced, status=SubscriptionStatuses.ACTIVE.value,
         )
         self.user.subscription = subscription
         self.user.save()
@@ -324,7 +327,7 @@ class CustomPackageTests(TestCase):
         self.assertEqual(response.status_code, 400)
         receipt.assert_not_called()
         subscription.refresh_from_db()
-        self.assertEqual(subscription.pricing_package, self.pro)
+        self.assertEqual(subscription.pricing_package, self.priced)
 
     # -- the contact-sales request -----------------------------------------
 
@@ -360,7 +363,7 @@ class CustomPackageTests(TestCase):
 
     def test_a_priced_package_has_no_quote_form(self):
         response = self.client.post(
-            f"/api/v1/payment/pricing-packages/{self.pro.id}/request/",
+            f"/api/v1/payment/pricing-packages/{self.priced.id}/request/",
             self.payload(), format="json",
         )
 
@@ -724,11 +727,11 @@ class PublicCatalogueTests(TestCase):
         # PRO, not CUSTOM: `PricingPackageType.CUSTOM` now marks the quote-only
         # "for companies" tier, and these two are ordinary paid packages.
         self.package = PricingPackage.objects.create(
-            name="Basic", type=PricingPackageType.PRO.value, price=199000,
+            name="Basic", type=PricingPackageType.BASIC.value, price=199000,
             request_count=2000, duration_days=30,
         )
         self.retired = PricingPackage.objects.create(
-            name="Retired", type=PricingPackageType.PRO.value, price=1,
+            name="Retired", type=PricingPackageType.BASIC.value, price=1,
             request_count=1, duration_days=30, is_active=False,
         )
         self.client = APIClient()

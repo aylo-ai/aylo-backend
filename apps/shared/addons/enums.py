@@ -133,8 +133,13 @@ class TransactionTypes(EnumBaseModel):
 
 
 class PricingPackageType(EnumBaseModel):
+    # How a package is priced, not what it is called. `CUSTOM` means the price
+    # is agreed per company and nothing may charge it self-service — see
+    # `PricingPackage.is_custom`. The seeded ladder is Free (FREE) →
+    # Basic (BASIC) → Pro (CUSTOM).
     FREE = 'free'
     CUSTOM = 'custom'
+    BASIC = 'basic'
     PRO = 'pro'
 
 class AuthTypes(EnumBaseModel):
