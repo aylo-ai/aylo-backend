@@ -203,3 +203,18 @@ class BroadcastStatuses(EnumBaseModel):
     PENDING = 'pending'
     SENDING = 'sending'
     COMPLETED = 'completed'
+
+
+class AgentRunOutcomes(EnumBaseModel):
+    """How a turn ended. `FALLBACK` is a normal, expected outcome, not an error:
+    the model produced nothing usable and the assistant's fallback text was sent."""
+    OK = 'ok'
+    FALLBACK = 'fallback'
+    ERROR = 'error'
+
+
+class AgentTiers(EnumBaseModel):
+    """Mirrors ai_service.routing.Tier so the DB column has real choices."""
+    FAST = 'fast'
+    STANDARD = 'standard'
+    DEEP = 'deep'

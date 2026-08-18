@@ -428,6 +428,37 @@ PAYME_KEY = os.environ.get("PAYME_KEY")
 PAYME_ID = os.environ.get("PAYME_ID")
 PAYME_API_URL = os.environ.get("PAYME_API_URL", default="https://checkout.paycom.uz/api")
 OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY")
+
+# --- Agent model tiers -------------------------------------------------------
+#
+# Most turns in a support inbox are trivial, so they go to the cheap tier; only
+# a turn the cheap tier demonstrably failed is re-run on the strong one. See
+# apps/shared/ai_service/routing.py for the policy and docs/reports/
+# 2026-08-17-agent-orchestration-and-telemetry.md for the reasoning.
+#
+# ⚠ THE IDS BELOW ARE UNVERIFIED. They are the operator's stated choice, written
+# through to the API verbatim. Nothing here can confirm a model id exists — this
+# environment has no OPENAI_API_KEY — so before relying on them run:
+#
+#     python manage.py check_ai_models
+#
+# which asks the API which ids are real and refuses to guess on your behalf.
+# A wrong id does not fail quietly: every turn 404s and falls back.
+AI_TIER_MODELS = {
+    "fast": os.environ.get("AI_MODEL_FAST", "gpt-5.6-lune"),
+    "standard": os.environ.get("AI_MODEL_STANDARD", "gpt-5.6-lune"),
+    "deep": os.environ.get("AI_MODEL_DEEP", "terra"),
+}
+
+# Kill switch: off sends every turn to the standard tier, as before tiering.
+AI_TIER_ROUTING_ENABLED = os.environ.get("AI_TIER_ROUTING_ENABLED", "true").lower() == "true"
+
+# Escalating a turn that already exhausted its tool budget re-runs every call and
+# every tool. Off by default: latency is the product in a chat surface.
+AI_ESCALATE_ON_TOOL_CAP = os.environ.get("AI_ESCALATE_ON_TOOL_CAP", "false").lower() == "true"
+
+# Tool calls within one model step are independent, so they run concurrently.
+AI_PARALLEL_TOOLS = os.environ.get("AI_PARALLEL_TOOLS", "true").lower() == "true"
 GOOGLE_CLIENT_ID = os.environ.get("GOOGLE_CLIENT_ID")
 GOOGLE_CLIENT_SECRET = os.environ.get("GOOGLE_CLIENT_SECRET")
 GOOGLE_REDIRECT_URI = os.environ.get("GOOGLE_REDIRECT_URI")

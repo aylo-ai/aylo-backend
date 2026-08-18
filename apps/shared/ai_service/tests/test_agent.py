@@ -34,6 +34,18 @@ class AgentTestCase(TestCase):
         client_patch.start()
         self.addCleanup(client_patch.stop)
 
+        # pipeline.py holds its own `from .client import get_client` reference
+        # for the vector-store query, so patching the agent's alone would leave
+        # stage 2 talking to the real provider.
+        pipeline_patch = mock.patch(
+            "apps.shared.ai_service.pipeline.get_client", return_value=self.client
+        )
+        pipeline_patch.start()
+        self.addCleanup(pipeline_patch.stop)
+        # Default: the store finds nothing, so retrieval is a no-op unless a
+        # test says otherwise.
+        self.client.vector_stores.search.return_value = mock.Mock(data=[])
+
         redis_patch = mock.patch("apps.shared.addons.redis.redis_client")
         self.redis = redis_patch.start()
         self.redis.get.return_value = None
@@ -47,15 +59,59 @@ class AgentTestCase(TestCase):
 
     # helpers ------------------------------------------------------------
 
-    def set_responses(self, *responses):
-        self.client.responses.create.side_effect = list(responses)
+    # A permissive plan: knowledge on, tools on, normal complexity, no direct
+    # reply. That is what triage returns on any failure, so it is also what
+    # makes these tests exercise the pipeline while asserting the same
+    # behaviour they asserted before it existed.
+    DEFAULT_PLAN = (
+        '{"intent": "question", "needs_knowledge": true, "needs_tools": true, '
+        '"complexity": "normal", "direct_reply": ""}'
+    )
+
+    def set_responses(self, *responses, plan=DEFAULT_PLAN):
+        """Queue the act-stage responses, prepending triage's.
+
+        Every turn now begins with a triage call (ai_service/pipeline.py), so
+        tests written against the tool loop would otherwise have their first
+        response eaten by it. Pass `plan=None` to queue nothing for triage --
+        useful for asserting what happens when triage itself fails.
+        """
+        queued = list(responses)
+        if plan is not None:
+            queued.insert(0, make_response(response_id="triage", text=plan))
+        self.client.responses.create.side_effect = queued
+
+    @property
+    def all_calls(self):
+        """Every model call, triage included."""
+        return self.client.responses.create.call_args_list
 
     @property
     def calls(self):
-        return self.client.responses.create.call_args_list
+        """Act-stage calls only.
+
+        Indices in these tests mean "the Nth call the agent made to answer",
+        which is what they meant before triage existed; counting the router
+        would shift every one of them.
+        """
+        return [call for call in self.all_calls if not self._is_triage(call)]
+
+    @staticmethod
+    def _is_triage(call):
+        payload = call.kwargs.get("input") or []
+        return any(
+            item.get("role") == "developer"
+            and item.get("content", "").startswith("You are the router")
+            for item in payload
+            if isinstance(item, dict)
+        )
 
     def kwargs_at(self, index):
         return self.calls[index].kwargs
+
+    def kwargs_at_all(self, index):
+        """Indexes every call, triage included."""
+        return self.all_calls[index].kwargs
 
     def run_turn(self, text="Hello") -> AgentResult:
         return self.agent.run(self.assistant, self.conversation, text)
