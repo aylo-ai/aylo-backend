@@ -51,15 +51,9 @@ class AgentResult:
     output_tokens: int = 0
     tool_calls: List[str] = field(default_factory=list)
     used_fallback: bool = False
-    # Set when the loop ran out of tool iterations before the model settled.
-    # A turn that needed more steps than the cheap tier was given is the clearest
-    # signal available that it deserves a stronger model.
     hit_iteration_cap: bool = False
-    # Which model actually produced the reply, and whether we paid to escalate.
     model: str = ""
     escalated: bool = False
-    # What triage decided this turn needed, and whether triage answered it
-    # outright without ever reaching the tool loop.
     plan: Optional[Dict[str, Any]] = None
     answered_by_triage: bool = False
 

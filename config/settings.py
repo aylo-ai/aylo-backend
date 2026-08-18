@@ -445,9 +445,9 @@ OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY")
 # which asks the API which ids are real and refuses to guess on your behalf.
 # A wrong id does not fail quietly: every turn 404s and falls back.
 AI_TIER_MODELS = {
-    "fast": os.environ.get("AI_MODEL_FAST", "gpt-5.6-lune"),
-    "standard": os.environ.get("AI_MODEL_STANDARD", "gpt-5.6-lune"),
-    "deep": os.environ.get("AI_MODEL_DEEP", "terra"),
+    "fast": os.environ.get("AI_MODEL_FAST", "gpt-5.6-luna"),
+    "standard": os.environ.get("AI_MODEL_STANDARD", "gpt-5.6-terra"),
+    "deep": os.environ.get("AI_MODEL_DEEP", "gpt-5.6-sol"),
 }
 
 # Kill switch: off sends every turn to the standard tier, as before tiering.
