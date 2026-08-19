@@ -35,12 +35,6 @@ from .models import (
 
 
 def _non_null_int(value, default=0):
-    """Instagram omits the counters on some media types and sends them as null.
-
-    `InstagramMedia.comments_count` / `like_count` are NOT NULL with a default,
-    so an explicit ``None`` has to be turned back into that default instead of
-    blowing up with an IntegrityError.
-    """
     return default if value is None else value
 
 
@@ -59,8 +53,6 @@ class IntegrationCreateSerializer(serializers.ModelSerializer, SubscriptionValid
         ]
         extra_kwargs = {
             "assistant": {"required": False},
-            # A bot token is a credential: accepted on write, never echoed back.
-            # It was previously returned on every read of an integration.
             "api_token": {"write_only": True},
         }
 
@@ -70,25 +62,14 @@ class IntegrationCreateSerializer(serializers.ModelSerializer, SubscriptionValid
         user = self.context.get("request").user
         base_url = self.context.get("base_url")
         assistant_id = self.context.get("assistant_id", None)
-        # Owner-scoped. Resolving the assistant by id alone let any subscribed
-        # user POST to /assistant/<someone else's id>/integration/ and bind
-        # their own Telegram bot to that assistant: the attacker then chats
-        # with the victim's agent, draining the victim's request quota and
-        # reading back whatever their knowledge base and system prompt hold.
         assistant = owned_assistants(user).filter(id=assistant_id).first()
         if not assistant:
             raise_validation_error(message=_("Assistant topilmadi"), code=404)
-        # See `knowledge_base.has_knowledge_base`: indexing is asynchronous, so
-        # `vector_id` is briefly null after the first upload.
         if not knowledge_base.has_knowledge_base(assistant):
             raise_validation_error(message=_("Assistant faol emas, zarur fayl yuklash"))
         self.validate_subscription(user.subscription)
 
         if integration_type == IntegrationTypes.TELEGRAM.value and api_token:
-            # There used to be an `Integration.objects.get(api_token=...)` here
-            # whose only branch repeated the verification below verbatim — a
-            # redundant query that also raised MultipleObjectsReturned when one
-            # bot was connected twice. Verify the token unconditionally instead.
             success, code = telegram_get_me(api_token)
             if not success or code == 401:
                 raise_validation_error(message=_("Telegram API token yaroqli emas"))
@@ -102,16 +83,6 @@ class IntegrationCreateSerializer(serializers.ModelSerializer, SubscriptionValid
 
     def create(self, validated_data):
         if validated_data.get('integration_type') == IntegrationTypes.BILLZ.value:
-            # `api_token` carries the Billz *secret* token here, exactly as on the
-            # dedicated /billz/ endpoint. It buys nothing on its own: it is
-            # exchanged for the short-lived access token every other Billz call
-            # needs, and kept in `refresh_token` because it is the only credential
-            # that can mint a replacement once that access token expires.
-            #
-            # This branch used to inline the login call (a second copy of it) and
-            # store `data.refresh_token` from the response — a key Billz does not
-            # send — so the row was left with no way to re-authenticate and its
-            # catalogue went stale the moment the first access token aged out.
             secret_token = validated_data.get('api_token')
             if not secret_token:
                 raise_validation_error(message=_("Billz API token kerak"))
@@ -121,7 +92,6 @@ class IntegrationCreateSerializer(serializers.ModelSerializer, SubscriptionValid
             validated_data['api_token'] = access_token
             validated_data['refresh_token'] = secret_token
         return super().create(validated_data)
-
 
 
 class IntegrationSerializer(serializers.ModelSerializer, SubscriptionValidationMixin):
@@ -138,7 +108,6 @@ class IntegrationSerializer(serializers.ModelSerializer, SubscriptionValidationM
             "api_token",
         ]
         extra_kwargs = {
-            # Bot / access tokens are credentials: accept them, never hand them back.
             "api_token": {"write_only": True},
         }
 
@@ -293,8 +262,6 @@ class InstagramMediaSerializer(serializers.ModelSerializer):
 
 
 class CommentTriggerWordSerializer(serializers.ModelSerializer):
-    # The column is `blank=True`, which would make DRF treat it as optional and
-    # skip `validate_trigger_word` entirely — allowing empty trigger words.
     trigger_word = serializers.CharField(required=True, allow_blank=False, max_length=255)
 
     class Meta:
@@ -399,23 +366,6 @@ class InstagramCommentResponseSerializer(serializers.ModelSerializer):
         return instance
 
     def update(self, instance, validated_data):
-        """Replace the trigger's words / media **links**, not the shared rows.
-
-        Three bugs used to live here:
-
-        1. `instance.instagram_media.all().delete()` hard-deleted the
-           `InstagramMedia` rows themselves. Because `media_id` is
-           `unique=True`, the re-create loop below then raised an uncaught
-           `IntegrityError` (**HTTP 500**) for any post that still existed —
-           e.g. one attached to a second trigger. It also silently destroyed
-           that other trigger's media.
-        2. The delete ran *before* `current_media_ids` was read from the same
-           relation, so `current_media_ids` was always empty and the "update in
-           place" branch was dead code — every media took the `create` path.
-        3. Both relations were cleared unconditionally, so a `PATCH` that didn't
-           mention `trigger_words_list` / `instagram_media_list` wiped them.
-           A partial update must only touch what it actually sends.
-        """
         trigger_words_list = validated_data.pop('trigger_words_list', None)
         instagram_media_list = validated_data.pop('instagram_media_list', None)
         instance = super().update(instance, validated_data)
@@ -437,8 +387,6 @@ class InstagramCommentResponseSerializer(serializers.ModelSerializer):
                 media_id = media_data.get('media_id') or media_data.get('id')
                 if not media_id:
                     continue
-                # Keyed on `media_id` (the unique column) so re-selecting a post
-                # reuses its row instead of colliding with it.
                 media, created = InstagramMedia.objects.get_or_create(
                     media_id=media_id,
                     defaults={
@@ -453,8 +401,6 @@ class InstagramCommentResponseSerializer(serializers.ModelSerializer):
                     }
                 )
                 if not created:
-                    # Refresh the cached Graph fields, but never blank one out
-                    # just because this payload omitted it.
                     media.media_type = media_data.get('media_type', media.media_type)
                     media.media_url = media_data.get('media_url', media.media_url)
                     media.username = media_data.get('username', media.username)
@@ -467,8 +413,6 @@ class InstagramCommentResponseSerializer(serializers.ModelSerializer):
 
             instance.instagram_media.set(media_objs)
 
-            # Clean up rows this trigger dropped, but only when no other
-            # comment-response still points at them.
             kept_ids = {media.id for media in media_objs}
             for media in previous_media:
                 if media.id in kept_ids:
@@ -527,11 +471,7 @@ class StepSerializer(serializers.ModelSerializer):
         fields = ["id", "action", "extra_button", "start_point", "end_point", "count", "extra_buttons", "message_image","message_content","condition_type","transitions"]
 
     def validate_message_image(self, value):
-        # ImageField already runs Pillow's verify(), which rejects SVG and
-        # catches decompression bombs — but nothing bounded the byte size, so
-        # this was the one upload field with no limit at all.
         return validate_image(value)
-
 
 
 class InstagramCommentResponseFlowSerializer(serializers.ModelSerializer):

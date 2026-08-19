@@ -1,13 +1,3 @@
-"""Billz: token exchange, sync-state machine and the three API endpoints.
-
-The bug these cover: a Billz access token expires, and nothing ever exchanged the
-merchant's secret token for a fresh one. `fetch_all_products` swallowed the 401 as
-if it were a network blip, returned `[]`, and the task logged "No products
-fetched" — so the catalogue went stale in silence, forever.
-
-Everything is offline. The gateway and payload tests are `SimpleTestCase` on
-purpose: they are the ones that must be runnable without a database.
-"""
 import uuid
 from unittest import mock
 
@@ -29,10 +19,6 @@ def _response(status_code=200, payload=None):
     return response
 
 
-# ---------------------------------------------------------------------------
-# Gateway: the token exchange
-# ---------------------------------------------------------------------------
-
 class BillzLoginTests(SimpleTestCase):
     def test_login_exchanges_the_secret_token_for_an_access_token(self):
         with mock.patch.object(
@@ -48,7 +34,6 @@ class BillzLoginTests(SimpleTestCase):
             self.assertIsNone(billz.login(SECRET_TOKEN))
 
     def test_login_returns_none_when_the_payload_has_no_access_token(self):
-        """A 200 with `data: {}` — or no `data` at all — is not a login."""
         for payload in ({"data": {}}, {"data": None}, {}):
             with self.subTest(payload=payload):
                 with mock.patch.object(billz.http, "post", return_value=_response(200, payload)):
@@ -71,10 +56,6 @@ class BillzLoginTests(SimpleTestCase):
             self.assertIsNone(billz.login(""))
         post.assert_not_called()
 
-
-# ---------------------------------------------------------------------------
-# Gateway: auth failure is not just another error
-# ---------------------------------------------------------------------------
 
 class BillzFetchAuthTests(SimpleTestCase):
     def test_an_expired_access_token_raises_billz_auth_error(self):
@@ -113,13 +94,7 @@ class BillzFetchAuthTests(SimpleTestCase):
         )
 
 
-# ---------------------------------------------------------------------------
-# The status payload the frontend card renders
-# ---------------------------------------------------------------------------
-
 class BillzStatusPayloadTests(SimpleTestCase):
-    """Model instances only — never saved, so this needs no database."""
-
     def test_not_connected_shape(self):
         self.assertEqual(billz_status(None), {
             "connected": False,
@@ -184,13 +159,7 @@ class BillzStatusPayloadTests(SimpleTestCase):
         self.assertNotIn(SECRET_TOKEN, str(payload))
 
 
-# ---------------------------------------------------------------------------
-# The sync task
-# ---------------------------------------------------------------------------
-
 class BillzSyncTaskTests(TestCase):
-    """Needs a database: the whole point is what ends up persisted."""
-
     def setUp(self):
         from apps.assistant.models import Assistant
 
@@ -223,7 +192,6 @@ class BillzSyncTaskTests(TestCase):
     def metadata(self):
         return Integration.objects.get(pk=self.integration.pk).metadata or {}
 
-    # -- the core bug -----------------------------------------------------
 
     def test_an_expired_access_token_is_re_exchanged_and_the_fetch_retried_once(self):
         products = [{"id": "p1", "name": "One"}]
@@ -234,7 +202,6 @@ class BillzSyncTaskTests(TestCase):
 
         self.login.assert_called_once_with(SECRET_TOKEN)
         self.assertEqual(self.fetch.call_count, 2)
-        # The retry used the new token, and the new token was persisted.
         self.assertEqual(self.fetch.call_args_list[1].args[0], "fresh-access-token")
         self.assertEqual(reloaded.api_token, "fresh-access-token")
         self.assertEqual(
@@ -243,7 +210,6 @@ class BillzSyncTaskTests(TestCase):
         self.assertEqual(reloaded.metadata["billz_product_count"], 1)
 
     def test_the_refreshed_token_is_findable_by_its_hash(self):
-        """`save(update_fields=['api_token'])` must still refresh `api_token_hash`."""
         self.fetch.side_effect = [billz.BillzAuthError("401"), [{"id": "p1"}]]
         self.login.return_value = "fresh-access-token"
 
@@ -260,7 +226,6 @@ class BillzSyncTaskTests(TestCase):
         self.assertEqual(
             reloaded.metadata["billz_sync_status"], BillzSyncStatuses.AUTH_FAILED.value,
         )
-        # Exactly one attempt at the fetch: no retry loop.
         self.assertEqual(self.fetch.call_count, 1)
 
     def test_a_missing_secret_token_records_auth_failed_without_attempting_a_login(self):
@@ -285,7 +250,6 @@ class BillzSyncTaskTests(TestCase):
             reloaded.metadata["billz_sync_status"], BillzSyncStatuses.AUTH_FAILED.value,
         )
 
-    # -- status transitions ----------------------------------------------
 
     def test_a_successful_sync_records_synced_with_a_count_and_a_timestamp(self):
         self.fetch.return_value = [{"id": "p1"}, {"id": "p2"}]
@@ -299,7 +263,6 @@ class BillzSyncTaskTests(TestCase):
         self.assertRegex(
             metadata["billz_last_synced_at"], r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$",
         )
-        # Last run's catalogue is dropped, so the store holds one copy.
         self.kb.delete_file.assert_called_once_with("vs_billz", "old-file")
 
     def test_the_status_is_syncing_while_the_fetch_is_in_flight(self):
@@ -339,7 +302,6 @@ class BillzSyncTaskTests(TestCase):
 
         self.assertEqual(reloaded.metadata["billz_sync_status"], BillzSyncStatuses.FAILED.value)
 
-    # -- metadata is shared, so it is merged ------------------------------
 
     def test_the_metadata_merge_preserves_unrelated_keys(self):
         self.fetch.return_value = [{"id": "p1"}]
@@ -377,13 +339,7 @@ class BillzSyncTaskTests(TestCase):
         delay.assert_called_once_with(str(self.integration.id))
 
 
-# ---------------------------------------------------------------------------
-# The endpoints
-# ---------------------------------------------------------------------------
-
 class BillzEndpointFixture(TestCase):
-    """Two tenants, each with a subscribed owner and an assistant."""
-
     def setUp(self):
         from rest_framework.test import APIClient
 
@@ -499,8 +455,6 @@ class BillzConnectEndpointTests(BillzEndpointFixture):
         self.assertEqual(response.status_code, 201, response.data)
         integration = Integration.objects.get(integration_type=IntegrationTypes.BILLZ.value)
         self.assertEqual(integration.api_token, ACCESS_TOKEN)
-        # The regression: the secret token was written to `request.data`, which is
-        # not a serializer field, so it was dropped and nothing could re-login.
         self.assertEqual(integration.refresh_token, SECRET_TOKEN)
         self.assertEqual(integration.assistant_id, self.assistant.id)
 
@@ -550,8 +504,6 @@ class BillzConnectEndpointTests(BillzEndpointFixture):
         self.assertFalse(Integration.objects.exists())
 
     def test_reconnecting_refreshes_the_existing_row_instead_of_duplicating_it(self):
-        """An `auth_failed` card's call to action is a second POST of the same
-        shape; it has to heal the row the hourly beat already knows about."""
         existing = self.make_integration(
             api_token="stale-access", refresh_token="stale-secret",
             metadata={"billz_sync_status": BillzSyncStatuses.AUTH_FAILED.value,
@@ -570,7 +522,6 @@ class BillzConnectEndpointTests(BillzEndpointFixture):
         self.assertEqual(
             existing.metadata["billz_sync_status"], BillzSyncStatuses.SYNCING.value,
         )
-        # The indexed file id survives the reconnect, so the next sync can replace it.
         self.assertEqual(existing.metadata["billz_products_file_id"], "old-file")
 
 
@@ -593,7 +544,6 @@ class BillzSyncEndpointTests(BillzEndpointFixture):
             "last_synced_at": None,
             "product_count": None,
         })
-        # The status write merged rather than replaced.
         integration.refresh_from_db()
         self.assertEqual(integration.metadata["billz_products_file_id"], "old-file")
 

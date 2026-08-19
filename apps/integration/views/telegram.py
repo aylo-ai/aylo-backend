@@ -1,8 +1,3 @@
-"""Telegram webhook receiver and managed-group endpoints.
-
-The webhook URL is registered with Telegram per bot token — changing the path
-silently stops every bot.
-"""
 import functools
 import logging
 import time
@@ -34,33 +29,25 @@ logger = logging.getLogger(__name__)
 
 class TelegramWebhookView(APIView):
     def post(self, request, bot_token):  # noqa
-        # The bot token in the path *is* this endpoint's credential — Telegram
-        # is the only party that knows it. Resolve it to an integration rather
-        # than testing existence, so the log line below can name the row
-        # instead of a slice of the secret.
         integration = Integration.objects.filter(api_token=bot_token).only("id").first()
         if integration is None:
             return error_response(message=_("Invalid bot token"), code=403)
 
-        # Deduplicate: use Telegram update_id
         update_id = request.data.get('update_id')
         if update_id:
             dedup_key = f"tg_dedup:{update_id}"
             if redis_client.get(dedup_key):
                 logger.info("Duplicate Telegram update detected: %s", update_id)
                 return success_response(message=_("Duplicate update ignored"), code=200)
-            redis_client.setex(dedup_key, 300, "1")  # 5 min TTL
+            redis_client.setex(dedup_key, 300, "1")
 
         data = request.data.get('message')
         if not data:
             return error_response(message=_("No message data received"))
-        # Never the token, not even a slice of it: these logs are shipped to a
-        # log viewer, and a bot token is full control of the customer's bot.
         logger.info("Telegram webhook received for integration %s", integration.id)
         chat_id = data.get("chat", {}).get("id", None)
         chat_title = data.get('chat', {}).get('title', 'Private Chat')
         chat_type = data.get("chat", {}).get("type", None)
-        #handling username
         first_name = data.get("chat", {}).get("first_name", None)
         last_name = data.get("chat", {}).get("last_name", None)
         username = data.get("chat", {}).get("username", None)
@@ -86,11 +73,9 @@ class TelegramWebhookView(APIView):
                 if "document" in data:
                     return success_response(message=_("Document message muvaffaqiyatli olindi"), code=200)
 
-                # Photo message handling
                 if "photo" in data:
                     photos = data["photo"]
                     if photos:
-                        # Get the largest photo (last in the array)
                         largest_photo = photos[-1]
                         photo_file_id = largest_photo.get("file_id")
                         if photo_file_id:
@@ -98,19 +83,16 @@ class TelegramWebhookView(APIView):
                                 process_photo_task.delay, chat_id, photo_file_id, bot_token, chat_username, username))
                             return success_response(message=_("Photo message muvaffaqiyatli olindi"), code=200)
 
-                # Voice message handling
                 if "voice" in data:
                     voice_file_id = data["voice"]["file_id"]
                     transaction.on_commit(functools.partial(
                         process_voice_task.delay, chat_id, voice_file_id, bot_token))
                     return success_response(message=_("Voice message muvaffaqiyatli olindi"), code=200)
-                # --- Redis Message Queuing ---
-                if user_message:  # Only push if user_message is not None
+                if user_message:
                     redis_client.rpush(f"messages:{chat_id}", user_message)
                 redis_client.set(f"last_seen:{chat_id}", time.time())
 
-                # Schedule collector task only if not already scheduled
-                redis_client.setex(f"collecting:{chat_id}", WAIT_SECONDS + 1, "1")  # Prevent overlap
+                redis_client.setex(f"collecting:{chat_id}", WAIT_SECONDS + 1, "1")
                 transaction.on_commit(functools.partial(
                     process_collected_messages.apply_async,
                     (chat_id, bot_token, None, chat_username, username, None),
@@ -119,8 +101,6 @@ class TelegramWebhookView(APIView):
 
 
 class TelegramGroupListView(IntegrationOwnedQuerysetMixin, generics.ListAPIView):
-    # Filtering on the URL's integration id alone listed any tenant's managed
-    # groups (title, chat id, lead counts) to any authenticated caller.
     owner_path = "integration"
     queryset = TelegramGroupIntegration.objects.all()
     serializer_class = TelegramGroupSerializer
@@ -136,10 +116,6 @@ class TelegramGroupListView(IntegrationOwnedQuerysetMixin, generics.ListAPIView)
 
 class TelegramGroupUpdateDestroyView(IntegrationOwnedQuerysetMixin,
                                      generics.RetrieveUpdateDestroyAPIView):
-    # Scoped at the queryset. The previous `get_object` guard only fired when
-    # `integration.assistant` was set — a group hanging off an integration held
-    # through `Integration.user` alone was left completely unguarded, so any
-    # authenticated user could approve or DELETE another tenant's group.
     owner_path = "integration"
     queryset = TelegramGroupIntegration.objects.all()
     serializer_class = TelegramGroupSerializer

@@ -1,13 +1,3 @@
-"""The agent.
-
-One entry point that matters: `respond(assistant, conversation, user_input)`.
-It runs the agentic loop, stores the reply, publishes it to the websocket, and
-returns the text to send. It never raises and never returns an empty string —
-callers can always forward what they get back.
-
-The loop keeps handing tool results to the model until the model stops asking for
-tools, so it can look something up and then act on what it found in a single turn.
-"""
 import json
 import logging
 import time
@@ -35,10 +25,6 @@ BACKOFF_SECONDS = (1, 2, 4)
 TEMPERATURE = 0.7
 CHAIN_TTL_SECONDS = 60 * 60 * 24 * 7
 
-# Tools in one step are independent of each other -- the model asked for all of
-# them before seeing any result -- so running them one after another just adds
-# their latencies together. Capped low because these are mostly DB queries and
-# each thread holds its own connection.
 MAX_PARALLEL_TOOLS = 4
 
 DEFAULT_FALLBACK = "Sorry, I'm having trouble right now. Let me get a colleague to help you."
@@ -58,20 +44,11 @@ class AgentResult:
     answered_by_triage: bool = False
 
 
-# --------------------------------------------------------------------------
-# Chain state: Postgres is the source of truth, Redis is a cache in front of it
-# --------------------------------------------------------------------------
-
 def _chain_key(conversation) -> str:
     return f"agent:chain:{conversation.id}"
 
 
 def load_chain(assistant, conversation) -> Optional[str]:
-    """Return the response id to continue from, or None to start fresh.
-
-    Returns None when the assistant was edited after this chain started, so the
-    new instructions take effect on the very next message.
-    """
     started = conversation.instructions_version
     if started is None or assistant.updated_time > started:
         if started is not None:
@@ -116,24 +93,12 @@ def clear_chain(conversation) -> None:
         logger.warning("Redis unavailable clearing chain for %s: %s", conversation.id, exc)
 
 
-# --------------------------------------------------------------------------
-# Agent
-# --------------------------------------------------------------------------
-
 class Agent:
     def __init__(self, model: str = CHAT_MODEL):
         self.model = model
 
-    # -- public ----------------------------------------------------------
 
     def run(self, assistant, conversation, user_input: str) -> AgentResult:
-        """Run one turn. Never raises.
-
-        The turn is routed to a starting tier, and escalated to a stronger model
-        only if the cheap one demonstrably struggled. Every step is timed and
-        recorded; the recorder is flushed in `finally` so a crashed turn is still
-        visible in the data rather than silently absent.
-        """
         decision = routing.choose(assistant, conversation, user_input)
         recorder = RunRecorder(
             conversation_id=conversation.id,
@@ -143,13 +108,9 @@ class Agent:
         )
 
         try:
-            # Stage 1 -- classify on the cheap tier. Any failure here returns a
-            # permissive plan, which is exactly the old behaviour.
             plan = pipeline.triage(user_input, recorder, self._create)
             recorder.plan = plan.as_dict()
 
-            # A greeting is answered here and never reaches the tool loop: one
-            # cheap call, a 200-token prompt, no tool schemas, no retrieval.
             if plan.direct_reply:
                 recorder.note_outcome(AgentRunOutcomes.OK.value)
                 return AgentResult(
@@ -163,14 +124,11 @@ class Agent:
 
             decision = pipeline.tier_for(plan, decision)
 
-            # Stage 2 -- fetch the documents up front rather than paying a model
-            # round trip for the model to ask for them.
             context = (
                 pipeline.retrieve(assistant, user_input, recorder)
                 if plan.needs_knowledge else ""
             )
 
-            # Stage 3 -- the tool loop, carrying only what the plan justified.
             result = self._run_with_chain_reset(
                 assistant, conversation, user_input, decision, recorder, plan, context
             )
@@ -187,26 +145,12 @@ class Agent:
         finally:
             recorder.finish()
 
-    # -- internals -------------------------------------------------------
 
     def _fallback(self, assistant) -> str:
         return (assistant.fallback_message or "").strip() or DEFAULT_FALLBACK
 
     @staticmethod
     def _needs_escalation(result: AgentResult) -> str:
-        """Why this result warrants a stronger model, or "" to accept it.
-
-        The signal is an observed fact about the attempt that just happened, not
-        a prediction: the model produced nothing we can send. Guessing difficulty
-        up front would mis-route; this cannot.
-
-        Hitting the tool-iteration cap is deliberately **not** an escalation
-        trigger by default. Escalating re-runs the whole turn -- every API call
-        and every tool again -- and a turn that just burned six calls and five
-        rounds of tools is already the slowest kind there is. Paying that twice
-        to replace an answer that exists is the wrong trade for a chat product.
-        Set AI_ESCALATE_ON_TOOL_CAP=True to prefer accuracy over latency there.
-        """
         if result.used_fallback:
             return "empty reply"
         if result.hit_iteration_cap and getattr(settings, "AI_ESCALATE_ON_TOOL_CAP", False):
@@ -216,11 +160,6 @@ class Agent:
     def _run_with_chain_reset(
         self, assistant, conversation, user_input: str, decision, recorder, plan, context
     ) -> AgentResult:
-        """Run the turn; if the stored chain is rejected, drop it and try once more.
-
-        Without this a single bad response id would break every future message in
-        the conversation.
-        """
         previous_id = load_chain(assistant, conversation)
         try:
             return self._run_tiered(
@@ -241,12 +180,6 @@ class Agent:
         self, assistant, conversation, user_input: str, previous_id, decision, recorder,
         plan, context,
     ) -> AgentResult:
-        """Attempt the turn, escalating once if the first tier struggled.
-
-        The retry starts from the *original* `previous_id`, not from the failed
-        attempt's response id: the weak attempt is abandoned rather than left in
-        the conversation chain for the stronger model to inherit and continue.
-        """
         instructions_version = assistant.updated_time
 
         result, final_id = self._attempt(
@@ -283,16 +216,9 @@ class Agent:
         self, assistant, conversation, user_input: str, previous_id: Optional[str],
         decision, recorder, plan=None, context="",
     ) -> Tuple[AgentResult, Optional[str]]:
-        """One pass of the agentic loop on one model.
-
-        Returns the result and the response id the chain should continue from, so
-        the caller decides whether this attempt is the one worth keeping.
-        """
         plan = plan or pipeline.Plan.permissive("no plan")
         model = decision.model
 
-        # Carry only the schemas this turn justified. `file_search` is dropped
-        # when stage 2 already put the passages in the prompt.
         tools = pipeline.scope_tools(
             tool_registry.build_tools(assistant), plan, retrieved=bool(context)
         )
@@ -305,9 +231,6 @@ class Agent:
                 {"role": "user", "content": user_input},
             ]
 
-        # Retrieved passages ride as a developer turn, not glued onto the
-        # instructions: on a warm chain there are no instructions to glue to,
-        # and the documents are still needed.
         if context:
             payload.insert(len(payload) - 1, {"role": "developer", "content": context})
 
@@ -385,14 +308,6 @@ class Agent:
         ), previous_id
 
     def _execute_calls(self, calls, assistant, conversation) -> List[Dict[str, Any]]:
-        """Run the tools the model asked for and format them for the next call.
-
-        The model issued every call in this batch before seeing any result, so
-        they cannot depend on each other and there is nothing to gain from
-        running them in sequence. Output order is preserved regardless of which
-        finishes first -- `executor.map` returns in input order, and the model
-        matches results by `call_id` anyway.
-        """
         if len(calls) == 1 or not self._parallel_tools_enabled():
             results = [self._execute_one(call, assistant, conversation) for call in calls]
         else:
@@ -411,13 +326,6 @@ class Agent:
         ]
 
     def _execute_one(self, call, assistant, conversation) -> Dict[str, Any]:
-        """Run one tool. Closes the thread's DB connection when it borrowed one.
-
-        Django opens a connection per thread lazily. In a long-lived Celery
-        worker those would accumulate one per tool call, so a thread that opened
-        one closes it before exiting. `tool_registry.execute` never raises, so
-        the cleanup does not need to guard against that.
-        """
         from django.db import connection
 
         opened = connection.connection is None
@@ -438,11 +346,6 @@ class Agent:
 
     def _create(self, payload, tools, previous_id: Optional[str], model: Optional[str] = None,
                 tool_choice: str = "auto"):
-        """Call the API, retrying transient failures.
-
-        Retrying here rather than in Celery matters: a Celery retry would re-run
-        the whole task and store the customer's message a second time.
-        """
         kwargs: Dict[str, Any] = {
             "model": model or self.model,
             "input": payload,
@@ -484,7 +387,6 @@ class Agent:
 
     @staticmethod
     def _usage(response) -> Tuple[int, int]:
-        """Billable tokens for one call. Cached input tokens are not charged."""
         usage = getattr(response, "usage", None)
         if usage is None:
             return 0, 0
@@ -496,19 +398,12 @@ class Agent:
 
     @staticmethod
     def _cached_tokens(response) -> int:
-        """Cached input tokens: discounted, not free, so they are priced separately."""
         usage = getattr(response, "usage", None)
         details = getattr(usage, "input_tokens_details", None) if usage else None
         return getattr(details, "cached_tokens", 0) or 0
 
     @staticmethod
     def _extract_text(response) -> str:
-        """Pull the assistant's words out of the response.
-
-        The reply is plain text by design, so there is nothing to unwrap. The one
-        thing we guard is a model that ignored that and emitted a JSON envelope
-        anyway — we would rather send its `reply` field than raw braces.
-        """
         if response is None:
             return ""
 
@@ -527,7 +422,6 @@ class Agent:
 
 
 def _unwrap_json_envelope(text: str) -> str:
-    """Safety net for a model that wrapped its reply in JSON despite the prompt."""
     if not text.startswith("{") and not text.startswith("```"):
         return text
 
@@ -549,12 +443,7 @@ def _unwrap_json_envelope(text: str) -> str:
 agent = Agent()
 
 
-# --------------------------------------------------------------------------
-# Orchestration
-# --------------------------------------------------------------------------
-
 def respond(assistant, conversation, user_input: str) -> str:
-    """Run a turn, persist the reply and publish it. Returns the text to send."""
     from apps.assistant.services.conversation import conversation_service
     from apps.shared.addons.enums import SenderTypes
     from apps.shared.addons.redis import publish_message_to_ws

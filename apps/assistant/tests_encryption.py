@@ -1,9 +1,3 @@
-"""Conversation transcripts and the client PII attached to them are encrypted.
-
-`messages.message_content` carries whatever a customer typed into a bot — order
-details, addresses, phone numbers — and `Conversation.client_full_name` /
-`client_phone_email` hold the contact details the assistant collected.
-"""
 from django.contrib import admin as django_admin
 from django.test import TestCase
 
@@ -70,8 +64,6 @@ class ConversationEncryptionTests(TestCase):
 
 
 class ConversationAdminTokenTests(TestCase):
-    """`Conversation.token` is the Telegram bot token, copied per conversation."""
-
     def setUp(self):
         self.assistant = Assistant.objects.create(name="Sales", company_name="Acme")
         self.conversation = Conversation.objects.create(assistant=self.assistant, token=BOT_TOKEN)

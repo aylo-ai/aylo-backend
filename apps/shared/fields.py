@@ -1,29 +1,3 @@
-"""Model fields that encrypt their value at rest.
-
-The fields are transparent: assign and read plaintext, the database only ever
-sees ``"v1:<fernet-token>"``. See ``apps/shared/addons/crypto.py`` for the
-cipher, the version prefix and the key-rotation story.
-
-Not indexable, not filterable
------------------------------
-Fernet is randomised, so the same plaintext produces a different ciphertext on
-every write. ``WHERE col = 'x'``, ``LIKE``, ``ORDER BY`` and any index on the
-column are therefore meaningless, and the fields **refuse** every lookup except
-``isnull`` rather than silently returning an empty queryset.
-
-When a column really has to be searched by exact value, add a companion
-``<name>_hash`` column (``models.CharField(max_length=crypto.HASH_HEX_LENGTH)``)
-holding ``crypto.hash_secret(value)``, declare it in the model's
-``ENCRYPTED_HASH_LOOKUPS`` and give the model an
-``EncryptedLookupQuerySet``-based manager. ``filter(col=plaintext)`` is then
-rewritten to ``filter(col_hash=<digest>)`` automatically — existing call sites
-keep working and stay indexed. ``Integration.api_token`` is the only column
-that needs this today (every inbound Telegram webhook resolves the integration
-by bot token).
-
-Substring search (``icontains``) cannot be preserved at all; callers that used
-it on a now-encrypted column had to drop it.
-"""
 from __future__ import annotations
 
 import json
@@ -44,13 +18,10 @@ __all__ = [
     "EncryptedTextField",
 ]
 
-#: The only lookup that still means something on a randomised ciphertext.
 _ALLOWED_LOOKUPS = frozenset({"isnull"})
 
 
 class EncryptedFieldMixin:
-    """Encrypt on write, decrypt on read, pass legacy plaintext through."""
-
     def get_prep_value(self, value):
         return crypto.encrypt(super().get_prep_value(value))
 
@@ -60,8 +31,6 @@ class EncryptedFieldMixin:
         try:
             return crypto.decrypt(value)
         except crypto.DecryptionError:
-            # Fail closed: handing back the raw blob would push a corrupt secret
-            # into an outbound API call or render ciphertext to a customer.
             logger.error(
                 "Could not decrypt %s.%s — check FIELD_ENCRYPTION_KEYS",
                 self.model._meta.label if hasattr(self, "model") else "?",
@@ -80,34 +49,16 @@ class EncryptedFieldMixin:
 
 
 class EncryptedTextField(EncryptedFieldMixin, models.TextField):
-    """``TextField`` stored encrypted. Not indexable — see the module docstring."""
+    pass
 
 
 class EncryptedCharField(EncryptedFieldMixin, models.CharField):
-    """``CharField`` stored encrypted. Not indexable — see the module docstring.
-
-    ``max_length`` keeps validating the *plaintext*, but the column is created
-    as ``text``: a Fernet token is roughly ``4/3 * len + 100`` characters, so a
-    ``varchar(255)`` would overflow on any realistic value. On Postgres ``text``
-    and ``varchar`` are the same storage, so nothing is lost.
-    """
-
     def db_type(self, connection):
         return connection.data_types["TextField"]
 
 
 class EncryptedJSONField(EncryptedFieldMixin, models.JSONField):
-    """``JSONField`` whose whole document is encrypted.
-
-    The column stays ``jsonb`` and holds a single JSON *string* — the ciphertext
-    — so no schema conversion is needed and legacy rows (real JSON objects) are
-    still readable. Key lookups (``metadata__foo``) are impossible by
-    construction and raise; read the document and index into it in Python.
-    """
-
     def get_prep_value(self, value):
-        # `JSONField` serialises whatever this returns, so returning the
-        # ciphertext string lands a JSON *string* in the jsonb column.
         if value is None:
             return None
         return crypto.encrypt(json.dumps(value, cls=self.encoder))
@@ -135,24 +86,6 @@ class EncryptedJSONField(EncryptedFieldMixin, models.JSONField):
 
 
 class EncryptedLookupQuerySet(models.QuerySet):
-    """Rewrites exact lookups on encrypted columns onto their ``*_hash`` column.
-
-    Declare the mapping on the model::
-
-        class Integration(BaseModel):
-            ENCRYPTED_HASH_LOOKUPS = {"api_token": "api_token_hash"}
-            objects = EncryptedLookupQuerySet.as_manager()
-
-    ``Integration.objects.filter(api_token=token)`` then becomes
-    ``filter(api_token_hash=hash_secret(token))``. Doing it here rather than at
-    each call site keeps the ~dozen existing lookups (webhook dispatch,
-    integration creation, group registration) working and indexed, and means a
-    future encrypted-and-searchable column is one dict entry.
-
-    Only exact matches are rewritten; ``__icontains`` and friends still raise,
-    because a hash cannot answer them.
-    """
-
     def _hash_lookups(self) -> dict[str, str]:
         return getattr(self.model, "ENCRYPTED_HASH_LOOKUPS", {}) or {}
 

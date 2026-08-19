@@ -1,4 +1,3 @@
-"""Pricing-package and feature catalog serializers for the dashboard."""
 from django.db.models import Sum
 from rest_framework import serializers
 
@@ -11,7 +10,6 @@ from apps.user.models import User
 
 
 class DashboardPricingPackageDetailSerializer(serializers.ModelSerializer):
-    """Pricing package with subscriber stats."""
     subscribers_count = serializers.SerializerMethodField()
     active_subscribers = serializers.SerializerMethodField()
     total_assistants = serializers.SerializerMethodField()
@@ -75,7 +73,6 @@ class DashboardPricingPackageDetailSerializer(serializers.ModelSerializer):
 
 
 class DashboardFeatureSerializer(FeatureSerializer):
-    """Feature serializer that rejects wrong-typed values instead of coercing them."""
     name = StrictCharField(max_length=100)
     icon = StrictCharField(max_length=50, required=False, allow_null=True, allow_blank=True)
 

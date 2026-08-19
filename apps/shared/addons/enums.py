@@ -101,12 +101,6 @@ class IntegrationTypes(EnumBaseModel):
 
 
 class BillzSyncStatuses(EnumBaseModel):
-    """State of the Billz catalogue mirror, kept in `Integration.metadata`.
-
-    `AUTH_FAILED` is deliberately distinct from `FAILED`: it means the merchant's
-    Billz secret token no longer authenticates, so no retry can recover it and
-    the user has to reconnect. Everything else is transient.
-    """
     NEVER_SYNCED = 'never_synced'
     SYNCING = 'syncing'
     SYNCED = 'synced'
@@ -147,10 +141,6 @@ class TransactionTypes(EnumBaseModel):
 
 
 class PricingPackageType(EnumBaseModel):
-    # How a package is priced, not what it is called. `CUSTOM` means the price
-    # is agreed per company and nothing may charge it self-service — see
-    # `PricingPackage.is_custom`. The seeded ladder is Free (FREE) →
-    # Basic (BASIC) → Pro (CUSTOM).
     FREE = 'free'
     CUSTOM = 'custom'
     BASIC = 'basic'
@@ -179,29 +169,13 @@ class FileTypes(EnumBaseModel):
 
 
 class FileIndexStatuses(EnumBaseModel):
-    """Where an uploaded document is in the vector-store indexing pipeline.
-
-    Indexing runs in Celery, not in the upload request, so the client needs a
-    field to poll: the upload responds `pending` and the row moves to `indexed`
-    or `failed` once the worker has been through OpenAI.
-    """
     PENDING = 'pending'
     INDEXING = 'indexing'
     INDEXED = 'indexed'
     FAILED = 'failed'
-    # The file is stored but the vector store will never accept it (unsupported
-    # extension). A terminal state, and not an error worth retrying.
     SKIPPED = 'skipped'
 
 class LeadStatuses(EnumBaseModel):
-    """Lifecycle of a captured lead.
-
-    An earlier `new/registered/delivered/lost` version of this class used to sit
-    further up the file and was silently shadowed by this one — Python keeps the
-    last definition, so those four values were never the ones in effect. The
-    duplicate has been removed; these are the real values, and the ones
-    `assistant/tasks.py` writes.
-    """
     NEW = 'new'
     ENGAGED = 'engaged'
     PARTIAL_INFO = 'partial_info'
@@ -236,15 +210,12 @@ class BroadcastStatuses(EnumBaseModel):
 
 
 class AgentRunOutcomes(EnumBaseModel):
-    """How a turn ended. `FALLBACK` is a normal, expected outcome, not an error:
-    the model produced nothing usable and the assistant's fallback text was sent."""
     OK = 'ok'
     FALLBACK = 'fallback'
     ERROR = 'error'
 
 
 class AgentTiers(EnumBaseModel):
-    """Mirrors ai_service.routing.Tier so the DB column has real choices."""
     FAST = 'fast'
     STANDARD = 'standard'
     DEEP = 'deep'

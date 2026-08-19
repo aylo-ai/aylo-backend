@@ -1,24 +1,3 @@
-"""Verify that every configured model id actually exists, before users find out.
-
-A wrong model id is a uniquely bad failure. It passes every test -- the suite
-mocks the API -- deploys cleanly, and then 404s on the first real customer turn,
-where the agent's fail-soft design turns it into the fallback message. The
-symptom is "the bot got dumber", with nothing in the logs naming the cause.
-
-Nothing in the codebase can confirm an id is real; only the provider knows. So
-this asks it::
-
-    python manage.py check_ai_models
-
-Exit status is 0 only when every configured tier resolves, which makes it usable
-as a deploy gate::
-
-    python manage.py check_ai_models && ./deployment/deploy.sh
-
-It also reports missing price entries. Those do not break a turn -- cost is
-recorded as NULL by design rather than a wrong number -- but a tier with no
-price is a tier you cannot evaluate, which defeats the point of tiering.
-"""
 from django.core.management.base import BaseCommand
 
 from apps.shared.ai_service import pricing, routing
@@ -44,7 +23,7 @@ class Command(BaseCommand):
 
         available = self._available_models()
         if available is None:
-            return  # _available_models already explained and exited
+            return
 
         if options["list"]:
             self.stdout.write(f"{len(available)} model(s) reachable:")
@@ -73,7 +52,6 @@ class Command(BaseCommand):
 
         self._report(missing, unpriced)
 
-    # -- helpers -----------------------------------------------------------
 
     def _available_models(self):
         from apps.shared.ai_service.client import get_client
@@ -92,8 +70,6 @@ class Command(BaseCommand):
 
     @staticmethod
     def _closest(model, available, limit=3):
-        """Cheap suggestions for a typo'd id. Prefix match beats edit distance
-        here because provider ids are versioned (`name-YYYY-MM-DD`)."""
         stem = model.split("-")[0].lower()
         return sorted(m for m in available if m.lower().startswith(stem))[:limit]
 

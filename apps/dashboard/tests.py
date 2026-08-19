@@ -1,14 +1,3 @@
-"""Dashboard permission tests.
-
-Regression coverage for the 2026-07-31 privilege-escalation fix: the generic
-`RetrieveUpdateDestroyAPIView`s for users, subscriptions and transactions were
-gated by `IsDashboardUser` (any staff role) on every method, including
-PUT/PATCH/DELETE — silently bypassing the narrower `CanManageUsers` /
-`CanManageFinance` permission that the sibling toggle-active/change-role and
-cancel/extend/refund endpoints correctly required. A support_agent could PATCH
-`user_role` to `super_admin`, or delete a user/subscription/transaction
-outright, without ever touching the endpoints meant to gate those actions.
-"""
 from django.test import TestCase
 from rest_framework.test import APIClient
 

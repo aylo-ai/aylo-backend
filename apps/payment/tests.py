@@ -1,14 +1,3 @@
-"""Payment endpoint tests.
-
-Two groups:
-
-* Cross-tenant scoping — regressions for the 2026-07-22 investigation: P1 (card
-  delete IDOR), P2 (default-card IDOR), P3 (retry-payment list enumeration) and
-  the unscoped auto-renew update. Every mutation and read must be limited to
-  `request.user`'s own billing objects.
-* Plan selection — the pricing-package list and `subscriptions/create/` that the
-  post-sign-up "choose a plan" step drives.
-"""
 from unittest import mock
 
 from django.core.cache import cache
@@ -120,15 +109,11 @@ CREATE_URL = "/api/v1/payment/subscriptions/create/"
 
 
 class PlanSelectionTests(TestCase):
-    """`subscriptions/create/` — the step a new user lands on after sign-up."""
-
     def setUp(self):
         self.free = PricingPackage.objects.create(
             name="Free", type=PricingPackageType.FREE.value, price=0,
             request_count=100, duration_days=30,
         )
-        # BASIC, not CUSTOM: `PricingPackageType.CUSTOM` marks the quote-only
-        # "Pro" tier, which self-service subscription refuses.
         self.paid = PricingPackage.objects.create(
             name="Basic", type=PricingPackageType.BASIC.value, price=699000,
             request_count=2000, duration_days=30,
@@ -171,8 +156,6 @@ class PlanSelectionTests(TestCase):
         self.assertIsNotNone(subscription.next_payment_date)
 
     def test_the_response_names_the_plan_that_was_chosen(self):
-        """The write-only UUID has to come back resolved, or the confirmation
-        screen would need a second round-trip to name the plan."""
         response = self.select(self.paid)
 
         self.assertEqual(response.data["data"]["pricing_package"]["name"], "Basic")
@@ -187,7 +170,6 @@ class PlanSelectionTests(TestCase):
         self.assertEqual(self.user.subscription.pricing_package, self.free)
 
     def test_an_unpaid_plan_can_still_be_swapped(self):
-        """Picking a paid plan and not paying must not trap the account."""
         self.select(self.paid)
 
         response = self.select(self.free)
@@ -230,13 +212,7 @@ class PlanSelectionTests(TestCase):
     CACHES={"default": {"BACKEND": "django.core.cache.backends.dummy.DummyCache"}}
 )
 class CustomPackageTests(TestCase):
-    """The last tier of the ladder is priced per company, so there is no amount
-    to put on a Payme receipt. Self-service subscribe and upgrade must refuse
-    it, and the interested company must land in `CustomPackageRequest` instead.
-    """
-
     def setUp(self):
-        # "Pro" is the top, all-inclusive tier: custom price, custom volume.
         self.custom = PricingPackage.objects.create(
             name="Pro", type=PricingPackageType.CUSTOM.value, price=0,
             request_count=0, duration_days=30,
@@ -262,7 +238,6 @@ class CustomPackageTests(TestCase):
         data.update(overrides)
         return data
 
-    # -- listing -----------------------------------------------------------
 
     def test_the_list_marks_the_custom_tier(self):
         response = APIClient().get("/api/v1/payment/pricing-packages/")
@@ -273,8 +248,6 @@ class CustomPackageTests(TestCase):
         self.assertFalse(by_name["Basic"]["is_custom"])
 
     def test_the_list_comes_back_as_a_ladder(self):
-        """The pricing page renders this order verbatim: cheapest first, the
-        quote-only tier last — not the model's default `-created_time`."""
         PricingPackage.objects.create(
             name="Free", type=PricingPackageType.FREE.value, price=0,
             request_count=100, duration_days=30,
@@ -295,7 +268,6 @@ class CustomPackageTests(TestCase):
         self.assertEqual(popular["request_count"], 2000)
         self.assertEqual(float(popular["price"]), 699000.0)
 
-    # -- self-service paths refuse it --------------------------------------
 
     def test_the_custom_tier_cannot_be_subscribed_to(self):
         response = self.client.post(
@@ -329,7 +301,6 @@ class CustomPackageTests(TestCase):
         subscription.refresh_from_db()
         self.assertEqual(subscription.pricing_package, self.priced)
 
-    # -- the contact-sales request -----------------------------------------
 
     def test_a_company_can_request_a_quote(self):
         with mock.patch("apps.payment.views.notify_custom_package_request") as notify:
@@ -341,12 +312,10 @@ class CustomPackageTests(TestCase):
         self.assertEqual(request_obj.pricing_package, self.custom)
         self.assertEqual(request_obj.user, self.user)
         self.assertEqual(request_obj.expected_conversations, 50000)
-        # Stored normalised — sales dials it straight from the dashboard.
         self.assertEqual(request_obj.phone_number, "+998901234567")
         notify.assert_called_once()
 
     def test_an_anonymous_visitor_can_request_a_quote(self):
-        """The pricing page is public; most companies have no account yet."""
         with mock.patch("apps.payment.views.notify_custom_package_request"):
             response = APIClient().post(self.request_url, self.payload(), format="json")
 
@@ -381,7 +350,6 @@ class CustomPackageTests(TestCase):
         self.assertTrue(CustomPackageRequest.objects.exists())
 
     def test_the_sales_alert_escapes_attacker_markup(self):
-        """The company name is public free text rendered with parse_mode=HTML."""
         with mock.patch(
             "apps.payment.services.notifications.send_to_lead_groups"
         ) as send:
@@ -398,13 +366,6 @@ class CustomPackageTests(TestCase):
 
 
 class SubscriptionCancellationTests(TestCase):
-    """`subscriptions/cancel/` used to set INACTIVE, the same status a never-paid
-    or lapsed subscription has — so `validate_subscription()` couldn't tell a
-    self-cancelled user apart from one who simply hasn't paid yet, and reported
-    the wrong reason. It must set CANCELLED, matching the dashboard's admin
-    cancel path (`DashboardSubscriptionCancel`).
-    """
-
     def setUp(self):
         self.subscription = Subscription.objects.create(
             status=SubscriptionStatuses.ACTIVE.value,
@@ -436,11 +397,6 @@ class SubscriptionCancellationTests(TestCase):
 
 
 class PricingPackageValidationTests(TestCase):
-    """Regressions for the `PricingPackageSerializer.validate` defects: it
-    indexed `attrs` for optional fields (a 500 on any partial payload) and
-    compared the discount the wrong way round (rejecting every real discount).
-    """
-
     def setUp(self):
         self.admin = User.objects.create(
             username="pricing-admin", auth_type="email",
@@ -504,9 +460,6 @@ class PricingPackageValidationTests(TestCase):
         self.assertEqual(response.status_code, 200)
 
 
-# Throttling keeps its history in the default cache, which the test runner does
-# not reset between tests; the payment endpoints below are now scope-throttled,
-# so make the limit a no-op wherever the rate itself is not what's under test.
 NO_THROTTLE = override_settings(
     CACHES={"default": {"BACKEND": "django.core.cache.backends.dummy.DummyCache"}}
 )
@@ -514,14 +467,6 @@ NO_THROTTLE = override_settings(
 
 @NO_THROTTLE
 class CardTokenBindingTests(TestCase):
-    """`POST /payment/payme/card/add/` takes a Payme card token straight from
-    the request body. Payme's `cards.check` only answers "is this token live
-    and rebillable" — never "does it belong to the caller" — so without a local
-    ownership check anyone holding a token could bind the victim's card to
-    their own account and then charge it through `PayWithCardSerializer`, which
-    authorises on the local `Card.user` row alone.
-    """
-
     URL = "/api/v1/payment/payme/card/add/"
 
     def setUp(self):
@@ -600,12 +545,6 @@ class CardTokenBindingTests(TestCase):
 
 @NO_THROTTLE
 class CardWriteProtectionTests(TestCase):
-    """`is_verified` is the gate `PayWithCardSerializer.validate()` and
-    `process_subscription_payment()` both check before charging a card, and
-    `card_number` is the masked PAN shown against a transaction. Neither may be
-    settable by the client that owns the row.
-    """
-
     def setUp(self):
         self.owner = User.objects.create(username="patch-owner", auth_type="email")
         self.attacker = User.objects.create(username="patch-attacker", auth_type="email")
@@ -664,13 +603,6 @@ class CardWriteProtectionTests(TestCase):
 
 
 class PaymentThrottleTests(TestCase):
-    """`payme/get-verify-token/` makes Payme SMS a verification code to the
-    phone registered against whatever PAN the caller typed — a third party's
-    phone. `DEFAULT_THROTTLE_CLASSES` is `ScopedRateThrottle`, which is a no-op
-    on any view that declares no `throttle_scope`, so before this scope existed
-    the endpoint could be driven flat out.
-    """
-
     URL = "/api/v1/payment/payme/get-verify-token/"
 
     def setUp(self):
@@ -695,37 +627,18 @@ class PaymentThrottleTests(TestCase):
 
         self.assertIn(200, codes, "the endpoint must still work for a normal caller")
         self.assertIn(429, codes, "an unbounded caller must eventually be throttled")
-# ──────────────────────────────────────────────────────────────────────────
-# Public catalogue exposure and abuse bounds (2026-08-04 hardening sweep)
-# ──────────────────────────────────────────────────────────────────────────
 
 def throttled_at(scope, rate):
-    """Lower one throttle scope for the duration of a `with` block.
-
-    `override_settings(REST_FRAMEWORK=...)` does *not* work here:
-    `SimpleRateThrottle.THROTTLE_RATES` is a class attribute bound to the rates
-    dict at import time, so DRF's settings reload swaps the `api_settings`
-    object but every throttle instance keeps reading the original dict. Patch
-    that dict instead.
-    """
     from rest_framework.throttling import SimpleRateThrottle
 
     return mock.patch.dict(SimpleRateThrottle.THROTTLE_RATES, {scope: rate})
 
 
 class PublicCatalogueTests(TestCase):
-    """`features/` and `pricing-packages/` are the only `AllowAny` branches in
-    the payment app. They are the public pricing page — not a payment-provider
-    callback — so anonymous *reads* are intended; anonymous *writes* and an
-    unbounded request rate are not.
-    """
-
     def setUp(self):
         from django.core.cache import cache
 
-        cache.clear()  # throttle history lives in the cache
-        # PRO, not CUSTOM: `PricingPackageType.CUSTOM` now marks the quote-only
-        # "for companies" tier, and these two are ordinary paid packages.
+        cache.clear()
         self.package = PricingPackage.objects.create(
             name="Basic", type=PricingPackageType.BASIC.value, price=199000,
             request_count=2000, duration_days=30,
@@ -753,9 +666,6 @@ class PublicCatalogueTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(
             set(response.data["data"]),
-            # `is_custom` is derived from `type`, not the enum itself: the
-            # pricing page needs to know which card is quote-only, but the
-            # internal plan classification stays out of the public payload.
             {"id", "name", "price", "discount_price", "currency", "description",
              "features", "request_count", "duration_days", "is_popular",
              "is_custom"},
@@ -791,9 +701,6 @@ class PublicCatalogueTests(TestCase):
         self.assertTrue(PricingPackage.objects.filter(id=self.package.id).exists())
 
     def test_the_public_catalogue_is_rate_limited(self):
-        """ScopedRateThrottle is the only global throttle class, so a view with
-        no `throttle_scope` is completely unbounded — which is what these two
-        anonymous endpoints used to be."""
         with throttled_at("public_read", "1/minute"):
             first = self.client.get("/api/v1/payment/pricing-packages/")
             second = self.client.get("/api/v1/payment/pricing-packages/")
@@ -811,10 +718,6 @@ class PublicCatalogueTests(TestCase):
 
 
 class PaymeVerificationThrottleTests(TestCase):
-    """Both Payme card endpoints were authenticated but unbounded: one makes
-    Payme send an SMS to a card number the caller chooses, the other checks the
-    short numeric code that comes back."""
-
     def setUp(self):
         from django.core.cache import cache
 
@@ -828,8 +731,6 @@ class PaymeVerificationThrottleTests(TestCase):
             first = self.client.post("/api/v1/payment/payme/get-verify-token/", {}, format="json")
             second = self.client.post("/api/v1/payment/payme/get-verify-token/", {}, format="json")
 
-        # The first is rejected on its (empty) payload — the point is that it
-        # reached the serializer at all, and the second never did.
         self.assertEqual(first.status_code, 400)
         self.assertEqual(second.status_code, 429)
 

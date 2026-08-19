@@ -37,22 +37,10 @@ logger = logging.getLogger(__name__)
 @shared_task(
     bind=True,
     max_retries=3,
-    # OpenAI being down or slow is the expected failure here, so back off rather
-    # than hammering it: 1 min, 4 min, 9 min.
     retry_backoff=60,
     retry_jitter=True,
 )
 def index_assistant_file(self, upload_id):
-    """Put an uploaded document into the assistant's vector store.
-
-    This used to run inline in the upload request: save to MinIO, presign a URL,
-    download the whole file back over HTTP, then upload it to OpenAI and poll
-    until it was chunked — with `ATOMIC_REQUESTS` holding a Postgres transaction
-    open the entire time. A 6 MB PDF therefore took as long as OpenAI took, held
-    three copies of itself in a gunicorn worker capped at a few hundred MB, and
-    turned any OpenAI slowness into a dead request. Uploads now return as soon
-    as the bytes are in MinIO and this runs behind them.
-    """
     upload = (
         AssistantFileUpload.objects
         .select_related("assistant")
@@ -60,8 +48,6 @@ def index_assistant_file(self, upload_id):
         .first()
     )
     if upload is None:
-        # Deleted between the upload response and this task. Nothing to do, and
-        # not a failure worth retrying.
         logger.info("File upload %s no longer exists; skipping indexing", upload_id)
         return
 
@@ -91,9 +77,6 @@ def index_assistant_file(self, upload_id):
         raise self.retry(exc=exc)
 
     if not file_id:
-        # `add_stored_file` already logged why. It returns None for permanent
-        # problems (unreadable object, empty file) as well as for a timed-out
-        # index, so retry: the retry is bounded and the common case is transient.
         AssistantFileUpload.objects.filter(pk=upload.pk).update(
             index_status=FileIndexStatuses.FAILED.value, updated_time=now()
         )
@@ -194,13 +177,11 @@ def get_daily_conversation_statistics(assistant_id, target_date):
 
 @shared_task
 def process_follow_ups():
-    """Runs every 30 minutes. Schedules and sends follow-up messages for idle conversations."""
     _schedule_follow_ups()
     _send_due_follow_ups()
 
 
 def _schedule_follow_ups():
-    """Find idle conversations and create FollowUpLog entries for their next stage."""
     configs = FollowUpConfig.objects.filter(is_enabled=True).prefetch_related('stages')
 
     for config in configs:
@@ -210,7 +191,6 @@ def _schedule_follow_ups():
 
         target_statuses = config.target_statuses or ['open', 'pending']
 
-        # Get last message sender and time per conversation
         last_msg_sender = Message.objects.filter(
             conversation=OuterRef('pk')
         ).order_by('-created_time').values('sender')[:1]
@@ -219,7 +199,6 @@ def _schedule_follow_ups():
             conversation=OuterRef('pk')
         ).order_by('-created_time').values('created_time')[:1]
 
-        # Exclude conversations where user has a qualified lead
         qualified_lead_exists = Lead.objects.filter(
             assistant=config.assistant,
             username=OuterRef('username'),
@@ -239,14 +218,12 @@ def _schedule_follow_ups():
             Exists(qualified_lead_exists)
         )
 
-        # Check subscription tokens
         user = config.assistant.user
         if hasattr(user, 'subscription') and user.subscription:
             if user.subscription.remained_request_count <= 0:
                 continue
 
         for conversation in conversations:
-            # Find the next stage that hasn't been logged yet
             existing_stages = FollowUpLog.objects.filter(
                 conversation=conversation,
                 stage__config=config,
@@ -265,12 +242,10 @@ def _schedule_follow_ups():
                         'status': FollowUpLogStatus.PENDING.value,
                     }
                 )
-                # Only schedule the next pending stage, not all at once
                 break
 
 
 def _send_due_follow_ups():
-    """Send follow-up messages that are due."""
     due_logs = FollowUpLog.objects.filter(
         status=FollowUpLogStatus.PENDING.value,
         scheduled_at__lte=now(),
@@ -282,7 +257,6 @@ def _send_due_follow_ups():
     for log in due_logs:
         try:
             with transaction.atomic():
-                # Re-lock the row to prevent double-send
                 locked_log = FollowUpLog.objects.select_for_update(
                     skip_locked=True
                 ).filter(pk=log.pk, status=FollowUpLogStatus.PENDING.value).first()
@@ -294,14 +268,12 @@ def _send_due_follow_ups():
                 assistant = conversation.assistant
                 stage = locked_log.stage
 
-                # Re-check eligibility
                 if not _is_conversation_eligible(conversation, stage.config):
                     locked_log.status = FollowUpLogStatus.CANCELLED.value
                     locked_log.cancelled_at = now()
                     locked_log.save(update_fields=['status', 'cancelled_at'])
                     continue
 
-                # Check subscription tokens
                 subscription = getattr(assistant.user, 'subscription', None)
                 if subscription and subscription.remained_request_count <= 0:
                     locked_log.status = FollowUpLogStatus.CANCELLED.value
@@ -309,16 +281,13 @@ def _send_due_follow_ups():
                     locked_log.save(update_fields=['status', 'cancelled_at'])
                     continue
 
-                # Render message template
                 message_text = _render_template(
                     stage.message_template, conversation, assistant
                 )
 
-                # Send message
                 success = _send_follow_up_message(conversation, message_text)
 
                 if success:
-                    # Create message record in conversation history
                     Message.objects.create(
                         conversation=conversation,
                         sender=SenderTypes.ASSISTANT.value,
@@ -337,12 +306,10 @@ def _send_due_follow_ups():
 
 
 def _is_conversation_eligible(conversation, config):
-    """Check if a conversation is still eligible for follow-up."""
     target_statuses = config.target_statuses or ['open', 'pending']
     if conversation.status not in target_statuses:
         return False
 
-    # Check if the last message is still from assistant (user hasn't replied)
     last_message = Message.objects.filter(
         conversation=conversation
     ).order_by('-created_time').first()
@@ -350,7 +317,6 @@ def _is_conversation_eligible(conversation, config):
     if not last_message or last_message.sender != SenderTypes.ASSISTANT.value:
         return False
 
-    # Check for qualified lead
     has_qualified_lead = Lead.objects.filter(
         assistant=conversation.assistant,
         username=conversation.username,
@@ -364,7 +330,6 @@ def _is_conversation_eligible(conversation, config):
 
 
 def _render_template(template, conversation, assistant):
-    """Render follow-up message template with context variables."""
     return template.format(
         username=conversation.client_full_name or conversation.username or '',
         assistant_name=assistant.name or '',
@@ -373,7 +338,6 @@ def _render_template(template, conversation, assistant):
 
 
 def _send_follow_up_message(conversation, text):
-    """Send follow-up message via the appropriate platform."""
     assistant = conversation.assistant
     platform = conversation.platform
 

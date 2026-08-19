@@ -1,4 +1,3 @@
-"""Transaction serializers for the dashboard."""
 from rest_framework import serializers
 
 from apps.payment.models import Transaction
@@ -28,7 +27,6 @@ class RefundSerializer(serializers.Serializer):
 
 
 class TransactionBulkActionSerializer(serializers.Serializer):
-    """Validates `transactions/bulk-action/`."""
     ACTIONS = ('refund',)
 
     action = serializers.ChoiceField(choices=ACTIONS)

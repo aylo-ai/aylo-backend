@@ -80,8 +80,6 @@ class AssistantRetrieveView(generics.RetrieveUpdateDestroyAPIView):
                                          context={'request': request})
         serializer.is_valid(raise_exception=True)
         self.perform_update(serializer)
-        # Nothing to sync remotely: the agent reads the assistant's prompt and
-        # settings on every turn, so an edit applies to the next message.
         return success_response(message=_("Assistant muvaffaqiyatli o'zgartirildi"), data=serializer.data, code=200)
 
     def destroy(self, request, *args, **kwargs):
@@ -170,9 +168,6 @@ class MessageListCreateView(generics.ListCreateAPIView):
     queryset = Message.objects.all()
     serializer_class = MessageSerializer
     filter_backends = [filters.SearchFilter, filters.OrderingFilter]
-    # `message_content` is encrypted at rest, so an SQL `icontains` over it
-    # would match nothing. Searching transcripts needs a dedicated index —
-    # see docs/reports/2026-08-04-field-encryption-at-rest.md.
     search_fields = ['conversation__assistant__name']
     ordering_fields = ['conversation__assistant__name', 'created_time']
     ordering = ['conversation', 'created_time']
@@ -230,9 +225,6 @@ class ConversationMessagesListView(generics.ListAPIView):
     queryset = Message.objects.all()
     serializer_class = MessageSerializer
     filter_backends = [filters.SearchFilter, filters.OrderingFilter]
-    # `message_content` is encrypted at rest, so an SQL `icontains` over it
-    # would match nothing. Searching transcripts needs a dedicated index —
-    # see docs/reports/2026-08-04-field-encryption-at-rest.md.
     search_fields = ['conversation__assistant__name']
     ordering_fields = ['conversation__assistant__name', 'created_time']
     ordering = ['conversation', 'created_time']
@@ -268,7 +260,7 @@ class AssistantFileUploadListCreateView(generics.ListCreateAPIView):
             assistant = owned_assistants(request.user).get(id=assistant_id)
         except Assistant.DoesNotExist:
             return error_response(message=_("Assistant topilmadi"), code=404)
-        files = request.FILES.getlist('file')  # Handle multiple files
+        files = request.FILES.getlist('file')
         serializer = self.get_serializer(
             data=request.data,
             context={'assistant': assistant, 'files': files, 'request': request}
@@ -277,16 +269,8 @@ class AssistantFileUploadListCreateView(generics.ListCreateAPIView):
 
         serializer.save()
         uploads = getattr(serializer, "uploaded_files", [serializer.instance])
-        # A list, always — matching the sibling `update-file` endpoint. This used
-        # to be `serializer.data`, a single object, which meant posting more than
-        # one file crashed with `AttributeError: 'list' object has no attribute
-        # 'id'`. Each row carries `index_status`: the vector store is filled by
-        # `index_assistant_file` after the response, so a client that needs to
-        # know the document is searchable polls that field.
         return success_response(
             message=_("File muvaffaqiyatli yaratildi"),
-            # Every other create in this app returns its payload; without it the
-            # client never learns the new file's id.
             data=AssistantFileUploadSerializer(uploads, many=True).data,
             code=201,
         )
@@ -307,10 +291,6 @@ class AssistantFileUploadUpdateView(generics.CreateAPIView):
         files = request.FILES.getlist('file')
         context = {'assistant': assistant, 'files': files, 'request': request}
 
-        # NOT `many=True`: the serializer takes one payload and reads the file
-        # list off the context itself. With `many=True` DRF parsed the multipart
-        # QueryDict as an empty list, so `save()` wrote nothing and the endpoint
-        # answered 200 while silently discarding the upload.
         serializer = self.get_serializer(data=request.data, context=context)
         serializer.is_valid(raise_exception=True)
         serializer.save()
@@ -327,10 +307,6 @@ class AssistantFileUploadRetrieveView(generics.RetrieveUpdateDestroyAPIView):
     permission_classes = [permissions.IsAuthenticated]
 
     def get_queryset(self):
-        # `owned_assistants()` rather than `assistant__user=request.user`: the
-        # list and upload endpoints already let a customer's staff account work
-        # with these files, so scoping detail/update/delete more narrowly was an
-        # inconsistency, not a control. It is still one tenant either way.
         return AssistantFileUpload.objects.filter(
             assistant__in=owned_assistants(self.request.user),
         )
@@ -415,10 +391,6 @@ class LeadListCreateView(generics.ListCreateAPIView):
             raise NotFound(_("Assistant topilmadi"))
         serializer = self.get_serializer(data=request.data, context={'assistant_id': assistant_id, 'request': request})
         serializer.is_valid(raise_exception=True)
-        # The assistant comes from the URL (already ownership-checked above).
-        # Without this the lead was saved with `assistant=NULL` — invisible to
-        # the list endpoint and unreachable by id, so it could never be
-        # retrieved or deleted again.
         serializer.save(assistant_id=assistant_id)
         return success_response(message=_("Lead muvaffaqiyatli yaratildi"), data=serializer.data, code=201)
 
@@ -461,9 +433,6 @@ class ExportLeadsView(views.APIView):
             raise NotFound(_("Assistant topilmadi"))
         serializer = self.serializer_class(data=request.data)
         serializer.is_valid(raise_exception=True)
-        # Streamed straight from memory — nothing is written to the server's
-        # working directory, so concurrent exports can't hand one tenant the
-        # other's workbook and no files are left behind.
         filename, buffer = serializer.export_leads(assistant_id)
         return FileResponse(buffer, as_attachment=True, filename=filename)
 
@@ -512,8 +481,6 @@ class FollowUpConfigView(generics.RetrieveUpdateAPIView):
 
     def get_object(self):
         assistant_id = self.kwargs.get('pk')
-        # `owned_assistants()` exists to avoid exactly this: when `created_by`
-        # is None the `Q(user=None)` leg matches every *ownerless* assistant.
         assistant = owned_assistants(self.request.user).filter(id=assistant_id).first()
         if not assistant:
             raise NotFound(_("Assistant topilmadi"))

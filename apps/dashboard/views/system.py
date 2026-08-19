@@ -1,4 +1,3 @@
-"""System-health endpoint for the dashboard."""
 import redis as redis_lib
 from django.conf import settings
 from django.db import connection
@@ -9,7 +8,6 @@ from apps.shared.permissions import IsAdmin
 
 
 class DashboardSystemHealthView(APIView):
-    """System health check — DB, Redis, Celery."""
     permission_classes = [IsAdmin]
 
     def get(self, request, *args, **kwargs):
@@ -20,7 +18,6 @@ class DashboardSystemHealthView(APIView):
             'storage': {'status': 'unknown', 'detail': ''},
         }
 
-        # Database check
         try:
             with connection.cursor() as cursor:
                 cursor.execute("SELECT 1")
@@ -28,7 +25,6 @@ class DashboardSystemHealthView(APIView):
         except Exception as e:
             health['database'] = {'status': 'unhealthy', 'detail': str(e)}
 
-        # Redis check
         try:
             r = redis_lib.Redis(
                 host=settings.REDIS_HOST,
@@ -43,7 +39,6 @@ class DashboardSystemHealthView(APIView):
         except Exception as e:
             health['redis'] = {'status': 'unhealthy', 'detail': str(e)}
 
-        # Celery check
         try:
             from config.celery import app as celery_app
             inspector = celery_app.control.inspect(timeout=3)
@@ -61,7 +56,6 @@ class DashboardSystemHealthView(APIView):
         except Exception as e:
             health['celery'] = {'status': 'unhealthy', 'detail': str(e)}
 
-        # Storage check
         try:
             from django.core.files.storage import default_storage
             health['storage'] = {'status': 'healthy', 'detail': type(default_storage).__name__}

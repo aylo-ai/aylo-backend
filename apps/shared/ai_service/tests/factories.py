@@ -1,8 +1,3 @@
-"""Fixtures and fake OpenAI objects shared by the agent tests.
-
-`make_response` mirrors the shape the Responses API returns closely enough that the
-agent cannot tell the difference, which keeps every test offline and free.
-"""
 import json
 from types import SimpleNamespace
 from typing import Any, Dict, Iterable, Optional, Tuple
@@ -47,7 +42,6 @@ def make_response(
     output_tokens: int = 20,
     cached_tokens: int = 0,
 ) -> SimpleNamespace:
-    """Build a fake Response. `function_calls` is (name, args, call_id) triples."""
     output = [
         SimpleNamespace(
             type="function_call", name=name, arguments=json.dumps(args), call_id=call_id

@@ -35,12 +35,10 @@ def clean_html(input_html, allowed_tags=None):
 
     soup = BeautifulSoup(input_html, 'html.parser')
 
-    # Remove disallowed tags while keeping their content
-    for tag in soup.find_all(True):  # Find all tags
+    for tag in soup.find_all(True):
         if tag.name not in allowed_tags:
-            tag.unwrap()  # Remove the tag but keep its content
+            tag.unwrap()
 
-    # Validate 'a' tag attributes (keep only 'href')
     for tag in soup.find_all('a'):
         allowed_attrs = {'href'}
         for attr in list(tag.attrs):
@@ -79,7 +77,6 @@ def send_telegram_action(chat_id,token):
 
 def send_telegram_message(chat_id, text, token, entities=None):
     url = f"https://api.telegram.org/bot{token}/sendMessage"
-    # cleaned_html = clean_html(text)
     text_reply = extract_reply(text)
     data = {
         "chat_id": chat_id,
@@ -104,7 +101,6 @@ def send_telegram_message(chat_id, text, token, entities=None):
             except Exception as e:
                 print(f"[-] Error updating TelegramGroupIntegration: {e}")
 
-            # Retry sending the message with the new chat ID
             data["chat_id"] = new_chat_id
             response = http.post(url, json=data)
             response_data = response.json()
@@ -131,7 +127,6 @@ def send_telegram_message(chat_id, text, token, entities=None):
 
 
 def check_bot_in_group(chat_id, token):
-    """Telegram API orqali bot haqiqatan guruhda borligini tekshirish"""
     url = f"https://api.telegram.org/bot{token}/getChat"
     response = http.get(url, params={"chat_id": chat_id})
     return response.json().get("ok", False)
@@ -158,18 +153,6 @@ def delete_telegram_message(chat_id, message_id, token):
 
 
 def telegram_webhook_secret(bot_token):
-    """Per-bot value for Telegram's ``secret_token`` handshake.
-
-    Telegram does not sign webhook payloads; the only authenticity control it
-    offers is a shared secret registered with ``setWebhook`` and echoed back in
-    the ``X-Telegram-Bot-Api-Secret-Token`` header of every delivery.
-
-    The secret is derived — HMAC(server key, bot token) — rather than stored, so
-    every bot gets a distinct value with no new column and no state to keep in
-    sync: the webhook can recompute it from the token in its own URL path.
-    Returns "" when no server key is configured, which makes the webhook fail
-    closed instead of accepting forged updates.
-    """
     server_key = getattr(settings, "TELEGRAM_WEBHOOK_SECRET", "")
     if not server_key or not bot_token:
         return ""
@@ -187,13 +170,10 @@ def set_telegram_webhook(bot_token, webhook_url):
     if secret_token:
         payload['secret_token'] = secret_token
     else:
-        # Registering without a secret leaves the webhook unauthenticated, and
-        # the view rejects every delivery — surface it at registration time.
         logger.error(
             "TELEGRAM_WEBHOOK_SECRET is not configured; the registered webhook "
             "will reject every update"
         )
-    # The webhook URL embeds the bot token in its path — never log it.
     response = http.post(url, data=payload)
     if response.status_code == 200:
         logger.info("Telegram webhook set successfully")
@@ -206,8 +186,6 @@ def set_telegram_webhook(bot_token, webhook_url):
 def get_webhook_info(bot_token):
     url = f"https://api.telegram.org/bot{bot_token}/getWebhookInfo"
     response = http.get(url)
-    # The response body carries the registered webhook URL, which embeds the
-    # bot token in its path — log the status only.
     if response.status_code == 200:
         logger.info("Fetched Telegram webhook info")
         return 200
@@ -220,8 +198,6 @@ def handle_bot_added_to_group(chat_id, chat_title, bot_token):
     logger.info("Bot added to Telegram group %s", chat_id)
     integration = Integration.objects.filter(api_token=bot_token).first()
     if not integration:
-        # Never the token itself: it is the full credential for the customer's
-        # bot, and this line used to print it verbatim to the container log.
         logger.warning("No integration matches the bot token that was added to group %s", chat_id)
         return error_response(message=_("Integration topilmadi"), code=404)
 
@@ -236,11 +212,8 @@ def handle_bot_added_to_group(chat_id, chat_title, bot_token):
 def handle_bot_removed_from_group(chat_id):
     logger.info("Bot removed from Telegram group %s", chat_id)
     logger.info("Bot added to group %s (%s)", chat_title, chat_id)
-    # `api_token` is encrypted at rest; the manager rewrites this onto the
-    # deterministic `api_token_hash` column (apps/shared/fields.py).
     integration = Integration.objects.filter(api_token=bot_token).first()
     if not integration:
-        # The bot token is a live credential — log a masked suffix only.
         logger.warning("No integration found for bot token %s", mask_secret(bot_token))
         return error_response(message=_("Integration topilmadi"), code=404)
 
@@ -261,20 +234,16 @@ def handle_bot_removed_from_group(chat_id, chat_title):
 def check_register_info(message):
     registered_date = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     print(f"Checking message for registration info: {message}")
-    # Check if the message contains the registration tag
     if '#registered_user_info' in message.lower():
-        print("Found '#registered_user_info' in the message.")  # Log if the tag is found
+        print("Found '#registered_user_info' in the message.")
 
-        # Match the message against the regex pattern
         match = re.search(USER_INFO_REGEX, message, re.DOTALL | re.IGNORECASE)
         print(f"match: {match}")
         if match:
-            print("Regex match successful!")  # Log if regex matches
+            print("Regex match successful!")
 
-            # Extract information from the message
             full_name, phone_number, additional_phone, course, referral_source = match.groups()
 
-            # Create a formatted notification
             register_message = (
                 f"\U00002705 Yangi foydalanuvchi ro'yxatdan o'tdi!\n\n"
                 f"\U0001F464 Ism-familiya: {full_name}\n"
@@ -286,6 +255,6 @@ def check_register_info(message):
             )
             return register_message
         else:
-            print("Regex match failed.")  # Log if regex doesn't match
+            print("Regex match failed.")
 
     return None

@@ -1,15 +1,7 @@
-"""Shared serializer primitives for the dashboard app."""
 from rest_framework import serializers
 
 
 class StrictCharField(serializers.CharField):
-    """CharField that rejects non-string input instead of coercing it.
-
-    DRF's `CharField` happily turns `123` into `"123"`; dashboard write
-    endpoints should reject a wrong-typed value rather than silently store a
-    stringified one.
-    """
-
     def to_internal_value(self, data):
         if not isinstance(data, str):
             self.fail('invalid')
@@ -17,7 +9,6 @@ class StrictCharField(serializers.CharField):
 
 
 def serialize_pricing_package(package):
-    """Pricing-package payload, or ``None`` when the nullable FK is unset."""
     if not package:
         return None
     return {
@@ -33,7 +24,6 @@ def serialize_pricing_package(package):
 
 
 def serialize_subscription(subscription):
-    """Subscription payload, or ``None`` when the user has no subscription."""
     if not subscription:
         return None
     return {

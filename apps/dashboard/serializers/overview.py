@@ -1,4 +1,3 @@
-"""Dashboard overview, enhanced-stats and time-series statistics serializers."""
 from django.db.models import Count, Sum
 from django.db.models.functions import TruncDay, TruncMonth
 from django.utils import timezone
@@ -64,15 +63,12 @@ class DashboardSerializer(serializers.Serializer):
 
 
 class DashboardEnhancedStatsSerializer(serializers.Serializer):
-    """Enhanced dashboard statistics with period comparison and alerts."""
-
     def to_representation(self, instance):
         now = timezone.now()
         today = now.date()
         thirty_days_ago = today - timezone.timedelta(days=30)
         sixty_days_ago = today - timezone.timedelta(days=60)
 
-        # Current period stats
         current_revenue = Transaction.objects.filter(
             status=PaymentStatuses.SUCCESS.value,
             created_time__date__gte=thirty_days_ago
@@ -98,7 +94,6 @@ class DashboardEnhancedStatsSerializer(serializers.Serializer):
         total_users = User.objects.filter(is_active=True).count()
         total_conversations = Conversation.objects.count()
 
-        # AI costs
         text_msgs = Message.objects.filter(
             message_type=MessageTypes.TEXT.value,
             sender=SenderTypes.ASSISTANT.value
@@ -107,7 +102,6 @@ class DashboardEnhancedStatsSerializer(serializers.Serializer):
         output_tokens = text_msgs.aggregate(t=Sum('output_tokens'))['t'] or 0
         total_ai_cost = (input_tokens/1000000 * 2.5) + (output_tokens/1000000 * 10)
 
-        # Alerts
         failed_payments = Transaction.objects.filter(
             status=PaymentStatuses.FAILED.value,
             created_time__date__gte=today - timezone.timedelta(days=7)
@@ -127,7 +121,6 @@ class DashboardEnhancedStatsSerializer(serializers.Serializer):
             end_date__gte=today
         ).count()
 
-        # Recent activity
         recent_transactions = Transaction.objects.select_related('user').order_by(
             '-created_time'
         )[:5]
@@ -211,7 +204,6 @@ class DashboardStatisticsSerializer(serializers.Serializer):
             return now - timezone.timedelta(days=365), now, 'month'
         elif date_filter == 'all':
             return None, now, 'month'
-        # Default: 30d
         return now - timezone.timedelta(days=30), now, 'day'
 
     def get_user_date_count(self, date_filter):

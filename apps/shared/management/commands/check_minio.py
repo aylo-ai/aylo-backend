@@ -1,30 +1,3 @@
-"""Prove that a media upload really reaches MinIO, end to end.
-
-This exists because the failure it catches is invisible from the code. The
-storage layer can be correct, the settings can be correct, the tests can be
-green, and uploads can still go nowhere -- because ``deployment/minio/init.sh``
-never ran against the live server, so the bucket and the scoped application
-user do not exist. That state looks identical to a healthy one until a user
-tries to upload something, and the error it produces (``InvalidAccessKeyId``,
-or a 403 on ``HeadBucket``) reads like a credential typo rather than a missing
-bootstrap step.
-
-The unit suite cannot cover this: ``config.settings`` swaps the default storage
-for ``InMemoryStorage`` under ``manage.py test``, which is exactly the code path
-that proves nothing about MinIO. So this is a command, meant to be run against
-a real deployment::
-
-    python manage.py check_minio
-
-Every write it makes is to a ``_healthcheck/`` prefix and is deleted again, so
-it is safe to run against production. ``--keep`` leaves the object behind when
-you want to look at it in the console.
-
-Exit status is 0 only if every check passed, so it works as a deploy gate::
-
-    python manage.py check_minio && ./deployment/start.sh
-"""
-
 import urllib.error
 import urllib.request
 import uuid
@@ -37,8 +10,6 @@ from django.core.management.base import BaseCommand
 
 PAYLOAD = b"aylo minio healthcheck"
 
-# Long enough to fetch a small object, short enough that a hung proxy fails the
-# check instead of hanging the deploy.
 HTTP_TIMEOUT = 15
 
 
@@ -62,7 +33,6 @@ class Command(BaseCommand):
         self.stdout.write(f"public   {getattr(storage, 'public_endpoint_url', None) or '(none)'}\n")
 
         if type(storage).__name__ != "MediaStorage":
-            # Nothing below would be meaningful against InMemoryStorage.
             self.stderr.write(
                 self.style.ERROR(
                     f"default storage is {type(storage).__name__}, not MediaStorage — "
@@ -87,7 +57,6 @@ class Command(BaseCommand):
 
         self._summarise()
 
-    # -- individual checks -------------------------------------------------
 
     def _check(self, name, ok, detail=""):
         style = self.style.SUCCESS if ok else self.style.ERROR
@@ -97,7 +66,6 @@ class Command(BaseCommand):
         return ok
 
     def _upload(self, storage, key):
-        """The check that actually matters: does a write reach the bucket?"""
         try:
             saved = storage.save(key, ContentFile(PAYLOAD))
         except ClientError as exc:
@@ -120,7 +88,6 @@ class Command(BaseCommand):
         self._check("read back", body == PAYLOAD, f"{len(body)} bytes")
 
     def _presigned_url(self, storage, name):
-        """The step that breaks in production when nginx has no bucket route."""
         url = storage.url(name)
         if not self._check("url is signed", "X-Amz-Signature" in url, url.split("?")[0]):
             return
@@ -150,7 +117,6 @@ class Command(BaseCommand):
             return
         self._check("delete", not storage.exists(name))
 
-    # -- helpers -----------------------------------------------------------
 
     def _fetch(self, url):
         try:
@@ -162,13 +128,6 @@ class Command(BaseCommand):
             return None, str(exc).encode()
 
     def _explain(self, code):
-        """Translate the S3 error codes that actually mean 'not bootstrapped'.
-
-        boto3 does not report these consistently: a write with an unknown key
-        surfaces as ``InvalidAccessKeyId`` from ``put_object`` but as a bare
-        ``403`` when django-storages probes the bucket first. Both mean the same
-        thing to an operator, so both get the same instruction.
-        """
         bootstrap = "Run deployment/minio/init.sh (docker compose up minio-init)."
 
         if code in ("InvalidAccessKeyId", "SignatureDoesNotMatch", "403", "AccessDenied"):

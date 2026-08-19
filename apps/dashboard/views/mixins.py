@@ -1,20 +1,7 @@
-"""Response-shape mixins shared by the dashboard views.
-
-Every dashboard endpoint answers through `success_response`, and the list /
-retrieve / create / update / destroy bodies were copy-pasted across ~25 view
-classes with nothing but the message text differing. These mixins hold the one
-copy; a view supplies the message via the corresponding class attribute.
-
-The shapes here are the *existing* contract — paginated lists return DRF's
-paginated envelope, unpaginated lists return the `success_response` envelope,
-and `update` is partial for every view that used these bodies.
-"""
 from apps.shared.addons.validations import success_response
 
 
 class DashboardListMixin:
-    """`list()` returning the paginated envelope, or `success_response`."""
-
     list_message = ""
 
     def list(self, request, *args, **kwargs):
@@ -28,12 +15,6 @@ class DashboardListMixin:
 
 
 class DashboardStatsListMixin(DashboardListMixin):
-    """`DashboardListMixin` plus a `stats` block on the paginated envelope.
-
-    Stats are computed before pagination and describe the whole table, not the
-    page — subclasses implement `get_list_stats`.
-    """
-
     def get_list_stats(self, queryset):
         raise NotImplementedError
 
@@ -51,8 +32,6 @@ class DashboardStatsListMixin(DashboardListMixin):
 
 
 class DashboardCreateMixin:
-    """`create()` answering 201 with the serialized object."""
-
     create_message = ""
 
     def create(self, request, *args, **kwargs):
@@ -63,8 +42,6 @@ class DashboardCreateMixin:
 
 
 class DashboardRetrieveMixin:
-    """`retrieve()` answering 200 with the serialized object."""
-
     retrieve_message = ""
 
     def retrieve(self, request, *args, **kwargs):
@@ -73,8 +50,6 @@ class DashboardRetrieveMixin:
 
 
 class DashboardPartialUpdateMixin:
-    """`update()` that is always partial, answering 200 with the new state."""
-
     update_message = ""
 
     def update(self, request, *args, **kwargs):
@@ -85,8 +60,6 @@ class DashboardPartialUpdateMixin:
 
 
 class DashboardDestroyMixin:
-    """`destroy()` answering 200 with a message and no body."""
-
     destroy_message = ""
 
     def destroy(self, request, *args, **kwargs):

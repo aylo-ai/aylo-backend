@@ -1,10 +1,3 @@
-"""Integration views, split by domain.
-
-Every view class is re-exported here so `from apps.integration.views import X`
-and `views.X` in `urls.py` keep resolving exactly as they did when this package
-was a single module. URL paths are unchanged — the Instagram/Telegram webhooks
-and the amoCRM OAuth handler are registered with external systems.
-"""
 from apps.integration.views.amocrm import (
     AmoCRMOAuthHandlerView,
     AmoCRMOAuthInstallView,

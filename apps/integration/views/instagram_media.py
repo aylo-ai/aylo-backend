@@ -1,5 +1,3 @@
-"""Instagram post listing (Graph API passthrough) and stored media CRUD."""
-
 from django.utils.translation import gettext_lazy as _
 from rest_framework import generics, permissions
 from rest_framework.views import APIView
@@ -20,9 +18,6 @@ class InstagramPostListView(APIView):
 
     def get(self, request, *args, **kwargs):
         integration_id = self.kwargs.get('pk')
-        # Owner-scoped: this endpoint spends the *integration's* stored access
-        # token, so an id-only lookup let any authenticated caller page through
-        # another tenant's Instagram media with that tenant's credentials.
         integration = owned_integrations(request.user).filter(
             id=integration_id, integration_type=IntegrationTypes.INSTAGRAM.value,
         ).first()
@@ -63,7 +58,6 @@ class InstagramMediaRetrieveView(IntegrationOwnedQuerysetMixin, generics.Retriev
 
     def get_serializer_context(self):
         context = super().get_serializer_context()
-        # Add custom things here
         context["integration"] = Integration.objects.filter(
             user=self.request.user,
             integration_type=IntegrationTypes.INSTAGRAM.value

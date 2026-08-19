@@ -1,7 +1,3 @@
-"""Integration credentials must never reach the database, the admin or a log.
-
-Complements `apps/shared/tests/test_crypto.py`, which covers the cipher itself.
-"""
 import io
 import logging
 from contextlib import redirect_stdout
@@ -51,7 +47,6 @@ class IntegrationTokenAtRestTests(TestCase):
         self.assertEqual(reloaded.metadata["refresh_token"], "amocrm-refresh")
 
     def test_webhook_dispatch_still_resolves_the_bot(self):
-        """The hottest read in the system: bot token -> assistant."""
         self.assertEqual(Integration.assistant_for_bot_token(BOT_TOKEN), self.assistant)
 
     def test_group_registration_still_resolves_the_bot(self):
@@ -92,13 +87,10 @@ class IntegrationTokenLeakTests(TestCase):
         self.assertEqual(model_admin.api_token_masked(self.integration), f"***{BOT_TOKEN[-4:]}")
         self.assertNotIn(BOT_TOKEN, model_admin.api_token_masked(self.integration))
         self.assertNotIn("billz-refresh", model_admin.refresh_token_masked(self.integration))
-        # Metadata is summarised by key name; the values hold the amoCRM token.
         self.integration.metadata = {"refresh_token": "amocrm-refresh"}
         self.assertEqual(model_admin.metadata_keys(self.integration), "refresh_token")
 
     def test_unknown_bot_token_is_masked_in_the_task_log(self):
-        """The dispatcher used to log the full bot token on every stray update."""
-        # settings.TESTING silences logging; re-enable it just for this check.
         logging.disable(logging.NOTSET)
         self.addCleanup(logging.disable, logging.CRITICAL)
 
@@ -110,7 +102,6 @@ class IntegrationTokenLeakTests(TestCase):
         self.assertIn(crypto.mask_secret("9999:UNKNOWN-BOT-TOKEN"), output)
 
     def test_group_registration_failure_does_not_print_the_token(self):
-        """`handle_bot_added_to_group` printed the raw token to stdout."""
         buffer = io.StringIO()
         with redirect_stdout(buffer):
             handle_bot_added_to_group("-100999", "Strangers", "9999:UNKNOWN-BOT-TOKEN")
@@ -119,8 +110,6 @@ class IntegrationTokenLeakTests(TestCase):
 
 
 class IntegrationTokenLookupRegressionTests(TestCase):
-    """`api_token` is encrypted, so every lookup by value goes via the digest."""
-
     def test_creating_a_second_integration_with_the_same_token_is_findable(self):
         first = Integration.objects.create(
             name="A", integration_type=IntegrationTypes.TELEGRAM.value, api_token=BOT_TOKEN,
@@ -151,7 +140,6 @@ class IntegrationTokenLookupRegressionTests(TestCase):
         self.assertTrue(Integration.objects.filter(api_token="1111:NEW-TOKEN").exists())
 
     def test_billz_product_sync_can_still_write_metadata_only(self):
-        """`tasks/billz.py` saves with `update_fields=['metadata']`."""
         integration = Integration.objects.create(
             name="Billz", integration_type=IntegrationTypes.BILLZ.value, api_token=BOT_TOKEN,
             metadata={"billz_products_file_id": "f-1"},
@@ -165,8 +153,6 @@ class IntegrationTokenLookupRegressionTests(TestCase):
 
 
 class TelegramWebhookRegistrationTests(TestCase):
-    """`IntegrationCreateSerializer.validate` no longer queries `api_token`."""
-
     def test_a_duplicate_bot_token_does_not_raise_multiple_objects_returned(self):
         for name in ("A", "B"):
             Integration.objects.create(
@@ -174,10 +160,6 @@ class TelegramWebhookRegistrationTests(TestCase):
             )
         from apps.user.models import User
 
-        # A real user, not a Mock: `validate` resolves the assistant through
-        # `owned_assistants(user)`, and `Q(user=<Mock>)` is not a filterable
-        # expression — the mock made this test fail on query construction, before
-        # it reached the behaviour it is about.
         owner = User.objects.create(username="enc-owner", auth_type="email")
         assistant = Assistant.objects.create(
             name="S", company_name="C", vector_id="vs_1", user=owner,

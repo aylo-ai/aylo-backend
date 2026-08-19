@@ -26,7 +26,6 @@ def get_redis_connection() -> Redis:
 redis_client = get_redis_connection()
 
 def add_to_redis_cache(key: str, value: str, exp_time: Optional[int] = None) -> None:
-    """Add key-value pair to Redis cache."""
     print(f"Adding {key} to Redis cache")
     redis = get_redis_connection()
     redis.set(key, value)
@@ -36,7 +35,6 @@ def add_to_redis_cache(key: str, value: str, exp_time: Optional[int] = None) -> 
 
 
 def get_from_redis_cache(key: str) -> Optional[str]:
-    """Get value from Redis cache."""
     print(f"Getting {key} from Redis cache")
     redis = get_redis_connection()
     value = None

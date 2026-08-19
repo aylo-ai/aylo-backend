@@ -1,8 +1,3 @@
-"""Sales alerts for the custom ("for companies") pricing tier.
-
-The request is already stored by the time this runs, so every failure here is
-logged and swallowed — sales can still read the row in the dashboard.
-"""
 import html
 import logging
 
@@ -15,12 +10,7 @@ logger = logging.getLogger(__name__)
 
 
 def notify_custom_package_request(request_obj: CustomPackageRequest) -> None:
-    """Announce a new custom-package request in the verified sales groups."""
     try:
-        # Every field below is free text from a public form, rendered with
-        # parse_mode=HTML. Unescaped, a company named `<a href="...">click</a>`
-        # forges links and markup inside the sales team's Telegram group — the
-        # same defect that was fixed for the landing lead form.
         company = html.escape(request_obj.company_name or "")
         contact = html.escape(request_obj.full_name or "")
         phone = html.escape(request_obj.phone_number or "")

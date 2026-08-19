@@ -1,10 +1,3 @@
-"""Regression tests: the Telegram webhook helpers must not leak the bot token.
-
-`set_telegram_webhook` is called with a URL whose path embeds the bot token
-(see `apps/integration/serializers.py`), and `getWebhookInfo` echoes that URL
-back in its response body. Both used to be `print()`ed, putting a live
-credential into stdout and therefore into the container logs.
-"""
 import io
 from contextlib import redirect_stdout
 from unittest import mock

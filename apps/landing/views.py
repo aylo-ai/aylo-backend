@@ -21,14 +21,10 @@ from apps.shared.addons.validations import error_response, success_response
 logger = logging.getLogger(__name__)
 
 LEAD_BOT_TOKEN = os.environ.get("LEAD_BOT_TOKEN", "")
-# No default. This password is the only thing standing between a Telegram group
-# and every landing lead's name and phone number; a value committed to the repo
-# is not a secret. Unset means group verification is refused outright.
 LEAD_BOT_PASSWORD = os.environ.get("LEAD_BOT_PASSWORD", "")
 
 
 class LandingLeadCreateView(APIView):
-    """Public endpoint — no auth required. Creates a lead from landing page."""
     permission_classes = [AllowAny]
     throttle_scope = "landing_lead"
 
@@ -52,7 +48,6 @@ class LandingLeadCreateView(APIView):
 
 
 def notify_telegram_groups(lead: LandingLead):
-    """Send lead info to all active notification groups."""
     if not LEAD_BOT_TOKEN:
         return
 
@@ -61,10 +56,6 @@ def notify_telegram_groups(lead: LandingLead):
         return
 
     now = datetime.now().strftime("%Y-%m-%d %H:%M")
-    # Every field below is attacker-controlled free text from a public form and
-    # is rendered with parse_mode=HTML. Unescaped, a lead named
-    # `<a href="...">click</a>` forges links and markup inside the sales team's
-    # Telegram group.
     full_name = html.escape(lead.full_name or "")
     phone_number = html.escape(lead.phone_number or "")
     source_page = html.escape(lead.source_page or "") or "—"
@@ -84,20 +75,6 @@ def notify_telegram_groups(lead: LandingLead):
 
 @method_decorator(csrf_exempt, name="dispatch")
 class LeadBotWebhookView(APIView):
-    """Telegram webhook for the lead notification bot.
-
-    Handles ``/verify <password>`` in groups to register them as lead
-    recipients.
-
-    Telegram signs nothing, so authenticity rests entirely on the
-    ``secret_token`` registered with ``setWebhook`` and echoed back in the
-    ``X-Telegram-Bot-Api-Secret-Token`` header of every delivery. Without it
-    this endpoint was an open door: anyone who guessed the (repo-committed)
-    password could POST a forged ``/verify`` update naming their own chat id and
-    subscribe themselves to every future lead's name, phone number and Telegram
-    handle.
-    """
-
     permission_classes = [AllowAny]
     throttle_scope = "lead_bot"
 
@@ -106,7 +83,6 @@ class LeadBotWebhookView(APIView):
         if not expected:
             logger.error("LEAD_BOT_WEBHOOK_SECRET is not configured; rejecting webhook")
             return False
-        # A missing header must fail exactly like a wrong one.
         provided = request.META.get("HTTP_X_TELEGRAM_BOT_API_SECRET_TOKEN", "")
         if not provided:
             return False
@@ -119,8 +95,6 @@ class LeadBotWebhookView(APIView):
         try:
             return self._handle(request)
         except Exception:
-            # Telegram retries a failed update and eventually backs the webhook
-            # off entirely, so a handler bug must not take the bot down.
             logger.exception("Lead bot webhook handling failed")
             return success_response(message=_("Xabar qabul qilindi"), code=200)
 
@@ -134,7 +108,6 @@ class LeadBotWebhookView(APIView):
         if not message:
             return success_response(message=_("Xabar mavjud emas"), code=200)
 
-        # Handle bot added/removed from group
         if "my_chat_member" in data:
             return self._handle_member_update(data["my_chat_member"])
 
@@ -144,14 +117,11 @@ class LeadBotWebhookView(APIView):
         chat_id = str(chat.get("id", ""))
         chat_title = chat.get("title", "")
 
-        # Only handle group/supergroup messages
         if chat_type not in ("group", "supergroup"):
-            # For private messages, send help
             if chat_type == "private":
                 self._send(chat_id, "Bu bot faqat guruhlar uchun. Meni guruhga qo'shing va parol kiriting.")
             return success_response(message=_("Xabar qabul qilindi"), code=200)
 
-        # Handle /start or /verify command with password
         if text.startswith("/verify") or text.startswith("/start"):
             parts = text.split(maxsplit=1)
             if len(parts) < 2:

@@ -1,17 +1,3 @@
-"""Seed the pricing packages a new customer picks from after sign-up.
-
-`POST /api/v1/payment/subscriptions/create/` only accepts an existing, active
-`PricingPackage`, so a fresh database has nothing for the sign-up flow's plan
-step to offer. This command creates the standard Free / Basic / Pro ladder
-and is idempotent — it matches on package name and updates in place, so it is
-safe to re-run after changing a price or a limit.
-
-The last tier is a *custom* package: it carries no chargeable price, the
-self-service subscribe and upgrade paths refuse it, and an interested company
-posts to `pricing-packages/<id>/request/` instead. See
-`PricingPackage.is_custom`.
-"""
-
 from django.core.management.base import BaseCommand
 from django.db import transaction
 
@@ -33,9 +19,6 @@ FEATURES = [
     {"name": "Ustuvor qo'llab-quvvatlash", "icon": "headset"},
 ]
 
-# The paid tier's price is pinned to the "699,000 so'mdan boshlanadi" claim
-# published in the marketing blog (apps/blog/management/commands/seed_blog_posts.py) —
-# keep the two in sync if either changes.
 PACKAGES = [
     {
         "name": "Free",
@@ -78,10 +61,6 @@ PACKAGES = [
         ],
     },
     {
-        # No price and no fixed limit: both are agreed per company.
-        # `PricingPackage.is_custom` keys off `type`, and the subscribe/upgrade
-        # endpoints refuse it — a company posts to
-        # `pricing-packages/<id>/request/` and names the volume it needs.
         "name": "Pro",
         "type": PricingPackageType.CUSTOM.value,
         "price": 0,
@@ -92,20 +71,13 @@ PACKAGES = [
             "ochiq: jamoa a'zolari, maxsus integratsiyalar va ustuvor "
             "qo'llab-quvvatlash."
         ),
-        # 0 means "not fixed here" — sales sets the agreed volume on the
-        # subscription once the deal closes.
         "request_count": 0,
         "duration_days": 30,
         "is_popular": False,
-        # Everything, by definition: this is the all-inclusive tier.
         "features": [feature["name"] for feature in FEATURES],
     },
 ]
 
-# Tiers that were seeded by an earlier version of this command and are no longer
-# part of the ladder. They are deactivated rather than deleted — existing
-# subscriptions still point at them, and `Subscription.pricing_package` is the
-# only record of what a customer actually bought.
 RETIRED_PACKAGE_NAMES = ["Korporativ"]
 
 

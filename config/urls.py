@@ -23,8 +23,6 @@ urlpatterns += [
 ]
 
 if settings.DEBUG:
-    # Media is not served from the local filesystem — it lives in MinIO and is
-    # fetched through presigned URLs, so there is no MEDIA_ROOT route to add.
     urlpatterns += static(settings.STATIC_URL, document_root=settings.STATIC_ROOT)
     urlpatterns += (
         path(

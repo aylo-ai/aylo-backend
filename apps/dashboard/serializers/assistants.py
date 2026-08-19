@@ -1,4 +1,3 @@
-"""Assistant, assistant-file and prompt-template serializers for the dashboard."""
 from django.db import transaction
 from rest_framework import serializers
 
@@ -24,7 +23,6 @@ class DashboardPromptTemplateSerializer(serializers.ModelSerializer):
 
 
 class DashboardAssistantListSerializer(serializers.ModelSerializer):
-    """Assistant serializer with owner contact info for dashboard."""
     owner_phone = serializers.SerializerMethodField()
     owner_email = serializers.SerializerMethodField()
     owner_name = serializers.SerializerMethodField()
@@ -64,35 +62,21 @@ class DashboardAssistantListSerializer(serializers.ModelSerializer):
 
 
 class DashboardAssistantFileUploadSerializer(serializers.ModelSerializer):
-    """Serializer for admin file uploads (no subscription check)."""
-
     class Meta:
         model = AssistantFileUpload
         fields = [
             'id', 'assistant', 'filename', 'file', 'file_type',
             'website_url', 'index_status', 'created_time', 'updated_time',
         ]
-        # `index_status` belongs to the indexing task, not to the caller.
         read_only_fields = ['index_status', 'created_time', 'updated_time']
 
     def validate(self, attrs):
         file = attrs.get('file')
         if file:
-            # Was a hand-rolled 30 MB size check and nothing else, so the
-            # dashboard could store extensions the customer-facing upload
-            # refuses — including ones that are stored-XSS payloads when served
-            # back from this origin. `validate_document` is the same size *and*
-            # allowlist check the other path uses.
             validate_document(file)
         return attrs
 
     def create(self, validated_data):
-        """Store the file, then queue the same indexing the customer path uses.
-
-        An admin upload never reached the vector store at all: the row was
-        written and nothing ever handed it to OpenAI, so a document uploaded here
-        was invisible to the assistant that was supposed to answer from it.
-        """
         upload = super().create(validated_data)
         transaction.on_commit(
             lambda upload_id=str(upload.id): index_assistant_file.delay(upload_id)
@@ -101,8 +85,6 @@ class DashboardAssistantFileUploadSerializer(serializers.ModelSerializer):
 
 
 class DashboardAssistantCreateSerializer(serializers.ModelSerializer):
-    """Serializer for admin to create assistants for any user (no subscription check)."""
-
     class Meta:
         model = Assistant
         fields = [
@@ -122,10 +104,8 @@ class DashboardAssistantCreateSerializer(serializers.ModelSerializer):
 
 
 class DashboardAssistantCreateUserSerializer(serializers.Serializer):
-    """Validates the `user` FK that `assistants/` POST resolves before creating."""
     user = serializers.UUIDField()
 
 
 class AssistantFileFilterSerializer(serializers.Serializer):
-    """Validates the `?assistant=` query param of `assistantfiles/`."""
     assistant = serializers.UUIDField(required=False)

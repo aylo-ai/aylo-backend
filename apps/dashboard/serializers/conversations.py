@@ -1,4 +1,3 @@
-"""Conversation serializers for the dashboard."""
 from rest_framework import serializers
 
 from apps.assistant.models import Conversation
@@ -41,7 +40,6 @@ class DashboardConversationSerializer(serializers.ModelSerializer):
 
 
 class DashboardConversationListSerializer(serializers.ModelSerializer):
-    """Lighter serializer for list views without full message data."""
     assistant_name = serializers.CharField(source='assistant.name', read_only=True)
     owner_name = serializers.SerializerMethodField()
     message_count = serializers.SerializerMethodField()

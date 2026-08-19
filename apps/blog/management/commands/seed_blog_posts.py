@@ -1,7 +1,3 @@
-"""
-Django management command to seed SEO-optimized blog posts for Aylo AI.
-"""
-
 from django.core.management.base import BaseCommand
 from django.utils import timezone
 
@@ -3717,9 +3713,6 @@ BLOG_POSTS = [
 <p>Start your <strong>free 7-day trial</strong> at <a href="https://aylo.uz">aylo.uz</a> and turn your Telegram channel into a sales machine!</p>"""
     },
 
-    # ──────────────────────────────────────────────
-    # POST 16
-    # ──────────────────────────────────────────────
     {
         "title_uz": "Meta Business verificatsiya — nima uchun muhim?",
         "title_ru": "Верификация Meta Business — почему это важно?",
@@ -3938,9 +3931,6 @@ BLOG_POSTS = [
 <p>Start your <strong>free 7-day trial</strong> at <a href="https://aylo.uz">aylo.uz</a> and unlock the full power of Meta for your business!</p>"""
     },
 
-    # ──────────────────────────────────────────────
-    # POST 17
-    # ──────────────────────────────────────────────
     {
         "title_uz": "Chatbot analytics — qaysi metrikalarni kuzatish kerak?",
         "title_ru": "Аналитика чат-ботов — какие метрики отслеживать?",
@@ -4141,9 +4131,6 @@ BLOG_POSTS = [
 <p>Start your <strong>free 7-day trial</strong> at <a href="https://aylo.uz">aylo.uz</a> and measure your chatbot's performance with precise data!</p>"""
     },
 
-    # ──────────────────────────────────────────────
-    # POST 18
-    # ──────────────────────────────────────────────
     {
         "title_uz": "AI bilan personalizatsiya — har bir mijozga individual yondashuv",
         "title_ru": "Персонализация с AI — индивидуальный подход к каждому клиенту",
@@ -4320,9 +4307,6 @@ BLOG_POSTS = [
 <p>Start your <strong>free 7-day trial</strong> at <a href="https://aylo.uz">aylo.uz</a> and deliver a truly individual experience to every customer!</p>"""
     },
 
-    # ──────────────────────────────────────────────
-    # POST 19
-    # ──────────────────────────────────────────────
     {
         "title_uz": "Instagram Reels + DM automation = viral sotuv",
         "title_ru": "Instagram Reels + DM автоматизация = вирусные продажи",
@@ -4504,9 +4488,6 @@ BLOG_POSTS = [
 <p>Start your <strong>free 7-day trial</strong> at <a href="https://aylo.uz">aylo.uz</a> and launch viral sales through Reels!</p>"""
     },
 
-    # ──────────────────────────────────────────────
-    # POST 20
-    # ──────────────────────────────────────────────
     {
         "title_uz": "2026 yilda AI chatbot trendlari — nimalar o'zgarmoqda?",
         "title_ru": "Тренды AI чат-ботов в 2026 году — что меняется?",

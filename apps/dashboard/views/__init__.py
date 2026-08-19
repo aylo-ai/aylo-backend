@@ -1,9 +1,3 @@
-"""Dashboard views, split by domain.
-
-Every public name is re-exported here so `from apps.dashboard.views import X`
-and `views.X` in `urls.py` keep resolving exactly as they did when this package
-was a single module.
-"""
 from apps.dashboard.views.assistants import (
     DashboardAssistantDetail,
     DashboardAssistantFileUploadDetail,

@@ -1,4 +1,3 @@
-"""`Card.card_token` is a Payme bearer credential — never at rest, never echoed."""
 from django.contrib import admin as django_admin
 from django.test import TestCase
 

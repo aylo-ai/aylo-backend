@@ -1,4 +1,3 @@
-"""Broadcast creation and recipient inspection."""
 import functools
 
 from django.db import transaction
@@ -35,20 +34,12 @@ class BroadcastListCreateView(generics.ListCreateAPIView):
         if owner != request.user:
             return error_response(message=_("Bu integratsiya sizga tegishli emas"), code=403)
 
-        # Count recipients
         recipients_count = self._get_recipients_count(integration)
         if recipients_count == 0:
             return error_response(message=_("Xabar yuborish uchun qabul qiluvchilar topilmadi"), code=400)
 
         broadcast = serializer.save(user=request.user, total_recipients=recipients_count)
 
-        # ATOMIC_REQUESTS keeps this row uncommitted until the response is
-        # returned. Dispatching directly lets the worker look the broadcast up
-        # before it exists, and the task's DoesNotExist branch then drops it
-        # silently — the customer sees 201 and nothing is ever sent.
-        # Imported here, not at module scope: tests patch the task at
-        # apps.integration.tasks.send_broadcast_task, which only takes
-        # effect if the name is resolved at call time.
         from apps.integration.tasks import send_broadcast_task
         transaction.on_commit(functools.partial(send_broadcast_task.delay, str(broadcast.id)))
 

@@ -1,5 +1,3 @@
-"""Instagram comment automation: trigger words and comment responses."""
-
 from django.utils.translation import gettext_lazy as _
 from rest_framework import generics, permissions
 
@@ -62,13 +60,6 @@ class InstagramCommentResponseListCreateView(generics.ListCreateAPIView):
     permission_classes = [permissions.IsAuthenticated]
 
     def _integration(self):
-        """The Instagram integration named by the URL, if the caller owns it.
-
-        Both halves of this view keyed off the URL id alone: GET listed another
-        tenant's comment automation, and POST attached a new auto-reply to
-        their account — i.e. made *their* verified Instagram profile DM its
-        commenters with attacker-chosen text.
-        """
         return owned_integrations(self.request.user).filter(
             id=self.kwargs.get('integration_id'),
             integration_type=IntegrationTypes.INSTAGRAM.value,

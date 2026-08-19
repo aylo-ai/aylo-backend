@@ -1,8 +1,3 @@
-"""Voice notes and photos, on OpenAI.
-
-Both helpers degrade instead of raising: a failed transcription or a failed image
-read returns a short message the agent can work with, rather than killing the turn.
-"""
 import base64
 import logging
 import mimetypes
@@ -28,11 +23,6 @@ VISION_PROMPT = (
 
 
 def transcribe_audio(audio_bytes: bytes, filename: str = "voice.mp3") -> Tuple[str, int, int]:
-    """Transcribe a voice note. Returns (text, input_tokens, output_tokens).
-
-    Whisper is not billed per token, so the token counts are always zero. They are
-    returned anyway to keep the shape callers already expect.
-    """
     if not audio_bytes:
         return TRANSCRIBE_FAILED, 0, 0
 
@@ -60,7 +50,6 @@ def transcribe_url(audio_url: str) -> Tuple[str, int, int]:
 
 
 def analyze_image(image_url: str) -> str:
-    """Describe an image so the agent can answer questions about it."""
     content = _download(image_url)
     if content is None:
         return IMAGE_FAILED
@@ -96,8 +85,6 @@ def _download(url: str) -> Optional[bytes]:
         response = http.get(url, timeout=30)
         response.raise_for_status()
     except requests.RequestException as exc:
-        # Log the object path only. A presigned URL's query string is a bearer
-        # credential for someone else's file.
         logger.error("Could not download %s: %s", url.split("?")[0], exc)
         return None
     return response.content or None

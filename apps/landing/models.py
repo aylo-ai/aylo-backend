@@ -19,7 +19,6 @@ class LandingLead(BaseModel):
 
 
 class LeadNotificationGroup(BaseModel):
-    """Telegram groups verified with password to receive lead notifications."""
     group_id = models.CharField(max_length=100, unique=True)
     group_title = models.CharField(max_length=255, blank=True, default="")
     is_active = models.BooleanField(default=True)
