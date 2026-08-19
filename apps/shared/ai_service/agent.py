@@ -22,7 +22,6 @@ logger = logging.getLogger(__name__)
 MAX_TOOL_ITERATIONS = 5
 MAX_ATTEMPTS = 3
 BACKOFF_SECONDS = (1, 2, 4)
-TEMPERATURE = 0.7
 CHAIN_TTL_SECONDS = 60 * 60 * 24 * 7
 
 MAX_PARALLEL_TOOLS = 4
@@ -351,7 +350,6 @@ class Agent:
             "input": payload,
             "tools": tools,
             "tool_choice": tool_choice,
-            "temperature": TEMPERATURE,
             "store": True,
         }
         if previous_id:
