@@ -20,7 +20,26 @@ from apps.integration.views.mixins import (
 )
 from apps.shared.addons.enums import IntegrationTypes
 from apps.shared.addons.validations import error_response, success_response
+from apps.shared.ai_service import knowledge_base
 from apps.shared.permissions import IsCustomer
+
+
+def _discard_billz_catalogue(integration):
+    """Remove the synced Billz product file from the assistant's vector store.
+
+    The file id only ever lived in `Integration.metadata`, so deleting the row
+    without this leaves the catalogue indexed and searchable forever: the agent
+    would keep quoting prices from a POS the merchant has disconnected, and
+    nothing left in the database could identify the file to clean it up.
+
+    Fail-soft — a store that OpenAI no longer has must not block the disconnect.
+    """
+    file_id = (integration.metadata or {}).get('billz_products_file_id')
+    store_id = getattr(integration.assistant, 'vector_id', None)
+    if not file_id or not store_id:
+        return
+    # `delete_file` already logs and swallows its own failures.
+    knowledge_base.delete_file(store_id, file_id)
 
 
 class IntegrationListView(IntegrationOwnedQuerysetMixin, generics.ListAPIView):
@@ -100,6 +119,8 @@ class IntegrationRetrieveUpdateDestroyView(IntegrationOwnedQuerysetMixin,
         # webhooks for an account that no longer resolves to an integration.
         if instance.integration_type == IntegrationTypes.INSTAGRAM.value:
             instagram_service.unsubscribe_webhooks(instance.api_token)
+        elif instance.integration_type == IntegrationTypes.BILLZ.value:
+            _discard_billz_catalogue(instance)
         instance.delete()
         return success_response(message=_("Integration muvaffaqiyatli o'chirildi"), code=204)
 

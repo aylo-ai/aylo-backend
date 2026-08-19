@@ -11,7 +11,10 @@ from apps.integration.views.amocrm import (
     AmoCRMSetPipelineView,
     AmoCRMTokenRefreshView,
 )
-from apps.integration.views.billz import BillzSecretTokenHandlerView
+from apps.integration.views.billz import (
+    BillzSecretTokenHandlerView,
+    BillzSyncView,
+)
 from apps.integration.views.broadcasts import (
     BroadcastListCreateView,
     BroadcastRecipientsCountView,
@@ -61,6 +64,7 @@ __all__ = [
     "AmoCRMSetPipelineView",
     "AmoCRMTokenRefreshView",
     "BillzSecretTokenHandlerView",
+    "BillzSyncView",
     "BroadcastListCreateView",
     "BroadcastRecipientsCountView",
     "BroadcastRecipientsListView",

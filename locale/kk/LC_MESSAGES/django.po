@@ -1128,3 +1128,15 @@ msgstr "Сұхбаттар саны теріс бола алмайды."
 #: apps/payment/serializers.py:139
 msgid "Telefon raqam kamida 9 ta raqamdan iborat bo'lishi kerak."
 msgstr "Телефон нөмірі кемінде 9 саннан тұруы керек."
+
+#: apps/integration/views/billz.py:122
+msgid "Billz holati muvaffaqiyatli olindi"
+msgstr "Billz күйі сәтті алынды"
+
+#: apps/integration/views/billz.py:191
+msgid "Billz integration topilmadi"
+msgstr "Billz интеграциясы табылмады"
+
+#: apps/integration/views/billz.py:197
+msgid "Billz sinxronizatsiyasi boshlandi"
+msgstr "Billz синхрондауы басталды"

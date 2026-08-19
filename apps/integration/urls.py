@@ -58,6 +58,8 @@ urlpatterns = [
     path("amocrm/install/", views.AmoCRMOAuthInstallView.as_view()),
     path("amocrm/refresh/", views.AmoCRMTokenRefreshView.as_view()),
     path("amocrm/set-pipeline/", views.AmoCRMSetPipelineView.as_view()),
-    # billz integration
+    # billz integration: GET status / POST connect on the assistant, plus a
+    # manual re-sync on the integration itself.
     path("assistant/<uuid:pk>/billz/", views.BillzSecretTokenHandlerView.as_view()),
+    path("billz/<uuid:pk>/sync/", views.BillzSyncView.as_view()),
 ]

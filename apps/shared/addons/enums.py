@@ -100,6 +100,20 @@ class IntegrationTypes(EnumBaseModel):
     BILLZ = 'billz'
 
 
+class BillzSyncStatuses(EnumBaseModel):
+    """State of the Billz catalogue mirror, kept in `Integration.metadata`.
+
+    `AUTH_FAILED` is deliberately distinct from `FAILED`: it means the merchant's
+    Billz secret token no longer authenticates, so no retry can recover it and
+    the user has to reconnect. Everything else is transient.
+    """
+    NEVER_SYNCED = 'never_synced'
+    SYNCING = 'syncing'
+    SYNCED = 'synced'
+    FAILED = 'failed'
+    AUTH_FAILED = 'auth_failed'
+
+
 class ConversationPlatforms(EnumBaseModel):
     TELEGRAM = 'telegram'
     WHATSAPP = 'whatsapp'

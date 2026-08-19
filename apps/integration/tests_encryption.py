@@ -172,12 +172,21 @@ class TelegramWebhookRegistrationTests(TestCase):
             Integration.objects.create(
                 name=name, integration_type=IntegrationTypes.TELEGRAM.value, api_token=BOT_TOKEN,
             )
-        assistant = Assistant.objects.create(name="S", company_name="C", vector_id="vs_1")
+        from apps.user.models import User
+
+        # A real user, not a Mock: `validate` resolves the assistant through
+        # `owned_assistants(user)`, and `Q(user=<Mock>)` is not a filterable
+        # expression — the mock made this test fail on query construction, before
+        # it reached the behaviour it is about.
+        owner = User.objects.create(username="enc-owner", auth_type="email")
+        assistant = Assistant.objects.create(
+            name="S", company_name="C", vector_id="vs_1", user=owner,
+        )
 
         from apps.integration.serializers import IntegrationCreateSerializer
 
         request = mock.Mock()
-        request.user.subscription = None
+        request.user = owner
         serializer = IntegrationCreateSerializer(
             context={"request": request, "base_url": "https://x", "assistant_id": assistant.id},
         )
