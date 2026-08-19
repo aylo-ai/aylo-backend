@@ -280,9 +280,7 @@ def queue_file_uploads(assistant, files):
             filename=file.name,
             index_status=FileIndexStatuses.PENDING.value,
         )
-        transaction.on_commit(
-            lambda upload_id=str(upload.id): index_assistant_file.delay(upload_id)
-        )
+        index_assistant_file.delay(upload.id)
         uploads.append(upload)
 
     if not uploads:
