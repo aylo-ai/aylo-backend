@@ -36,6 +36,10 @@ app.conf.task_routes = {
     # Assistant file tasks
     'apps.assistant.tasks.daily_statistics_assistant': {'queue': 'sync'},
     'apps.assistant.tasks.process_follow_ups': {'queue': 'sync'},
+    # Vector-store indexing: slow (an OpenAI upload plus chunking) and holds the
+    # file in memory, so it belongs on the low-priority worker rather than `ai`,
+    # where it would sit in front of live chat replies.
+    'apps.assistant.tasks.index_assistant_file': {'queue': 'sync'},
 }
 
 # Every queue task_routes can target. Declaring them means a worker started

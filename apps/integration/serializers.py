@@ -14,6 +14,7 @@ from apps.integration.gateways.telegram import (
 from apps.shared import http
 from apps.shared.addons.enums import ConversationPlatforms, ConversationStatuses, IntegrationTypes
 from apps.shared.addons.validations import raise_validation_error, success_response
+from apps.shared.ai_service import knowledge_base
 from apps.shared.file_validation import validate_image
 from apps.shared.mixins import SubscriptionValidationMixin
 
@@ -76,7 +77,9 @@ class IntegrationCreateSerializer(serializers.ModelSerializer, SubscriptionValid
         assistant = owned_assistants(user).filter(id=assistant_id).first()
         if not assistant:
             raise_validation_error(message=_("Assistant topilmadi"), code=404)
-        if not assistant.vector_id:
+        # See `knowledge_base.has_knowledge_base`: indexing is asynchronous, so
+        # `vector_id` is briefly null after the first upload.
+        if not knowledge_base.has_knowledge_base(assistant):
             raise_validation_error(message=_("Assistant faol emas, zarur fayl yuklash"))
         self.validate_subscription(user.subscription)
 
@@ -140,7 +143,7 @@ class IntegrationSerializer(serializers.ModelSerializer, SubscriptionValidationM
             assistant = Assistant.objects.get(id=assistant_id)
             if not assistant.ai_enabled:
                 raise_validation_error(message=_("Assistant AI sizda yoqilmagan"))
-            if not assistant.vector_id:
+            if not knowledge_base.has_knowledge_base(assistant):
                 raise_validation_error(message=_("Assistant faol emas, zarur fayl yuklash"))
         except Assistant.DoesNotExist:
             raise_validation_error(message=_("Assistant topilmadi"))

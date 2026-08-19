@@ -5,6 +5,7 @@ Both paths used to raise AttributeError against methods that no longer existed o
 """
 from unittest import mock
 
+from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import TestCase, override_settings
 
 from apps.assistant.models import (
@@ -14,8 +15,17 @@ from apps.assistant.models import (
     Lead,
     Message,
 )
-from apps.assistant.serializers import AssistantFileUploadSerializer, MessageSerializer
-from apps.shared.addons.enums import ConversationStatuses, SenderTypes, SubscriptionStatuses
+from apps.assistant.serializers import (
+    AssistantFileUploadSerializer,
+    ConversationSerializer,
+    MessageSerializer,
+)
+from apps.shared.addons.enums import (
+    ConversationStatuses,
+    FileIndexStatuses,
+    SenderTypes,
+    SubscriptionStatuses,
+)
 from apps.shared.ai_service.agent import AgentResult
 
 # The project stores uploads on S3. Tests run offline, so file-writing paths get
@@ -196,53 +206,177 @@ class MessageQuotaTests(TestCase):
 
 @IN_MEMORY_STORAGE
 class FileUploadTests(TestCase):
+    """POST assistant/<id>/upload-file/ — the knowledge-base upload.
+
+    Indexing is no longer part of this request. It used to be: the serializer
+    saved to MinIO, presigned a URL, downloaded the whole file back over HTTP and
+    then waited on an OpenAI vector-store index, all inside the request and
+    inside the `ATOMIC_REQUESTS` transaction. These tests pin the request down to
+    "store the bytes, queue a task".
+    """
+
     def setUp(self):
         self.assistant = Assistant.objects.create(
             name="Aylo Bot", company_name="Aylo", user=make_subscribed_user(),
+            ai_enabled=True,
         )
-        self.ensure = mock.patch(
-            "apps.assistant.serializers.knowledge_base.ensure_store", return_value="vs_new"
-        ).start()
-        self.add_file = mock.patch(
-            "apps.assistant.serializers.knowledge_base.add_file", return_value="file-1"
+        self.delay = mock.patch(
+            "apps.assistant.serializers.index_assistant_file.delay"
         ).start()
         self.addCleanup(mock.patch.stopall)
 
-    def upload(self, name="catalogue.txt"):
+    def upload(self, *names):
         from django.core.files.uploadedfile import SimpleUploadedFile
 
-        upload = SimpleUploadedFile(name, b"iPhone 15 Pro - 12,500,000 UZS")
-        request = mock.Mock()
-        request.build_absolute_uri.side_effect = lambda url: f"https://example.com{url}"
+        files = [
+            SimpleUploadedFile(name, b"iPhone 15 Pro - 12,500,000 UZS")
+            for name in (names or ("catalogue.txt",))
+        ]
         serializer = AssistantFileUploadSerializer(
-            data={"assistant": str(self.assistant.id), "file": upload},
-            context={"assistant": self.assistant, "files": [upload], "request": request},
+            data={"assistant": str(self.assistant.id), "file": files[0]},
+            context={
+                "assistant": self.assistant,
+                "files": files,
+                "request": mock.Mock(),
+            },
         )
         serializer.is_valid(raise_exception=True)
-        return serializer.save()
+        # `on_commit` callbacks never fire under TestCase's wrapping transaction.
+        with self.captureOnCommitCallbacks(execute=True):
+            saved = serializer.save()
+        return serializer, saved
 
-    def test_uploaded_file_is_indexed_and_the_id_is_stored(self):
-        result = self.upload()
+    def test_the_upload_stores_the_row_and_queues_the_indexing(self):
+        serializer, saved = self.upload()
+
+        self.assertEqual(AssistantFileUpload.objects.count(), 1)
+        self.assertEqual(saved.index_status, FileIndexStatuses.PENDING.value)
+        self.delay.assert_called_once_with(str(saved.id))
+
+    def test_the_request_makes_no_openai_or_http_call_of_its_own(self):
+        with mock.patch("apps.shared.ai_service.knowledge_base.get_client") as client, \
+                mock.patch("apps.shared.http.get") as http_get:
+            self.upload()
+
+        client.assert_not_called()
+        http_get.assert_not_called()
+
+    def test_every_file_in_a_multi_file_upload_is_stored_and_queued(self):
+        """Regression: `create()` returned a list, and the view then asked that
+        list for `.id` — so posting two files was an unconditional 500."""
+        serializer, saved = self.upload("catalogue.txt", "prices.csv")
+
+        self.assertEqual(AssistantFileUpload.objects.count(), 2)
+        self.assertEqual(len(serializer.uploaded_files), 2)
+        # `serializer.instance` must stay a single object for `serializer.data`.
+        self.assertEqual(serializer.instance, saved)
+        self.assertEqual(self.delay.call_count, 2)
+        # Serialising the set is what the view does; it must not raise.
+        self.assertEqual(
+            len(AssistantFileUploadSerializer(serializer.uploaded_files, many=True).data),
+            2,
+        )
+
+    def test_a_queued_task_that_never_runs_leaves_the_row_pending(self):
+        """The document is stored either way — indexing is not a precondition."""
+        serializer, saved = self.upload()
+
+        saved.refresh_from_db()
+        self.assertEqual(saved.index_status, FileIndexStatuses.PENDING.value)
+        self.assertIsNone(saved.file_id)
+
+    def test_a_conversation_can_start_before_the_indexing_task_has_run(self):
+        """Regression: the gate tested `assistant.vector_id`, which the upload
+        request used to set inline. With indexing queued it is still null for a
+        moment, so uploading a file and immediately starting a conversation was
+        answered with "Assistant uchun fayl yuklash kerak"."""
+        self.upload()
+        self.assertIsNone(self.assistant.vector_id)
+
+        serializer = ConversationSerializer(
+            data={"platform": "website"},
+            context={"assistant_id": str(self.assistant.id)},
+        )
+
+        self.assertTrue(serializer.is_valid(), serializer.errors)
+
+
+@IN_MEMORY_STORAGE
+class IndexAssistantFileTaskTests(TestCase):
+    """`index_assistant_file` — the indexing that used to block the upload."""
+
+    def setUp(self):
+        self.assistant = Assistant.objects.create(
+            name="Aylo Bot", company_name="Aylo", user=make_subscribed_user(),
+            ai_enabled=True,
+        )
+        self.upload = AssistantFileUpload.objects.create(
+            assistant=self.assistant, filename="catalogue.txt",
+            file=SimpleUploadedFile("catalogue.txt", b"iPhone 15 Pro"),
+        )
+        self.ensure = mock.patch(
+            "apps.assistant.tasks.knowledge_base.ensure_store", return_value="vs_new"
+        ).start()
+        self.add = mock.patch(
+            "apps.assistant.tasks.knowledge_base.add_stored_file", return_value="vsf_1"
+        ).start()
+        self.addCleanup(mock.patch.stopall)
+
+    def run_task(self):
+        from apps.assistant.tasks import index_assistant_file
+
+        index_assistant_file.apply(args=[str(self.upload.id)], throw=False)
+        self.upload.refresh_from_db()
+
+    def test_a_successful_index_records_the_file_id_and_the_status(self):
+        self.run_task()
 
         self.ensure.assert_called_once_with(self.assistant)
-        self.add_file.assert_called_once()
-        self.assertEqual(result.file_id, "file-1")
+        self.assertEqual(self.upload.file_id, "vsf_1")
+        self.assertEqual(self.upload.index_status, FileIndexStatuses.INDEXED.value)
 
-    def test_a_failed_index_still_keeps_the_upload_row(self):
-        self.add_file.return_value = None
+    def test_the_file_is_read_from_storage_rather_than_a_url(self):
+        self.run_task()
 
-        result = self.upload()
+        fieldfile = self.add.call_args.args[1]
+        self.assertEqual(fieldfile.name, self.upload.file.name)
 
-        self.assertIsNone(result.file_id)
-        self.assertEqual(AssistantFileUpload.objects.count(), 1)
+    def test_a_failed_index_marks_the_row_and_keeps_the_stored_file(self):
+        self.add.return_value = None
 
-    def test_an_indexing_error_does_not_break_the_upload(self):
-        self.add_file.side_effect = RuntimeError("openai down")
+        self.run_task()
 
-        result = self.upload()
+        self.assertEqual(self.upload.index_status, FileIndexStatuses.FAILED.value)
+        self.assertIsNone(self.upload.file_id)
+        self.assertTrue(self.upload.file.name)
 
-        self.assertEqual(AssistantFileUpload.objects.count(), 1)
-        self.assertIsNone(result.file_id)
+    def test_an_openai_outage_marks_the_row_failed_and_does_not_escape(self):
+        self.ensure.side_effect = RuntimeError("openai down")
+
+        self.run_task()
+
+        self.assertEqual(self.upload.index_status, FileIndexStatuses.FAILED.value)
+
+    def test_an_unsupported_file_is_skipped_without_calling_openai(self):
+        self.upload.filename = "payload.exe"
+        self.upload.save(update_fields=["filename"])
+
+        self.run_task()
+
+        self.assertEqual(self.upload.index_status, FileIndexStatuses.SKIPPED.value)
+        self.ensure.assert_not_called()
+        self.add.assert_not_called()
+
+    def test_a_row_deleted_before_the_task_ran_is_not_an_error(self):
+        from apps.assistant.tasks import index_assistant_file
+
+        upload_id = str(self.upload.id)
+        self.upload.delete()
+
+        result = index_assistant_file.apply(args=[upload_id], throw=False)
+
+        self.assertTrue(result.successful())
+        self.ensure.assert_not_called()
 
 
 class EndpointScopingTests(TestCase):

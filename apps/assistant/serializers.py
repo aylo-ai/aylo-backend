@@ -4,6 +4,7 @@ from datetime import datetime
 from io import BytesIO
 
 from django.core.exceptions import ValidationError
+from django.db import transaction
 from django.utils.timezone import localtime
 from django.utils.translation import gettext_lazy as _
 from openpyxl import Workbook
@@ -20,9 +21,11 @@ from apps.assistant.models import (
     Message,
     PromptTemplate,
 )
+from apps.assistant.tasks import index_assistant_file
 from apps.shared.addons.enums import (
     ConversationPlatforms,
     ConversationStatuses,
+    FileIndexStatuses,
     MessageTypes,
     SenderTypes,
 )
@@ -134,7 +137,9 @@ class ConversationSerializer(serializers.ModelSerializer,
         if assistant is None:
             raise_validation_error(message=_("Assistant topilmadi"))
         if assistant.ai_enabled:
-            if not assistant.vector_id:
+            # Not `vector_id`: indexing is asynchronous now, so a file uploaded
+            # a second ago counts even though its store does not exist yet.
+            if not knowledge_base.has_knowledge_base(assistant):
                 raise_validation_error(message=_("Assistant uchun fayl yuklash kerak"))
 
         attrs["assistant"] = assistant
@@ -312,6 +317,43 @@ class MessageSerializer(serializers.ModelSerializer, SubscriptionValidationMixin
         )
 
 
+def queue_file_uploads(assistant, files):
+    """Store each file and hand the indexing to Celery.
+
+    The request's job ends when the bytes are in MinIO — a write measured in
+    milliseconds. Everything expensive (reading the file back, uploading it to
+    OpenAI, waiting for it to be chunked) happens in
+    `apps.assistant.tasks.index_assistant_file`, so the client is not held open
+    for the length of an OpenAI index and a failure there cannot fail the upload.
+
+    The task is queued `on_commit`: `ATOMIC_REQUESTS` is on, so dispatching
+    immediately would let a worker look for a row whose transaction has not
+    committed — or, on rollback, index a file whose row no longer exists.
+    """
+    if not isinstance(files, (list, tuple)):
+        files = [files] if files else []
+
+    uploads = []
+    for file in files:
+        if not file:
+            continue
+        upload = AssistantFileUpload.objects.create(
+            assistant=assistant,
+            file=file,
+            filename=file.name,
+            index_status=FileIndexStatuses.PENDING.value,
+        )
+        transaction.on_commit(
+            lambda upload_id=str(upload.id): index_assistant_file.delay(upload_id)
+        )
+        uploads.append(upload)
+
+    if not uploads:
+        raise_validation_error(message=_("Fayl yuklanmadi"))
+
+    return uploads
+
+
 class AssistantFileUploadSerializer(serializers.ModelSerializer, SubscriptionValidationMixin):
     class Meta:
         model = AssistantFileUpload
@@ -322,6 +364,7 @@ class AssistantFileUploadSerializer(serializers.ModelSerializer, SubscriptionVal
             "website_url",
             "file",
             "file_type",
+            "index_status",
             "created_time",
             "updated_time",
         ]
@@ -332,7 +375,12 @@ class AssistantFileUploadSerializer(serializers.ModelSerializer, SubscriptionVal
         # moved the row into another tenant's knowledge base, and the next
         # DELETE then called `knowledge_base.delete_file()` against the victim's
         # vector store.
-        read_only_fields = ["assistant", "created_time", "updated_time"]
+        #
+        # `index_status` is owned by the indexing task; a client must not be able
+        # to declare its own document indexed.
+        read_only_fields = [
+            "assistant", "index_status", "created_time", "updated_time",
+        ]
 
     def validate(self, attrs):
         files = self.context.get("files")
@@ -361,41 +409,20 @@ class AssistantFileUploadSerializer(serializers.ModelSerializer, SubscriptionVal
         return attrs
 
     def create(self, validated_data):
-        request = self.context.get("request")
+        # `validated_data` is unused: DRF cannot bind a multi-file upload to one
+        # model field, so the files come off the context the view built.
         files = self.context.get('files')
         assistant = self.context.get("assistant")
 
         if not assistant:
             raise_validation_error(message=_("Assistant kerak"))
 
-        uploaded_files = []
-
-        if files:
-            if not isinstance(files, (list, tuple)):
-                files = [files]
-
-            for file in files:
-                if not file:
-                    continue
-                filename = file.name
-                upload = AssistantFileUpload.objects.create(
-                    assistant=assistant,
-                    file=file,
-                    filename=filename
-                )
-                try:
-                    file_url = request.build_absolute_uri(upload.file.url) if request else upload.file.url
-                    store_id = knowledge_base.ensure_store(assistant)
-                    file_id = knowledge_base.add_file(store_id, file_url)
-                    if file_id:
-                        upload.file_id = file_id
-                        upload.save(update_fields=["file_id"])
-                except Exception as exc:
-                    logger.exception("Failed to index %s for assistant %s: %s", filename, assistant.id, exc)
-                uploaded_files.append(upload)
-
-
-        return uploaded_files[0] if len(uploaded_files) == 1 else uploaded_files
+        # Returns one instance and exposes the whole set as `uploaded_files`.
+        # Returning the list from here put a *list* in `serializer.instance`, and
+        # the view's `serializer.data` then asked a list for `.id` — so posting
+        # two files to this endpoint was an unconditional 500.
+        self.uploaded_files = queue_file_uploads(assistant, files)
+        return self.uploaded_files[0]
 
     def to_representation(self, instance):
         assistant = getattr(instance, "assistant", None)
@@ -454,8 +481,7 @@ class UpdateFileUploadSerializer(serializers.ModelSerializer, SubscriptionValida
         # model field. The parameter is still required: DRF always calls
         # `create(validated_data)`, and the old zero-argument signature raised
         # TypeError the moment this path was reached.
-        request = self.context.get("request")
-        if not request:
+        if not self.context.get("request"):
             raise_validation_error(message=_("Request obyekt kerak"))
         files = self.context.get('files')
         assistant = self.context.get("assistant")
@@ -463,35 +489,11 @@ class UpdateFileUploadSerializer(serializers.ModelSerializer, SubscriptionValida
         if not files or not assistant:
             raise_validation_error(message=_("Fayl va assistant kerak"))
 
-        if not isinstance(files, (list, tuple)):
-            files = [files]
-
-        uploaded_files = []
-        for file in files:
-            if not file:
-                continue
-            filename = file.name
-            upload = AssistantFileUpload.objects.create(
-                assistant=assistant,
-                file=file,
-                filename=filename
-            )
-            try:
-                file_url = request.build_absolute_uri(upload.file.url)
-                store_id = knowledge_base.ensure_store(assistant)
-                file_id = knowledge_base.add_file(store_id, file_url)
-                if file_id:
-                    upload.file_id = file_id
-                    upload.save(update_fields=["file_id"])
-            except Exception as exc:
-                logger.exception("Failed to index %s for assistant %s: %s", filename, assistant.id, exc)
-            uploaded_files.append(upload)
-
         # Keep the full set available to the view, but return a single instance:
         # returning a list from `create()` breaks `serializer.data`, which
         # expects one object on a non-`many` serializer.
-        self.uploaded_files = uploaded_files
-        return uploaded_files[0]
+        self.uploaded_files = queue_file_uploads(assistant, files)
+        return self.uploaded_files[0]
 
 
 class MessageBulkReadSerializer(serializers.Serializer):
