@@ -1,53 +1,62 @@
 import logging
 import secrets
-import requests
 from urllib.parse import urlencode
-from django.shortcuts import redirect
+
+import requests
 from django.db.models import Q
-
-from google.oauth2 import id_token as google_id_token
-from google.auth.transport import requests as google_requests
-
+from django.shortcuts import redirect
+from django.utils.translation import gettext_lazy as _
 from django_filters.rest_framework import DjangoFilterBackend
-from rest_framework import generics, status, permissions
+from google.auth.transport import requests as google_requests
+from google.oauth2 import id_token as google_id_token
+from rest_framework import generics, permissions, status
 from rest_framework.throttling import ScopedRateThrottle
 from rest_framework.views import APIView
 from rest_framework_simplejwt.exceptions import TokenError
 from rest_framework_simplejwt.tokens import RefreshToken
-from django.utils.translation import gettext_lazy as _
 
-from config.settings import redis_connection, GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, GOOGLE_REDIRECT_URI
 import apps.user.serializers as serializers
+from apps.shared.addons.enums import AuthTypes, UserRoles
 from apps.shared.addons.validations import error_response, success_response
-from apps.shared.addons.verification import send_code
-from apps.user.models import User, PrivacyPolicy, UserAgreement, Notification
-from apps.shared.addons.verification import send_email_code, verify_email_code, verify_code_cache
+from apps.shared.addons.verification import (
+    send_code,
+    send_email_code,
+    verify_code_cache,
+    verify_email_code,
+)
 from apps.shared.permissions import IsAdmin, IsAdminOrCustomer
-from apps.shared.addons.enums import UserRoles, AuthTypes
+from apps.user.models import Notification, PrivacyPolicy, User, UserAgreement
+from apps.user.services.throttles import OtpSendIdentifierThrottle, OtpVerifyIdentifierThrottle
+from config.settings import (
+    GOOGLE_CLIENT_ID,
+    GOOGLE_CLIENT_SECRET,
+    GOOGLE_REDIRECT_URI,
+    redis_connection,
+)
 
 logger = logging.getLogger(__name__)
 
+
 class SendCodeView(generics.GenericAPIView):
     serializer_class = serializers.SendCodeSerializer
-    throttle_classes = (ScopedRateThrottle,)
+    permission_classes = [permissions.AllowAny, ]
+    throttle_classes = (ScopedRateThrottle, OtpSendIdentifierThrottle)
     throttle_scope = "otp_send"
 
     def post(self, request, *args, **kwargs):
-
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
-        
+
         phone_number = serializer.data.get("phone_number")
         email = serializer.data.get("email")
-        
+
         if phone_number:
             success, message = send_code(phone_number)
         elif email:
             success, message = send_email_code(email)
-            # success, message = True, "Code sent successfully"
         else:
             return error_response(message=_("Telefon raqam yoki email kiritilmagan"), code=status.HTTP_400_BAD_REQUEST)
-            
+
         if success:
             return success_response(data=serializer.data, message=message, code=status.HTTP_200_OK)
         return error_response(message=message, code=status.HTTP_400_BAD_REQUEST)
@@ -55,7 +64,8 @@ class SendCodeView(generics.GenericAPIView):
 
 class VerifyCodeView(generics.GenericAPIView):
     serializer_class = serializers.VerifyCodeSerializer
-    throttle_classes = (ScopedRateThrottle,)
+    permission_classes = [permissions.AllowAny, ]
+    throttle_classes = (ScopedRateThrottle, OtpVerifyIdentifierThrottle)
     throttle_scope = "otp_verify"
 
     def post(self, request, *args, **kwargs):
@@ -76,7 +86,6 @@ class VerifyCodeView(generics.GenericAPIView):
         if not success:
             return error_response(message=message, code=status.HTTP_400_BAD_REQUEST)
 
-        # Only now that the code is confirmed do we touch the database.
         user = serializer.get_or_create_user()
         data = {
             "phone_number": phone_number,
@@ -87,27 +96,28 @@ class VerifyCodeView(generics.GenericAPIView):
 
 
 class UserRegisterView(generics.CreateAPIView):
-    """Handles creating and listing Users."""
+    throttle_classes = (ScopedRateThrottle,)
+    throttle_scope = "auth_register"
     queryset = User.objects.all()
     serializer_class = serializers.RegisterUserSerializer
+    permission_classes = [permissions.AllowAny, ]
 
     def create(self, request, *args, **kwargs):
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         serializer.save()
-        
-        # Clear verification cache for both phone and email
+
         phone_number = serializer.data.get("phone_number")
         email = serializer.data.get("email")
-        
+
         if phone_number:
             redis_connection.delete(f"{phone_number}_verified")
             redis_connection.delete(phone_number)
-        
+
         if email:
             redis_connection.delete(f"{email}_verified")
             redis_connection.delete(email)
-            
+
         return success_response(
             data=serializer.data,
             message=_("Foydalanuvchi muvaffaqiyatli yaratildi"),
@@ -118,6 +128,8 @@ class UserRegisterView(generics.CreateAPIView):
 class LoginRefreshView(generics.GenericAPIView):
     serializer_class = serializers.LoginRefreshSerializer
     permission_classes = [permissions.AllowAny, ]
+    throttle_classes = (ScopedRateThrottle,)
+    throttle_scope = "token_refresh"
 
     def post(self, request, *args, **kwargs):
         serializer = self.get_serializer(data=request.data)
@@ -139,8 +151,6 @@ class UserProfileGetView(generics.RetrieveAPIView):
 
 
 class UpdateProfileView(generics.UpdateAPIView):
-    """Handles updating a user's profile."""
-    queryset = User.objects.all()
     serializer_class = serializers.UpdateProfileSerializer
     permission_classes = [permissions.IsAuthenticated, ]
 
@@ -164,22 +174,27 @@ class LogoutView(APIView):
     permission_classes = (permissions.IsAuthenticated,)
 
     def post(self, request, *args, **kwargs):
-        serializer = self.serializer_class(data=self.request.data)
+        serializer = self.serializer_class(data=request.data)
         serializer.is_valid(raise_exception=True)
         try:
-            refresh_token = self.request.data["refresh_token"]
-            token = RefreshToken(refresh_token)
+            token = RefreshToken(serializer.validated_data["refresh_token"])
+            if str(token.get("user_id")) != str(request.user.id):
+                return error_response(
+                    code=status.HTTP_400_BAD_REQUEST, message=_("Noto'g'ri refresh token")
+                )
             token.blacklist()
             return success_response(
                 message=_("Siz muvaffaqiyatli chiqdingiz"), code=status.HTTP_205_RESET_CONTENT
             )
         except TokenError:
+            logger.info("Logout rejected: invalid refresh token")
             return error_response(
-                code=status.HTTP_400_BAD_REQUEST, message=_("TokenEror - Noto'g'ri refresh token")
+                code=status.HTTP_400_BAD_REQUEST, message=_("Noto'g'ri refresh token")
             )
         except Exception:
+            logger.exception("Logout failed while blacklisting refresh token")
             return error_response(
-                code=status.HTTP_400_BAD_REQUEST, message=_("Exception - Noto'g'ri refresh token")
+                code=status.HTTP_400_BAD_REQUEST, message=_("Noto'g'ri refresh token")
             )
 
 
@@ -271,16 +286,16 @@ class UserAgreementRetrieveView(generics.RetrieveUpdateDestroyAPIView):
             message=_("User agreement muvaffaqiyatli yangilandi"),
             code=status.HTTP_200_OK
         )
-    
-    
-GOOGLE_STATE_TTL = 600  # seconds a login attempt's state token stays valid
+
+
+GOOGLE_STATE_TTL = 600
 
 
 class GoogleLoginView(APIView):
+    permission_classes = [permissions.AllowAny, ]
+
     def get(self, request):
         google_auth_url = "https://accounts.google.com/o/oauth2/v2/auth"
-        # A one-time state token defends the callback against login-CSRF: only a
-        # code that comes back with a state we issued is accepted.
         state = secrets.token_urlsafe(32)
         redis_connection.setex(f"google_oauth_state:{state}", GOOGLE_STATE_TTL, "1")
         params = {
@@ -297,6 +312,8 @@ class GoogleLoginView(APIView):
 
 
 class GoogleAuthCallbackView(APIView):
+    permission_classes = [permissions.AllowAny, ]
+
     def get(self, request):
         try:
             state = request.GET.get("state")
@@ -307,7 +324,6 @@ class GoogleAuthCallbackView(APIView):
             if not code:
                 return error_response(message=_("Authorization code topilmadi"), code=400)
 
-            # Exchange code for tokens
             token_url = "https://oauth2.googleapis.com/token"
             data = {
                 "code": code,
@@ -321,24 +337,18 @@ class GoogleAuthCallbackView(APIView):
             if not raw_id_token:
                 return error_response(message=_("ID token topilmadi"), code=400)
 
-            # Verify the signature, issuer, audience and expiry rather than trusting
-            # a self-decoded payload.
             try:
                 user_info = google_id_token.verify_oauth2_token(
                     raw_id_token, google_requests.Request(), GOOGLE_CLIENT_ID
                 )
-            except ValueError as verify_error:
-                return error_response(
-                    message=f"{_('Invalid ID token')}: {verify_error}", code=400
-                )
+            except ValueError:
+                logger.warning("Google ID token verification failed", exc_info=True)
+                return error_response(message=_("Invalid ID token"), code=400)
 
             sub = user_info.get("sub")
             if not sub:
                 return error_response(message=_("Sub topilmadi"), code=400)
 
-            # Only trust the email claim for account matching/linking when Google
-            # confirms it is verified — otherwise an attacker with an unverified
-            # email equal to a victim's account email gets linked to the victim.
             email = user_info.get("email") or None
             email_verified = user_info.get("email_verified") is True
             user = User.objects.filter(Q(sub=sub) | Q(email=email)).first() if email and email_verified \
@@ -358,7 +368,6 @@ class GoogleAuthCallbackView(APIView):
                     auth_type=AuthTypes.GOOGLE.value,
                 )
             elif not user.sub:
-                # Link an existing email account to this Google identity.
                 user.sub = sub
                 user.save(update_fields=["sub", "updated_time"])
 
@@ -369,14 +378,13 @@ class GoogleAuthCallbackView(APIView):
             return error_response(message=_("Autentifikatsiya amalga oshmadi. Iltimos, qaytadan urinib ko'ring"), code=400)
 
 class AddStaffView(generics.CreateAPIView):
-    queryset = User.objects.all()
     serializer_class = serializers.AddStaffSerializer
     permission_classes = [IsAdminOrCustomer]
 
     def create(self, request, *args, **kwargs):
         if request.user.created_by is not None:
             return error_response(message=_("Uzur jigar sizda hodim yaratish huquqi yo'q"), code=403)
-        
+
         serializer = self.get_serializer(data=request.data, context={"request": request})
         serializer.is_valid(raise_exception=True)
         serializer.save()
@@ -385,7 +393,7 @@ class AddStaffView(generics.CreateAPIView):
             data=serializer.data,
             code=status.HTTP_201_CREATED
         )
-        
+
 
 class StaffListView(generics.ListAPIView):
     serializer_class = serializers.StaffListSerializer
@@ -418,21 +426,20 @@ class StaffDeleteView(generics.DestroyAPIView):
 
 
 class NotificationListView(generics.ListAPIView):
-    queryset = Notification.objects.all()
     serializer_class = serializers.NotificationSerializer
     permission_classes = [permissions.IsAuthenticated]
-    
+
     def get_queryset(self):
-        return self.queryset.filter(user=self.request.user)
-    
+        if getattr(self, "swagger_fake_view", False):
+            return Notification.objects.none()
+        return Notification.objects.filter(user=self.request.user)
+
 
 class NotificationUpdateView(generics.UpdateAPIView):
     serializer_class = serializers.NotificationSerializer
     permission_classes = [permissions.IsAuthenticated]
 
     def get_queryset(self):
-        # Scope to the caller so one user cannot read or modify another's
-        # notifications by guessing an id.
         return Notification.objects.filter(user=self.request.user)
 
     def update(self, request, *args, **kwargs):

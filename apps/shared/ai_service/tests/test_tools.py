@@ -1,4 +1,3 @@
-"""Tool handler tests — the side effects the agent is allowed to have."""
 from unittest import mock
 
 from django.test import TestCase
@@ -80,7 +79,6 @@ class CreateLeadTests(TestCase):
         self.assertEqual(send.call_args.args[0], "-100")
 
     def test_assistant_without_telegram_still_records_the_lead(self):
-        """Finding 2.10: this used to raise after the Lead row was written."""
         result = tools.execute("create_lead", self.assistant, self.conversation, self.args)
 
         self.assertEqual(result["status"], "recorded")
@@ -250,7 +248,6 @@ class ExecuteTests(TestCase):
 
         boom = mock.Mock(side_effect=RuntimeError("db is on fire"))
         tools.register("create_lead", ai_tools.CREATE_LEAD_SCHEMA, boom)
-        # Put the real handler back however this test ends.
         self.addCleanup(ai_tools.register_tools)
 
         result = tools.execute("create_lead", self.assistant, self.conversation, {})

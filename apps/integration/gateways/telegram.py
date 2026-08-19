@@ -1,11 +1,17 @@
+import hashlib
+import hmac
+import json
 import logging
 import re
-from bs4 import BeautifulSoup
-import json
-from django.utils.translation import gettext_lazy as _
-from apps.shared import http
 from datetime import datetime
+
+from bs4 import BeautifulSoup
+from django.conf import settings
+from django.utils.translation import gettext_lazy as _
+
 from apps.integration.models import Integration, TelegramGroupIntegration
+from apps.shared import http
+from apps.shared.addons.crypto import mask_secret
 from apps.shared.addons.validations import error_response
 
 logger = logging.getLogger(__name__)
@@ -29,12 +35,10 @@ def clean_html(input_html, allowed_tags=None):
 
     soup = BeautifulSoup(input_html, 'html.parser')
 
-    # Remove disallowed tags while keeping their content
-    for tag in soup.find_all(True):  # Find all tags
+    for tag in soup.find_all(True):
         if tag.name not in allowed_tags:
-            tag.unwrap()  # Remove the tag but keep its content
+            tag.unwrap()
 
-    # Validate 'a' tag attributes (keep only 'href')
     for tag in soup.find_all('a'):
         allowed_attrs = {'href'}
         for attr in list(tag.attrs):
@@ -73,7 +77,6 @@ def send_telegram_action(chat_id,token):
 
 def send_telegram_message(chat_id, text, token, entities=None):
     url = f"https://api.telegram.org/bot{token}/sendMessage"
-    # cleaned_html = clean_html(text)
     text_reply = extract_reply(text)
     data = {
         "chat_id": chat_id,
@@ -81,7 +84,7 @@ def send_telegram_message(chat_id, text, token, entities=None):
         "parse_mode": "html",
         "disable_web_page_preview": True,
     }
-    
+
     response = http.post(url, json=data)
     response_data = response.json()
     if not response_data.get("ok"):
@@ -98,7 +101,6 @@ def send_telegram_message(chat_id, text, token, entities=None):
             except Exception as e:
                 print(f"[-] Error updating TelegramGroupIntegration: {e}")
 
-            # Retry sending the message with the new chat ID
             data["chat_id"] = new_chat_id
             response = http.post(url, json=data)
             response_data = response.json()
@@ -125,7 +127,6 @@ def send_telegram_message(chat_id, text, token, entities=None):
 
 
 def check_bot_in_group(chat_id, token):
-    """Telegram API orqali bot haqiqatan guruhda borligini tekshirish"""
     url = f"https://api.telegram.org/bot{token}/getChat"
     response = http.get(url, params={"chat_id": chat_id})
     return response.json().get("ok", False)
@@ -151,12 +152,28 @@ def delete_telegram_message(chat_id, message_id, token):
     return response
 
 
+def telegram_webhook_secret(bot_token):
+    server_key = getattr(settings, "TELEGRAM_WEBHOOK_SECRET", "")
+    if not server_key or not bot_token:
+        return ""
+    return hmac.new(
+        server_key.encode("utf-8"), str(bot_token).encode("utf-8"), hashlib.sha256,
+    ).hexdigest()
+
+
 def set_telegram_webhook(bot_token, webhook_url):
     url = f"https://api.telegram.org/bot{bot_token}/setWebhook"
     payload = {
         'url': webhook_url
     }
-    # The webhook URL embeds the bot token in its path — never log it.
+    secret_token = telegram_webhook_secret(bot_token)
+    if secret_token:
+        payload['secret_token'] = secret_token
+    else:
+        logger.error(
+            "TELEGRAM_WEBHOOK_SECRET is not configured; the registered webhook "
+            "will reject every update"
+        )
     response = http.post(url, data=payload)
     if response.status_code == 200:
         logger.info("Telegram webhook set successfully")
@@ -169,8 +186,6 @@ def set_telegram_webhook(bot_token, webhook_url):
 def get_webhook_info(bot_token):
     url = f"https://api.telegram.org/bot{bot_token}/getWebhookInfo"
     response = http.get(url)
-    # The response body carries the registered webhook URL, which embeds the
-    # bot token in its path — log the status only.
     if response.status_code == 200:
         logger.info("Fetched Telegram webhook info")
         return 200
@@ -180,43 +195,55 @@ def get_webhook_info(bot_token):
 
 
 def handle_bot_added_to_group(chat_id, chat_title, bot_token):
-    print(f"Bot added to group: {chat_title} ({chat_id})")
+    logger.info("Bot added to Telegram group %s", chat_id)
     integration = Integration.objects.filter(api_token=bot_token).first()
     if not integration:
-        print(f"No integration found for bot token: {bot_token}")
+        logger.warning("No integration matches the bot token that was added to group %s", chat_id)
         return error_response(message=_("Integration topilmadi"), code=404)
 
     if not TelegramGroupIntegration.objects.filter(integration=integration, group_id=chat_id).exists():
         telegram_group = TelegramGroupIntegration(integration=integration, group_id=chat_id, group_title=chat_title)
         telegram_group.save()
-        print(f"Created group: {chat_title} ({chat_id})")
+        logger.info("Created Telegram group %s for integration %s", chat_id, integration.id)
     else:
-        print(f"Group already exists for this integration: {chat_title} ({chat_id})")
+        logger.info("Telegram group %s already exists for integration %s", chat_id, integration.id)
+
+
+def handle_bot_removed_from_group(chat_id):
+    logger.info("Bot removed from Telegram group %s", chat_id)
+    logger.info("Bot added to group %s (%s)", chat_title, chat_id)
+    integration = Integration.objects.filter(api_token=bot_token).first()
+    if not integration:
+        logger.warning("No integration found for bot token %s", mask_secret(bot_token))
+        return error_response(message=_("Integration topilmadi"), code=404)
+
+    if not TelegramGroupIntegration.objects.filter(integration=integration, group_id=chat_id).exists():
+        TelegramGroupIntegration.objects.create(
+            integration=integration, group_id=chat_id, group_title=chat_title
+        )
+        logger.info("Created Telegram group %s (%s)", chat_title, chat_id)
+    else:
+        logger.info("Telegram group %s (%s) already registered", chat_title, chat_id)
 
 
 def handle_bot_removed_from_group(chat_id, chat_title):
-    print(f"Bot removed from group: {chat_title} ({chat_id})")
+    logger.info("Bot removed from group %s (%s)", chat_title, chat_id)
     TelegramGroupIntegration.objects.filter(group_id=chat_id).delete()
-    print(f"Deleted group: {chat_title} ({chat_id})")
 
 
 def check_register_info(message):
     registered_date = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     print(f"Checking message for registration info: {message}")
-    # Check if the message contains the registration tag
     if '#registered_user_info' in message.lower():
-        print("Found '#registered_user_info' in the message.")  # Log if the tag is found
+        print("Found '#registered_user_info' in the message.")
 
-        # Match the message against the regex pattern
         match = re.search(USER_INFO_REGEX, message, re.DOTALL | re.IGNORECASE)
         print(f"match: {match}")
         if match:
-            print("Regex match successful!")  # Log if regex matches
+            print("Regex match successful!")
 
-            # Extract information from the message
             full_name, phone_number, additional_phone, course, referral_source = match.groups()
 
-            # Create a formatted notification
             register_message = (
                 f"\U00002705 Yangi foydalanuvchi ro'yxatdan o'tdi!\n\n"
                 f"\U0001F464 Ism-familiya: {full_name}\n"
@@ -228,6 +255,6 @@ def check_register_info(message):
             )
             return register_message
         else:
-            print("Regex match failed.")  # Log if regex doesn't match
+            print("Regex match failed.")
 
     return None

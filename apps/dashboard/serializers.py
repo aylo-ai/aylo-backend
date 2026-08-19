@@ -1,31 +1,36 @@
-from rest_framework import serializers
-from django.db.models import Sum, Count
+from django.db.models import Count, Sum
+from django.db.models.functions import TruncDay, TruncMonth
 from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
-from django.db.models.functions import TruncDay, TruncMonth
+from rest_framework import serializers
 
-from apps.assistant.models import Conversation, Assistant, Message, PromptTemplate, Lead, AssistantFileUpload
-from apps.assistant.serializers import AssistantSerializer, MessageSerializer
-from apps.integration.serializers import IntegrationSerializer
-from apps.payment.models import Transaction, Subscription, PricingPackage, Feature
-from apps.payment.serializers import FeatureSerializer
-from apps.dashboard.models import AuditLog
-from apps.shared.file_validation import validate_document
-from apps.shared.addons.enums import (
-    SenderTypes, UserRoles, PaymentStatuses, MessageTypes, ConversationStatuses,
-    NotificationTypes, SubscriptionStatuses,
+from apps.assistant.models import (
+    Assistant,
+    AssistantFileUpload,
+    Conversation,
+    Lead,
+    Message,
+    PromptTemplate,
 )
+from apps.assistant.serializers import AssistantSerializer, MessageSerializer
+from apps.dashboard.models import AuditLog
+from apps.integration.serializers import IntegrationSerializer
+from apps.payment.models import Feature, PricingPackage, Subscription, Transaction
+from apps.payment.serializers import FeatureSerializer
+from apps.shared.addons.enums import (
+    ConversationStatuses,
+    MessageTypes,
+    NotificationTypes,
+    PaymentStatuses,
+    SenderTypes,
+    SubscriptionStatuses,
+    UserRoles,
+)
+from apps.shared.file_validation import validate_document
 from apps.user.models import User
 
 
 class StrictCharField(serializers.CharField):
-    """CharField that rejects non-string input instead of coercing it.
-
-    DRF's `CharField` happily turns `123` into `"123"`; dashboard write
-    endpoints should reject a wrong-typed value rather than silently store a
-    stringified one.
-    """
-
     def to_internal_value(self, data):
         if not isinstance(data, str):
             self.fail('invalid')
@@ -33,7 +38,6 @@ class StrictCharField(serializers.CharField):
 
 
 def serialize_pricing_package(package):
-    """Pricing-package payload, or ``None`` when the nullable FK is unset."""
     if not package:
         return None
     return {
@@ -49,7 +53,6 @@ def serialize_pricing_package(package):
 
 
 def serialize_subscription(subscription):
-    """Subscription payload, or ``None`` when the user has no subscription."""
     if not subscription:
         return None
     return {
@@ -102,7 +105,6 @@ class DashboardConversationSerializer(serializers.ModelSerializer):
 
 
 class DashboardConversationListSerializer(serializers.ModelSerializer):
-    """Lighter serializer for list views without full message data."""
     assistant_name = serializers.CharField(source='assistant.name', read_only=True)
     owner_name = serializers.SerializerMethodField()
     message_count = serializers.SerializerMethodField()
@@ -166,7 +168,6 @@ class DashboardVerifyOtpLoginSerializer(serializers.Serializer):
     def to_representation(self, instance):
         data = super().to_representation(instance)
         data['tokens'] = self.get_tokens()
-        # Include user info for frontend
         phone_number = self.validated_data.get('phone_number')
         user = User.objects.filter(phone_number=phone_number).first()
         if user:
@@ -229,15 +230,12 @@ class DashboardSerializer(serializers.Serializer):
 
 
 class DashboardEnhancedStatsSerializer(serializers.Serializer):
-    """Enhanced dashboard statistics with period comparison and alerts."""
-
     def to_representation(self, instance):
         now = timezone.now()
         today = now.date()
         thirty_days_ago = today - timezone.timedelta(days=30)
         sixty_days_ago = today - timezone.timedelta(days=60)
 
-        # Current period stats
         current_revenue = Transaction.objects.filter(
             status=PaymentStatuses.SUCCESS.value,
             created_time__date__gte=thirty_days_ago
@@ -263,7 +261,6 @@ class DashboardEnhancedStatsSerializer(serializers.Serializer):
         total_users = User.objects.filter(is_active=True).count()
         total_conversations = Conversation.objects.count()
 
-        # AI costs
         text_msgs = Message.objects.filter(
             message_type=MessageTypes.TEXT.value,
             sender=SenderTypes.ASSISTANT.value
@@ -272,7 +269,6 @@ class DashboardEnhancedStatsSerializer(serializers.Serializer):
         output_tokens = text_msgs.aggregate(t=Sum('output_tokens'))['t'] or 0
         total_ai_cost = (input_tokens/1000000 * 2.5) + (output_tokens/1000000 * 10)
 
-        # Alerts
         failed_payments = Transaction.objects.filter(
             status=PaymentStatuses.FAILED.value,
             created_time__date__gte=today - timezone.timedelta(days=7)
@@ -292,7 +288,6 @@ class DashboardEnhancedStatsSerializer(serializers.Serializer):
             end_date__gte=today
         ).count()
 
-        # Recent activity
         recent_transactions = Transaction.objects.select_related('user').order_by(
             '-created_time'
         )[:5]
@@ -376,7 +371,6 @@ class DashboardStatisticsSerializer(serializers.Serializer):
             return now - timezone.timedelta(days=365), now, 'month'
         elif date_filter == 'all':
             return None, now, 'month'
-        # Default: 30d
         return now - timezone.timedelta(days=30), now, 'day'
 
     def get_user_date_count(self, date_filter):
@@ -551,8 +545,6 @@ class DashboardUserListSerializer(serializers.ModelSerializer):
 
     def get_total_used_token_count(self, obj):
         subscription = obj.subscription
-        # `pricing_package` is a nullable FK (SET_NULL) — a subscription can
-        # outlive the package it was bought on.
         if subscription and subscription.pricing_package:
             return subscription.pricing_package.request_count - subscription.remained_request_count
         return 0
@@ -607,7 +599,6 @@ class AuditLogSerializer(serializers.ModelSerializer):
 
 
 class DashboardIntegrationListSerializer(serializers.ModelSerializer):
-    """Rich integration serializer with all operational data."""
     assistant_name = serializers.SerializerMethodField()
     owner_name = serializers.SerializerMethodField()
     integration_type_display = serializers.SerializerMethodField()
@@ -716,7 +707,6 @@ class DashboardIntegrationListSerializer(serializers.ModelSerializer):
 
 
 class DashboardAssistantListSerializer(serializers.ModelSerializer):
-    """Assistant serializer with owner contact info for dashboard."""
     owner_phone = serializers.SerializerMethodField()
     owner_email = serializers.SerializerMethodField()
     owner_name = serializers.SerializerMethodField()
@@ -753,8 +743,6 @@ class DashboardAssistantListSerializer(serializers.ModelSerializer):
 
 
 class DashboardAssistantFileUploadSerializer(serializers.ModelSerializer):
-    """Serializer for admin file uploads (no subscription check)."""
-
     class Meta:
         model = AssistantFileUpload
         fields = [
@@ -764,15 +752,11 @@ class DashboardAssistantFileUploadSerializer(serializers.ModelSerializer):
         read_only_fields = ['created_time', 'updated_time']
 
     def validate(self, attrs):
-        # Same size and extension rules as the tenant-facing upload — an admin
-        # route is not a reason to accept a file type the agent cannot read.
         validate_document(attrs.get('file'))
         return attrs
 
 
 class DashboardAssistantCreateSerializer(serializers.ModelSerializer):
-    """Serializer for admin to create assistants for any user (no subscription check)."""
-
     class Meta:
         model = Assistant
         fields = [
@@ -792,7 +776,6 @@ class DashboardAssistantCreateSerializer(serializers.ModelSerializer):
 
 
 class DashboardPricingPackageDetailSerializer(serializers.ModelSerializer):
-    """Pricing package with subscriber stats."""
     subscribers_count = serializers.SerializerMethodField()
     active_subscribers = serializers.SerializerMethodField()
     total_assistants = serializers.SerializerMethodField()
@@ -865,7 +848,6 @@ class RefundSerializer(serializers.Serializer):
 
 
 class UserBulkActionSerializer(serializers.Serializer):
-    """Validates `users/bulk-action/` — ids must be real UUIDs before they reach the ORM."""
     ACTIONS = ('activate', 'deactivate', 'delete', 'change_role')
 
     action = serializers.ChoiceField(choices=ACTIONS)
@@ -881,7 +863,6 @@ class UserBulkActionSerializer(serializers.Serializer):
 
 
 class TransactionBulkActionSerializer(serializers.Serializer):
-    """Validates `transactions/bulk-action/`."""
     ACTIONS = ('refund',)
 
     action = serializers.ChoiceField(choices=ACTIONS)
@@ -889,7 +870,6 @@ class TransactionBulkActionSerializer(serializers.Serializer):
 
 
 class NotificationSendSerializer(serializers.Serializer):
-    """Validates `notifications/send/` — types are checked, not coerced."""
     user_id = serializers.UUIDField()
     title = StrictCharField(max_length=255)
     content = StrictCharField()
@@ -900,12 +880,10 @@ class NotificationSendSerializer(serializers.Serializer):
 
 
 class DashboardAssistantCreateUserSerializer(serializers.Serializer):
-    """Validates the `user` FK that `assistants/` POST resolves before creating."""
     user = serializers.UUIDField()
 
 
 class AssistantFileFilterSerializer(serializers.Serializer):
-    """Validates the `?assistant=` query param of `assistantfiles/`."""
     assistant = serializers.UUIDField(required=False)
 
 
@@ -914,11 +892,6 @@ class SubscriptionExtendSerializer(serializers.Serializer):
 
 
 class DashboardSubscriptionUpdateSerializer(serializers.ModelSerializer):
-    """Write serializer for `subscriptions/<id>/` — every field is validated.
-
-    `pricing_package` is a real relation field, so a bad UUID or an unknown id
-    becomes a 400 instead of an unhandled ORM error.
-    """
     pricing_package = serializers.PrimaryKeyRelatedField(
         queryset=PricingPackage.objects.all(), required=False, allow_null=True,
     )
@@ -932,7 +905,6 @@ class DashboardSubscriptionUpdateSerializer(serializers.ModelSerializer):
 
 
 class DashboardFeatureSerializer(FeatureSerializer):
-    """Feature serializer that rejects wrong-typed values instead of coercing them."""
     name = StrictCharField(max_length=100)
     icon = StrictCharField(max_length=50, required=False, allow_null=True, allow_blank=True)
 

@@ -1,4 +1,3 @@
-"""The outbound HTTP wrapper must never let a call go out without a timeout."""
 from unittest import mock
 
 from django.test import SimpleTestCase
@@ -7,8 +6,6 @@ from apps.shared import http
 
 
 class DefaultTimeoutTests(SimpleTestCase):
-    """A forgotten timeout is the whole reason this module exists."""
-
     def test_every_verb_applies_the_default_timeout(self):
         for verb in ("get", "post", "put", "patch", "delete"):
             with self.subTest(verb=verb):
@@ -33,15 +30,11 @@ class DefaultTimeoutTests(SimpleTestCase):
 
 
 class RetryPolicyTests(SimpleTestCase):
-
     def test_post_is_never_retried(self):
-        """Retrying a POST would re-send a customer message. urllib3's default
-        allowed_methods must stay in force."""
         retry = http.session.get_adapter("https://example.test").max_retries
         self.assertNotIn("POST", retry.allowed_methods)
         self.assertIn("GET", retry.allowed_methods)
 
     def test_reads_are_not_retried(self):
-        """A read timeout may mean the request already landed upstream."""
         retry = http.session.get_adapter("https://example.test").max_retries
         self.assertEqual(retry.read, 0)

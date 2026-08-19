@@ -1,12 +1,7 @@
-"""
-Django management command to seed SEO-optimized blog posts for Aylo AI.
-"""
-
-import json
 from django.core.management.base import BaseCommand
 from django.utils import timezone
-from apps.blog.models import BlogPost
 
+from apps.blog.models import BlogPost
 
 BLOG_POSTS = [
     {
@@ -928,7 +923,7 @@ BLOG_POSTS = [
 <li><strong>Kontekstni eslab qoladi:</strong> Mijozning avvalgi suhbatlari va xaridlarini hisobga oladi</li>
 <li><strong>O'rganib boradi:</strong> Har bir suhbatdan o'rganib, vaqt o'tishi bilan yaxshilanadi</li>
 <li><strong>Oson sozlash:</strong> Dasturlash bilimi shart emas — vizual interfeys orqali 30 daqiqada sozlang</li>
-<li><strong>Arzon narx:</strong> AI chatbot imkoniyatlari oyiga atigi 299,000 so'mdan boshlanadi</li>
+<li><strong>Arzon narx:</strong> AI chatbot imkoniyatlari oyiga atigi 699,000 so'mdan boshlanadi</li>
 <li><strong>Barcha kanallar:</strong> Instagram, Telegram, WhatsApp — bitta AI barcha kanallarda ishlaydi</li>
 </ul>
 
@@ -972,7 +967,7 @@ BLOG_POSTS = [
 
 <p><strong>Aylo AI</strong> — современная AI-чатбот платформа, созданная специально для бизнеса в Узбекистане. На <a href="https://aylo.uz">aylo.uz</a> вы получаете все преимущества AI-чатбота по цене обычного.</p>
 
-<p>Особенности: идеальное понимание узбекского языка (включая разговорные формы и диалекты), запоминание контекста, самообучение, визуальный конструктор без программирования, поддержка Instagram + Telegram + WhatsApp, от 299 000 сум/месяц.</p>
+<p>Особенности: идеальное понимание узбекского языка (включая разговорные формы и диалекты), запоминание контекста, самообучение, визуальный конструктор без программирования, поддержка Instagram + Telegram + WhatsApp, от 699 000 сум/месяц.</p>
 
 <p>Начните <strong>7-дневный бесплатный период</strong> на <a href="https://aylo.uz">aylo.uz</a> и убедитесь в разнице сами!</p>""",
         "content_en": """<h2>What Is a Chatbot and How Does It Work?</h2>
@@ -1014,7 +1009,7 @@ BLOG_POSTS = [
 
 <p><strong>Aylo AI</strong> is a modern AI chatbot platform built specifically for businesses in Uzbekistan. At <a href="https://aylo.uz">aylo.uz</a>, you get all AI chatbot advantages at rule-based chatbot prices.</p>
 
-<p>Key features: perfect understanding of Uzbek language (including colloquial forms), context memory, self-learning, visual no-code builder, Instagram + Telegram + WhatsApp support, starting from 299,000 sum/month.</p>
+<p>Key features: perfect understanding of Uzbek language (including colloquial forms), context memory, self-learning, visual no-code builder, Instagram + Telegram + WhatsApp support, starting from 699,000 sum/month.</p>
 
 <p>Start your <strong>7-day free trial</strong> at <a href="https://aylo.uz">aylo.uz</a> and see the difference yourself!</p>"""
     },
@@ -3718,9 +3713,6 @@ BLOG_POSTS = [
 <p>Start your <strong>free 7-day trial</strong> at <a href="https://aylo.uz">aylo.uz</a> and turn your Telegram channel into a sales machine!</p>"""
     },
 
-    # ──────────────────────────────────────────────
-    # POST 16
-    # ──────────────────────────────────────────────
     {
         "title_uz": "Meta Business verificatsiya — nima uchun muhim?",
         "title_ru": "Верификация Meta Business — почему это важно?",
@@ -3939,9 +3931,6 @@ BLOG_POSTS = [
 <p>Start your <strong>free 7-day trial</strong> at <a href="https://aylo.uz">aylo.uz</a> and unlock the full power of Meta for your business!</p>"""
     },
 
-    # ──────────────────────────────────────────────
-    # POST 17
-    # ──────────────────────────────────────────────
     {
         "title_uz": "Chatbot analytics — qaysi metrikalarni kuzatish kerak?",
         "title_ru": "Аналитика чат-ботов — какие метрики отслеживать?",
@@ -4142,9 +4131,6 @@ BLOG_POSTS = [
 <p>Start your <strong>free 7-day trial</strong> at <a href="https://aylo.uz">aylo.uz</a> and measure your chatbot's performance with precise data!</p>"""
     },
 
-    # ──────────────────────────────────────────────
-    # POST 18
-    # ──────────────────────────────────────────────
     {
         "title_uz": "AI bilan personalizatsiya — har bir mijozga individual yondashuv",
         "title_ru": "Персонализация с AI — индивидуальный подход к каждому клиенту",
@@ -4321,9 +4307,6 @@ BLOG_POSTS = [
 <p>Start your <strong>free 7-day trial</strong> at <a href="https://aylo.uz">aylo.uz</a> and deliver a truly individual experience to every customer!</p>"""
     },
 
-    # ──────────────────────────────────────────────
-    # POST 19
-    # ──────────────────────────────────────────────
     {
         "title_uz": "Instagram Reels + DM automation = viral sotuv",
         "title_ru": "Instagram Reels + DM автоматизация = вирусные продажи",
@@ -4505,9 +4488,6 @@ BLOG_POSTS = [
 <p>Start your <strong>free 7-day trial</strong> at <a href="https://aylo.uz">aylo.uz</a> and launch viral sales through Reels!</p>"""
     },
 
-    # ──────────────────────────────────────────────
-    # POST 20
-    # ──────────────────────────────────────────────
     {
         "title_uz": "2026 yilda AI chatbot trendlari — nimalar o'zgarmoqda?",
         "title_ru": "Тренды AI чат-ботов в 2026 году — что меняется?",

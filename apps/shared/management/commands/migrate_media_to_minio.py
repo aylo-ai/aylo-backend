@@ -1,40 +1,9 @@
-"""Copy media objects out of the legacy AWS S3 bucket into MinIO.
-
-Cutover is key-preserving. Every ``FileField`` in this project stores a
-storage-relative key (``assistant/<uuid>/files/<name>``) rather than an absolute
-URL — there is no ``AWS_LOCATION`` prefix in play — so once the objects exist in
-MinIO under the same keys, pointing the backend at MinIO is the whole migration.
-No table is rewritten by this command, and it never writes to the DB at all.
-
-Usage::
-
-    # See what would move, touching nothing:
-    python manage.py migrate_media_to_minio --dry-run
-
-    # Copy, skipping keys already present in MinIO (safe to re-run):
-    python manage.py migrate_media_to_minio
-
-    # Verify sizes afterwards without copying:
-    python manage.py migrate_media_to_minio --verify-only
-
-Objects are streamed one at a time, so a large bucket does not need a large
-worker. The command is resumable: interrupt it and re-run, and it picks up the
-keys that are not in the destination yet.
-
-Known gap, stated rather than silently accepted: this walks the keys the
-database references. The retired ``upload_to_s3()`` helper wrote files to the
-bucket *root* with no DB row pointing at them, so those objects are invisible
-here. Use ``--include-orphans`` to sweep every remaining key in the source
-bucket as well.
-"""
-
 import boto3
 from botocore.exceptions import ClientError
 from django.conf import settings
-from django.core.management.base import BaseCommand, CommandError
 from django.core.files.storage import storages
+from django.core.management.base import BaseCommand, CommandError
 
-# Every (model, field) pair whose objects live in the media bucket.
 MEDIA_FIELDS = [
     ("assistant", "Message", "audio_file"),
     ("assistant", "AssistantFileUpload", "file"),
@@ -124,11 +93,6 @@ class Command(BaseCommand):
 
             try:
                 body = source.get_object(Bucket=source_bucket, Key=key)["Body"]
-                # save() renames on collision (`key_a1b2c3d.txt`), which would
-                # break the whole premise of a key-preserving migration — the DB
-                # would point at a key that does not exist. The exists() check
-                # above should make that impossible, so treat it as a hard error
-                # rather than reporting a copy that went somewhere else.
                 written = destination.save(key, body)
                 if written != key:
                     destination.delete(written)
@@ -152,7 +116,6 @@ class Command(BaseCommand):
             raise CommandError("Migration finished with errors — re-run to retry.")
         self.stdout.write(self.style.SUCCESS(summary))
 
-    # -- helpers ---------------------------------------------------------
 
     def _source_client(self):
         if not (settings.AWS_ACCESS_KEY_ID and settings.AWS_SECRET_ACCESS_KEY):
@@ -181,8 +144,6 @@ class Command(BaseCommand):
             found = [key for key in queryset if key]
             self.stdout.write(f"  {model_name}.{field}: {len(found)}")
             keys.extend(found)
-        # Duplicate keys used to be possible before unique key generation landed;
-        # de-duplicate so a shared object is not copied twice.
         return sorted(set(keys))
 
     def _collect_orphans(self, client, bucket, known_keys):

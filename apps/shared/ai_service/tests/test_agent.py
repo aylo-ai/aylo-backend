@@ -1,8 +1,3 @@
-"""Agent loop tests.
-
-Every test here runs offline against a fake OpenAI client. Tests named after a
-finding number are regressions for the bugs listed in the investigation report.
-"""
 from unittest import mock
 
 from django.test import TestCase
@@ -11,14 +6,16 @@ from apps.shared.ai_service import agent as agent_module
 from apps.shared.ai_service.agent import Agent, AgentResult
 
 from .factories import (
-    bad_request, make_assistant, make_conversation, make_response,
-    rate_limited, server_error,
+    bad_request,
+    make_assistant,
+    make_conversation,
+    make_response,
+    rate_limited,
+    server_error,
 )
 
 
 class AgentTestCase(TestCase):
-    """Base class that stubs out OpenAI, Redis and sleeping."""
-
     def setUp(self):
         self.assistant = make_assistant()
         self.conversation = make_conversation(self.assistant)
@@ -29,6 +26,13 @@ class AgentTestCase(TestCase):
         )
         client_patch.start()
         self.addCleanup(client_patch.stop)
+
+        pipeline_patch = mock.patch(
+            "apps.shared.ai_service.pipeline.get_client", return_value=self.client
+        )
+        pipeline_patch.start()
+        self.addCleanup(pipeline_patch.stop)
+        self.client.vector_stores.search.return_value = mock.Mock(data=[])
 
         redis_patch = mock.patch("apps.shared.addons.redis.redis_client")
         self.redis = redis_patch.start()
@@ -41,17 +45,41 @@ class AgentTestCase(TestCase):
 
         self.agent = Agent()
 
-    # helpers ------------------------------------------------------------
 
-    def set_responses(self, *responses):
-        self.client.responses.create.side_effect = list(responses)
+    DEFAULT_PLAN = (
+        '{"intent": "question", "needs_knowledge": true, "needs_tools": true, '
+        '"complexity": "normal", "direct_reply": ""}'
+    )
+
+    def set_responses(self, *responses, plan=DEFAULT_PLAN):
+        queued = list(responses)
+        if plan is not None:
+            queued.insert(0, make_response(response_id="triage", text=plan))
+        self.client.responses.create.side_effect = queued
+
+    @property
+    def all_calls(self):
+        return self.client.responses.create.call_args_list
 
     @property
     def calls(self):
-        return self.client.responses.create.call_args_list
+        return [call for call in self.all_calls if not self._is_triage(call)]
+
+    @staticmethod
+    def _is_triage(call):
+        payload = call.kwargs.get("input") or []
+        return any(
+            item.get("role") == "developer"
+            and item.get("content", "").startswith("You are the router")
+            for item in payload
+            if isinstance(item, dict)
+        )
 
     def kwargs_at(self, index):
         return self.calls[index].kwargs
+
+    def kwargs_at_all(self, index):
+        return self.all_calls[index].kwargs
 
     def run_turn(self, text="Hello") -> AgentResult:
         return self.agent.run(self.assistant, self.conversation, text)
@@ -84,7 +112,6 @@ class ChainTests(AgentTestCase):
         self.assertEqual([m["role"] for m in second["input"]], ["user"])
 
     def test_chain_is_persisted_to_the_database(self):
-        """Postgres is the source of truth, so a Redis flush cannot lose context."""
         self.set_responses(make_response(response_id="resp_9", text="Hi!"))
 
         self.run_turn()
@@ -94,7 +121,6 @@ class ChainTests(AgentTestCase):
         self.assertIsNotNone(self.conversation.instructions_version)
 
     def test_editing_the_assistant_restarts_the_chain(self):
-        """Finding 2.7: prompt edits used to take up to 24h to apply."""
         self.set_responses(
             make_response(response_id="resp_1", text="Hi!"),
             make_response(response_id="resp_2", text="Updated!"),
@@ -112,7 +138,6 @@ class ChainTests(AgentTestCase):
         self.assertIn("laptops", second["input"][0]["content"])
 
     def test_stale_chain_is_dropped_and_retried(self):
-        """Finding 2.4: a bad response id used to brick the chat for 24 hours."""
         self.conversation.previous_response_id = "resp_gone"
         self.conversation.instructions_version = self.assistant.updated_time
         self.conversation.save()
@@ -144,7 +169,6 @@ class ChainTests(AgentTestCase):
 
 class ToolLoopTests(AgentTestCase):
     def test_search_then_lead_in_one_turn(self):
-        """Finding 2.6: only one round of tool use was possible before."""
         self.set_responses(
             make_response(
                 response_id="r1",
@@ -168,7 +192,6 @@ class ToolLoopTests(AgentTestCase):
         self.assertEqual(self.assistant.leads.count(), 1)
 
     def test_tools_are_passed_on_every_call(self):
-        """The old code dropped `tools` after the first hop, ending the loop early."""
         self.set_responses(
             make_response(
                 response_id="r1",
@@ -250,7 +273,6 @@ class ToolLoopTests(AgentTestCase):
 
 class ToolAssemblyTests(AgentTestCase):
     def test_missing_vector_id_omits_file_search(self):
-        """Finding 2.2: the first turn used to crash when vector_id was None."""
         self.assistant.vector_id = None
         self.assistant.save()
         self.set_responses(make_response(text="Hello!"))
@@ -262,8 +284,6 @@ class ToolAssemblyTests(AgentTestCase):
         self.assertNotIn("file_search", types)
 
     def test_legacy_gemini_vector_id_is_not_sent_to_openai(self):
-        """OpenAI rejects `fileSearchStores/...` outright; the assistant must keep
-        answering while its knowledge base is re-indexed."""
         self.assistant.vector_id = "fileSearchStores/t1np2pyb1ciw-8ixt75wk0kd5"
         self.assistant.save()
         self.set_responses(make_response(text="Hello!"))
@@ -307,8 +327,6 @@ class ToolAssemblyTests(AgentTestCase):
 
 class ResilienceTests(AgentTestCase):
     def test_run_never_raises_and_returns_the_fallback(self):
-        """Finding 2.3: an exception here used to trigger a Celery retry that
-        stored the customer's message a second time."""
         self.client.responses.create.side_effect = ValueError("kaboom")
 
         result = self.run_turn()
@@ -338,7 +356,6 @@ class ResilienceTests(AgentTestCase):
         self.assertEqual(len(self.calls), agent_module.MAX_ATTEMPTS)
 
     def test_empty_output_returns_the_fallback(self):
-        """Finding 2.5: the bot used to go silent instead of saying anything."""
         self.set_responses(make_response(text=None))
 
         result = self.run_turn()
@@ -372,7 +389,6 @@ class OutputTests(AgentTestCase):
         self.assertEqual(self.run_turn().text, "Narxi 12 000 000 so'm 😊")
 
     def test_json_envelope_is_unwrapped_not_sent_raw(self):
-        """Finding 2.8: customers used to receive raw JSON."""
         self.set_responses(
             make_response(text='{"intent": "get_price", "entities": {}, "reply": "It costs $999."}')
         )
@@ -399,7 +415,6 @@ class OutputTests(AgentTestCase):
 
 class UsageTests(AgentTestCase):
     def test_tokens_are_summed_across_the_whole_loop(self):
-        """Finding 2.9: only the last call's usage used to be recorded."""
         self.set_responses(
             make_response(
                 response_id="r1",

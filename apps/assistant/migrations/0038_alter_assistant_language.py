@@ -3,6 +3,7 @@
 import django.contrib.postgres.fields
 from django.db import migrations, models
 
+
 def convert_char_to_array(apps, schema_editor):
     Assistant = apps.get_model("assistant", "Assistant")
     for assistant in Assistant.objects.all():

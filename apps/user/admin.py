@@ -1,5 +1,6 @@
 from django.contrib import admin
-from apps.user.models import User, PrivacyPolicy, UserAgreement, Notification
+
+from apps.user.models import Notification, PrivacyPolicy, User, UserAgreement
 
 
 @admin.register(User)
@@ -51,7 +52,7 @@ class UserAgreementAdmin(admin.ModelAdmin):
         (None, {"fields": ("title", "content", "pricing_packge")}),
         ("Settings", {"fields": ("is_active", "language")}),
     )
-    
+
 @admin.register(Notification)
 class NotificationAdmin(admin.ModelAdmin):
     list_display = ("user", "title", "type", "is_read")

@@ -1,14 +1,3 @@
-"""The agent tools this app owns: leads, escalation, history and follow-ups.
-
-Registered with `apps.shared.ai_service.tools` from `AssistantConfig.ready()`.
-They live here rather than in `shared` because every one of them reads or writes
-an assistant-app model — keeping them here is what lets `shared` stay free of app
-imports.
-
-A handler must never raise for an expected condition: return `{"error": ...}` so
-the model can apologise or try something else. The registry catches anything
-unexpected on top of that.
-"""
 import logging
 from datetime import timedelta
 from typing import Any, Dict
@@ -19,10 +8,6 @@ from apps.shared.ai_service.tools import MAX_SUMMARY_MESSAGES, register
 
 logger = logging.getLogger(__name__)
 
-
-# --------------------------------------------------------------------------
-# Schemas
-# --------------------------------------------------------------------------
 
 CREATE_LEAD_SCHEMA = {
     "type": "function",
@@ -96,10 +81,6 @@ FOLLOW_UP_SCHEMA = {
 }
 
 
-# --------------------------------------------------------------------------
-# Handlers
-# --------------------------------------------------------------------------
-
 def handle_create_lead(assistant, conversation, args: Dict[str, Any]) -> Dict[str, Any]:
     from apps.assistant.models import Lead
 
@@ -126,7 +107,6 @@ def handle_create_lead(assistant, conversation, args: Dict[str, Any]) -> Dict[st
 
 
 def notify_lead(assistant, conversation, lead) -> None:
-    """Push the lead to the approved Telegram groups. Never fatal."""
     from apps.integration.gateways.telegram import send_telegram_message
     from apps.integration.models import TelegramGroupIntegration
     from apps.shared.addons.enums import IntegrationTypes
@@ -231,7 +211,6 @@ def _follow_up_enabled(assistant) -> bool:
 
 
 def register_tools() -> None:
-    """Called from AssistantConfig.ready()."""
     register("create_lead", CREATE_LEAD_SCHEMA, handle_create_lead)
     register("escalate_to_human", ESCALATE_SCHEMA, handle_escalate_to_human)
     register("get_conversation_summary", SUMMARY_SCHEMA, handle_get_conversation_summary)

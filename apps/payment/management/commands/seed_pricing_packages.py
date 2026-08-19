@@ -1,12 +1,3 @@
-"""Seed the pricing packages a new customer picks from after sign-up.
-
-`POST /api/v1/payment/subscriptions/create/` only accepts an existing, active
-`PricingPackage`, so a fresh database has nothing for the sign-up flow's plan
-step to offer. This command creates the standard Free / Basic / Pro ladder and
-is idempotent — it matches on package name and updates in place, so it is safe
-to re-run after changing a price or a limit.
-"""
-
 from django.core.management.base import BaseCommand
 from django.db import transaction
 
@@ -19,7 +10,11 @@ FEATURES = [
     {"name": "Instagram integratsiyasi", "icon": "instagram"},
     {"name": "Veb-sayt vidjeti", "icon": "globe"},
     {"name": "Bilimlar bazasi", "icon": "book"},
-    {"name": "Lidlar eksporti", "icon": "download"},
+    {"name": "Lidlarni boshqarish va eksport", "icon": "download"},
+    {"name": "Follow-up avtomatlashtirish", "icon": "repeat"},
+    {"name": "Ommaviy xabarnoma (broadcast)", "icon": "megaphone"},
+    {"name": "amoCRM integratsiyasi", "icon": "link"},
+    {"name": "Billz integratsiyasi", "icon": "shopping-bag"},
     {"name": "Jamoa a'zolari", "icon": "users"},
     {"name": "Ustuvor qo'llab-quvvatlash", "icon": "headset"},
 ]
@@ -30,7 +25,10 @@ PACKAGES = [
         "type": PricingPackageType.FREE.value,
         "price": 0,
         "discount_price": None,
-        "description": "Repli AI bilan tanishish uchun — bitta agent va asosiy integratsiya.",
+        "description": (
+            "Aylo AI bilan tanishish uchun — 1 ta AI agent, veb-sayt vidjeti va "
+            "asosiy bilimlar bazasi bilan bepul sinab ko'ring."
+        ),
         "request_count": 100,
         "duration_days": 30,
         "is_popular": False,
@@ -38,10 +36,14 @@ PACKAGES = [
     },
     {
         "name": "Basic",
-        "type": PricingPackageType.CUSTOM.value,
-        "price": 199000,
-        "discount_price": 149000,
-        "description": "O'sib borayotgan biznes uchun — messenjerlar va lidlar bilan to'liq ish.",
+        "type": PricingPackageType.BASIC.value,
+        "price": 699000,
+        "discount_price": None,
+        "description": (
+            "Eng ko'p tanlanadigan paket — oyiga 2 000 ta suhbat, Telegram va "
+            "Instagram orqali to'liq muloqot, lidlarni boshqarish, follow-up "
+            "avtomatlashtirish va CRM integratsiyalari."
+        ),
         "request_count": 2000,
         "duration_days": 30,
         "is_popular": True,
@@ -51,21 +53,32 @@ PACKAGES = [
             "Instagram integratsiyasi",
             "Veb-sayt vidjeti",
             "Bilimlar bazasi",
-            "Lidlar eksporti",
+            "Lidlarni boshqarish va eksport",
+            "Follow-up avtomatlashtirish",
+            "Ommaviy xabarnoma (broadcast)",
+            "amoCRM integratsiyasi",
+            "Billz integratsiyasi",
         ],
     },
     {
         "name": "Pro",
-        "type": PricingPackageType.PRO.value,
-        "price": 499000,
+        "type": PricingPackageType.CUSTOM.value,
+        "price": 0,
         "discount_price": None,
-        "description": "Katta hajmdagi murojaatlar, jamoa bilan ishlash va ustuvor yordam.",
-        "request_count": 10000,
+        "description": (
+            "Kompaniyalar uchun individual yechim — suhbatlar va tokenlar soni "
+            "biznesingizga moslab kelishiladi, barcha imkoniyatlar to'liq "
+            "ochiq: jamoa a'zolari, maxsus integratsiyalar va ustuvor "
+            "qo'llab-quvvatlash."
+        ),
+        "request_count": 0,
         "duration_days": 30,
         "is_popular": False,
         "features": [feature["name"] for feature in FEATURES],
     },
 ]
+
+RETIRED_PACKAGE_NAMES = ["Korporativ"]
 
 
 class Command(BaseCommand):
@@ -96,10 +109,21 @@ class Command(BaseCommand):
                 },
             )
             package.features.set(features[name] for name in spec["features"])
+            price = "negotiated" if package.is_custom else f"{package.price} {package.currency}"
             self.stdout.write(
                 self.style.SUCCESS(
                     f"{'Created' if created else 'Updated'} {package.name} "
-                    f"({package.price} {package.currency}, "
-                    f"{package.request_count} requests)"
+                    f"({price}, {package.request_count} requests)"
+                )
+            )
+
+        retired = PricingPackage.objects.filter(
+            name__in=RETIRED_PACKAGE_NAMES, is_active=True,
+        ).update(is_active=False)
+        if retired:
+            self.stdout.write(
+                self.style.WARNING(
+                    f"Deactivated {retired} retired package(s): "
+                    f"{', '.join(RETIRED_PACKAGE_NAMES)}"
                 )
             )

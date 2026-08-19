@@ -1,5 +1,6 @@
 from django.db import models
 from django.utils.text import slugify
+
 from apps.shared.models import BaseModel
 
 
@@ -32,7 +33,6 @@ class BlogPost(BaseModel):
     def save(self, *args, **kwargs):
         if not self.slug:
             self.slug = slugify(self.title)
-            # Ensure uniqueness
             original_slug = self.slug
             counter = 1
             while BlogPost.objects.filter(slug=self.slug).exclude(pk=self.pk).exists():

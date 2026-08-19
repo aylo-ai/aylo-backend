@@ -4,7 +4,7 @@ from typing import Optional
 
 from redis import Redis
 
-from config.settings import REDIS_CREDENTIALS, REDIS_HOST, REDIS_PORT, REDIS_DB, REDIS_PASSWORD
+from config.settings import REDIS_DB, REDIS_HOST, REDIS_PASSWORD, REDIS_PORT
 
 redis_connection: Optional[Redis] = None
 
@@ -26,7 +26,6 @@ def get_redis_connection() -> Redis:
 redis_client = get_redis_connection()
 
 def add_to_redis_cache(key: str, value: str, exp_time: Optional[int] = None) -> None:
-    """Add key-value pair to Redis cache."""
     print(f"Adding {key} to Redis cache")
     redis = get_redis_connection()
     redis.set(key, value)
@@ -36,7 +35,6 @@ def add_to_redis_cache(key: str, value: str, exp_time: Optional[int] = None) -> 
 
 
 def get_from_redis_cache(key: str) -> Optional[str]:
-    """Get value from Redis cache."""
     print(f"Getting {key} from Redis cache")
     redis = get_redis_connection()
     value = None

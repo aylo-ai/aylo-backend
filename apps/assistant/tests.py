@@ -1,22 +1,39 @@
-"""Tests for the dashboard chat and knowledge-base file upload.
-
-Both paths used to raise AttributeError against methods that no longer existed on
-`assistant_service`; the first test in each class is the regression for that.
-"""
 from unittest import mock
 
-from django.test import TestCase
+from django.core.files.uploadedfile import SimpleUploadedFile
+from django.test import TestCase, override_settings
 
 from apps.assistant.models import (
-    Assistant, AssistantFileUpload, Conversation, Lead, Message,
+    Assistant,
+    AssistantFileUpload,
+    Conversation,
+    Lead,
+    Message,
 )
-from apps.assistant.serializers import AssistantFileUploadSerializer, MessageSerializer
-from apps.shared.addons.enums import ConversationStatuses, SenderTypes, SubscriptionStatuses
+from apps.assistant.serializers import (
+    AssistantFileUploadSerializer,
+    ConversationSerializer,
+    MessageSerializer,
+)
+from apps.shared.addons.enums import (
+    ConversationStatuses,
+    FileIndexStatuses,
+    SenderTypes,
+    SubscriptionStatuses,
+)
 from apps.shared.ai_service.agent import AgentResult
 
+IN_MEMORY_STORAGE = override_settings(
+    STORAGES={
+        "default": {"BACKEND": "django.core.files.storage.InMemoryStorage"},
+        "staticfiles": {
+            "BACKEND": "django.contrib.staticfiles.storage.StaticFilesStorage"
+        },
+    }
+)
 
-def make_subscribed_user():
-    """A user with an active subscription — the serializers validate one."""
+
+def make_subscribed_user(username="owner", email="owner@example.com"):
     from apps.payment.models import Subscription
     from apps.user.models import User
 
@@ -24,14 +41,12 @@ def make_subscribed_user():
         status=SubscriptionStatuses.ACTIVE.value, remained_request_count=1000,
     )
     return User.objects.create(
-        username="owner", auth_type="email", email="owner@example.com",
+        username=username, auth_type="email", email=email,
         subscription=subscription,
     )
 
 
 class MessageSerializerTests(TestCase):
-    """POST conversations/<id>/messages/ — the dashboard / website chat."""
-
     def setUp(self):
         self.assistant = Assistant.objects.create(
             name="Aylo Bot", company_name="Aylo",
@@ -113,8 +128,6 @@ class ConversationCreateTests(TestCase):
 
 
 class MessageQuotaTests(TestCase):
-    """Message.save() charges the owner's request quota — safely (finding C1)."""
-
     def _assistant(self, remained=None):
         from apps.payment.models import Subscription
         from apps.user.models import User
@@ -174,71 +187,169 @@ class MessageQuotaTests(TestCase):
     def test_hitting_the_threshold_notifies_the_owner(self):
         from apps.user.models import Notification
 
-        assistant = self._assistant(remained=11)  # 11 -> 10 triggers the warning
+        assistant = self._assistant(remained=11)
         self._reply(self._conversation(assistant))
         self.assertEqual(Notification.objects.filter(user=assistant.user).count(), 1)
 
 
+@IN_MEMORY_STORAGE
 class FileUploadTests(TestCase):
     def setUp(self):
         self.assistant = Assistant.objects.create(
             name="Aylo Bot", company_name="Aylo", user=make_subscribed_user(),
+            ai_enabled=True,
         )
-        self.ensure = mock.patch(
-            "apps.assistant.serializers.knowledge_base.ensure_store", return_value="vs_new"
-        ).start()
-        self.add_file = mock.patch(
-            "apps.assistant.serializers.knowledge_base.add_file", return_value="file-1"
+        self.delay = mock.patch(
+            "apps.assistant.serializers.index_assistant_file.delay"
         ).start()
         self.addCleanup(mock.patch.stopall)
 
-    def upload(self, name="catalogue.txt"):
+    def upload(self, *names):
         from django.core.files.uploadedfile import SimpleUploadedFile
 
-        upload = SimpleUploadedFile(name, b"iPhone 15 Pro - 12,500,000 UZS")
-        request = mock.Mock()
-        request.build_absolute_uri.side_effect = lambda url: f"https://example.com{url}"
+        files = [
+            SimpleUploadedFile(name, b"iPhone 15 Pro - 12,500,000 UZS")
+            for name in (names or ("catalogue.txt",))
+        ]
         serializer = AssistantFileUploadSerializer(
-            data={"assistant": str(self.assistant.id), "file": upload},
-            context={"assistant": self.assistant, "files": [upload], "request": request},
+            data={"assistant": str(self.assistant.id), "file": files[0]},
+            context={
+                "assistant": self.assistant,
+                "files": files,
+                "request": mock.Mock(),
+            },
         )
         serializer.is_valid(raise_exception=True)
-        return serializer.save()
+        with self.captureOnCommitCallbacks(execute=True):
+            saved = serializer.save()
+        return serializer, saved
 
-    def test_uploaded_file_is_indexed_and_the_id_is_stored(self):
-        result = self.upload()
+    def test_the_upload_stores_the_row_and_queues_the_indexing(self):
+        serializer, saved = self.upload()
+
+        self.assertEqual(AssistantFileUpload.objects.count(), 1)
+        self.assertEqual(saved.index_status, FileIndexStatuses.PENDING.value)
+        self.delay.assert_called_once_with(str(saved.id))
+
+    def test_the_request_makes_no_openai_or_http_call_of_its_own(self):
+        with mock.patch("apps.shared.ai_service.knowledge_base.get_client") as client, \
+                mock.patch("apps.shared.http.get") as http_get:
+            self.upload()
+
+        client.assert_not_called()
+        http_get.assert_not_called()
+
+    def test_every_file_in_a_multi_file_upload_is_stored_and_queued(self):
+        serializer, saved = self.upload("catalogue.txt", "prices.csv")
+
+        self.assertEqual(AssistantFileUpload.objects.count(), 2)
+        self.assertEqual(len(serializer.uploaded_files), 2)
+        self.assertEqual(serializer.instance, saved)
+        self.assertEqual(self.delay.call_count, 2)
+        self.assertEqual(
+            len(AssistantFileUploadSerializer(serializer.uploaded_files, many=True).data),
+            2,
+        )
+
+    def test_a_queued_task_that_never_runs_leaves_the_row_pending(self):
+        serializer, saved = self.upload()
+
+        saved.refresh_from_db()
+        self.assertEqual(saved.index_status, FileIndexStatuses.PENDING.value)
+        self.assertIsNone(saved.file_id)
+
+    def test_a_conversation_can_start_before_the_indexing_task_has_run(self):
+        self.upload()
+        self.assertIsNone(self.assistant.vector_id)
+
+        serializer = ConversationSerializer(
+            data={"platform": "website"},
+            context={"assistant_id": str(self.assistant.id)},
+        )
+
+        self.assertTrue(serializer.is_valid(), serializer.errors)
+
+
+@IN_MEMORY_STORAGE
+class IndexAssistantFileTaskTests(TestCase):
+    def setUp(self):
+        self.assistant = Assistant.objects.create(
+            name="Aylo Bot", company_name="Aylo", user=make_subscribed_user(),
+            ai_enabled=True,
+        )
+        self.upload = AssistantFileUpload.objects.create(
+            assistant=self.assistant, filename="catalogue.txt",
+            file=SimpleUploadedFile("catalogue.txt", b"iPhone 15 Pro"),
+        )
+        self.ensure = mock.patch(
+            "apps.assistant.tasks.knowledge_base.ensure_store", return_value="vs_new"
+        ).start()
+        self.add = mock.patch(
+            "apps.assistant.tasks.knowledge_base.add_stored_file", return_value="vsf_1"
+        ).start()
+        self.addCleanup(mock.patch.stopall)
+
+    def run_task(self):
+        from apps.assistant.tasks import index_assistant_file
+
+        index_assistant_file.apply(args=[str(self.upload.id)], throw=False)
+        self.upload.refresh_from_db()
+
+    def test_a_successful_index_records_the_file_id_and_the_status(self):
+        self.run_task()
 
         self.ensure.assert_called_once_with(self.assistant)
-        self.add_file.assert_called_once()
-        self.assertEqual(result.file_id, "file-1")
+        self.assertEqual(self.upload.file_id, "vsf_1")
+        self.assertEqual(self.upload.index_status, FileIndexStatuses.INDEXED.value)
 
-    def test_a_failed_index_still_keeps_the_upload_row(self):
-        self.add_file.return_value = None
+    def test_the_file_is_read_from_storage_rather_than_a_url(self):
+        self.run_task()
 
-        result = self.upload()
+        fieldfile = self.add.call_args.args[1]
+        self.assertEqual(fieldfile.name, self.upload.file.name)
 
-        self.assertIsNone(result.file_id)
-        self.assertEqual(AssistantFileUpload.objects.count(), 1)
+    def test_a_failed_index_marks_the_row_and_keeps_the_stored_file(self):
+        self.add.return_value = None
 
-    def test_an_indexing_error_does_not_break_the_upload(self):
-        self.add_file.side_effect = RuntimeError("openai down")
+        self.run_task()
 
-        result = self.upload()
+        self.assertEqual(self.upload.index_status, FileIndexStatuses.FAILED.value)
+        self.assertIsNone(self.upload.file_id)
+        self.assertTrue(self.upload.file.name)
 
-        self.assertEqual(AssistantFileUpload.objects.count(), 1)
-        self.assertIsNone(result.file_id)
+    def test_an_openai_outage_marks_the_row_failed_and_does_not_escape(self):
+        self.ensure.side_effect = RuntimeError("openai down")
+
+        self.run_task()
+
+        self.assertEqual(self.upload.index_status, FileIndexStatuses.FAILED.value)
+
+    def test_an_unsupported_file_is_skipped_without_calling_openai(self):
+        self.upload.filename = "payload.exe"
+        self.upload.save(update_fields=["filename"])
+
+        self.run_task()
+
+        self.assertEqual(self.upload.index_status, FileIndexStatuses.SKIPPED.value)
+        self.ensure.assert_not_called()
+        self.add.assert_not_called()
+
+    def test_a_row_deleted_before_the_task_ran_is_not_an_error(self):
+        from apps.assistant.tasks import index_assistant_file
+
+        upload_id = str(self.upload.id)
+        self.upload.delete()
+
+        result = index_assistant_file.apply(args=[upload_id], throw=False)
+
+        self.assertTrue(result.successful())
+        self.ensure.assert_not_called()
 
 
 class EndpointScopingTests(TestCase):
-    """A1/A2 (2026-07-22) — chat endpoints require auth and are tenant-scoped.
-
-    Message create/list used to be AllowAny (anyone could run the agent on the
-    owner's quota and read any history), and conversation/lead detail views
-    fetched by pk with no ownership filter.
-    """
-
     def setUp(self):
         from rest_framework.test import APIClient
+
         from apps.user.models import User
 
         self.owner = make_subscribed_user()
@@ -306,13 +417,6 @@ class EndpointScopingTests(TestCase):
 
 
 class ChatEndpointRegressionTests(TestCase):
-    """Regressions for the 2026-07-25 endpoint sweep.
-
-    Each of these reproduced a live defect: an endpoint that answered 400 to
-    every request, one that succeeded while discarding what it was given, and
-    one that wrote a file every tenant shared.
-    """
-
     def setUp(self):
         from rest_framework.test import APIClient
 
@@ -330,19 +434,15 @@ class ChatEndpointRegressionTests(TestCase):
         )
         self.client = APIClient()
         self.client.force_authenticate(self.owner)
+        mock.patch("apps.assistant.serializers.publish_message_to_ws_assistant").start()
+        self.addCleanup(mock.patch.stopall)
 
-        # Creating a conversation publishes it to the websocket channel. Redis is
-        # infrastructure, not behaviour under test, and CLAUDE.md §5 requires the
-        # suite to run offline — without this the test needs a live Redis.
         mock.patch(
             "apps.assistant.serializers.publish_message_to_ws_assistant"
         ).start()
         self.addCleanup(mock.patch.stopall)
 
     def test_a_message_can_be_edited(self):
-        """`MessageSerializer.validate` resolved the conversation only from the
-        create view's context, so every update 400'd with "Conversation
-        topilmadi" — the endpoint was unusable."""
         response = self.client.patch(
             f"/api/v1/chat/message/{self.message.id}/",
             {"message_content": "edited"}, format="json",
@@ -353,8 +453,6 @@ class ChatEndpointRegressionTests(TestCase):
         self.assertEqual(self.message.message_content, "edited")
 
     def test_a_lead_is_attached_to_the_assistant_from_the_url(self):
-        """The lead used to be saved with `assistant=NULL`, which made it
-        invisible to the list endpoint and unreachable by id forever."""
         response = self.client.post(
             f"/api/v1/chat/assistant/{self.assistant.id}/leads/",
             {"full_name": "Ali"}, format="json",
@@ -365,8 +463,6 @@ class ChatEndpointRegressionTests(TestCase):
         self.assertEqual(lead.assistant, self.assistant)
 
     def test_a_lead_cannot_be_pointed_at_someone_elses_assistant(self):
-        """`assistant` was writable, so the body could override the URL and
-        bypass the ownership check the view had just performed."""
         from apps.user.models import User
 
         other = User.objects.create(username="other", auth_type="email")
@@ -381,8 +477,6 @@ class ChatEndpointRegressionTests(TestCase):
         self.assertEqual(Lead.objects.get(full_name="Redirected").assistant, self.assistant)
 
     def test_creating_a_conversation_keeps_the_fields_it_was_given(self):
-        """`create()` hard-coded platform=website and dropped every other
-        validated field, so the caller's data silently vanished."""
         response = self.client.post(
             f"/api/v1/chat/assistant/{self.assistant.id}/conversation/",
             {"platform": "telegram", "username": "visitor", "user_id": "tg-1"},
@@ -395,8 +489,6 @@ class ChatEndpointRegressionTests(TestCase):
         self.assertEqual(created.username, "visitor")
 
     def test_exporting_leads_writes_no_file_to_disk(self):
-        """The workbook was saved as `leads_export_<date>.xlsx` in the process
-        CWD — one path shared by every tenant, so concurrent exports raced."""
         import os
 
         Lead.objects.create(assistant=self.assistant, full_name="Ali")
@@ -413,8 +505,6 @@ class ChatEndpointRegressionTests(TestCase):
         )
 
     def test_put_requires_the_whole_object(self):
-        """Every `update()` override hard-coded `partial=True`, so PUT silently
-        behaved as PATCH and never enforced required fields."""
         response = self.client.put(
             f"/api/v1/chat/assistant/{self.assistant.id}/",
             {"name": "Only a name"}, format="json",
@@ -431,3 +521,831 @@ class ChatEndpointRegressionTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assistant.refresh_from_db()
         self.assertEqual(self.assistant.name, "Renamed")
+
+
+class MassAssignmentTenancyTests(TestCase):
+    def setUp(self):
+        from rest_framework.test import APIClient
+
+        from apps.payment.models import Subscription
+        from apps.user.models import User
+
+        def subscribed(username):
+            subscription = Subscription.objects.create(
+                status=SubscriptionStatuses.ACTIVE.value, remained_request_count=1000,
+            )
+            return User.objects.create(
+                username=username, auth_type="email", subscription=subscription,
+            )
+
+        self.owner = subscribed("ma-owner")
+        self.victim = subscribed("ma-victim")
+
+        self.assistant = Assistant.objects.create(
+            name="Mine", company_name="C", user=self.owner, vector_id="vs_a",
+        )
+        self.victim_assistant = Assistant.objects.create(
+            name="Theirs", company_name="V", user=self.victim, vector_id="vs_b",
+        )
+        self.conversation = Conversation.objects.create(
+            assistant=self.assistant, status=ConversationStatuses.ESCALATED.value,
+        )
+        self.victim_conversation = Conversation.objects.create(
+            assistant=self.victim_assistant, status=ConversationStatuses.ESCALATED.value,
+        )
+        self.message = Message.objects.create(
+            conversation=self.conversation, sender=SenderTypes.USER.value,
+            message_content="original",
+        )
+        self.client = APIClient()
+        self.client.force_authenticate(self.owner)
+
+    def test_an_assistant_cannot_be_handed_to_another_account(self):
+        response = self.client.patch(
+            f"/api/v1/chat/assistant/{self.assistant.id}/",
+            {"user": str(self.victim.id)}, format="json",
+        )
+
+        self.assertEqual(response.status_code, 200, response.data)
+        self.assistant.refresh_from_db()
+        self.assertEqual(self.assistant.user_id, self.owner.id)
+
+        renamed = self.client.patch(
+            f"/api/v1/chat/assistant/{self.assistant.id}/",
+            {"name": "Renamed"}, format="json",
+        )
+        self.assertEqual(renamed.status_code, 200)
+        self.assistant.refresh_from_db()
+        self.assertEqual(self.assistant.name, "Renamed")
+
+    def test_a_conversation_cannot_be_re_parented_onto_another_assistant(self):
+        response = self.client.patch(
+            f"/api/v1/chat/conversation/{self.conversation.id}/",
+            {"assistant": str(self.victim_assistant.id),
+             "status": ConversationStatuses.CLOSED.value},
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, 200, response.data)
+        self.conversation.refresh_from_db()
+        self.assertEqual(self.conversation.assistant_id, self.assistant.id)
+        self.assertEqual(self.conversation.status, ConversationStatuses.CLOSED.value)
+
+    def test_a_message_cannot_be_moved_into_another_tenants_thread(self):
+        response = self.client.patch(
+            f"/api/v1/chat/message/{self.message.id}/",
+            {"conversation": str(self.victim_conversation.id),
+             "message_content": "edited"},
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, 200, response.data)
+        self.message.refresh_from_db()
+        self.assertEqual(self.message.conversation_id, self.conversation.id)
+        self.assertEqual(self.message.message_content, "edited")
+        self.assertEqual(self.victim_conversation.messages.count(), 0)
+
+
+class FollowUpStageOwnershipTests(TestCase):
+    def setUp(self):
+        from rest_framework.test import APIClient
+
+        from apps.user.models import User
+
+        self.user = User.objects.create(username="fu-user", auth_type="email")
+        self.ownerless = Assistant.objects.create(
+            name="Ownerless", company_name="O", user=None, vector_id="vs_o",
+        )
+        self.own = Assistant.objects.create(
+            name="Own", company_name="O", user=self.user, vector_id="vs_p",
+        )
+        self.client = APIClient()
+        self.client.force_authenticate(self.user)
+
+    def payload(self):
+        return {"stage_number": 1, "delay_hours": 2, "message_template": "hi"}
+
+    def test_an_ownerless_assistant_is_not_configurable(self):
+        from apps.assistant.models import FollowUpStage
+
+        refused = self.client.post(
+            f"/api/v1/chat/assistant/{self.ownerless.id}/follow-up/stages/",
+            self.payload(), format="json",
+        )
+        self.assertEqual(refused.status_code, 404)
+        self.assertFalse(
+            FollowUpStage.objects.filter(config__assistant=self.ownerless).exists()
+        )
+
+        allowed = self.client.post(
+            f"/api/v1/chat/assistant/{self.own.id}/follow-up/stages/",
+            self.payload(), format="json",
+        )
+        self.assertEqual(allowed.status_code, 201, allowed.data)
+
+
+class MessageCreateWithoutRequestTests(TestCase):
+    def test_a_missing_request_raises_the_validation_error(self):
+        from apps.shared.addons.validations import CustomValidationError
+
+        serializer = MessageSerializer()
+        with self.assertRaises(CustomValidationError):
+            serializer.create({"sender": SenderTypes.USER.value})
+
+
+def _row_ids(response):
+    payload = response.json()
+    if isinstance(payload, dict):
+        payload = payload.get("data") or []
+    if isinstance(payload, dict):
+        payload = payload.get("results") or []
+    return {str(row["id"]) for row in payload}
+
+
+class TenantFixtureMixin:
+    def build_tenants(self):
+        from django.core.files.uploadedfile import SimpleUploadedFile
+        from django.utils.timezone import now
+        from rest_framework.test import APIClient
+
+        from apps.assistant.models import FollowUpConfig, FollowUpLog, FollowUpStage
+
+        self.victim = make_subscribed_user("victim", "victim@example.com")
+        self.intruder = make_subscribed_user("intruder", "intruder@example.com")
+
+        self.assistant = Assistant.objects.create(
+            name="Victim Bot", company_name="Victim Co", user=self.victim,
+            vector_id="vs_victim",
+        )
+        self.conversation = Conversation.objects.create(
+            assistant=self.assistant, platform="website",
+            status=ConversationStatuses.OPEN.value, username="victim-visitor",
+        )
+        self.message = Message.objects.create(
+            conversation=self.conversation, sender=SenderTypes.USER.value,
+            message_content="card ending 4242",
+        )
+        self.lead = Lead.objects.create(
+            assistant=self.assistant, full_name="Victim Lead",
+            phone_number="+998901112233",
+        )
+        self.file = AssistantFileUpload.objects.create(
+            assistant=self.assistant,
+            file=SimpleUploadedFile("pricing.txt", b"internal pricing"),
+            filename="pricing.txt", file_id="file-victim",
+        )
+        self.config = FollowUpConfig.objects.create(
+            assistant=self.assistant, target_statuses=[ConversationStatuses.OPEN.value],
+        )
+        self.stage = FollowUpStage.objects.create(
+            config=self.config, stage_number=1, delay_hours=2,
+            message_template="Still interested?",
+        )
+        self.log = FollowUpLog.objects.create(
+            conversation=self.conversation, stage=self.stage, scheduled_at=now(),
+        )
+
+        self.intruder_assistant = Assistant.objects.create(
+            name="Intruder Bot", company_name="Intruder Co", user=self.intruder,
+            vector_id="vs_intruder",
+        )
+        self.intruder_conversation = Conversation.objects.create(
+            assistant=self.intruder_assistant, platform="website",
+            status=ConversationStatuses.OPEN.value,
+        )
+
+        self.client = APIClient()
+
+
+@IN_MEMORY_STORAGE
+class TenantIsolationTests(TenantFixtureMixin, TestCase):
+    def setUp(self):
+        self.build_tenants()
+        self.client.force_authenticate(self.intruder)
+        self.delete_store = mock.patch(
+            "apps.assistant.views.knowledge_base.delete_store"
+        ).start()
+        self.delete_file = mock.patch(
+            "apps.assistant.views.knowledge_base.delete_file"
+        ).start()
+        self.addCleanup(mock.patch.stopall)
+
+
+    def test_assistant_list_hides_other_tenants(self):
+        response = self.client.get("/api/v1/chat/assistant/")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(_row_ids(response), {str(self.intruder_assistant.id)})
+
+    def test_assistant_retrieve_is_404(self):
+        response = self.client.get(f"/api/v1/chat/assistant/{self.assistant.id}/")
+        self.assertEqual(response.status_code, 404)
+
+    def test_assistant_patch_is_404(self):
+        response = self.client.patch(
+            f"/api/v1/chat/assistant/{self.assistant.id}/",
+            {"name": "Owned"}, format="json",
+        )
+
+        self.assertEqual(response.status_code, 404)
+        self.assistant.refresh_from_db()
+        self.assertEqual(self.assistant.name, "Victim Bot")
+
+    def test_assistant_delete_is_404(self):
+        response = self.client.delete(f"/api/v1/chat/assistant/{self.assistant.id}/")
+
+        self.assertEqual(response.status_code, 404)
+        self.assertTrue(Assistant.objects.filter(pk=self.assistant.pk).exists())
+        self.delete_store.assert_not_called()
+
+    def test_token_stats_cover_only_the_callers_assistants(self):
+        response = self.client.get("/api/v1/chat/assistant/token-stats/")
+
+        self.assertEqual(response.status_code, 200)
+        returned = {row["assistant_id"] for row in response.json()["data"]}
+        self.assertEqual(returned, {str(self.intruder_assistant.id)})
+
+
+    def test_conversation_list_under_a_foreign_assistant_is_empty(self):
+        response = self.client.get(
+            f"/api/v1/chat/assistant/{self.assistant.id}/conversation/"
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(_row_ids(response), set())
+
+    def test_conversation_create_under_a_foreign_assistant_is_404(self):
+        response = self.client.post(
+            f"/api/v1/chat/assistant/{self.assistant.id}/conversation/", {},
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, 404)
+        self.assertEqual(self.assistant.conversations.count(), 1)
+
+    def test_conversation_retrieve_is_404(self):
+        response = self.client.get(
+            f"/api/v1/chat/conversation/{self.conversation.id}/"
+        )
+        self.assertEqual(response.status_code, 404)
+
+    def test_conversation_patch_is_404(self):
+        response = self.client.patch(
+            f"/api/v1/chat/conversation/{self.conversation.id}/",
+            {"status": ConversationStatuses.CLOSED.value}, format="json",
+        )
+
+        self.assertEqual(response.status_code, 404)
+        self.conversation.refresh_from_db()
+        self.assertEqual(self.conversation.status, ConversationStatuses.OPEN.value)
+
+    def test_conversation_delete_is_404(self):
+        response = self.client.delete(
+            f"/api/v1/chat/conversation/{self.conversation.id}/"
+        )
+
+        self.assertEqual(response.status_code, 404)
+        self.assertTrue(Conversation.objects.filter(pk=self.conversation.pk).exists())
+
+
+    def test_message_list_for_a_foreign_conversation_is_empty(self):
+        for suffix in ("message", "messages"):
+            with self.subTest(route=suffix):
+                response = self.client.get(
+                    f"/api/v1/chat/conversation/{self.conversation.id}/{suffix}/"
+                )
+                self.assertEqual(response.status_code, 200)
+                self.assertEqual(_row_ids(response), set())
+
+    def test_message_create_in_a_foreign_conversation_is_404(self):
+        response = self.client.post(
+            f"/api/v1/chat/conversation/{self.conversation.id}/message/",
+            {"sender": SenderTypes.USER.value, "message_content": "hi"},
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, 404)
+        self.assertEqual(self.conversation.messages.count(), 1)
+
+    def test_message_retrieve_is_404(self):
+        response = self.client.get(f"/api/v1/chat/message/{self.message.id}/")
+        self.assertEqual(response.status_code, 404)
+
+    def test_message_patch_is_404(self):
+        response = self.client.patch(
+            f"/api/v1/chat/message/{self.message.id}/",
+            {"message_content": "tampered"}, format="json",
+        )
+
+        self.assertEqual(response.status_code, 404)
+        self.message.refresh_from_db()
+        self.assertEqual(self.message.message_content, "card ending 4242")
+
+    def test_message_delete_is_404(self):
+        response = self.client.delete(f"/api/v1/chat/message/{self.message.id}/")
+
+        self.assertEqual(response.status_code, 404)
+        self.assertTrue(Message.objects.filter(pk=self.message.pk).exists())
+
+    def test_bulk_read_through_an_owned_conversation_cannot_reach_foreign_messages(self):
+        with mock.patch("apps.assistant.views.publish_new_message_to_ws"):
+            response = self.client.patch(
+                f"/api/v1/chat/conversation/{self.intruder_conversation.id}/messages/bulk-read/",
+                {"message_ids": [str(self.message.id)]}, format="json",
+            )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()["data"]["updated_count"], 0)
+        self.message.refresh_from_db()
+        self.assertFalse(self.message.is_read)
+
+    def test_bulk_read_on_a_foreign_conversation_is_404(self):
+        response = self.client.patch(
+            f"/api/v1/chat/conversation/{self.conversation.id}/messages/bulk-read/",
+            {"message_ids": [str(self.message.id)]}, format="json",
+        )
+
+        self.assertEqual(response.status_code, 404)
+        self.message.refresh_from_db()
+        self.assertFalse(self.message.is_read)
+
+
+    def test_lead_list_under_a_foreign_assistant_is_empty(self):
+        response = self.client.get(
+            f"/api/v1/chat/assistant/{self.assistant.id}/leads/"
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(_row_ids(response), set())
+
+    def test_lead_list_under_an_owned_assistant_excludes_foreign_leads(self):
+        response = self.client.get(
+            f"/api/v1/chat/assistant/{self.intruder_assistant.id}/leads/"
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertNotIn(str(self.lead.id), _row_ids(response))
+
+    def test_lead_retrieve_is_404(self):
+        response = self.client.get(f"/api/v1/chat/lead/{self.lead.id}/")
+        self.assertEqual(response.status_code, 404)
+
+    def test_lead_patch_is_404(self):
+        response = self.client.patch(
+            f"/api/v1/chat/lead/{self.lead.id}/",
+            {"full_name": "Stolen"}, format="json",
+        )
+
+        self.assertEqual(response.status_code, 404)
+        self.lead.refresh_from_db()
+        self.assertEqual(self.lead.full_name, "Victim Lead")
+
+    def test_lead_delete_is_404(self):
+        response = self.client.delete(f"/api/v1/chat/lead/{self.lead.id}/")
+
+        self.assertEqual(response.status_code, 404)
+        self.assertTrue(Lead.objects.filter(pk=self.lead.pk).exists())
+
+    def test_lead_export_for_a_foreign_assistant_is_404(self):
+        response = self.client.get(
+            f"/api/v1/chat/assistant/{self.assistant.id}/export-leads/"
+        )
+        self.assertEqual(response.status_code, 404)
+
+
+    def test_file_list_under_a_foreign_assistant_is_empty(self):
+        response = self.client.get(
+            f"/api/v1/chat/assistant/{self.assistant.id}/upload-file/"
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(_row_ids(response), set())
+
+    def test_file_upload_to_a_foreign_assistant_is_404(self):
+        from django.core.files.uploadedfile import SimpleUploadedFile
+
+        response = self.client.post(
+            f"/api/v1/chat/assistant/{self.assistant.id}/upload-file/",
+            {"file": SimpleUploadedFile("evil.txt", b"payload")},
+            format="multipart",
+        )
+
+        self.assertEqual(response.status_code, 404)
+        self.assertEqual(self.assistant.files.count(), 1)
+
+    def test_file_replace_on_a_foreign_assistant_is_404(self):
+        from django.core.files.uploadedfile import SimpleUploadedFile
+
+        response = self.client.post(
+            f"/api/v1/chat/assistant/{self.assistant.id}/update-file/",
+            {"file": SimpleUploadedFile("evil.txt", b"payload")},
+            format="multipart",
+        )
+
+        self.assertEqual(response.status_code, 404)
+        self.assertEqual(self.assistant.files.count(), 1)
+
+    def test_file_retrieve_is_404(self):
+        response = self.client.get(f"/api/v1/chat/assistant-files/{self.file.id}/")
+        self.assertEqual(response.status_code, 404)
+
+    def test_file_patch_is_404(self):
+        response = self.client.patch(
+            f"/api/v1/chat/assistant-files/{self.file.id}/",
+            {"filename": "renamed.txt"}, format="json",
+        )
+
+        self.assertEqual(response.status_code, 404)
+        self.file.refresh_from_db()
+        self.assertEqual(self.file.filename, "pricing.txt")
+
+    def test_file_delete_is_404(self):
+        response = self.client.delete(f"/api/v1/chat/assistant-files/{self.file.id}/")
+
+        self.assertEqual(response.status_code, 404)
+        self.assertTrue(AssistantFileUpload.objects.filter(pk=self.file.pk).exists())
+        self.delete_file.assert_not_called()
+
+
+    def test_follow_up_config_retrieve_is_404(self):
+        response = self.client.get(
+            f"/api/v1/chat/assistant/{self.assistant.id}/follow-up/"
+        )
+        self.assertEqual(response.status_code, 404)
+
+    def test_follow_up_config_patch_is_404(self):
+        response = self.client.patch(
+            f"/api/v1/chat/assistant/{self.assistant.id}/follow-up/",
+            {"is_enabled": True}, format="json",
+        )
+
+        self.assertEqual(response.status_code, 404)
+        self.config.refresh_from_db()
+        self.assertFalse(self.config.is_enabled)
+
+    def test_follow_up_stage_list_under_a_foreign_assistant_is_empty(self):
+        response = self.client.get(
+            f"/api/v1/chat/assistant/{self.assistant.id}/follow-up/stages/"
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(_row_ids(response), set())
+
+    def test_follow_up_stage_create_under_a_foreign_assistant_is_404(self):
+        response = self.client.post(
+            f"/api/v1/chat/assistant/{self.assistant.id}/follow-up/stages/",
+            {"stage_number": 2, "delay_hours": 1, "message_template": "spam"},
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, 404)
+        self.assertEqual(self.config.stages.count(), 1)
+
+    def test_follow_up_stage_create_on_an_ownerless_assistant_is_404(self):
+        from apps.assistant.models import FollowUpConfig
+
+        orphan = Assistant.objects.create(
+            name="Orphan Bot", company_name="Orphan Co", user=None,
+        )
+
+        response = self.client.post(
+            f"/api/v1/chat/assistant/{orphan.id}/follow-up/stages/",
+            {"stage_number": 1, "delay_hours": 1, "message_template": "spam"},
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, 404)
+        self.assertFalse(FollowUpConfig.objects.filter(assistant=orphan).exists())
+
+    def test_ownerless_assistants_are_not_listed(self):
+        orphan = Assistant.objects.create(
+            name="Orphan Bot", company_name="Orphan Co", user=None,
+        )
+
+        response = self.client.get("/api/v1/chat/assistant/")
+
+        self.assertNotIn(str(orphan.id), _row_ids(response))
+
+    def test_follow_up_stage_retrieve_is_404(self):
+        response = self.client.get(f"/api/v1/chat/follow-up/stage/{self.stage.id}/")
+        self.assertEqual(response.status_code, 404)
+
+    def test_follow_up_stage_patch_is_404(self):
+        response = self.client.patch(
+            f"/api/v1/chat/follow-up/stage/{self.stage.id}/",
+            {"message_template": "spam"}, format="json",
+        )
+
+        self.assertEqual(response.status_code, 404)
+        self.stage.refresh_from_db()
+        self.assertEqual(self.stage.message_template, "Still interested?")
+
+    def test_follow_up_stage_delete_is_404(self):
+        from apps.assistant.models import FollowUpStage
+
+        response = self.client.delete(
+            f"/api/v1/chat/follow-up/stage/{self.stage.id}/"
+        )
+
+        self.assertEqual(response.status_code, 404)
+        self.assertTrue(FollowUpStage.objects.filter(pk=self.stage.pk).exists())
+
+    def test_follow_up_logs_under_a_foreign_assistant_are_empty(self):
+        response = self.client.get(
+            f"/api/v1/chat/assistant/{self.assistant.id}/follow-up/logs/"
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(_row_ids(response), set())
+
+
+@IN_MEMORY_STORAGE
+class MassAssignmentTests(TenantFixtureMixin, TestCase):
+    def setUp(self):
+        self.build_tenants()
+        self.client.force_authenticate(self.intruder)
+
+    def test_assistant_owner_cannot_be_reassigned(self):
+        response = self.client.patch(
+            f"/api/v1/chat/assistant/{self.intruder_assistant.id}/",
+            {"user": str(self.victim.id)}, format="json",
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.intruder_assistant.refresh_from_db()
+        self.assertEqual(self.intruder_assistant.user, self.intruder)
+
+    def test_assistant_cannot_be_created_for_another_user(self):
+        response = self.client.post(
+            "/api/v1/chat/assistant/",
+            {"name": "Planted", "company_name": "X", "user": str(self.victim.id)},
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, 201)
+        self.assertEqual(Assistant.objects.get(name="Planted").user, self.intruder)
+
+    def test_conversation_cannot_be_moved_to_another_tenants_assistant(self):
+        response = self.client.patch(
+            f"/api/v1/chat/conversation/{self.intruder_conversation.id}/",
+            {"assistant": str(self.assistant.id)}, format="json",
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.intruder_conversation.refresh_from_db()
+        self.assertEqual(
+            self.intruder_conversation.assistant, self.intruder_assistant
+        )
+
+    def test_conversation_create_ignores_an_assistant_in_the_body(self):
+        with mock.patch("apps.assistant.serializers.publish_message_to_ws_assistant"):
+            response = self.client.post(
+                f"/api/v1/chat/assistant/{self.intruder_assistant.id}/conversation/",
+                {"user_id": "planted", "assistant": str(self.assistant.id)},
+                format="json",
+            )
+
+        self.assertEqual(response.status_code, 201)
+        created = Conversation.objects.get(user_id="planted")
+        self.assertEqual(created.assistant, self.intruder_assistant)
+
+    def test_message_cannot_be_moved_into_another_tenants_conversation(self):
+        own_message = Message.objects.create(
+            conversation=self.intruder_conversation,
+            sender=SenderTypes.USER.value, message_content="mine",
+        )
+
+        response = self.client.patch(
+            f"/api/v1/chat/message/{own_message.id}/",
+            {"conversation": str(self.conversation.id)}, format="json",
+        )
+
+        self.assertEqual(response.status_code, 200)
+        own_message.refresh_from_db()
+        self.assertEqual(own_message.conversation, self.intruder_conversation)
+
+    def test_lead_cannot_be_moved_to_another_tenants_assistant(self):
+        own_lead = Lead.objects.create(
+            assistant=self.intruder_assistant, full_name="Mine",
+        )
+
+        response = self.client.patch(
+            f"/api/v1/chat/lead/{own_lead.id}/",
+            {"assistant": str(self.assistant.id)}, format="json",
+        )
+
+        self.assertEqual(response.status_code, 200)
+        own_lead.refresh_from_db()
+        self.assertEqual(own_lead.assistant, self.intruder_assistant)
+
+    def test_knowledge_base_file_cannot_be_moved_to_another_tenant(self):
+        from django.core.files.uploadedfile import SimpleUploadedFile
+
+        own_file = AssistantFileUpload.objects.create(
+            assistant=self.intruder_assistant,
+            file=SimpleUploadedFile("mine.txt", b"mine"), filename="mine.txt",
+        )
+
+        response = self.client.patch(
+            f"/api/v1/chat/assistant-files/{own_file.id}/",
+            {"assistant": str(self.assistant.id)}, format="json",
+        )
+
+        self.assertEqual(response.status_code, 200)
+        own_file.refresh_from_db()
+        self.assertEqual(own_file.assistant, self.intruder_assistant)
+        self.assertEqual(self.assistant.files.count(), 1)
+
+    def test_follow_up_stage_cannot_be_reparented_to_another_tenants_config(self):
+        from apps.assistant.models import FollowUpConfig, FollowUpStage
+
+        own_config = FollowUpConfig.objects.create(
+            assistant=self.intruder_assistant,
+            target_statuses=[ConversationStatuses.OPEN.value],
+        )
+        own_stage = FollowUpStage.objects.create(
+            config=own_config, stage_number=1, delay_hours=1,
+            message_template="mine",
+        )
+
+        response = self.client.patch(
+            f"/api/v1/chat/follow-up/stage/{own_stage.id}/",
+            {"config": str(self.config.id)}, format="json",
+        )
+
+        self.assertEqual(response.status_code, 200)
+        own_stage.refresh_from_db()
+        self.assertEqual(own_stage.config, own_config)
+
+    def test_follow_up_config_cannot_be_pointed_at_another_assistant(self):
+        response = self.client.patch(
+            f"/api/v1/chat/assistant/{self.intruder_assistant.id}/follow-up/",
+            {"is_enabled": True, "assistant": str(self.assistant.id)},
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.config.refresh_from_db()
+        self.assertFalse(self.config.is_enabled)
+        self.assertEqual(
+            self.intruder_assistant.follow_up_config.assistant, self.intruder_assistant
+        )
+
+    def test_stage_created_under_an_owned_assistant_ignores_a_config_in_the_body(self):
+        response = self.client.post(
+            f"/api/v1/chat/assistant/{self.intruder_assistant.id}/follow-up/stages/",
+            {
+                "stage_number": 1, "delay_hours": 1, "message_template": "mine",
+                "config": str(self.config.id),
+            },
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, 201)
+        self.assertEqual(self.config.stages.count(), 1)
+
+
+@IN_MEMORY_STORAGE
+class OwnerAccessTests(TenantFixtureMixin, TestCase):
+    def setUp(self):
+        self.build_tenants()
+        self.client.force_authenticate(self.victim)
+        self.delete_store = mock.patch(
+            "apps.assistant.views.knowledge_base.delete_store"
+        ).start()
+        self.delete_file = mock.patch(
+            "apps.assistant.views.knowledge_base.delete_file"
+        ).start()
+        self.addCleanup(mock.patch.stopall)
+
+    def test_owner_lists_and_reads_their_assistant(self):
+        listed = self.client.get("/api/v1/chat/assistant/")
+        detail = self.client.get(f"/api/v1/chat/assistant/{self.assistant.id}/")
+
+        self.assertEqual(_row_ids(listed), {str(self.assistant.id)})
+        self.assertEqual(detail.status_code, 200)
+
+    def test_owner_can_delete_their_assistant(self):
+        response = self.client.delete(f"/api/v1/chat/assistant/{self.assistant.id}/")
+
+        self.assertEqual(response.status_code, 204)
+        self.assertFalse(Assistant.objects.filter(pk=self.assistant.pk).exists())
+        self.delete_store.assert_called_once_with("vs_victim")
+
+    def test_owner_can_read_update_and_delete_their_conversation(self):
+        base = f"/api/v1/chat/conversation/{self.conversation.id}/"
+
+        self.assertEqual(self.client.get(base).status_code, 200)
+        patched = self.client.patch(
+            base, {"status": ConversationStatuses.CLOSED.value}, format="json",
+        )
+        self.assertEqual(patched.status_code, 200)
+        self.assertEqual(self.client.delete(base).status_code, 204)
+        self.assertFalse(Conversation.objects.filter(pk=self.conversation.pk).exists())
+
+    def test_owner_can_read_and_delete_their_message(self):
+        base = f"/api/v1/chat/message/{self.message.id}/"
+
+        self.assertEqual(self.client.get(base).status_code, 200)
+        self.assertEqual(self.client.delete(base).status_code, 204)
+        self.assertFalse(Message.objects.filter(pk=self.message.pk).exists())
+
+    def test_owner_can_bulk_read_their_messages(self):
+        with mock.patch("apps.assistant.views.publish_new_message_to_ws"):
+            response = self.client.patch(
+                f"/api/v1/chat/conversation/{self.conversation.id}/messages/bulk-read/",
+                {"message_ids": [str(self.message.id)]}, format="json",
+            )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()["data"]["updated_count"], 1)
+        self.message.refresh_from_db()
+        self.assertTrue(self.message.is_read)
+
+    def test_owner_can_read_update_and_delete_their_lead(self):
+        base = f"/api/v1/chat/lead/{self.lead.id}/"
+
+        self.assertEqual(self.client.get(base).status_code, 200)
+        patched = self.client.patch(base, {"full_name": "Renamed"}, format="json")
+        self.assertEqual(patched.status_code, 200)
+        self.assertEqual(self.client.delete(base).status_code, 204)
+        self.assertFalse(Lead.objects.filter(pk=self.lead.pk).exists())
+
+    def test_owner_can_export_their_leads(self):
+        response = self.client.get(
+            f"/api/v1/chat/assistant/{self.assistant.id}/export-leads/"
+        )
+        self.assertEqual(response.status_code, 200)
+
+    def test_owner_can_read_rename_and_delete_their_file(self):
+        base = f"/api/v1/chat/assistant-files/{self.file.id}/"
+
+        self.assertEqual(self.client.get(base).status_code, 200)
+        patched = self.client.patch(base, {"filename": "renamed.txt"}, format="json")
+        self.assertEqual(patched.status_code, 200)
+        self.assertEqual(self.client.delete(base).status_code, 200)
+        self.assertFalse(AssistantFileUpload.objects.filter(pk=self.file.pk).exists())
+        self.delete_file.assert_called_once_with("vs_victim", "file-victim")
+
+    def test_owner_can_manage_their_follow_up_stages(self):
+        listed = self.client.get(
+            f"/api/v1/chat/assistant/{self.assistant.id}/follow-up/stages/"
+        )
+        self.assertEqual(_row_ids(listed), {str(self.stage.id)})
+
+        base = f"/api/v1/chat/follow-up/stage/{self.stage.id}/"
+        self.assertEqual(self.client.get(base).status_code, 200)
+        patched = self.client.patch(base, {"delay_hours": 5}, format="json")
+        self.assertEqual(patched.status_code, 200)
+        self.assertEqual(self.client.delete(base).status_code, 204)
+
+    def test_owner_can_read_their_follow_up_config_and_logs(self):
+        config = self.client.get(
+            f"/api/v1/chat/assistant/{self.assistant.id}/follow-up/"
+        )
+        logs = self.client.get(
+            f"/api/v1/chat/assistant/{self.assistant.id}/follow-up/logs/"
+        )
+
+        self.assertEqual(config.status_code, 200)
+        self.assertEqual(_row_ids(logs), {str(self.log.id)})
+
+
+@IN_MEMORY_STORAGE
+class StaffTenantAccessTests(TenantFixtureMixin, TestCase):
+    def setUp(self):
+        from apps.shared.addons.enums import UserRoles
+        from apps.user.models import User
+
+        self.build_tenants()
+        self.staff = User.objects.create(
+            username="victim-staff", auth_type="email",
+            email="staff@victim.example.com",
+            user_role=UserRoles.STAFF.value, created_by=self.victim,
+        )
+        self.client.force_authenticate(self.staff)
+
+    def test_staff_sees_their_employers_assistants(self):
+        response = self.client.get("/api/v1/chat/assistant/")
+
+        self.assertEqual(_row_ids(response), {str(self.assistant.id)})
+
+    def test_staff_can_read_their_employers_conversation(self):
+        response = self.client.get(
+            f"/api/v1/chat/conversation/{self.conversation.id}/"
+        )
+        self.assertEqual(response.status_code, 200)
+
+    def test_staff_cannot_reach_another_tenant(self):
+        response = self.client.get(
+            f"/api/v1/chat/assistant/{self.intruder_assistant.id}/"
+        )
+        self.assertEqual(response.status_code, 404)
+
+    def test_staff_cannot_delete_the_employers_assistant(self):
+        response = self.client.delete(
+            f"/api/v1/chat/assistant/{self.assistant.id}/"
+        )
+
+        self.assertEqual(response.status_code, 403)
+        self.assertTrue(Assistant.objects.filter(pk=self.assistant.pk).exists())

@@ -1,8 +1,3 @@
-"""Instruction building for the agent.
-
-Deliberately plain: the agent replies in natural language and expresses structure
-through tool calls, so there is no JSON envelope to describe, enforce or parse.
-"""
 import logging
 
 logger = logging.getLogger(__name__)
@@ -37,11 +32,6 @@ BASE_RULES = """
 
 
 def build_instructions(assistant) -> str:
-    """Build the developer instructions for an assistant.
-
-    Uses the assistant's PromptTemplate when one applies, otherwise the default.
-    A template that fails to format is logged and falls back rather than raising.
-    """
     template = getattr(assistant, "prompt_template", None)
     if template is None:
         from apps.assistant.models import PromptTemplate

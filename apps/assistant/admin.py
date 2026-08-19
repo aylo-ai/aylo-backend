@@ -1,9 +1,17 @@
 from django.contrib import admin
-from apps.assistant.models import (
-    Assistant, Message, Conversation, AssistantFileUpload, Lead, Integration,
-    FollowUpConfig, FollowUpStage, FollowUpLog,
-)
 
+from apps.assistant.models import (
+    Assistant,
+    AssistantFileUpload,
+    Conversation,
+    FollowUpConfig,
+    FollowUpLog,
+    FollowUpStage,
+    Integration,
+    Lead,
+    Message,
+)
+from apps.shared.addons.crypto import mask_secret
 
 
 class IntegrationInline(admin.TabularInline):
@@ -42,7 +50,7 @@ class LeadAdmin(admin.ModelAdmin):
             'fields': ('full_name', 'phone_number', 'email', 'product', 'metadata','assistant','status','contacted', 'platform')
         }),
     )
-        
+
 
 class MessageInline(admin.TabularInline):
     model = Message
@@ -53,7 +61,7 @@ class MessageInline(admin.TabularInline):
 
     def get_queryset(self, request):
         qs = super().get_queryset(request)
-        return qs.order_by("created_time")  # eng boshidan boshlab ketadi
+        return qs.order_by("created_time")
 
 
 @admin.register(Conversation)
@@ -69,13 +77,13 @@ class ConversationAdmin(admin.ModelAdmin):
     actions_on_top = True
     actions_on_bottom = True
     date_hierarchy = 'start_time'
-    readonly_fields = ('start_time', 'end_time')
-    inlines = [MessageInline]  # 👉 Shu yerga qo‘shiladi
+    readonly_fields = ('start_time', 'end_time', 'bot_token_masked')
+    inlines = [MessageInline]
 
     fieldsets = (
         (None, {
-            'fields': ('assistant', 'status', 'thread_id', 'user_id', 
-            'username', 'token','client_full_name','client_phone_email', 'platform',)
+            'fields': ('assistant', 'status', 'thread_id', 'user_id',
+            'username', 'bot_token_masked', 'client_full_name', 'client_phone_email', 'platform',)
         }),
         ('System', {
             'fields': ('start_time', 'end_time'),
@@ -83,6 +91,9 @@ class ConversationAdmin(admin.ModelAdmin):
         }),
     )
 
+    @admin.display(description="Bot token")
+    def bot_token_masked(self, obj):
+        return mask_secret(obj.token)
 
 
 @admin.register(Message)

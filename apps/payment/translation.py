@@ -1,5 +1,7 @@
-from modeltranslation.translator import register, TranslationOptions
+from modeltranslation.translator import TranslationOptions, register
+
 from apps.payment.models import Feature, PricingPackage
+
 
 @register(Feature)
 class FeatureTranslationOptions(TranslationOptions):

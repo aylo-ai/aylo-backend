@@ -6,9 +6,6 @@ class IntegrationConfig(AppConfig):
     name = "apps.integration"
 
     def ready(self):
-        # Step rows are cascaded away by Flow and InstagramCommentResponse
-        # deletes, which never ran a Python-level delete() — their images stayed
-        # in the bucket forever.
         from apps.integration.models import Step
         from apps.shared.file_cleanup import register_file_cleanup
 

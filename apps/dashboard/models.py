@@ -1,9 +1,9 @@
 from django.db import models
+
 from apps.shared.models import BaseModel
 
 
 class AuditLog(BaseModel):
-    """Tracks admin actions for accountability and compliance."""
     user = models.ForeignKey(
         'user.User',
         on_delete=models.SET_NULL,
@@ -11,8 +11,8 @@ class AuditLog(BaseModel):
         blank=True,
         related_name='audit_logs'
     )
-    action = models.CharField(max_length=50)  # create, update, delete, block, refund, etc.
-    target_type = models.CharField(max_length=50)  # user, assistant, transaction, etc.
+    action = models.CharField(max_length=50)
+    target_type = models.CharField(max_length=50)
     target_id = models.UUIDField(null=True, blank=True)
     target_repr = models.CharField(max_length=255, blank=True, default='')
     details = models.JSONField(default=dict, blank=True)

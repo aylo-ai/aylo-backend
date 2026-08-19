@@ -61,16 +61,51 @@ if [ "${MINIO_VERSIONING:-off}" = "on" ]; then
 fi
 
 echo "==> policy: $POLICY_NAME"
-# The policy file names the bucket literally, so render it for whatever
-# MINIO_BUCKET_NAME is actually configured.
-sed "s/__BUCKET__/$BUCKET/g" /init/policy.json > /tmp/policy.json
+# Rendered inline — the mc image ships no sed/envsubst, and this needs
+# nothing but the shell itself.
+cat > /tmp/policy.json <<EOF
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "ListOwnBucketOnly",
+      "Effect": "Allow",
+      "Action": [
+        "s3:ListBucket",
+        "s3:GetBucketLocation"
+      ],
+      "Resource": [
+        "arn:aws:s3:::${BUCKET}"
+      ]
+    },
+    {
+      "Sid": "ObjectReadWriteWithinBucket",
+      "Effect": "Allow",
+      "Action": [
+        "s3:GetObject",
+        "s3:PutObject",
+        "s3:DeleteObject",
+        "s3:AbortMultipartUpload",
+        "s3:ListMultipartUploadParts"
+      ],
+      "Resource": [
+        "arn:aws:s3:::${BUCKET}/*"
+      ]
+    }
+  ]
+}
+EOF
 mc admin policy create local "$POLICY_NAME" /tmp/policy.json 2>/dev/null \
     || mc admin policy update local "$POLICY_NAME" /tmp/policy.json
 
 echo "==> application user"
-# `user add` fails if the user exists; `user svcacct` is not used because we
-# want a stable key that survives a root-credential rotation.
-mc admin user add local "$APP_KEY" "$APP_SECRET" 2>/dev/null || true
+# `user add` fails loudly if the user already exists, so check first instead
+# of blanket-suppressing errors — a suppressed real failure here (e.g. a
+# secret key that's too short) previously surfaced as a confusing error two
+# steps later on `user enable`, on a user that was never actually created.
+if ! mc admin user info local "$APP_KEY" >/dev/null 2>&1; then
+    mc admin user add local "$APP_KEY" "$APP_SECRET"
+fi
 mc admin policy attach local "$POLICY_NAME" --user "$APP_KEY" 2>/dev/null || true
 mc admin user enable local "$APP_KEY"
 

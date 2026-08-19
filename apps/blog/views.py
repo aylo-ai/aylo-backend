@@ -1,8 +1,8 @@
-from rest_framework import generics, permissions, filters
 from django_filters.rest_framework import DjangoFilterBackend
+from rest_framework import filters, generics, permissions
 
-from apps.blog.models import BlogPost
 import apps.blog.serializers as serializers
+from apps.blog.models import BlogPost
 from apps.shared.addons.validations import success_response
 
 
@@ -10,6 +10,7 @@ class BlogPostListView(generics.ListAPIView):
     queryset = BlogPost.objects.filter(is_published=True)
     serializer_class = serializers.BlogPostListSerializer
     permission_classes = [permissions.AllowAny]
+    throttle_scope = "public_read"
     filter_backends = [filters.SearchFilter, filters.OrderingFilter, DjangoFilterBackend]
     search_fields = ["title", "excerpt", "tags"]
     ordering_fields = ["published_at", "created_time"]
@@ -29,6 +30,7 @@ class BlogPostDetailView(generics.RetrieveAPIView):
     queryset = BlogPost.objects.filter(is_published=True)
     serializer_class = serializers.BlogPostDetailSerializer
     permission_classes = [permissions.AllowAny]
+    throttle_scope = "public_read"
     lookup_field = "slug"
 
     def retrieve(self, request, *args, **kwargs):

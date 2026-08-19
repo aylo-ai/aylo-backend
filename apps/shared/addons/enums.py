@@ -100,6 +100,14 @@ class IntegrationTypes(EnumBaseModel):
     BILLZ = 'billz'
 
 
+class BillzSyncStatuses(EnumBaseModel):
+    NEVER_SYNCED = 'never_synced'
+    SYNCING = 'syncing'
+    SYNCED = 'synced'
+    FAILED = 'failed'
+    AUTH_FAILED = 'auth_failed'
+
+
 class ConversationPlatforms(EnumBaseModel):
     TELEGRAM = 'telegram'
     WHATSAPP = 'whatsapp'
@@ -135,8 +143,9 @@ class TransactionTypes(EnumBaseModel):
 class PricingPackageType(EnumBaseModel):
     FREE = 'free'
     CUSTOM = 'custom'
+    BASIC = 'basic'
     PRO = 'pro'
-    
+
 class AuthTypes(EnumBaseModel):
     PHONE = 'phone'
     EMAIL = 'email'
@@ -158,15 +167,15 @@ class FileTypes(EnumBaseModel):
     GOOGLE_SPREADSHEET = 'google_spreadsheet'
     GOOGLE_DOCUMENT = 'google_document'
 
-class LeadStatuses(EnumBaseModel):
-    """Lifecycle of a captured lead.
 
-    An earlier `new/registered/delivered/lost` version of this class used to sit
-    further up the file and was silently shadowed by this one — Python keeps the
-    last definition, so those four values were never the ones in effect. The
-    duplicate has been removed; these are the real values, and the ones
-    `assistant/tasks.py` writes.
-    """
+class FileIndexStatuses(EnumBaseModel):
+    PENDING = 'pending'
+    INDEXING = 'indexing'
+    INDEXED = 'indexed'
+    FAILED = 'failed'
+    SKIPPED = 'skipped'
+
+class LeadStatuses(EnumBaseModel):
     NEW = 'new'
     ENGAGED = 'engaged'
     PARTIAL_INFO = 'partial_info'
@@ -198,3 +207,15 @@ class BroadcastStatuses(EnumBaseModel):
     PENDING = 'pending'
     SENDING = 'sending'
     COMPLETED = 'completed'
+
+
+class AgentRunOutcomes(EnumBaseModel):
+    OK = 'ok'
+    FALLBACK = 'fallback'
+    ERROR = 'error'
+
+
+class AgentTiers(EnumBaseModel):
+    FAST = 'fast'
+    STANDARD = 'standard'
+    DEEP = 'deep'

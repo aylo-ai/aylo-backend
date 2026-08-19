@@ -4,68 +4,87 @@ from datetime import timedelta
 from django.db.models import Count, Q
 from django.http import HttpResponse
 from django.utils import timezone
-from rest_framework import generics, filters
-from rest_framework.views import APIView
-from rest_framework.throttling import AnonRateThrottle
 from django_filters.rest_framework import DjangoFilterBackend
+from rest_framework import filters, generics
+from rest_framework.throttling import AnonRateThrottle
+from rest_framework.views import APIView
 
-from apps.user.models import User, Notification
-from apps.user.serializers import NotificationSerializer
-from apps.assistant.serializers import (
-    AssistantSerializer, MessageSerializer, AssistantFileUploadSerializer,
+from apps.assistant.models import (
+    Assistant,
+    AssistantFileUpload,
+    Conversation,
+    Lead,
+    Message,
+    PromptTemplate,
 )
-from apps.assistant.models import Assistant, Conversation, Message, AssistantFileUpload, PromptTemplate, Lead
-from apps.payment.models import Transaction, Subscription, Balance, Card, Feature, PricingPackage
-from apps.payment.serializers import (
-    BalanceSerializer, CardSerializer, PricingPackageSerializer,
+from apps.assistant.serializers import (
+    AssistantFileUploadSerializer,
+    AssistantSerializer,
+    MessageSerializer,
+)
+from apps.dashboard.filters import (
+    AssistantFilter,
+    AuditLogFilter,
+    ConversationFilter,
+    IntegrationFilter,
+    LeadFilter,
+    SubscriptionFilter,
+    TransactionFilter,
+    UserFilter,
+)
+from apps.dashboard.models import AuditLog
+from apps.dashboard.serializers import (
+    AssistantFileFilterSerializer,
+    AuditLogSerializer,
+    ChangeRoleSerializer,
+    DashboardAssistantCreateSerializer,
+    DashboardAssistantCreateUserSerializer,
+    DashboardAssistantFileUploadSerializer,
+    DashboardAssistantListSerializer,
+    DashboardConversationListSerializer,
+    DashboardConversationSerializer,
+    DashboardEnhancedStatsSerializer,
+    DashboardFeatureSerializer,
+    DashboardIntegrationListSerializer,
+    DashboardLeadSerializer,
+    DashboardPricingPackageDetailSerializer,
+    DashboardPromptTemplateSerializer,
+    DashboardSendOtpLoginSerializer,
+    DashboardSerializer,
+    DashboardStatisticsSerializer,
+    DashboardSubscriptionSerializer,
+    DashboardSubscriptionUpdateSerializer,
+    DashboardTransactionSerializer,
+    DashboardUserListSerializer,
+    DashboardUserSerializer,
+    DashboardVerifyOtpLoginSerializer,
+    NotificationSendSerializer,
+    RefundSerializer,
+    SubscriptionExtendSerializer,
+    TransactionBulkActionSerializer,
+    UserBulkActionSerializer,
 )
 from apps.integration.models import InstagramCommentResponse, Integration
 from apps.integration.serializers import InstagramCommentResponseSerializer, IntegrationSerializer
-from apps.shared.permissions import IsAdmin, IsDashboardUser, CanManageUsers, CanManageFinance
+from apps.payment.models import Balance, Card, Feature, PricingPackage, Subscription, Transaction
+from apps.payment.serializers import (
+    BalanceSerializer,
+    CardSerializer,
+    PricingPackageSerializer,
+)
 from apps.shared.addons.enums import (
-    UserRoles, PaymentStatuses, ConversationStatuses, SenderTypes,
+    ConversationStatuses,
+    PaymentStatuses,
+    SenderTypes,
     SubscriptionStatuses,
+    UserRoles,
 )
-from apps.shared.pagination import StandardResultsSetPagination
-from apps.dashboard.filters import (
-    SubscriptionFilter, TransactionFilter, UserFilter,
-    AssistantFilter, ConversationFilter, IntegrationFilter,
-    LeadFilter, AuditLogFilter,
-)
-from apps.dashboard.serializers import (
-    DashboardConversationSerializer,
-    DashboardConversationListSerializer,
-    DashboardSendOtpLoginSerializer,
-    DashboardVerifyOtpLoginSerializer,
-    DashboardSerializer,
-    DashboardUserSerializer,
-    DashboardStatisticsSerializer,
-    DashboardEnhancedStatsSerializer,
-    DashboardUserListSerializer,
-    DashboardSubscriptionSerializer,
-    DashboardPromptTemplateSerializer,
-    DashboardTransactionSerializer,
-    DashboardLeadSerializer,
-    DashboardIntegrationListSerializer,
-    DashboardAssistantListSerializer,
-    DashboardAssistantCreateSerializer,
-    DashboardAssistantFileUploadSerializer,
-    DashboardPricingPackageDetailSerializer,
-    AuditLogSerializer,
-    ChangeRoleSerializer,
-    RefundSerializer,
-    UserBulkActionSerializer,
-    TransactionBulkActionSerializer,
-    NotificationSendSerializer,
-    DashboardAssistantCreateUserSerializer,
-    AssistantFileFilterSerializer,
-    SubscriptionExtendSerializer,
-    DashboardSubscriptionUpdateSerializer,
-    DashboardFeatureSerializer,
-)
-from apps.dashboard.models import AuditLog
-from apps.shared.addons.validations import success_response, error_response
+from apps.shared.addons.validations import error_response, success_response
 from apps.shared.addons.verification import send_code, verify_code_cache
+from apps.shared.pagination import StandardResultsSetPagination
+from apps.shared.permissions import CanManageFinance, CanManageUsers, IsAdmin, IsDashboardUser
+from apps.user.models import Notification, User
+from apps.user.serializers import NotificationSerializer
 
 
 def get_client_ip(request):
@@ -76,20 +95,10 @@ def get_client_ip(request):
 
 
 def subscription_repr(subscription):
-    """Audit-log label for a subscription.
-
-    `Subscription.__str__` dereferences the nullable `pricing_package` FK, so it
-    raises for package-less rows; audit logging must never be what takes an
-    endpoint down.
-    """
     package = subscription.pricing_package
     name = package.name if package else "no package"
     return f"{name} - {subscription.start_date} - {subscription.end_date}"
 
-
-# ──────────────────────────────────────────────
-# AUTH
-# ──────────────────────────────────────────────
 
 class DashboardSendOtpLoginView(APIView):
     serializer_class = DashboardSendOtpLoginSerializer
@@ -134,10 +143,6 @@ class DashboardVerifyOtpLoginView(APIView):
         return error_response(message=message, code=400)
 
 
-# ──────────────────────────────────────────────
-# DASHBOARD & STATISTICS
-# ──────────────────────────────────────────────
-
 class DashboardView(APIView):
     serializer_class = DashboardSerializer
     permission_classes = [IsDashboardUser]
@@ -149,7 +154,6 @@ class DashboardView(APIView):
 
 
 class DashboardEnhancedStatsView(APIView):
-    """Enhanced dashboard stats with period comparison, alerts, and recent activity."""
     permission_classes = [IsDashboardUser]
 
     def get(self, request, *args, **kwargs):
@@ -176,10 +180,6 @@ class DashboardStatisticsView(APIView):
         serializer.is_valid(raise_exception=True)
         return success_response(data=serializer.data, message="Dashboard statistics retrieved successfully", code=200)
 
-
-# ──────────────────────────────────────────────
-# USERS
-# ──────────────────────────────────────────────
 
 class DashboardUserList(generics.ListAPIView):
     queryset = User.objects.all()
@@ -317,15 +317,11 @@ class DashboardUserExport(APIView):
     def get(self, request):
         qs = User.objects.all().order_by('-created_time')
 
-        # Apply filters from query params. An invalid filter must fail loudly:
-        # silently dropping it would export every user instead of the subset
-        # the operator asked for.
         filterset = UserFilter(request.query_params, queryset=qs)
         if not filterset.is_valid():
             return error_response(data=filterset.errors, message="Invalid filter parameters", code=400)
         qs = filterset.qs
 
-        # Apply search
         search = request.query_params.get('search', '')
         if search:
             qs = qs.filter(
@@ -354,10 +350,6 @@ class DashboardUserExport(APIView):
         return response
 
 
-# ──────────────────────────────────────────────
-# ASSISTANTS
-# ──────────────────────────────────────────────
-
 class DashboardAssistantList(generics.ListCreateAPIView):
     queryset = Assistant.objects.select_related('user').all()
     serializer_class = DashboardAssistantListSerializer
@@ -376,7 +368,6 @@ class DashboardAssistantList(generics.ListCreateAPIView):
     def list(self, request, *args, **kwargs):
         queryset = self.filter_queryset(self.get_queryset())
 
-        # Global stats (independent of pagination/filters)
         all_assistants = Assistant.objects.all()
         total_count = all_assistants.count()
         active_count = all_assistants.filter(is_active=True).count()
@@ -480,17 +471,13 @@ class DashboardAssistantToggleActive(APIView):
         )
 
 
-# ──────────────────────────────────────────────
-# CONVERSATIONS
-# ──────────────────────────────────────────────
-
 class DashboardConversationList(generics.ListAPIView):
     queryset = Conversation.objects.select_related('assistant', 'assistant__user').all()
     serializer_class = DashboardConversationListSerializer
     permission_classes = [IsDashboardUser]
     filterset_class = ConversationFilter
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
-    search_fields = ['username', 'client_full_name', 'client_phone_email', 'assistant__name']
+    search_fields = ['username', 'assistant__name']
     ordering_fields = ['created_time', 'updated_time', 'status', 'platform']
     pagination_class = StandardResultsSetPagination
 
@@ -576,10 +563,6 @@ class DashboardConversationEscalate(APIView):
         )
         return success_response(message="Conversation escalated", code=200)
 
-
-# ──────────────────────────────────────────────
-# TRANSACTIONS
-# ──────────────────────────────────────────────
 
 class DashboardTransactionList(generics.ListAPIView):
     queryset = Transaction.objects.select_related('user').all()
@@ -678,7 +661,6 @@ class DashboardTransactionExport(APIView):
     def get(self, request):
         qs = Transaction.objects.select_related('user').all().order_by('-created_time')
 
-        # Same filter + search contract as the transactions list endpoint.
         filterset = TransactionFilter(request.query_params, queryset=qs)
         if not filterset.is_valid():
             return error_response(data=filterset.errors, message="Invalid filter parameters", code=400)
@@ -708,10 +690,6 @@ class DashboardTransactionExport(APIView):
             ])
         return response
 
-
-# ──────────────────────────────────────────────
-# SUBSCRIPTIONS
-# ──────────────────────────────────────────────
 
 class DashboardSubscriptionList(generics.ListAPIView):
     queryset = Subscription.objects.all()
@@ -779,8 +757,6 @@ class DashboardSubscriptionDetail(generics.RetrieveUpdateDestroyAPIView):
         instance = self.get_object()
         old_data = self._audit_snapshot(instance)
 
-        # Every field goes through the serializer: a bad UUID, an unknown
-        # package or a non-numeric counter is a 400, never a stored value.
         write_serializer = DashboardSubscriptionUpdateSerializer(
             instance, data=request.data, partial=True,
         )
@@ -866,10 +842,6 @@ class DashboardSubscriptionExtend(APIView):
         )
 
 
-# ──────────────────────────────────────────────
-# INTEGRATIONS
-# ──────────────────────────────────────────────
-
 class DashboardIntegrationList(generics.ListAPIView):
     queryset = Integration.objects.select_related('assistant', 'assistant__user', 'user').all()
     serializer_class = DashboardIntegrationListSerializer
@@ -926,10 +898,6 @@ class DashboardIntegrationDetail(generics.RetrieveUpdateDestroyAPIView):
         self.get_object().delete()
         return success_response(message="Integration deleted successfully", code=200)
 
-
-# ──────────────────────────────────────────────
-# LEADS
-# ──────────────────────────────────────────────
 
 class DashboardLeadList(generics.ListAPIView):
     queryset = Lead.objects.select_related('assistant').all()
@@ -996,7 +964,6 @@ class DashboardLeadStats(APIView):
             created_time__lt=month_start,
         ).count()
 
-        # Growth percentage
         if prev_month_count > 0:
             month_growth = round(((month_count - prev_month_count) / prev_month_count) * 100, 1)
         else:
@@ -1024,7 +991,6 @@ class DashboardLeadExport(APIView):
     def get(self, request):
         qs = Lead.objects.select_related('assistant').all().order_by('-created_time')
 
-        # Apply filters
         lead_status = request.query_params.get('status')
         if lead_status:
             qs = qs.filter(status=lead_status)
@@ -1056,10 +1022,6 @@ class DashboardLeadExport(APIView):
         return response
 
 
-# ──────────────────────────────────────────────
-# AUDIT LOGS
-# ──────────────────────────────────────────────
-
 class DashboardAuditLogList(generics.ListAPIView):
     queryset = AuditLog.objects.select_related('user').all()
     serializer_class = AuditLogSerializer
@@ -1080,10 +1042,6 @@ class DashboardAuditLogList(generics.ListAPIView):
         return success_response(data=serializer.data, message="Audit logs retrieved successfully", code=200)
 
 
-# ──────────────────────────────────────────────
-# MESSAGES
-# ──────────────────────────────────────────────
-
 class DashboardMessageList(generics.ListAPIView):
     queryset = Message.objects.all()
     serializer_class = MessageSerializer
@@ -1100,10 +1058,6 @@ class DashboardMessageList(generics.ListAPIView):
         serializer = self.get_serializer(queryset, many=True)
         return success_response(data=serializer.data, message="Messages retrieved successfully", code=200)
 
-
-# ──────────────────────────────────────────────
-# OTHER EXISTING VIEWS (kept for backward compat)
-# ──────────────────────────────────────────────
 
 class DashboardCommentResponseList(generics.ListAPIView):
     queryset = InstagramCommentResponse.objects.all()
@@ -1160,7 +1114,6 @@ class DashboardAssistantFileUploadList(generics.ListCreateAPIView):
         queryset = super().get_queryset()
         assistant_id = self.request.query_params.get('assistant')
         if assistant_id:
-            # A raw, unvalidated UUID reaching the ORM is a 500, not a 400.
             filter_serializer = AssistantFileFilterSerializer(data={'assistant': assistant_id})
             filter_serializer.is_valid(raise_exception=True)
             queryset = queryset.filter(assistant_id=filter_serializer.validated_data['assistant'])
@@ -1203,18 +1156,13 @@ class DashboardAssistantFileUploadDetail(generics.RetrieveUpdateDestroyAPIView):
         return success_response(message="File deleted", code=200)
 
 
-# ──────────────────────────────────────────────
-# SYSTEM HEALTH
-# ──────────────────────────────────────────────
-
 class DashboardSystemHealthView(APIView):
-    """System health check — DB, Redis, Celery."""
     permission_classes = [IsAdmin]
 
     def get(self, request, *args, **kwargs):
         import redis as redis_lib
-        from django.db import connection
         from django.conf import settings
+        from django.db import connection
 
         health = {
             'database': {'status': 'unknown', 'detail': ''},
@@ -1223,7 +1171,6 @@ class DashboardSystemHealthView(APIView):
             'storage': {'status': 'unknown', 'detail': ''},
         }
 
-        # Database check
         try:
             with connection.cursor() as cursor:
                 cursor.execute("SELECT 1")
@@ -1231,7 +1178,6 @@ class DashboardSystemHealthView(APIView):
         except Exception as e:
             health['database'] = {'status': 'unhealthy', 'detail': str(e)}
 
-        # Redis check
         try:
             r = redis_lib.Redis(
                 host=settings.REDIS_HOST,
@@ -1246,7 +1192,6 @@ class DashboardSystemHealthView(APIView):
         except Exception as e:
             health['redis'] = {'status': 'unhealthy', 'detail': str(e)}
 
-        # Celery check
         try:
             from config.celery import app as celery_app
             inspector = celery_app.control.inspect(timeout=3)
@@ -1264,7 +1209,6 @@ class DashboardSystemHealthView(APIView):
         except Exception as e:
             health['celery'] = {'status': 'unhealthy', 'detail': str(e)}
 
-        # Storage check
         try:
             from django.core.files.storage import default_storage
             health['storage'] = {'status': 'healthy', 'detail': type(default_storage).__name__}
@@ -1279,16 +1223,11 @@ class DashboardSystemHealthView(APIView):
         )
 
 
-# ──────────────────────────────────────────────
-# AI COST BREAKDOWN
-# ──────────────────────────────────────────────
-
 class DashboardAICostBreakdownView(APIView):
-    """AI cost breakdown by assistant and model."""
     permission_classes = [IsDashboardUser]
 
     def get(self, request, *args, **kwargs):
-        from django.db.models import Sum, Count, F
+        from django.db.models import Count, F, Sum
 
         period = request.query_params.get('period', '30d')
         now = timezone.now().date()
@@ -1351,10 +1290,6 @@ class DashboardAICostBreakdownView(APIView):
         )
 
 
-# ──────────────────────────────────────────────
-# BULK ACTIONS
-# ──────────────────────────────────────────────
-
 class DashboardUserBulkAction(APIView):
     permission_classes = [CanManageUsers]
 
@@ -1415,10 +1350,6 @@ class DashboardTransactionBulkAction(APIView):
         )
 
 
-# ──────────────────────────────────────────────
-# NOTIFICATION SEND
-# ──────────────────────────────────────────────
-
 class DashboardNotificationSend(APIView):
     permission_classes = [IsAdmin]
 
@@ -1448,12 +1379,7 @@ class DashboardNotificationSend(APIView):
         return success_response(message='Notification sent', code=201)
 
 
-# ──────────────────────────────────────────────
-# GLOBAL SEARCH
-# ──────────────────────────────────────────────
-
 class DashboardGlobalSearch(APIView):
-    """Search across users, assistants, conversations, transactions."""
     permission_classes = [IsDashboardUser]
 
     def get(self, request):
@@ -1464,7 +1390,6 @@ class DashboardGlobalSearch(APIView):
         from django.db.models import Q
         results = []
 
-        # Users
         users = User.objects.filter(
             Q(username__icontains=q) | Q(first_name__icontains=q) |
             Q(last_name__icontains=q) | Q(email__icontains=q) |
@@ -1479,7 +1404,6 @@ class DashboardGlobalSearch(APIView):
                 'url': f'/users/{u.id}',
             })
 
-        # Assistants
         assistants = Assistant.objects.filter(
             Q(name__icontains=q) | Q(company_name__icontains=q)
         )[:5]
@@ -1492,10 +1416,8 @@ class DashboardGlobalSearch(APIView):
                 'url': f'/assistants/{a.id}',
             })
 
-        # Conversations
         conversations = Conversation.objects.filter(
-            Q(client_full_name__icontains=q) | Q(username__icontains=q) |
-            Q(assistant__name__icontains=q)
+            Q(username__icontains=q) | Q(assistant__name__icontains=q)
         )[:5]
         for c in conversations:
             results.append({
@@ -1506,7 +1428,6 @@ class DashboardGlobalSearch(APIView):
                 'url': f'/conversations/{c.id}',
             })
 
-        # Transactions (by user name or amount)
         transactions = Transaction.objects.filter(
             Q(user__first_name__icontains=q) | Q(user__last_name__icontains=q) |
             Q(user__email__icontains=q) | Q(transaction_id__icontains=q)
@@ -1517,7 +1438,7 @@ class DashboardGlobalSearch(APIView):
                 'id': str(t.id),
                 'title': f'{t.amount} {t.currency} - {t.status}',
                 'subtitle': t.user.username if t.user else 'Unknown',
-                'url': f'/transactions',
+                'url': '/transactions',
             })
 
         return success_response(data={'results': results}, message='Search completed', code=200)

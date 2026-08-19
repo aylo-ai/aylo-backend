@@ -11,6 +11,11 @@
 # users.yml is gitignored — it is a host secret, like .env.
 #
 # Re-run to add another user; the new entry is appended to the existing file.
+#
+# nginx denies /_logs/ to every remote address (deployment/nginx/api.aylo.uz.conf),
+# so reach the viewer through an SSH tunnel:
+#   ssh -N -L 8080:127.0.0.1:8080 root@api.aylo.uz
+#   open http://127.0.0.1:8080/_logs/
 set -euo pipefail
 
 USERNAME="${1:-}"
@@ -34,7 +39,7 @@ if [ "$PASSWORD" != "$PASSWORD_CONFIRM" ]; then
     exit 1
 fi
 if [ "${#PASSWORD}" -lt 12 ]; then
-    echo "Use at least 12 characters — this page is reachable from the internet." >&2
+    echo "Use at least 12 characters — this login guards every container log." >&2
     exit 1
 fi
 
@@ -48,7 +53,20 @@ ENTRY=$(printf '%s' "$PASSWORD" | docker run -i --rm "$IMAGE" generate \
     --user-roles none)
 
 if [ -s "$USERS_FILE" ]; then
-    # Append just the user entry, dropping the leading `users:` key.
+    # Drop any existing block for this username first. Appending blindly gives
+    # the file two `admin:` keys, and Dozzle refuses to start:
+    #   yaml: unmarshal errors: mapping key "admin" already defined at line 2
+    # That is exactly what happens when someone re-runs this after forgetting a
+    # password, so replacing is the useful behaviour.
+    if grep -q "^    ${USERNAME}:$" "$USERS_FILE"; then
+        awk -v user="    ${USERNAME}:" '
+            $0 == user { skip = 1; next }
+            skip && /^    [^ ]/ { skip = 0 }
+            !skip { print }
+        ' "$USERS_FILE" > "${USERS_FILE}.tmp" && mv "${USERS_FILE}.tmp" "$USERS_FILE"
+        REPLACED=1
+    fi
+    # Append the entry, dropping the leading `users:` key it comes with.
     printf '%s\n' "$ENTRY" | sed '1{/^users:/d}' >> "$USERS_FILE"
 else
     printf '%s\n' "$ENTRY" > "$USERS_FILE"
@@ -68,5 +86,12 @@ else
     echo "      could not read it otherwise. On the server, run this as root." >&2
 fi
 
-echo "Wrote $USERS_FILE (mode $MODE)."
-echo "Start the viewer with: docker compose --profile logs up -d"
+if [ -n "${REPLACED:-}" ]; then
+    echo "Replaced the existing password for '$USERNAME' in $USERS_FILE (mode $MODE)."
+    echo "Apply it with: docker compose --profile logs restart dozzle"
+else
+    echo "Wrote $USERS_FILE (mode $MODE)."
+    echo "Start the viewer with: docker compose --profile logs up -d"
+fi
+
+echo "Users in this file: $(grep -cE '^    [^ ]+:$' "$USERS_FILE")"

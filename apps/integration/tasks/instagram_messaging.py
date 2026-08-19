@@ -1,14 +1,13 @@
-"""Instagram DM tasks: direct messages and shared-post messages."""
 import logging
 
 from celery import shared_task
 
-from apps.assistant.utils import cancel_pending_follow_ups
-from apps.shared.ai_service.agent import respond
 from apps.assistant.services.conversation import conversation_service
-from apps.shared.addons.enums import ConversationStatuses, SenderTypes
+from apps.assistant.utils import cancel_pending_follow_ups
 from apps.integration.gateways.instagram import instagram_service
+from apps.shared.addons.enums import ConversationStatuses, SenderTypes
 from apps.shared.addons.redis import publish_message_to_ws
+from apps.shared.ai_service.agent import respond
 
 from ..models import Integration
 
@@ -18,12 +17,6 @@ logger = logging.getLogger(__name__)
 @shared_task(bind=True, max_retries=3, default_retry_delay=5,
              name="apps.integration.tasks.process_instagram_message")
 def process_instagram_message(self, account_id, combined_message, user_message, audio_file=None):
-    """Store an incoming Instagram DM and answer it with the agent.
-
-    ``combined_message`` is the (possibly debounced) text; ``user_message`` is the
-    raw webhook messaging payload used to resolve the sender. Voice notes arrive
-    as ``audio_file`` and are transcribed here.
-    """
     integration = Integration.instagram_by_id(account_id).first()
     if not integration:
         logger.warning("[-] No Instagram integration found for account_id %s", account_id)
@@ -73,7 +66,6 @@ def process_instagram_message(self, account_id, combined_message, user_message, 
     publish_message_to_ws(conversation.id, combined_message, sender="user", data=data,
                           assistant_id=assistant.id)
 
-    # Cancel any pending follow-ups since the user responded.
     cancel_pending_follow_ups(conversation.id)
 
     if assistant.ai_enabled:
@@ -85,7 +77,6 @@ def process_instagram_message(self, account_id, combined_message, user_message, 
 @shared_task(bind=True, max_retries=3, default_retry_delay=5,
              name="apps.integration.tasks.process_shared_post_message")
 def process_shared_post_message(self, account_id, shared_url, user_text, messaging):
-    """Process a shared Instagram post in DM — fetch post details and include as context for AI."""
     integration = Integration.instagram_by_id(account_id).first()
     if not integration:
         logger.warning("[-] No Instagram integration found for account_id: %s", account_id)
@@ -100,7 +91,6 @@ def process_shared_post_message(self, account_id, shared_url, user_text, messagi
     if not sender_id:
         return
 
-    # Try to fetch post details so the agent knows what the client is asking about.
     post_context = ""
     if shared_url and integration.api_token:
         media_id = instagram_service.extract_media_id_from_url(
@@ -116,7 +106,6 @@ def process_shared_post_message(self, account_id, shared_url, user_text, messagi
                     f"Post turi: {media_type}\nPost matni: {caption}\nPost havolasi: {shared_url}"
                 )
 
-    # Build the combined message from whatever context we managed to gather.
     if user_text and post_context:
         combined_message = f"{user_text}{post_context}"
     elif post_context:

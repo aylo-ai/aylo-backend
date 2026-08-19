@@ -1,11 +1,12 @@
 import os
 import sys
-import redis
-from pathlib import Path
-from dotenv import load_dotenv
 from datetime import timedelta
-from django.utils.translation import gettext_lazy as _
+from pathlib import Path
+
+import redis
 from celery.schedules import crontab
+from django.utils.translation import gettext_lazy as _
+from dotenv import load_dotenv
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 load_dotenv()
@@ -26,23 +27,36 @@ ALLOWED_HOSTS = os.environ.get(
     ".aylo.uz,.repli.uz,localhost,127.0.0.1",
 ).split(",")
 
-# Tests intentionally simulate outages (OpenAI down, Redis down, …) and the
-# fail-soft code logs them. Silence logging during test runs so a green run
-# reads green — only real test failures show up.
-# `sys.argv[1:2]` rather than `"test" in sys.argv`, which also matched innocent
-# tokens such as `loaddata test` or `--output test`; the pytest check catches
-# runs that never go through manage.py.
 TESTING = sys.argv[1:2] == ["test"] or "PYTEST_CURRENT_TEST" in os.environ
 if TESTING:
     import logging
 
     logging.disable(logging.CRITICAL)
 
+FIELD_ENCRYPTION_KEYS = [
+    key.strip()
+    for key in os.environ.get("FIELD_ENCRYPTION_KEYS", "").split(",")
+    if key.strip()
+]
+FIELD_ENCRYPTION_HASH_KEY = os.environ.get("FIELD_ENCRYPTION_HASH_KEY", "")
+
+if not FIELD_ENCRYPTION_KEYS or not FIELD_ENCRYPTION_HASH_KEY:
+    if DEBUG or TESTING:
+        from apps.shared.addons.crypto import derive_key_from_secret
+
+        FIELD_ENCRYPTION_KEYS = FIELD_ENCRYPTION_KEYS or [derive_key_from_secret(SECRET_KEY)]
+        FIELD_ENCRYPTION_HASH_KEY = FIELD_ENCRYPTION_HASH_KEY or f"field-hash:{SECRET_KEY}"
+    else:
+        from django.core.exceptions import ImproperlyConfigured
+
+        raise ImproperlyConfigured(
+            "FIELD_ENCRYPTION_KEYS and FIELD_ENCRYPTION_HASH_KEY environment "
+            "variables are required when DEBUG is off"
+        )
+
 AZURE_OPENAI_ENDPOINT = os.environ.get("AZURE_OPENAI_ENDPOINT")
 AZURE_OPENAI_DEPLOYMENT = os.environ.get("AZURE_OPENAI_DEPLOYMENT")
 
-
-# Application definition
 
 DEFAULT_APPS = [
     "modeltranslation",
@@ -66,12 +80,6 @@ PACKAGES = [
     "telegram",
     "storages",
 ]
-# Fully qualified so every module has exactly one importable path. The bare
-# names used to work only because `apps/` was appended to sys.path, which made
-# `shared.x` and `apps.shared.x` two distinct module objects — two copies of
-# every module-level singleton (redis_client, conversation_service, agent, …).
-# The app labels are unchanged (Django takes the last component), so migrations,
-# db_table names and content types are unaffected.
 INTERNAL_APPS = [
     "apps.assistant",
     "apps.integration",
@@ -103,6 +111,16 @@ REST_FRAMEWORK = {
         "landing_lead": "10/minute",
         "otp_send": "5/minute",
         "otp_verify": "10/minute",
+        "payment_card": "10/minute",
+        "payment_charge": "5/minute",
+        "auth_register": "10/minute",
+        "token_refresh": "20/minute",
+        "otp_send_identifier": "5/hour",
+        "otp_verify_identifier": "15/hour",
+        "oauth_callback": "20/minute",
+        "lead_bot": "60/minute",
+        "public_read": "60/minute",
+        "payme_verify": "10/minute",
     },
 }
 
@@ -126,10 +144,9 @@ if not DEBUG:
 
 MIDDLEWARE = [
     "corsheaders.middleware.CorsMiddleware",
-    "config.middleware.LanguageMiddleware",
     "django.middleware.security.SecurityMiddleware",
     "django.contrib.sessions.middleware.SessionMiddleware",
-    'django.middleware.locale.LocaleMiddleware',  # Enables locale support
+    'django.middleware.locale.LocaleMiddleware',
     "django.middleware.common.CommonMiddleware",
     "django.middleware.csrf.CsrfViewMiddleware",
     "django.contrib.auth.middleware.AuthenticationMiddleware",
@@ -190,7 +207,6 @@ SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
 SESSION_COOKIE_SECURE = True
 CSRF_COOKIE_SECURE = True
 
-# Security Headers
 SECURE_CONTENT_TYPE_NOSNIFF = True
 SECURE_HSTS_INCLUDE_SUBDOMAINS = True
 SECURE_HSTS_PRELOAD = True
@@ -209,14 +225,6 @@ CORS_ALLOWED_ORIGINS = [
     "https://dashboard.aylo.uz",
     "https://dev-app.aylo.uz",
     "https://dev-api.aylo.uz",
-    # Previous brand. Kept deliberately: any frontend, mobile client or webhook
-    # still pointing at repli.uz would start failing CORS the moment these go,
-    # and there is no security cost to listing a domain we control.
-    "https://repli.uz",
-    "https://app.repli.uz",
-    "https://admin.repli.uz",
-    "https://dashboard.repli.uz",
-    "https://df04-82-215-100-92.ngrok-free.app",
 ]
 
 CORS_ALLOW_METHODS = [
@@ -245,12 +253,14 @@ CSRF_TRUSTED_ORIGINS = [
     "https://*.repli.uz",
     "http://127.0.0.1:8000",
     "http://localhost:5173",
-    "https://df04-82-215-100-92.ngrok-free.app",
 ]
 
+ACCESS_TOKEN_LIFETIME_MINUTES = int(os.environ.get("ACCESS_TOKEN_LIFETIME_MINUTES", 60))
+REFRESH_TOKEN_LIFETIME_DAYS = int(os.environ.get("REFRESH_TOKEN_LIFETIME_DAYS", 14))
+
 SIMPLE_JWT = {
-    "ACCESS_TOKEN_LIFETIME": timedelta(days=7),
-    "REFRESH_TOKEN_LIFETIME": timedelta(days=30),
+    "ACCESS_TOKEN_LIFETIME": timedelta(minutes=ACCESS_TOKEN_LIFETIME_MINUTES),
+    "REFRESH_TOKEN_LIFETIME": timedelta(days=REFRESH_TOKEN_LIFETIME_DAYS),
     "ROTATE_REFRESH_TOKENS": True,
     "BLACKLIST_AFTER_ROTATION": True,
     "UPDATE_LAST_LOGIN": True,
@@ -275,22 +285,27 @@ SIMPLE_JWT = {
     "SLIDING_TOKEN_REFRESH_LIFETIME": timedelta(days=1),
 }
 
+if not DEBUG:
+    SECURE_HSTS_SECONDS = 31536000
+    SESSION_COOKIE_HTTPONLY = True
+    CSRF_COOKIE_HTTPONLY = True
+    X_FRAME_OPTIONS = "DENY"
+    SECURE_REFERRER_POLICY = "same-origin"
+    SECURE_CROSS_ORIGIN_OPENER_POLICY = "same-origin"
+
 LANGUAGES = [
+    ('uz', _('Uzbek')),
+    ('ru', _('Russian')),
     ('en', _('English')),
     ('kk', _('Kazakh')),
-    ('ru', _('Russian')),
-    ('uz', _('Uzbek')),
-    ('kn', _('Korean')),
-    ('ar', _('Arabic')),
+    ('ko', _('Korean')),
 ]
 
-# Directory to store language files (translations)
 LOCALE_PATHS = [
     os.path.join(BASE_DIR, 'locale')
 ]
 
 
-# Default language
 LANGUAGE_CODE = "uz-uz"
 
 TIME_ZONE = "Asia/Tashkent"
@@ -300,19 +315,10 @@ USE_I18N = True
 USE_TZ = True
 
 
-# Static files (CSS, JavaScript, Images)
-STATIC_URL = "/static/"  # URL for serving static files
-# # Directory for static files after collectstatic
+STATIC_URL = "/static/"
 STATIC_ROOT = os.path.join(BASE_DIR, "staticfiles")
 
 
-# Media files (user-uploaded content) are NOT served from the local filesystem —
-# they live in MinIO and are reached through presigned URLs. See the object
-# storage block further down.
-#
-# MEDIA_ROOT is unused by the object-storage backend and kept only because
-# third-party code reads it. Uploads too large for FILE_UPLOAD_MAX_MEMORY_SIZE
-# spill to FILE_UPLOAD_TEMP_DIR (the system temp dir), never here.
 MEDIA_ROOT = os.path.join(BASE_DIR, "media")
 
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
@@ -329,51 +335,10 @@ redis_connection = redis.Redis(
     db=0,
 )
 REDIS_URL: str = f"redis://{REDIS_HOST}:{REDIS_PORT}/{REDIS_DB}"
-# Celery settings
-# CELERY_BROKER_URL = os.environ.get("CELERY_BROKER_URL", REDIS_URL)
 CELERY_ACCEPT_CONTENT = ['json']
 CELERY_TASK_SERIALIZER = 'json'
-# CELERY_RESULT_BACKEND = CELERY_BROKER_URL
 CELERY_BROKER_CONNECTION_RETRY_ON_STARTUP = True
 
-
-# LOGGING = {
-#     "version": 1,
-#     "disable_existing_loggers": False,
-#     "formatters": {
-#         "default-formatter": {
-#             "format": "[%(levelname)s] %(asctime)s %(filename)s:%(lineno)s:%(funcName)s: %(message)s",
-#             "datefmt": "%m/%d/%Y %H:%M:%S",
-#         },
-#     },
-#     "handlers": {
-#         "console": {
-#             "level": "DEBUG",
-#             "class": "logging.StreamHandler",
-#             "formatter": "default-formatter",
-#         },
-#     },
-#     "loggers": {
-#         "": {
-#             "level": "WARNING",
-#             "handlers": ["console"],
-#         },
-#         "django": {
-#             "level": "ERROR",
-#             "handlers": ["console"],
-#             "propagate": False,
-#         },
-#         "django.request": {
-#             "level": "ERROR",
-#             "handlers": ["console"],
-#             "propagate": False,
-#         },
-#         "api": {
-#             "level": "DEBUG",
-#             "handlers": ["console"],
-#         },
-#     },
-# }
 
 REDIS_DB: int = int(os.environ.get("REDIS_DB", default=0))
 REDIS_HOST: str = os.environ.get("REDIS_HOST", default="localhost")
@@ -387,29 +352,37 @@ if REDIS_PASSWORD:
 else:
     CELERY_BROKER_URL = f"redis://{REDIS_HOST}:{REDIS_PORT}/{REDIS_DB}"
     CELERY_RESULT_BACKEND = f"redis://{REDIS_HOST}:{REDIS_PORT}/{REDIS_DB}"
-    
+
 REDIS_CREDENTIALS: dict[str, str | int | bool] = {
     "db": REDIS_DB,
     "host": REDIS_HOST,
     "port": REDIS_PORT,
     "password": REDIS_PASSWORD,
-    "decode_responses": True,  # NOTE: results won't be in BYTES format
+    "decode_responses": True,
 }
 
 PAYME_KEY = os.environ.get("PAYME_KEY")
 PAYME_ID = os.environ.get("PAYME_ID")
 PAYME_API_URL = os.environ.get("PAYME_API_URL", default="https://checkout.paycom.uz/api")
 OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY")
+
+AI_TIER_MODELS = {
+    "fast": os.environ.get("AI_MODEL_FAST", "gpt-5.6-luna"),
+    "standard": os.environ.get("AI_MODEL_STANDARD", "gpt-5.6-terra"),
+    "deep": os.environ.get("AI_MODEL_DEEP", "gpt-5.6-sol"),
+}
+
+AI_TIER_ROUTING_ENABLED = os.environ.get("AI_TIER_ROUTING_ENABLED", "true").lower() == "true"
+
+AI_ESCALATE_ON_TOOL_CAP = os.environ.get("AI_ESCALATE_ON_TOOL_CAP", "false").lower() == "true"
+
+AI_PARALLEL_TOOLS = os.environ.get("AI_PARALLEL_TOOLS", "true").lower() == "true"
 GOOGLE_CLIENT_ID = os.environ.get("GOOGLE_CLIENT_ID")
 GOOGLE_CLIENT_SECRET = os.environ.get("GOOGLE_CLIENT_SECRET")
 GOOGLE_REDIRECT_URI = os.environ.get("GOOGLE_REDIRECT_URI")
 
 GOOGLE_GEMINI_API_KEY = os.environ.get("GOOGLE_GEMINI_API_KEY")
 
-# Email settings
-# Overridable so a local environment can print the OTP email to the console
-# (`EMAIL_BACKEND=django.core.mail.backends.console.EmailBackend`) instead of
-# needing live Zoho SMTP credentials to exercise the email sign-up flow.
 EMAIL_BACKEND = os.environ.get(
     "EMAIL_BACKEND", "django.core.mail.backends.smtp.EmailBackend"
 )
@@ -421,61 +394,30 @@ EMAIL_HOST_USER = os.environ.get("EMAIL_HOST_USER")
 EMAIL_HOST_PASSWORD = os.environ.get("EMAIL_HOST_PASSWORD")
 DEFAULT_FROM_EMAIL = os.environ.get("EMAIL_HOST_USER")
 
-# Instagram settings
 INSTAGRAM_CLIENT_ID = os.environ.get("INSTAGRAM_CLIENT_ID")
 INSTAGRAM_CLIENT_SECRET = os.environ.get("INSTAGRAM_CLIENT_SECRET")
 INSTAGRAM_REDIRECT_URI = os.environ.get("INSTAGRAM_REDIRECT_URI")
 INSTAGRAM_VERIFY_TOKEN = os.environ.get("INSTAGRAM_VERIFY_TOKEN", "")
 INSTAGRAM_APP_SECRET = os.environ.get("INSTAGRAM_APP_SECRET", "")
 
-# Ceiling on a whole request body, uploads included. nginx enforces the same
-# 100 MB at the edge (client_max_body_size), so this is the second line.
-DATA_UPLOAD_MAX_MEMORY_SIZE = 104857600  # 100 MB
+TELEGRAM_WEBHOOK_SECRET = os.environ.get("TELEGRAM_WEBHOOK_SECRET", "")
+LEAD_BOT_WEBHOOK_SECRET = os.environ.get("LEAD_BOT_WEBHOOK_SECRET", "")
 
-# How much of a single uploaded file is buffered in RAM before Django spills it
-# to a temp file. This is deliberately NOT 100 MB: at that value a handful of
-# concurrent large uploads can exhaust the container's memory, and gunicorn
-# workers get OOM-killed mid-request. 5 MB keeps ordinary images and audio in
-# memory while streaming knowledge-base documents to disk.
-FILE_UPLOAD_MAX_MEMORY_SIZE = 5 * 1024 * 1024  # 5 MB
+DATA_UPLOAD_MAX_MEMORY_SIZE = 104857600
 
-# Uploaded files must never be world-readable on the local disk while they are
-# staged on their way to object storage.
+FILE_UPLOAD_MAX_MEMORY_SIZE = 5 * 1024 * 1024
+
 FILE_UPLOAD_PERMISSIONS = 0o600
 
 
-# --- Object storage (MinIO, S3-compatible) -----------------------------------
-#
-# The bucket is private. Nothing is served by anonymous URL; apps.shared.storages
-# .MediaStorage hands out presigned URLs that expire after MINIO_URL_EXPIRY.
-#
-# Configuration goes through STORAGES["default"]["OPTIONS"] rather than the
-# global AWS_* settings, so the legacy AWS credentials below can coexist without
-# django-storages picking them up by accident.
 MINIO_ACCESS_KEY = os.environ.get("MINIO_ACCESS_KEY")
 MINIO_SECRET_KEY = os.environ.get("MINIO_SECRET_KEY")
 MINIO_BUCKET_NAME = os.environ.get("MINIO_BUCKET_NAME", "aylo-media")
 
-# Internal endpoint the app and Celery workers use for reads and writes.
 MINIO_ENDPOINT_URL = os.environ.get("MINIO_ENDPOINT_URL", "http://minio:9000")
 
-# Public origin (scheme + host, no path) that presigned URLs are signed against
-# and that browsers fetch from. Empty in local development, where the internal
-# endpoint is already reachable from the browser.
 MINIO_PUBLIC_URL = os.environ.get("MINIO_PUBLIC_URL", "").rstrip("/")
-
-# `or` rather than a default argument: os.environ.get returns "" for a key that
-# is present but blank in .env, and int("") is a ValueError at import — the
-# container would never boot, with a traceback that names neither the file nor
-# the variable.
 MINIO_URL_EXPIRY = int(os.environ.get("MINIO_URL_EXPIRY") or 3600)
-
-# Server-side encryption at rest. Off by default and deliberately so: MinIO
-# rejects PutObject with an SSE header unless a KMS is configured
-# (MINIO_KMS_SECRET_KEY on the server), so switching this on without that turns
-# every upload into a 500. Enable both together, and back the key up — losing it
-# loses the objects. Host-level disk encryption covers the same threat without
-# the key-management burden.
 MINIO_SERVER_SIDE_ENCRYPTION = os.environ.get("MINIO_SERVER_SIDE_ENCRYPTION", "")
 
 MEDIA_URL = f"/{MINIO_BUCKET_NAME}/"
@@ -490,19 +432,9 @@ STORAGES = {
             "access_key": MINIO_ACCESS_KEY,
             "secret_key": MINIO_SECRET_KEY,
             "querystring_expire": MINIO_URL_EXPIRY,
-            # MinIO only implements path-style addressing; the virtual-host
-            # style boto3 defaults to would resolve <bucket>.minio, which does
-            # not exist on the compose network.
             "addressing_style": "path",
             "signature_version": "s3v4",
-            # MinIO ignores the region but SigV4 requires one in the signature,
-            # and it must be identical on both the signing and serving side.
             "region_name": os.environ.get("MINIO_REGION_NAME", "us-east-1"),
-            # django-storages sets an object's ContentType from the client's
-            # multipart part header, so an allowlisted `.txt` can be stored as
-            # `text/html` and would render as a page on the API's own origin.
-            # Forcing a download disposition makes the stored type inert
-            # regardless of what the uploader claimed.
             "object_parameters": {
                 "ContentDisposition": "attachment",
                 **(
@@ -516,28 +448,16 @@ STORAGES = {
     "staticfiles": {"BACKEND": "django.contrib.staticfiles.storage.StaticFilesStorage"},
 }
 
-# Tests must never touch a real bucket. Without this, any test that saves a
-# FileField issues a live PutObject — which "passed" only because this checkout
-# has no credentials, and would have written test fixtures straight into
-# production MinIO the moment it did. CLAUDE.md §5 requires offline tests; this
-# is what enforces it for storage. apps/shared/tests/test_storage.py asserts it.
 if TESTING:
     STORAGES["default"] = {"BACKEND": "django.core.files.storage.InMemoryStorage"}
 
 
-# Google service-account key used to read Docs and Sheets. This was a hardcoded
-# path to a key committed inside apps/shared/addons/ — point it at a file
-# mounted into the container instead, and keep the key out of the repository.
 GOOGLE_SERVICE_ACCOUNT_FILE = os.environ.get(
     "GOOGLE_SERVICE_ACCOUNT_FILE",
     os.path.join(BASE_DIR, "secrets", "google-service-account.json"),
 )
 
 
-# --- AWS S3 (legacy) ---------------------------------------------------------
-# Read only by `manage.py migrate_media_to_minio`, which copies objects out of
-# the old bucket. Nothing else should reference these. Delete once the
-# migration has been verified.
 AWS_ACCESS_KEY_ID = os.environ.get("AWS_ACCESS_KEY_ID")
 AWS_SECRET_ACCESS_KEY = os.environ.get("AWS_SECRET_ACCESS_KEY")
 AWS_STORAGE_BUCKET_NAME = os.environ.get("AWS_STORAGE_BUCKET_NAME")
@@ -546,45 +466,31 @@ AWS_S3_REGION_NAME = os.environ.get("AWS_S3_REGION_NAME")
 CELERY_BEAT_SCHEDULE = {
     'process-monthly-subscriptions': {
         'task': 'apps.payment.tasks.process_monthly_subscriptions',
-        'schedule': crontab(minute=0, hour=0),  # Run every day at 00:00
+        'schedule': crontab(minute=0, hour=0),
     },
     'update-billz-products-hourly': {
         'task': 'apps.integration.tasks.update_billz_products_hourly',
-        'schedule': crontab(minute=0),  # Run every hour at minute 0
+        'schedule': crontab(minute=0),
     },
     'daily_statistics_assistant':{
         'task': 'apps.assistant.tasks.daily_statistics_assistant',
-        'schedule': crontab(minute=0, hour=21),  # Run every day at 21:00
+        'schedule': crontab(minute=0, hour=21),
     },
     'process-follow-ups': {
         'task': 'apps.assistant.tasks.process_follow_ups',
-        'schedule': crontab(minute='*/30'),  # Run every 30 minutes
+        'schedule': crontab(minute='*/30'),
     },
 }
 
-# Modeltranslation settings
 MODELTRANSLATION_DEFAULT_LANGUAGE = 'uz'
 
-LANGUAGES = (
-    ('en', 'English'),
-    ('uz', 'Uzbek'),
-    ('ru', 'Russian'),
-    ('kk', 'Kazakh'),
-    ('ar', 'Arabic'),
-)
 MODELTRANSLATION_LANGUAGES = ('en', 'uz', 'ru', 'kk', 'ar')
 
-# amoCRM OAuth. Read from the environment — these are live credentials and must
-# never be committed. `AMOCRM_ACCESS_TOKEN` and the `BITRIX_*` pair used to sit
-# here as literals with no reader anywhere in the tree; they were removed rather
-# than migrated.
 AMOCRM_CLIENT_ID = os.environ.get("AMOCRM_CLIENT_ID")
 AMOCRM_SECRET_KEY = os.environ.get("AMOCRM_SECRET_KEY")
 
 BASE_URL = os.environ.get("BASE_URL", "https://api.aylo.uz")
 
-# Fail fast in production rather than serving a broken amoCRM OAuth flow that
-# only reveals itself when a customer tries to connect their account.
 if not DEBUG and not TESTING:
     _missing = [
         name for name in ("AMOCRM_CLIENT_ID", "AMOCRM_SECRET_KEY")
@@ -597,5 +503,4 @@ if not DEBUG and not TESTING:
             f"Missing required environment variables: {', '.join(_missing)}"
         )
 
-#Azure OpenAi settings
 AZURE_OPENAI_ENDPOINT = os.environ.get("AZURE_OPENAI_ENDPOINT")

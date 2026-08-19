@@ -1,31 +1,47 @@
 import calendar
+import logging
 import re
 from datetime import date, timedelta
 
-from django.utils import timezone
-from rest_framework import serializers
 from django.db import transaction
+from django.utils import timezone
+from django.utils.translation import gettext_lazy as _
+from rest_framework import serializers
 
-
-from apps.payment.models import Feature, PricingPackage, Card, Transaction, Subscription, RetryPayment, Balance
-from apps.shared.addons.enums import TransactionTypes, PaymentStatuses, SubscriptionStatuses
-from apps.payment.services.billing import check_payme_card_token, create_payme_receipt, commit_payme_receipt, \
-    update_user_balance, send_create_card_request, send_verify_code_request, verify_payme_card_token, \
-    create_notification, payme_error_message
+from apps.payment.models import (
+    Balance,
+    Card,
+    CustomPackageRequest,
+    Feature,
+    PricingPackage,
+    RetryPayment,
+    Subscription,
+    Transaction,
+)
+from apps.payment.services.billing import (
+    check_payme_card_token,
+    commit_payme_receipt,
+    create_notification,
+    create_payme_receipt,
+    payme_error_message,
+    send_create_card_request,
+    send_verify_code_request,
+    update_user_balance,
+    verify_payme_card_token,
+)
+from apps.shared.addons.enums import (
+    PaymentStatuses,
+    PricingPackageType,
+    SubscriptionStatuses,
+    TransactionTypes,
+)
 from apps.shared.addons.validations import raise_validation_error
 from apps.user.serializers import UserSerializer
-from apps.shared.addons.enums import PricingPackageType
-from django.utils.translation import gettext_lazy as _
+
+logger = logging.getLogger(__name__)
 
 
 def parse_card_expiry(value):
-    """Turn a stored card expiry string into the last day it is still valid.
-
-    `Card.expiry_date` is a CharField, and the two shapes that actually reach
-    it are `"MM/YY"` (what the frontend posts) and `"MMYY"` (what Payme returns
-    in `result.card.expire`). Returns `None` when the string is not a usable
-    expiry so callers can decide whether that is an input error.
-    """
     digits = re.sub(r"\D", "", str(value or ""))
     if len(digits) == 4:
         month, year = int(digits[:2]), 2000 + int(digits[2:])
@@ -60,6 +76,8 @@ class BalanceSerializer(serializers.ModelSerializer):
         ]
 
 class PricingPackageSerializer(serializers.ModelSerializer):
+    is_custom = serializers.BooleanField(read_only=True)
+
     class Meta:
         model = PricingPackage
         fields = [
@@ -67,6 +85,7 @@ class PricingPackageSerializer(serializers.ModelSerializer):
             "name",
             "price",
             "discount_price",
+            "is_custom",
             "currency",
             "description",
             "features",
@@ -76,10 +95,6 @@ class PricingPackageSerializer(serializers.ModelSerializer):
         ]
 
     def validate(self, attrs):
-        # Both fields are optional on the model, and a PATCH only carries the
-        # fields being changed — so read through to the current instance
-        # instead of indexing `attrs`, which used to raise a KeyError (a 500)
-        # whenever either one was omitted.
         price = attrs.get("price", getattr(self.instance, "price", None))
         discount_price = attrs.get(
             "discount_price", getattr(self.instance, "discount_price", None)
@@ -90,8 +105,6 @@ class PricingPackageSerializer(serializers.ModelSerializer):
         if discount_price is not None:
             if discount_price < 0:
                 raise_validation_error(message=_("Chegirma narxi manfiy bo'lishi mumkin emas."))
-            # A discount has to be *below* the list price; the previous check
-            # compared the other way round and rejected every real discount.
             if price is not None and discount_price > price:
                 raise_validation_error(
                     message=_("Chegirma narxi narxdan katta bo'lishi mumkin emas.")
@@ -103,6 +116,45 @@ class PricingPackageSerializer(serializers.ModelSerializer):
         data["features"] = FeatureSerializer(instance.features, many=True).data
         return data
 
+
+class CustomPackageRequestSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = CustomPackageRequest
+        fields = [
+            "id",
+            "company_name",
+            "full_name",
+            "phone_number",
+            "email",
+            "expected_conversations",
+            "comment",
+            "created_time",
+        ]
+        read_only_fields = ["id", "created_time"]
+
+    def validate_phone_number(self, value):
+        cleaned = re.sub(r"[\s\-()]", "", str(value or ""))
+        if len(re.sub(r"\D", "", cleaned)) < 9:
+            raise_validation_error(
+                message=_("Telefon raqam kamida 9 ta raqamdan iborat bo'lishi kerak.")
+            )
+        return cleaned
+
+    def validate_expected_conversations(self, value):
+        if value is not None and value < 0:
+            raise_validation_error(
+                message=_("Suhbatlar soni manfiy bo'lishi mumkin emas.")
+            )
+        return value
+
+    def create(self, validated_data):
+        request = self.context.get("request")
+        user = getattr(request, "user", None)
+        return CustomPackageRequest.objects.create(
+            pricing_package=self.context.get("pricing_package"),
+            user=user if user is not None and user.is_authenticated else None,
+            **validated_data,
+        )
 
 
 class CardSerializer(serializers.ModelSerializer):
@@ -117,21 +169,19 @@ class CardSerializer(serializers.ModelSerializer):
             "color",
             "is_verified",
         )
+        read_only_fields = (
+            "card_number",
+            "is_verified",
+        )
+
     def validate(self, attrs):
-        # `CardDetailView.update` always runs partial, so neither key is
-        # guaranteed to be in `attrs` — read through to the instance instead of
-        # indexing (which used to KeyError into a 500 on every PATCH).
         expiry_supplied = "expiry_date" in attrs
         expiry_date = attrs.get("expiry_date", getattr(self.instance, "expiry_date", None))
         card_number = attrs.get("card_number", getattr(self.instance, "card_number", None))
 
         if expiry_date is not None:
-            # `expiry_date` is a CharField ("12/30"), so it has to be parsed
-            # before it can be compared with a date at all.
             expires_on = parse_card_expiry(expiry_date)
             if expires_on is None:
-                # Only an explicitly supplied value is an input error; a stored
-                # value we cannot parse must not block an unrelated PATCH.
                 if expiry_supplied:
                     raise_validation_error(
                         message=_("Karta amal qilish muddati noto'g'ri formatda (MM/YY).")
@@ -145,7 +195,6 @@ class CardSerializer(serializers.ModelSerializer):
 
 
 class CardCreateSerializer(serializers.ModelSerializer):
-
     class Meta:
         model = Card
         fields = (
@@ -158,9 +207,22 @@ class CardCreateSerializer(serializers.ModelSerializer):
             "color",
             "is_verified",
         )
+        extra_kwargs = {
+            "card_token": {"write_only": True},
+        }
+        read_only_fields = (
+            "card_number",
+            "expiry_date",
+            "is_verified",
+        )
 
     def validate_card_token(self, value):
-        """Validate the card token with the Payme system."""
+        user = self.context["request"].user
+        if Card.objects.filter(card_token=value).exclude(user=user).exists():
+            raise_validation_error(
+                message=_("Bu karta boshqa foydalanuvchiga biriktirilgan.")
+            )
+
         response = check_payme_card_token(value)
         if not response:
             raise_validation_error(message=_("Karta tokeni noto'g'ri. Iltimos, tekshirib qaytadan yuboring."))
@@ -175,7 +237,6 @@ class CardCreateSerializer(serializers.ModelSerializer):
         user = self.context["request"].user
         card_data = self.card_data
 
-        # Prepare card data for saving
         card = Card.objects.create(
             user=user,
             name=validated_data.get("name"),
@@ -187,7 +248,7 @@ class CardCreateSerializer(serializers.ModelSerializer):
             is_default=True,
         )
         return card
-    
+
 class PaymeGetVerifyCodeSerializer(serializers.Serializer):  # noqa
     number = serializers.CharField()
     expire = serializers.CharField()
@@ -212,8 +273,6 @@ class PaymeGetVerifyCodeSerializer(serializers.Serializer):  # noqa
         )
 
         if "error" in create_response:
-            # Report what Payme actually said — this used to be flattened into
-            # a fixed "expiry is too short" message regardless of the cause.
             raise_validation_error(
                 message=payme_error_message(
                     create_response, _("Kartani qo'shishda xatolik yuz berdi")
@@ -240,7 +299,7 @@ class PaymeVerifyCodeSerializer(serializers.Serializer):  # noqa
         token = attrs.get("token")
         code = attrs.get("code")
         if not token or not code:
-            raise_validation_error(message=_("Token va kod talab qilinadi")) 
+            raise_validation_error(message=_("Token va kod talab qilinadi"))
         return attrs
 
     def create(self, validated_data):
@@ -284,14 +343,10 @@ class PayWithCardSerializer(serializers.Serializer):
     payment_method = serializers.CharField(required=False)
 
     def validate(self, attrs):
-        """Validate card existence and retrieve its token."""
         user = self.context.get("request").user
         card_id = attrs.get("card_id")
         subscription_id = attrs.get("subscription_id")
 
-        # Both lookups are scoped to the caller. Unscoped, any authenticated
-        # user could charge a stranger's saved card token and credit their own
-        # subscription with it.
         subscription = Subscription.objects.filter(id=subscription_id, users=user).first()
         if subscription is None:
             raise_validation_error(message=_("Obuna topilmadi. Iltimos, tekshirib qaytadan yuboring."))
@@ -312,7 +367,6 @@ class PayWithCardSerializer(serializers.Serializer):
         return attrs
 
     def create(self, validated_data):
-        """Handle payment process."""
         user = self.context.get("request").user
         amount = validated_data.get("amount")
         card_token = validated_data.get("card_token")
@@ -321,13 +375,11 @@ class PayWithCardSerializer(serializers.Serializer):
 
         try:
             with transaction.atomic():
-                # Step 1: Create a Payme receipt
                 success, message, receipt_id = create_payme_receipt(amount)
                 if not success:
                     raise_validation_error(message=_("To'lov chekini yaratishda tizim bilan bog'liq muammo yuz berdi: {}").format(message))
                 transaction_type = TransactionTypes.WITHDRAW.value if is_withdrawal else TransactionTypes.DEPOSIT.value
 
-                # Step 2: Log the transaction with DRAFT status
                 transaction_obj = Transaction.objects.create(
                     user=user,
                     amount=amount,
@@ -337,7 +389,6 @@ class PayWithCardSerializer(serializers.Serializer):
                     status=PaymentStatuses.DRAFT.value,
                 )
 
-                # Step 3: Commit the Payme receipt
                 success, message, receipt_id = commit_payme_receipt(card_token, receipt_id)
                 if not success:
                     create_notification(user, message)
@@ -345,16 +396,13 @@ class PayWithCardSerializer(serializers.Serializer):
                     transaction_obj.save()
                     raise_validation_error(message=_("To'lov tizimi bilan bog'liq muammo yuz berdi: {}").format(message))
 
-                # Step 4: Update transaction status to COMMITTED
                 transaction_obj.status = PaymentStatuses.SUCCESS.value
                 transaction_obj.transaction_id = receipt_id
                 transaction_obj.save()
 
-                # Step 5: Update user balance
                 if not is_withdrawal:
                     update_user_balance(user, amount)
 
-                # Step 6: Update subscription
                 subscription = Subscription.objects.get(id=user.subscription.id)
                 subscription.start_date = timezone.now().date()
                 subscription.end_date = timezone.now().date() + timedelta(days=subscription.pricing_package.duration_days)
@@ -375,7 +423,6 @@ class PayWithCardSerializer(serializers.Serializer):
                     }
                 }
         except Exception as e:
-            # If anything fails, update transaction status and raise error
             try:
                 transaction_obj.status = PaymentStatuses.FAILED.value
                 transaction_obj.error_message = str(e)
@@ -387,7 +434,8 @@ class PayWithCardSerializer(serializers.Serializer):
                 subscription.save()
             except Exception:
                 pass
-            raise_validation_error(message=_("To'lov jarayonida xatolik yuz berdi: {}").format(str(e)))
+            logger.exception("Card payment failed for user %s", user.id)
+            raise_validation_error(message=_("To'lov jarayonida xatolik yuz berdi"))
 
 
 class TransactionSerializer(serializers.ModelSerializer):
@@ -448,7 +496,6 @@ class SubscriptionSerializer(serializers.ModelSerializer):
         user = self.context.get("request").user
         pricing_package_id = attrs.get("pricing_package")
 
-        # Check if user already has an active subscription
         try:
             existing_subscription = user.subscription
             if existing_subscription and existing_subscription.status == SubscriptionStatuses.ACTIVE.value:
@@ -456,13 +503,20 @@ class SubscriptionSerializer(serializers.ModelSerializer):
         except (AttributeError, Subscription.DoesNotExist):
             pass
 
-        # Validate pricing package
         try:
             pricing_package = PricingPackage.objects.get(id=pricing_package_id)
             if not pricing_package.is_active:
                 raise_validation_error(message=_("Bu narx paketi hozirda faol emas."))
         except PricingPackage.DoesNotExist:
             raise_validation_error(message=_("Narx paketi topilmadi."))
+
+        if pricing_package.is_custom:
+            raise_validation_error(
+                message=_(
+                    "Bu paket kompaniyalar uchun individual shakllantiriladi. "
+                    "Iltimos, ariza qoldiring — savdo bo'limi siz bilan bog'lanadi."
+                )
+            )
 
         attrs["pricing_package"] = pricing_package
         return attrs
@@ -496,9 +550,6 @@ class SubscriptionSerializer(serializers.ModelSerializer):
         return subscription
 
     def to_representation(self, instance):
-        # `pricing_package` is write-only (it comes in as a bare UUID), so echo
-        # the resolved package back — the caller needs the plan it just bought
-        # without a second round-trip to the profile endpoint.
         data = super().to_representation(instance)
         data["pricing_package"] = (
             PricingPackageSerializer(instance.pricing_package).data
@@ -512,7 +563,7 @@ class SubscriptionUpdateAutoRenewSerializer(serializers.ModelSerializer):
     class Meta:
         model = Subscription
         fields = ["auto_renew"]
-   
+
 class RetryPaymentSerializer(serializers.ModelSerializer):
     class Meta:
         model = RetryPayment
@@ -536,7 +587,7 @@ class SubscriptionUpdateSerializer(serializers.Serializer):
         user = self.context.get("request").user
         if not user.subscription:
             raise_validation_error(message=_("Sizda obuna mavjud emas."))
-        
+
         if not pricing_package_id or not card_id:
             raise_validation_error(message=_("Narx paketi ID va karta ID talab qilinadi"))
         try:
@@ -545,11 +596,16 @@ class SubscriptionUpdateSerializer(serializers.Serializer):
                 raise_validation_error(message=_("Narx paketi hozirda faol emas."))
             if pricing_package.type == PricingPackageType.FREE.value:
                 raise_validation_error(message=_("Bu tekin paketni yangilash mumkin emas."))
+            if pricing_package.is_custom:
+                raise_validation_error(
+                    message=_(
+                        "Bu paket kompaniyalar uchun individual shakllantiriladi. "
+                        "Iltimos, ariza qoldiring — savdo bo'limi siz bilan bog'lanadi."
+                    )
+                )
         except PricingPackage.DoesNotExist:
             raise_validation_error(message=_("Narx paketi topilmadi."))
 
-        # Scoped to the caller — an unscoped lookup let anyone pay with (and
-        # therefore charge) a stranger's saved card token.
         card = Card.objects.filter(id=card_id, user=user).first()
         if card is None:
             raise_validation_error(message=_("Karta topilmadi."))
@@ -557,18 +613,15 @@ class SubscriptionUpdateSerializer(serializers.Serializer):
         attrs["card"] = card
         attrs["pricing_package"] = pricing_package
         return attrs
-    
+
     def create(self, validated_data):
         user = self.context.get("request").user
         card = validated_data.get("card")
         pricing_package = validated_data.get("pricing_package")
-        # `discount_price` is nullable — falling back to the list price keeps
-        # a package without a discount from raising a TypeError here.
         discount_price = pricing_package.discount_price
         amount = int(discount_price) if discount_price else int(pricing_package.price)
         subscription = user.subscription
         with transaction.atomic():
-             # 1. Create transaction with DRAFT status
             transaction1 = Transaction.objects.create(
                 user=user,
                 amount=amount,
@@ -577,7 +630,6 @@ class SubscriptionUpdateSerializer(serializers.Serializer):
                 status=PaymentStatuses.DRAFT.value,
             )
 
-            # 2. Try to create payment receipt
             success, message, receipt_id = create_payme_receipt(amount)
             if not success:
                 transaction1.status = PaymentStatuses.FAILED.value
@@ -587,7 +639,6 @@ class SubscriptionUpdateSerializer(serializers.Serializer):
                 subscription.save()
                 raise_validation_error(data=message)
 
-            # 3. Try to commit payment
             success, message, receipt_id = commit_payme_receipt(card.card_token, receipt_id)
             if not success:
                 create_notification(user, message)
@@ -598,7 +649,6 @@ class SubscriptionUpdateSerializer(serializers.Serializer):
                 subscription.save()
                 raise_validation_error(data=message)
 
-            # 4. If successful, update transaction and subscription
             transaction1.status = PaymentStatuses.SUCCESS.value
             transaction1.transaction_id = receipt_id
             transaction1.save()
@@ -611,7 +661,7 @@ class SubscriptionUpdateSerializer(serializers.Serializer):
             subscription.retry_count = 0
             subscription.last_payment_date = timezone.now().date()
             subscription.grace_period_days = 0
-            subscription.status = SubscriptionStatuses.ACTIVE.value 
+            subscription.status = SubscriptionStatuses.ACTIVE.value
             subscription.pricing_package = pricing_package
             subscription.remained_request_count = pricing_package.request_count
             subscription.save()
@@ -626,5 +676,3 @@ class SubscriptionUpdateSerializer(serializers.Serializer):
                     "is_active": subscription.status
                 }
             }
-            
-            

@@ -1,7 +1,7 @@
-from django.contrib import admin
-from django.urls import path, include
 from django.conf.urls.static import static
+from django.contrib import admin
 from django.http import JsonResponse
+from django.urls import include, path
 from drf_spectacular.views import SpectacularAPIView, SpectacularSwaggerView
 
 from config import settings
@@ -23,8 +23,6 @@ urlpatterns += [
 ]
 
 if settings.DEBUG:
-    # Media is not served from the local filesystem — it lives in MinIO and is
-    # fetched through presigned URLs, so there is no MEDIA_ROOT route to add.
     urlpatterns += static(settings.STATIC_URL, document_root=settings.STATIC_ROOT)
     urlpatterns += (
         path(

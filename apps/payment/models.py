@@ -1,8 +1,17 @@
-from django.db import models
 from django.core.validators import MinValueValidator
+from django.db import models
+
+from apps.shared.addons.enums import (
+    CurrencyType,
+    PaymentMethods,
+    PaymentStatuses,
+    PricingPackageType,
+    SubscriptionStatuses,
+    TransactionTypes,
+)
+from apps.shared.fields import EncryptedTextField
 from apps.shared.models import BaseModel
-from apps.shared.addons.enums import PaymentMethods, PaymentStatuses, CurrencyType, \
-                                    TransactionTypes, PricingPackageType, SubscriptionStatuses
+
 
 class Feature(BaseModel):
     name = models.CharField(max_length=100)
@@ -41,13 +50,44 @@ class PricingPackage(BaseModel):
     features = models.ManyToManyField(Feature, related_name='pricing_packages', blank=True)
     is_active = models.BooleanField(default=True)
     is_popular = models.BooleanField(default=False)
-    
+
     class Meta:
         db_table = 'pricing_package'
         ordering = ["-created_time"]
 
     def __str__(self):
         return self.name
+
+    @property
+    def is_custom(self):
+        return self.type == PricingPackageType.CUSTOM.value
+
+
+class CustomPackageRequest(BaseModel):
+    pricing_package = models.ForeignKey(
+        PricingPackage, on_delete=models.SET_NULL,
+        related_name="custom_requests", null=True, blank=True,
+    )
+    user = models.ForeignKey(
+        "user.User", on_delete=models.SET_NULL,
+        related_name="custom_package_requests", null=True, blank=True,
+    )
+    company_name = models.CharField(max_length=255)
+    full_name = models.CharField(max_length=255)
+    phone_number = models.CharField(max_length=50)
+    email = models.EmailField(null=True, blank=True)
+    expected_conversations = models.IntegerField(
+        null=True, blank=True, validators=[MinValueValidator(0)],
+    )
+    comment = models.TextField(blank=True, default="")
+    is_processed = models.BooleanField(default=False)
+
+    class Meta:
+        db_table = "custom_package_request"
+        ordering = ["-created_time"]
+
+    def __str__(self):
+        return f"{self.company_name} — {self.phone_number}"
 
 
 class Transaction(BaseModel):
@@ -83,7 +123,7 @@ class Transaction(BaseModel):
 
 class Card(BaseModel):
     name = models.CharField(max_length=50, null=True, blank=True)
-    card_token = models.TextField()
+    card_token = EncryptedTextField()
     card_number = models.CharField(max_length=16)
     expiry_date = models.CharField(max_length=10)
     is_verified = models.BooleanField(default=False)
@@ -93,7 +133,6 @@ class Card(BaseModel):
 
     def save(self, *args, **kwargs):
         self.card_number = self.card_number[:4] + '*' * 8 + self.card_number[-4:]
-        # undefault user's other cards
         if self.is_default:
             Card.objects.filter(user=self.user).exclude(id=self.id).update(is_default=False)
         if not self.name:
@@ -129,8 +168,8 @@ class Subscription(BaseModel):
     )
     start_date = models.DateField(null=True, blank=True)
     end_date = models.DateField(null=True, blank=True)
-    status = models.CharField(max_length=100, 
-                              choices=SubscriptionStatuses.choices(), 
+    status = models.CharField(max_length=100,
+                              choices=SubscriptionStatuses.choices(),
                               default=SubscriptionStatuses.INACTIVE.value)
     next_payment_date = models.DateField(null=True, blank=True)
     retry_count = models.IntegerField(default=0)
@@ -138,18 +177,16 @@ class Subscription(BaseModel):
     auto_renew = models.BooleanField(default=True)
     cancellation_reason = models.TextField(null=True, blank=True)
     last_payment_date = models.DateField(null=True, blank=True)
-    grace_period_days = models.IntegerField(default=0)  # for late payments
+    grace_period_days = models.IntegerField(default=0)
     subscription_id = models.CharField(
         max_length=255, unique=True, null=True, blank=True
-    )  # for external payment systems
+    )
 
     class Meta:
         db_table = "subscription"
         ordering = ["-created_time"]
 
     def __str__(self):
-        # `pricing_package` is SET_NULL, so it can legitimately be missing —
-        # don't let that raise in the admin or in any log line.
         package = self.pricing_package.name if self.pricing_package else "No package"
         return f"{package} - {self.start_date} - {self.end_date}"
 
@@ -159,7 +196,7 @@ class RetryPayment(BaseModel):
     status = models.CharField(max_length=100, choices=PaymentStatuses.choices())
     retry_date = models.DateTimeField(null=True, blank=True)
     error_message = models.TextField(null=True, blank=True)
-    
+
     class Meta:
         db_table = "retry_payment"
         ordering = ["-created_time"]

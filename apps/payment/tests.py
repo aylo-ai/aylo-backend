@@ -1,20 +1,16 @@
-"""Payment endpoint tests.
-
-Two groups:
-
-* Cross-tenant scoping — regressions for the 2026-07-22 investigation: P1 (card
-  delete IDOR), P2 (default-card IDOR), P3 (retry-payment list enumeration) and
-  the unscoped auto-renew update. Every mutation and read must be limited to
-  `request.user`'s own billing objects.
-* Plan selection — the pricing-package list and `subscriptions/create/` that the
-  post-sign-up "choose a plan" step drives.
-"""
 from unittest import mock
 
-from django.test import TestCase
+from django.core.cache import cache
+from django.test import TestCase, override_settings
 from rest_framework.test import APIClient
 
-from apps.payment.models import Card, PricingPackage, RetryPayment, Subscription
+from apps.payment.models import (
+    Card,
+    CustomPackageRequest,
+    PricingPackage,
+    RetryPayment,
+    Subscription,
+)
 from apps.user.models import User
 from apps.shared.addons.enums import (
     PaymentStatuses,
@@ -113,15 +109,13 @@ CREATE_URL = "/api/v1/payment/subscriptions/create/"
 
 
 class PlanSelectionTests(TestCase):
-    """`subscriptions/create/` — the step a new user lands on after sign-up."""
-
     def setUp(self):
         self.free = PricingPackage.objects.create(
             name="Free", type=PricingPackageType.FREE.value, price=0,
             request_count=100, duration_days=30,
         )
         self.paid = PricingPackage.objects.create(
-            name="Basic", type=PricingPackageType.CUSTOM.value, price=199000,
+            name="Basic", type=PricingPackageType.BASIC.value, price=699000,
             request_count=2000, duration_days=30,
         )
         self.user = User.objects.create(username="new-signup", auth_type="email")
@@ -162,8 +156,6 @@ class PlanSelectionTests(TestCase):
         self.assertIsNotNone(subscription.next_payment_date)
 
     def test_the_response_names_the_plan_that_was_chosen(self):
-        """The write-only UUID has to come back resolved, or the confirmation
-        screen would need a second round-trip to name the plan."""
         response = self.select(self.paid)
 
         self.assertEqual(response.data["data"]["pricing_package"]["name"], "Basic")
@@ -178,7 +170,6 @@ class PlanSelectionTests(TestCase):
         self.assertEqual(self.user.subscription.pricing_package, self.free)
 
     def test_an_unpaid_plan_can_still_be_swapped(self):
-        """Picking a paid plan and not paying must not trap the account."""
         self.select(self.paid)
 
         response = self.select(self.free)
@@ -217,12 +208,195 @@ class PlanSelectionTests(TestCase):
         self.assertEqual(response.status_code, 401)
 
 
-class PricingPackageValidationTests(TestCase):
-    """Regressions for the `PricingPackageSerializer.validate` defects: it
-    indexed `attrs` for optional fields (a 500 on any partial payload) and
-    compared the discount the wrong way round (rejecting every real discount).
-    """
+@override_settings(
+    CACHES={"default": {"BACKEND": "django.core.cache.backends.dummy.DummyCache"}}
+)
+class CustomPackageTests(TestCase):
+    def setUp(self):
+        self.custom = PricingPackage.objects.create(
+            name="Pro", type=PricingPackageType.CUSTOM.value, price=0,
+            request_count=0, duration_days=30,
+        )
+        self.priced = PricingPackage.objects.create(
+            name="Basic", type=PricingPackageType.BASIC.value, price=699000,
+            request_count=2000, duration_days=30, is_popular=True,
+        )
+        self.request_url = f"/api/v1/payment/pricing-packages/{self.custom.id}/request/"
+        self.user = User.objects.create(username="company-owner", auth_type="email")
+        self.client = APIClient()
+        self.client.force_authenticate(self.user)
 
+    def payload(self, **overrides):
+        data = {
+            "company_name": "Aylo LLC",
+            "full_name": "Ali Valiyev",
+            "phone_number": "+998 90 123-45-67",
+            "email": "ali@aylo.uz",
+            "expected_conversations": 50000,
+            "comment": "Bizga maxsus integratsiya kerak",
+        }
+        data.update(overrides)
+        return data
+
+
+    def test_the_list_marks_the_custom_tier(self):
+        response = APIClient().get("/api/v1/payment/pricing-packages/")
+
+        self.assertEqual(response.status_code, 200)
+        by_name = {package["name"]: package for package in response.data}
+        self.assertTrue(by_name["Pro"]["is_custom"])
+        self.assertFalse(by_name["Basic"]["is_custom"])
+
+    def test_the_list_comes_back_as_a_ladder(self):
+        PricingPackage.objects.create(
+            name="Free", type=PricingPackageType.FREE.value, price=0,
+            request_count=100, duration_days=30,
+        )
+
+        response = APIClient().get("/api/v1/payment/pricing-packages/")
+
+        self.assertEqual(
+            [package["name"] for package in response.data],
+            ["Free", "Basic", "Pro"],
+        )
+
+    def test_the_popular_tier_carries_its_price_and_conversation_limit(self):
+        response = APIClient().get("/api/v1/payment/pricing-packages/")
+
+        popular = next(p for p in response.data if p["is_popular"])
+        self.assertEqual(popular["name"], "Basic")
+        self.assertEqual(popular["request_count"], 2000)
+        self.assertEqual(float(popular["price"]), 699000.0)
+
+
+    def test_the_custom_tier_cannot_be_subscribed_to(self):
+        response = self.client.post(
+            CREATE_URL, {"pricing_package": str(self.custom.id)}, format="json",
+        )
+
+        self.assertEqual(response.status_code, 400)
+        self.user.refresh_from_db()
+        self.assertIsNone(self.user.subscription)
+
+    def test_the_custom_tier_cannot_be_upgraded_to(self):
+        subscription = Subscription.objects.create(
+            pricing_package=self.priced, status=SubscriptionStatuses.ACTIVE.value,
+        )
+        self.user.subscription = subscription
+        self.user.save()
+        card = Card.objects.create(
+            user=self.user, card_token="tok", card_number="8600123412341234",
+            expiry_date="12/30", is_verified=True,
+        )
+
+        with mock.patch("apps.payment.serializers.create_payme_receipt") as receipt:
+            response = self.client.post(
+                "/api/v1/payment/payme/card/update-subscription/",
+                {"pricing_package_id": str(self.custom.id), "card_id": str(card.id)},
+                format="json",
+            )
+
+        self.assertEqual(response.status_code, 400)
+        receipt.assert_not_called()
+        subscription.refresh_from_db()
+        self.assertEqual(subscription.pricing_package, self.priced)
+
+
+    def test_a_company_can_request_a_quote(self):
+        with mock.patch("apps.payment.views.notify_custom_package_request") as notify:
+            response = self.client.post(self.request_url, self.payload(), format="json")
+
+        self.assertEqual(response.status_code, 201)
+        request_obj = CustomPackageRequest.objects.get()
+        self.assertEqual(request_obj.company_name, "Aylo LLC")
+        self.assertEqual(request_obj.pricing_package, self.custom)
+        self.assertEqual(request_obj.user, self.user)
+        self.assertEqual(request_obj.expected_conversations, 50000)
+        self.assertEqual(request_obj.phone_number, "+998901234567")
+        notify.assert_called_once()
+
+    def test_an_anonymous_visitor_can_request_a_quote(self):
+        with mock.patch("apps.payment.views.notify_custom_package_request"):
+            response = APIClient().post(self.request_url, self.payload(), format="json")
+
+        self.assertEqual(response.status_code, 201)
+        self.assertIsNone(CustomPackageRequest.objects.get().user)
+
+    def test_a_short_phone_number_is_rejected(self):
+        response = self.client.post(
+            self.request_url, self.payload(phone_number="12345"), format="json",
+        )
+
+        self.assertEqual(response.status_code, 400)
+        self.assertFalse(CustomPackageRequest.objects.exists())
+
+    def test_a_priced_package_has_no_quote_form(self):
+        response = self.client.post(
+            f"/api/v1/payment/pricing-packages/{self.priced.id}/request/",
+            self.payload(), format="json",
+        )
+
+        self.assertEqual(response.status_code, 400)
+        self.assertFalse(CustomPackageRequest.objects.exists())
+
+    def test_a_failing_sales_notification_does_not_lose_the_request(self):
+        with mock.patch(
+            "apps.payment.services.notifications.send_to_lead_groups",
+            side_effect=RuntimeError("telegram down"),
+        ):
+            response = self.client.post(self.request_url, self.payload(), format="json")
+
+        self.assertEqual(response.status_code, 201)
+        self.assertTrue(CustomPackageRequest.objects.exists())
+
+    def test_the_sales_alert_escapes_attacker_markup(self):
+        with mock.patch(
+            "apps.payment.services.notifications.send_to_lead_groups"
+        ) as send:
+            response = self.client.post(
+                self.request_url,
+                self.payload(company_name='<a href="http://evil">Aylo</a>'),
+                format="json",
+            )
+
+        self.assertEqual(response.status_code, 201)
+        sent = send.call_args[0][0]
+        self.assertNotIn('<a href="http://evil">', sent)
+        self.assertIn("&lt;a href=", sent)
+
+
+class SubscriptionCancellationTests(TestCase):
+    def setUp(self):
+        self.subscription = Subscription.objects.create(
+            status=SubscriptionStatuses.ACTIVE.value,
+            remained_request_count=500,
+        )
+        self.user = User.objects.create(
+            username="cancel-me", auth_type="email", subscription=self.subscription,
+        )
+        self.client = APIClient()
+        self.client.force_authenticate(self.user)
+
+    def test_cancelling_sets_cancelled_not_inactive(self):
+        response = self.client.post(
+            "/api/v1/payment/subscriptions/cancel/",
+            {"cancellation_reason": "too expensive"},
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.subscription.refresh_from_db()
+        self.assertEqual(self.subscription.status, SubscriptionStatuses.CANCELLED.value)
+
+    def test_cancelling_without_a_reason_is_a_clean_400(self):
+        response = self.client.post("/api/v1/payment/subscriptions/cancel/", {}, format="json")
+
+        self.assertEqual(response.status_code, 400)
+        self.subscription.refresh_from_db()
+        self.assertEqual(self.subscription.status, SubscriptionStatuses.ACTIVE.value)
+
+
+class PricingPackageValidationTests(TestCase):
     def setUp(self):
         self.admin = User.objects.create(
             username="pricing-admin", auth_type="email",
@@ -284,3 +458,291 @@ class PricingPackageValidationTests(TestCase):
         )
 
         self.assertEqual(response.status_code, 200)
+
+
+NO_THROTTLE = override_settings(
+    CACHES={"default": {"BACKEND": "django.core.cache.backends.dummy.DummyCache"}}
+)
+
+
+@NO_THROTTLE
+class CardTokenBindingTests(TestCase):
+    URL = "/api/v1/payment/payme/card/add/"
+
+    def setUp(self):
+        self.victim = User.objects.create(username="token-victim", auth_type="email")
+        self.attacker = User.objects.create(username="token-attacker", auth_type="email")
+        self.victim_card = Card.objects.create(
+            user=self.victim,
+            card_token="victim-payme-token",
+            card_number="8600111122223333",
+            expiry_date="12/30",
+            is_verified=True,
+        )
+        self.client = APIClient()
+
+    @staticmethod
+    def payme_reply(number="8600444455556666", token="fresh-payme-token"):
+        reply = mock.Mock()
+        reply.json.return_value = {
+            "result": {
+                "card": {
+                    "number": number,
+                    "expire": "1230",
+                    "token": token,
+                    "verify": True,
+                    "recurrent": True,
+                }
+            }
+        }
+        return reply
+
+    def test_a_token_already_bound_to_someone_else_is_refused(self):
+        self.client.force_authenticate(self.attacker)
+        with mock.patch(
+            "apps.payment.serializers.check_payme_card_token",
+            return_value=self.payme_reply(token="victim-payme-token"),
+        ) as check:
+            response = self.client.post(
+                self.URL, {"card_token": "victim-payme-token"}, format="json",
+            )
+
+        self.assertEqual(response.status_code, 400)
+        check.assert_not_called()
+        self.assertFalse(Card.objects.filter(user=self.attacker).exists())
+        self.assertEqual(Card.objects.filter(card_token="victim-payme-token").count(), 1)
+
+    def test_the_owner_can_still_save_a_card(self):
+        self.client.force_authenticate(self.victim)
+        with mock.patch(
+            "apps.payment.serializers.check_payme_card_token",
+            return_value=self.payme_reply(),
+        ):
+            response = self.client.post(
+                self.URL, {"card_token": "fresh-payme-token", "name": "Salary"},
+                format="json",
+            )
+
+        self.assertEqual(response.status_code, 201)
+        self.assertTrue(
+            Card.objects.filter(user=self.victim, card_token="fresh-payme-token").exists()
+        )
+
+    def test_the_response_never_echoes_the_card_token(self):
+        self.client.force_authenticate(self.victim)
+        with mock.patch(
+            "apps.payment.serializers.check_payme_card_token",
+            return_value=self.payme_reply(),
+        ):
+            response = self.client.post(
+                self.URL, {"card_token": "fresh-payme-token"}, format="json",
+            )
+
+        self.assertEqual(response.status_code, 201)
+        self.assertNotIn("card_token", response.data["data"])
+        self.assertNotIn("fresh-payme-token", str(response.data))
+
+
+@NO_THROTTLE
+class CardWriteProtectionTests(TestCase):
+    def setUp(self):
+        self.owner = User.objects.create(username="patch-owner", auth_type="email")
+        self.attacker = User.objects.create(username="patch-attacker", auth_type="email")
+        self.card = Card.objects.create(
+            user=self.owner,
+            card_token="patch-token",
+            card_number="8600123412341234",
+            expiry_date="12/30",
+            is_verified=False,
+            name="Old",
+        )
+        self.url = f"/api/v1/payment/cards/{self.card.id}/"
+        self.client = APIClient()
+
+    def test_a_client_cannot_mark_its_own_card_verified(self):
+        self.client.force_authenticate(self.owner)
+        response = self.client.patch(
+            self.url, {"is_verified": True, "card_number": "9999888877776666"},
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.card.refresh_from_db()
+        self.assertFalse(self.card.is_verified)
+        self.assertEqual(self.card.card_number, "8600********1234")
+
+    def test_the_owner_can_still_rename_their_card(self):
+        self.client.force_authenticate(self.owner)
+        response = self.client.patch(self.url, {"name": "Salary"}, format="json")
+
+        self.assertEqual(response.status_code, 200)
+        self.card.refresh_from_db()
+        self.assertEqual(self.card.name, "Salary")
+
+    def test_another_user_cannot_read_the_card(self):
+        self.client.force_authenticate(self.attacker)
+        response = self.client.get(self.url)
+
+        self.assertEqual(response.status_code, 400)
+        self.assertNotIn("8600", str(response.data["data"]))
+
+    def test_another_user_cannot_patch_the_card(self):
+        self.client.force_authenticate(self.attacker)
+        response = self.client.patch(self.url, {"name": "stolen"}, format="json")
+
+        self.assertEqual(response.status_code, 400)
+        self.card.refresh_from_db()
+        self.assertEqual(self.card.name, "Old")
+
+    def test_the_owner_can_read_their_own_card(self):
+        self.client.force_authenticate(self.owner)
+        response = self.client.get(self.url)
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data["data"]["id"], str(self.card.id))
+
+
+class PaymentThrottleTests(TestCase):
+    URL = "/api/v1/payment/payme/get-verify-token/"
+
+    def setUp(self):
+        cache.clear()
+        self.addCleanup(cache.clear)
+        self.user = User.objects.create(username="throttled", auth_type="email")
+        self.client = APIClient()
+        self.client.force_authenticate(self.user)
+
+    def test_the_verify_code_endpoint_is_rate_limited(self):
+        with mock.patch(
+            "apps.payment.serializers.send_create_card_request",
+            return_value={"result": {"card": {"token": "t"}}},
+        ), mock.patch(
+            "apps.payment.serializers.send_verify_code_request", return_value={},
+        ):
+            payload = {"number": "8600123412341234", "expire": "1230"}
+            codes = [
+                self.client.post(self.URL, payload, format="json").status_code
+                for _ in range(12)
+            ]
+
+        self.assertIn(200, codes, "the endpoint must still work for a normal caller")
+        self.assertIn(429, codes, "an unbounded caller must eventually be throttled")
+
+def throttled_at(scope, rate):
+    from rest_framework.throttling import SimpleRateThrottle
+
+    return mock.patch.dict(SimpleRateThrottle.THROTTLE_RATES, {scope: rate})
+
+
+class PublicCatalogueTests(TestCase):
+    def setUp(self):
+        from django.core.cache import cache
+
+        cache.clear()
+        self.package = PricingPackage.objects.create(
+            name="Basic", type=PricingPackageType.BASIC.value, price=199000,
+            request_count=2000, duration_days=30,
+        )
+        self.retired = PricingPackage.objects.create(
+            name="Retired", type=PricingPackageType.BASIC.value, price=1,
+            request_count=1, duration_days=30, is_active=False,
+        )
+        self.client = APIClient()
+
+    def test_anonymous_may_read_the_package_list(self):
+        response = self.client.get("/api/v1/payment/pricing-packages/")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual([p["name"] for p in response.data], ["Basic"])
+
+    def test_a_retired_package_is_not_exposed(self):
+        response = self.client.get(f"/api/v1/payment/pricing-packages/{self.retired.id}/")
+
+        self.assertEqual(response.status_code, 404)
+
+    def test_the_public_package_payload_carries_no_internal_fields(self):
+        response = self.client.get(f"/api/v1/payment/pricing-packages/{self.package.id}/")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(
+            set(response.data["data"]),
+            {"id", "name", "price", "discount_price", "currency", "description",
+             "features", "request_count", "duration_days", "is_popular",
+             "is_custom"},
+        )
+
+    def test_anonymous_cannot_create_a_package(self):
+        response = self.client.post(
+            "/api/v1/payment/pricing-packages/",
+            {"name": "Free forever", "price": 0, "request_count": 1,
+             "duration_days": 30, "type": PricingPackageType.CUSTOM.value},
+            format="json",
+        )
+
+        self.assertIn(response.status_code, (401, 403))
+        self.assertFalse(PricingPackage.objects.filter(name="Free forever").exists())
+
+    def test_anonymous_cannot_edit_a_package_price(self):
+        response = self.client.patch(
+            f"/api/v1/payment/pricing-packages/{self.package.id}/",
+            {"price": 1}, format="json",
+        )
+
+        self.assertIn(response.status_code, (401, 403))
+        self.package.refresh_from_db()
+        self.assertEqual(self.package.price, 199000)
+
+    def test_anonymous_cannot_delete_a_package(self):
+        response = self.client.delete(
+            f"/api/v1/payment/pricing-packages/{self.package.id}/"
+        )
+
+        self.assertIn(response.status_code, (401, 403))
+        self.assertTrue(PricingPackage.objects.filter(id=self.package.id).exists())
+
+    def test_the_public_catalogue_is_rate_limited(self):
+        with throttled_at("public_read", "1/minute"):
+            first = self.client.get("/api/v1/payment/pricing-packages/")
+            second = self.client.get("/api/v1/payment/pricing-packages/")
+
+        self.assertEqual(first.status_code, 200)
+        self.assertEqual(second.status_code, 429)
+
+    def test_the_feature_list_is_rate_limited(self):
+        with throttled_at("public_read", "1/minute"):
+            first = self.client.get("/api/v1/payment/features/")
+            second = self.client.get("/api/v1/payment/features/")
+
+        self.assertEqual(first.status_code, 200)
+        self.assertEqual(second.status_code, 429)
+
+
+class PaymeVerificationThrottleTests(TestCase):
+    def setUp(self):
+        from django.core.cache import cache
+
+        cache.clear()
+        self.user = User.objects.create(username="payme-user", auth_type="email")
+        self.client = APIClient()
+        self.client.force_authenticate(self.user)
+
+    def test_verify_code_requests_are_rate_limited(self):
+        with throttled_at("payme_verify", "1/minute"):
+            first = self.client.post("/api/v1/payment/payme/get-verify-token/", {}, format="json")
+            second = self.client.post("/api/v1/payment/payme/get-verify-token/", {}, format="json")
+
+        self.assertEqual(first.status_code, 400)
+        self.assertEqual(second.status_code, 429)
+
+    def test_code_confirmation_attempts_are_rate_limited(self):
+        with throttled_at("payme_verify", "1/minute"):
+            first = self.client.post("/api/v1/payment/payme/verify-code/", {}, format="json")
+            second = self.client.post("/api/v1/payment/payme/verify-code/", {}, format="json")
+
+        self.assertEqual(first.status_code, 400)
+        self.assertEqual(second.status_code, 429)
+
+    def test_the_endpoints_still_reject_anonymous_callers(self):
+        response = APIClient().post("/api/v1/payment/payme/verify-code/", {}, format="json")
+
+        self.assertIn(response.status_code, (401, 403))

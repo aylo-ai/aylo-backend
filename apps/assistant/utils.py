@@ -1,8 +1,17 @@
+from django.db.models import Q
 from django.utils.timezone import now
 
 
+def owned_assistants(user):
+    from apps.assistant.models import Assistant
+
+    q = Q(user=user)
+    if user.created_by_id:
+        q |= Q(user=user.created_by)
+    return Assistant.objects.filter(q).distinct()
+
+
 def cancel_pending_follow_ups(conversation_id):
-    """Cancel all pending follow-up logs for a conversation when user responds."""
     from apps.assistant.models import FollowUpLog
     from apps.shared.addons.enums import FollowUpLogStatus
 

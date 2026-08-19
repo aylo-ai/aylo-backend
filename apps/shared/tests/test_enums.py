@@ -1,12 +1,3 @@
-"""Structural guards for `shared/addons/enums.py`.
-
-`LeadStatuses` was declared twice in that module. Python keeps the last
-definition, so the first one's values (`registered`/`delivered`/`lost`) were
-silently never in effect — while stored rows and a downstream client were still
-using them. Nothing failed loudly; it just quietly meant the wrong thing.
-
-These tests make that class of mistake impossible to reintroduce.
-"""
 import ast
 import collections
 import inspect
@@ -26,7 +17,6 @@ class EnumModuleStructureTests(SimpleTestCase):
         ]
 
     def test_no_enum_is_declared_twice(self):
-        """A repeated class name shadows the earlier one without any error."""
         names = self.module_class_names()
         duplicates = sorted(
             name for name, count in collections.Counter(names).items() if count > 1
@@ -42,7 +32,6 @@ class EnumModuleStructureTests(SimpleTestCase):
         )
 
     def test_every_enum_has_unique_values(self):
-        """Two members sharing a value makes one an alias, not a distinct state."""
         offenders = {}
         for name in self.module_class_names():
             enum_class = getattr(enums, name, None)
@@ -56,12 +45,6 @@ class EnumModuleStructureTests(SimpleTestCase):
 
 
 class LeadStatusesTests(SimpleTestCase):
-    """The surviving definition is the contract — pin it down.
-
-    `assistant/tasks.py` writes `QUALIFIED`, and the frontend's badge map mirrors
-    this exact set, so a change here is an API contract change.
-    """
-
     def test_values_are_the_ones_clients_expect(self):
         self.assertEqual(
             [member.value for member in enums.LeadStatuses],

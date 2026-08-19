@@ -1,27 +1,36 @@
 from datetime import timedelta
 
 from django.db import transaction
+from django.db.models import Case, IntegerField, Value, When
 from django.utils.timezone import now
+from django.utils.translation import gettext_lazy as _
 from rest_framework import generics, permissions
+from rest_framework.throttling import ScopedRateThrottle
 from rest_framework.views import APIView
 
-from apps.payment.models import Feature, PricingPackage, Card, Subscription, Transaction, RetryPayment  
-from apps.shared.addons.enums import SubscriptionStatuses
 import apps.payment.serializers as serializers
+from apps.payment.models import (
+    Card,
+    Feature,
+    PricingPackage,
+    RetryPayment,
+    Subscription,
+    Transaction,
+)
 from apps.payment.services.billing import remove_payme_card
-from apps.shared.addons.validations import success_response, error_response
+from apps.payment.services.notifications import notify_custom_package_request
+from apps.shared.addons.enums import PricingPackageType, SubscriptionStatuses
+from apps.shared.addons.validations import error_response, success_response
 from apps.shared.permissions import IsAdmin
-from django.utils.translation import gettext_lazy as _
+
 
 class FeatureListCreateView(generics.ListCreateAPIView):
     queryset = Feature.objects.filter(is_active=True)
     serializer_class = serializers.FeatureSerializer
     permission_classes = [IsAdmin]
+    throttle_scope = "public_read"
 
     def get_permissions(self):
-        # Features are the public bullet list on the pricing page — readable by
-        # anyone, but writable only by an admin (they are M2M-attached to
-        # PricingPackage, which is already admin-only).
         if self.request.method == "GET":
             return [permissions.AllowAny()]
         return [IsAdmin()]
@@ -37,6 +46,7 @@ class FeatureRetrieveView(generics.RetrieveUpdateDestroyAPIView):
     queryset = Feature.objects.filter(is_active=True)
     serializer_class = serializers.FeatureSerializer
     permission_classes = [IsAdmin]
+    throttle_scope = "public_read"
 
     def get_permissions(self):
         if self.request.method == "GET":
@@ -50,8 +60,6 @@ class FeatureRetrieveView(generics.RetrieveUpdateDestroyAPIView):
 
     def update(self, request, *args, **kwargs):
         instance = self.get_object()
-        # DRF's `partial_update` signals PATCH through this kwarg; dropping it
-        # made every PATCH behave as a PUT and demand the full object.
         serializer = self.get_serializer(
             instance, data=request.data, partial=kwargs.pop("partial", False),
         )
@@ -66,9 +74,16 @@ class FeatureRetrieveView(generics.RetrieveUpdateDestroyAPIView):
 
 
 class PricingPackageListCreateView(generics.ListCreateAPIView):
-    queryset = PricingPackage.objects.filter(is_active=True)
+    queryset = PricingPackage.objects.filter(is_active=True).annotate(
+        is_custom_tier=Case(
+            When(type=PricingPackageType.CUSTOM.value, then=Value(1)),
+            default=Value(0),
+            output_field=IntegerField(),
+        )
+    ).order_by("is_custom_tier", "price", "created_time")
     serializer_class = serializers.PricingPackageSerializer
     permission_classes = [IsAdmin]
+    throttle_scope = "public_read"
 
     def get_permissions(self):
         if self.request.method == 'GET':
@@ -86,6 +101,7 @@ class PricingPackageRetrieveView(generics.RetrieveUpdateDestroyAPIView):
     queryset = PricingPackage.objects.filter(is_active=True)
     serializer_class = serializers.PricingPackageSerializer
     permission_classes = [IsAdmin]
+    throttle_scope = "public_read"
 
     def get_permissions(self):
         if self.request.method == 'GET':
@@ -112,9 +128,40 @@ class PricingPackageRetrieveView(generics.RetrieveUpdateDestroyAPIView):
         return success_response(message=_("Narx paketi muvaffaqiyatli o'chirildi"), code=204)
 
 
-class CardListView(generics.ListAPIView):
-    """API view to retrieve a list of cards based on user role"""
+class CustomPackageRequestCreateView(generics.CreateAPIView):
+    serializer_class = serializers.CustomPackageRequestSerializer
+    permission_classes = (permissions.AllowAny,)
+    throttle_classes = (ScopedRateThrottle,)
+    throttle_scope = "landing_lead"
 
+    def create(self, request, *args, **kwargs):
+        package = PricingPackage.objects.filter(
+            id=self.kwargs.get("pk"), is_active=True,
+        ).first()
+        if package is None:
+            return error_response(message=_("Narx paketi topilmadi."))
+        if not package.is_custom:
+            return error_response(
+                message=_("Bu paketni to'g'ridan-to'g'ri xarid qilish mumkin.")
+            )
+
+        serializer = self.get_serializer(
+            data=request.data,
+            context={"request": request, "pricing_package": package},
+        )
+        serializer.is_valid(raise_exception=True)
+        instance = serializer.save()
+
+        notify_custom_package_request(instance)
+
+        return success_response(
+            message=_("Arizangiz qabul qilindi. Savdo bo'limi tez orada bog'lanadi."),
+            data=serializer.data,
+            code=201,
+        )
+
+
+class CardListView(generics.ListAPIView):
     serializer_class = serializers.CardSerializer
     permission_classes = (permissions.IsAuthenticated,)
 
@@ -133,11 +180,10 @@ class CardListView(generics.ListAPIView):
 
 
 class CardCreateWithPaymeView(generics.CreateAPIView):
-    """API view to create a card"""
-
     serializer_class = serializers.CardCreateSerializer
     permission_classes = (permissions.IsAuthenticated,)
-    queryset = Card.objects.all()
+    throttle_classes = (ScopedRateThrottle,)
+    throttle_scope = "payment_card"
 
     def create(self, request, *args, **kwargs):
         serializer = self.get_serializer(data=request.data)
@@ -160,38 +206,32 @@ class SetDefaultCard(APIView):
         if card_id is None:
             return error_response(message=_("Karta ID kiritilmagan"))
 
-        # Resolve the target *before* touching anything: clearing every card's
-        # `is_default` first left the user with no default card at all whenever
-        # the id turned out not to be theirs.
         default_card = Card.objects.filter(id=card_id, user=user).first()
         if default_card is None:
             return error_response(message=_("Karta topilmadi"))
 
         with transaction.atomic():
-            # `Card.save()` already un-defaults the user's other cards.
             default_card.is_default = True
             default_card.save()
 
         return success_response(
-            message=_(
-                f"{default_card.card_number[:4]}{'*' * 8}{default_card.card_number[-4:]} "
-                f"karta asosiy kartaga muvaffaqiyatli o'zgartirildi"
+            message=_("{card} karta asosiy kartaga muvaffaqiyatli o'zgartirildi").format(
+                card=default_card.card_number
             )
         )
 
 
 class CardDetailView(generics.RetrieveUpdateAPIView):
-    queryset = Card.objects.all()
     serializer_class = serializers.CardSerializer
     permission_classes = (permissions.IsAuthenticated,)
 
+    def get_queryset(self):
+        if getattr(self, "swagger_fake_view", False):
+            return Card.objects.none()
+        return Card.objects.filter(user=self.request.user)
+
     def get_object(self):
-        card_id = self.kwargs.get("pk")
-        try:
-            card = Card.objects.get(id=card_id, user=self.request.user)
-            return card
-        except Card.DoesNotExist:
-            return None
+        return self.get_queryset().filter(id=self.kwargs.get("pk")).first()
 
     def retrieve(self, request, *args, **kwargs):
         instance = self.get_object()
@@ -218,6 +258,8 @@ class CardDetailView(generics.RetrieveUpdateAPIView):
 class PaymeGetVerifyCodeView(generics.CreateAPIView):
     serializer_class = serializers.PaymeGetVerifyCodeSerializer
     permission_classes = (permissions.IsAuthenticated,)
+    throttle_classes = (ScopedRateThrottle,)
+    throttle_scope = "payment_card"
 
     def create(self, request, *args, **kwargs):
         serializer = self.get_serializer(
@@ -228,10 +270,12 @@ class PaymeGetVerifyCodeView(generics.CreateAPIView):
         return success_response(
             message=_("Verification code sent successfully"), data=data
         )
-    
+
 class PaymeVerifyCodeView(generics.CreateAPIView):
     serializer_class = serializers.PaymeVerifyCodeSerializer
     permission_classes = (permissions.IsAuthenticated,)
+    throttle_classes = (ScopedRateThrottle,)
+    throttle_scope = "payment_card"
 
     def create(self, request, *args, **kwargs):
         serializer = self.get_serializer(
@@ -245,23 +289,26 @@ class PaymeVerifyCodeView(generics.CreateAPIView):
         )
 
 class CardRemoveView(generics.DestroyAPIView):
-    queryset = Card.objects.all()
     serializer_class = serializers.CardSerializer
     permission_classes = (permissions.IsAuthenticated,)
+    throttle_classes = (ScopedRateThrottle,)
+    throttle_scope = "payment_card"
+
+    def get_queryset(self):
+        if getattr(self, "swagger_fake_view", False):
+            return Card.objects.none()
+        return Card.objects.filter(user=self.request.user)
 
     def delete(self, request, *args, **kwargs):
-        card_id = self.kwargs["pk"]
-        try:
-            card = Card.objects.get(id=card_id, user=request.user)
-            card_token = card.card_token
-        except Card.DoesNotExist:
+        card = self.get_queryset().filter(id=self.kwargs["pk"]).first()
+        if card is None:
             return error_response(message=_("Karta topilmadi"))
+        card_token = card.card_token
 
         response = remove_payme_card(card_token)
         if not response:
             return error_response(
                 message=_("To'lov tizimi bilan bog'lanishda xatolik yuz berdi. Iltimos, qaytadan urinib ko'ring"))
-        # delete card object from Database table
         card.delete()
         return success_response(
             message=_("Karta va uning ma'lumotlari muvaffaqiyatli o'chirildi"),
@@ -271,6 +318,8 @@ class CardRemoveView(generics.DestroyAPIView):
 class PayWithCard(generics.CreateAPIView):
     serializer_class = serializers.PayWithCardSerializer
     permission_classes = (permissions.IsAuthenticated,)
+    throttle_classes = (ScopedRateThrottle,)
+    throttle_scope = "payment_charge"
 
     def create(self, request, *args, **kwargs):
         serializer = self.get_serializer(data=request.data, context={"request": request})
@@ -285,19 +334,17 @@ class PayWithCard(generics.CreateAPIView):
 class ManualSubscriptionPaymentView(generics.CreateAPIView):
     serializer_class = serializers.PayWithCardSerializer
     permission_classes = (permissions.IsAuthenticated,)
+    throttle_classes = (ScopedRateThrottle,)
+    throttle_scope = "payment_charge"
 
     def create(self, request, *args, **kwargs):
         user = request.user
         subscription = user.subscription
-        # `User.subscription` is nullable — the normal state of a fresh account.
         if subscription is None:
             return error_response(message=_("Sizda obuna mavjud emas."))
         if not subscription.pricing_package:
             return error_response(message=_("Pullik obuna paketi yo'q. Iltimos, administrator bilan bog'laning."))
 
-        # `PayWithCardSerializer` takes the subscription and derives the amount
-        # from its package itself; passing an `amount` it has no field for made
-        # every call fail on a missing `subscription_id`.
         serializer = self.get_serializer(
             data={"subscription_id": str(subscription.id), "card_id": request.data.get("card_id")},
             context={"request": request, "is_withdrawal": True}
@@ -305,7 +352,6 @@ class ManualSubscriptionPaymentView(generics.CreateAPIView):
         serializer.is_valid(raise_exception=True)
         serializer.save()
 
-        # Update user subscription details
         subscription.retry_count = 0
         subscription.status = SubscriptionStatuses.ACTIVE.value
         subscription.next_payment_date = now().date() + timedelta(days=30)
@@ -323,11 +369,13 @@ class SubscriptionCreateView(generics.CreateAPIView):
         serializer.is_valid(raise_exception=True)
         serializer.save()
         return success_response(message=_("Obuna muvaffaqiyatli yaratildi"), data=serializer.data)
-    
+
 
 class SubscriptionUpdateView(generics.CreateAPIView):
     serializer_class = serializers.SubscriptionUpdateSerializer
     permission_classes = (permissions.IsAuthenticated,)
+    throttle_classes = (ScopedRateThrottle,)
+    throttle_scope = "payment_charge"
 
     def create(self, request, *args, **kwargs):
         serializer = self.get_serializer(data=request.data, context={"request": request})
@@ -337,45 +385,39 @@ class SubscriptionUpdateView(generics.CreateAPIView):
 
 class SubscriptionCancellationView(APIView):
     permission_classes = [permissions.IsAuthenticated]
-    
+
     def post(self, request, *args, **kwargs):
         user = request.user
 
-        # Get cancellation reason from request data
         cancellation_reason = request.data.get('cancellation_reason')
         if not cancellation_reason:
             return error_response(message=_("Bekor qilish sababi talab qilinadi"), code=400)
 
-        # Update subscription status
         subscription = user.subscription
         if subscription is None:
             return error_response(message=_("Sizda obuna mavjud emas."))
-        subscription.status = SubscriptionStatuses.INACTIVE.value
+        subscription.status = SubscriptionStatuses.CANCELLED.value
         subscription.cancellation_reason = cancellation_reason
         subscription.save()
-        
+
         return success_response(
             message=_("Obuna muvaffaqiyatli bekor qilindi"),
             data={"reason": subscription.cancellation_reason},
             code=200
         )
-    
+
 class TransactionListView(generics.ListAPIView):
-    queryset = Transaction.objects.all()
     serializer_class = serializers.TransactionSerializer
     permission_classes = (permissions.IsAuthenticated,)
 
     def get_queryset(self):
         user = self.request.user
         if user.created_by:
-            # If user is created by an admin, show transactions for all users created by this admin
             return Transaction.objects.filter(user__created_by=user)
         else:
-            # For regular users, show only their own transactions
             return Transaction.objects.filter(user=user)
 
 class RetryPaymentListView(generics.ListAPIView):
-    queryset = RetryPayment.objects.all()
     serializer_class = serializers.RetryPaymentSerializer
     permission_classes = (permissions.IsAuthenticated,)
 
@@ -385,17 +427,17 @@ class RetryPaymentListView(generics.ListAPIView):
             subscription_id=subscription_id,
             subscription__users=self.request.user,
         )
-    
+
 class SubscriptionUpdateAutoRenewView(generics.UpdateAPIView):
     serializer_class = serializers.SubscriptionUpdateAutoRenewSerializer
     permission_classes = (permissions.IsAuthenticated,)
 
     def get_queryset(self):
         return Subscription.objects.filter(users=self.request.user)
-    
+
     def update(self, request, *args, **kwargs):
         instance = self.get_object()
-        serializer = self.get_serializer(instance, data=request.data, partial=True) 
+        serializer = self.get_serializer(instance, data=request.data, partial=True)
         serializer.is_valid(raise_exception=True)
         serializer.save()
         return success_response(message=_("Obuna muvaffaqiyatli tahrirlandi"), data=serializer.data)

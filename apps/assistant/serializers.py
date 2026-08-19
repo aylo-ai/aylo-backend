@@ -1,31 +1,40 @@
 import json
 import logging
-from io import BytesIO
-from openpyxl import Workbook
 from datetime import datetime
+from io import BytesIO
 
-from rest_framework import serializers
 from django.core.exceptions import ValidationError
-from django.utils.translation import gettext_lazy as _
+from django.db import transaction
 from django.utils.timezone import localtime
+from django.utils.translation import gettext_lazy as _
+from openpyxl import Workbook
+from rest_framework import serializers
 
-
-from apps.assistant.services.google import process_google_doc
 from apps.assistant.models import (
-    Assistant, Conversation, Message, Settings, AssistantFileUpload, Lead, PromptTemplate,
-    FollowUpConfig, FollowUpStage, FollowUpLog,
+    Assistant,
+    AssistantFileUpload,
+    Conversation,
+    FollowUpConfig,
+    FollowUpLog,
+    FollowUpStage,
+    Lead,
+    Message,
+    PromptTemplate,
 )
-from apps.integration.models import TelegramGroupIntegration
-from apps.integration.gateways.telegram import send_telegram_message
+from apps.assistant.tasks import index_assistant_file
+from apps.shared.addons.enums import (
+    ConversationPlatforms,
+    ConversationStatuses,
+    FileIndexStatuses,
+    MessageTypes,
+    SenderTypes,
+)
+from apps.shared.addons.redis import publish_message_to_ws_assistant
+from apps.shared.addons.validations import raise_validation_error
 from apps.shared.ai_service import knowledge_base, media
 from apps.shared.ai_service.agent import agent
-from apps.shared.addons.validations import raise_validation_error
 from apps.shared.file_validation import validate_audio, validate_document
-from apps.shared.addons.enums import (
-    ConversationPlatforms, ConversationStatuses, MessageTypes, SenderTypes,
-)
 from apps.shared.mixins import SubscriptionValidationMixin
-from apps.shared.addons.redis import publish_message_to_ws_assistant
 
 logger = logging.getLogger(__name__)
 
@@ -62,7 +71,7 @@ class AssistantSerializer(serializers.ModelSerializer,
             "integrations",
             "prompt_template",
         ]
-        read_only_fields = ["created_time", "updated_time"]
+        read_only_fields = ["created_time", "updated_time", "user"]
 
     def get_integrations(self, obj):  # noqa
         telegram_count = obj.integrations.filter(integration_type="telegram").exists()
@@ -73,7 +82,7 @@ class AssistantSerializer(serializers.ModelSerializer,
             "is_instagram_integration": instagram_count,
             "is_widget_integration": widget_count,
         }
-    
+
     def validate(self, attrs):
         user = self.context.get("request").user
         self.validate_subscription(user.subscription)
@@ -105,10 +114,7 @@ class ConversationSerializer(serializers.ModelSerializer,
             "created_time",
             "updated_time",
         ]
-        read_only_fields = ["created_time", "updated_time"]
-        extra_kwargs = {
-            "assistant": {"required": False},
-        }
+        read_only_fields = ["assistant", "created_time", "updated_time"]
 
     def validate(self, attrs):
         assistant = self.context.get("assistant_id")
@@ -120,18 +126,13 @@ class ConversationSerializer(serializers.ModelSerializer,
         if assistant is None:
             raise_validation_error(message=_("Assistant topilmadi"))
         if assistant.ai_enabled:
-            if not assistant.vector_id:
+            if not knowledge_base.has_knowledge_base(assistant):
                 raise_validation_error(message=_("Assistant uchun fayl yuklash kerak"))
 
         attrs["assistant"] = assistant
         return attrs
 
     def create(self, validated_data):
-        # The agent tracks its own state per conversation, so there is nothing
-        # to set up here beyond the row itself. Everything the caller sent is
-        # persisted — this used to hard-code `platform=website` and pass only
-        # the assistant, silently discarding the validated `user_id`,
-        # `username`, `client_full_name`, `client_phone_email` and `status`.
         validated_data.setdefault("platform", ConversationPlatforms.WEBSITE.value)
         conversation = Conversation.objects.create(**validated_data)
         publish_message_to_ws_assistant(conversation)
@@ -166,10 +167,7 @@ class ConversationRetrieveSerializer(serializers.ModelSerializer, SubscriptionVa
             "created_time",
             "updated_time",
         ]
-        read_only_fields = ["created_time", "updated_time"]
-        extra_kwargs = {
-            "assistant": {"required": False},
-        }
+        read_only_fields = ["created_time", "updated_time", "assistant"]
 
 
     def to_representation(self, instance):
@@ -191,19 +189,17 @@ class MessageSerializer(serializers.ModelSerializer, SubscriptionValidationMixin
             "message_content",
             "message_type",
             "audio_file",
-            # Exposed so an inbox can render unread badges/counts. The column
-            # already existed and `messages/bulk-read/` already maintained it —
-            # it was simply never serialized, leaving clients unable to tell a
-            # read message from an unread one.
             "is_read",
             "created_time",
             "updated_time",
             "answered_by",
             "answered_by_name",
         ]
-        read_only_fields = ["created_time", "updated_time", "answered_by", "answered_by_name"]
+        read_only_fields = [
+            "conversation", "created_time", "updated_time",
+            "answered_by", "answered_by_name",
+        ]
         extra_kwargs = {
-            "conversation": {"required": False},
             "message_content": {"required": False},
         }
 
@@ -213,18 +209,10 @@ class MessageSerializer(serializers.ModelSerializer, SubscriptionValidationMixin
         return None
 
     def validate(self, attrs):
-        # Bound the audio before `create()` reads it into memory and pays for a
-        # transcription. Unchecked, a 100 MB upload buffered in the worker and
-        # blocked the request on Whisper for the full proxy timeout.
-        #
-        # Deliberately above the update short-circuit below: MessageRetrieveView
-        # is a RetrieveUpdateDestroyAPIView that exposes `audio_file`, so a PATCH
-        # could otherwise store any size and any extension unchecked.
         validate_audio(attrs.get("audio_file"))
 
-        # On an update the message already has its conversation and the content
-        # may not be re-sent, so the checks below only apply to a create.
         if self.instance is not None:
+            attrs.pop("conversation", None)
             return attrs
 
         message_content = attrs.get("message_content")
@@ -232,10 +220,9 @@ class MessageSerializer(serializers.ModelSerializer, SubscriptionValidationMixin
         if not message_content and not audio_file:
             raise_validation_error(message=_("Xabar matni yoki audio fayl kerak"))
 
-        # The conversation comes from the URL (`MessageListCreateView` puts it in
-        # the context); falling back to the body keeps the serializer usable
-        # from any caller rather than 400-ing whenever the context is absent.
-        conversation = self.context.get("conversation_id") or attrs.get("conversation")
+        conversation = self.context.get("conversation_id")
+        if conversation is None:
+            raise_validation_error(message=_("Conversation topilmadi"))
         try:
             conversation = Conversation.objects.get(id=getattr(conversation, "id", conversation))
         except (Conversation.DoesNotExist, ValidationError, ValueError):
@@ -255,9 +242,6 @@ class MessageSerializer(serializers.ModelSerializer, SubscriptionValidationMixin
         sender = validated_data.get("sender")
         if audio_file:
             audio_bytes = audio_file.read()
-            # Not `_`: unpacking into it would rebind gettext's `_` as a local
-            # for this whole method, so the `_("Request obyekti kerak")` above
-            # raised UnboundLocalError instead of a clean validation error.
             transcribed_text, _in_tokens, _out_tokens = media.transcribe_audio(
                 audio_bytes, filename=audio_file.name
             )
@@ -282,20 +266,29 @@ class MessageSerializer(serializers.ModelSerializer, SubscriptionValidationMixin
         )
 
 
-class SettingsSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = Settings
-        fields = [
-            "id",
-            "assistant",
-            "timezone",
-            "language",
-            "notification_preferences",
-            "escalation_rules",
-            "created_time",
-            "updated_time",
-        ]
-        read_only_fields = ["created_time", "updated_time"]
+def queue_file_uploads(assistant, files):
+    if not isinstance(files, (list, tuple)):
+        files = [files] if files else []
+
+    uploads = []
+    for file in files:
+        if not file:
+            continue
+        upload = AssistantFileUpload.objects.create(
+            assistant=assistant,
+            file=file,
+            filename=file.name,
+            index_status=FileIndexStatuses.PENDING.value,
+        )
+        transaction.on_commit(
+            lambda upload_id=str(upload.id): index_assistant_file.delay(upload_id)
+        )
+        uploads.append(upload)
+
+    if not uploads:
+        raise_validation_error(message=_("Fayl yuklanmadi"))
+
+    return uploads
 
 
 class AssistantFileUploadSerializer(serializers.ModelSerializer, SubscriptionValidationMixin):
@@ -308,13 +301,13 @@ class AssistantFileUploadSerializer(serializers.ModelSerializer, SubscriptionVal
             "website_url",
             "file",
             "file_type",
+            "index_status",
             "created_time",
             "updated_time",
         ]
-        read_only_fields = ["created_time", "updated_time"]
-        extra_kwargs = {
-            "assistant": {"required": False},
-        }
+        read_only_fields = [
+            "assistant", "index_status", "created_time", "updated_time",
+        ]
 
     def validate(self, attrs):
         files = self.context.get("files")
@@ -323,9 +316,6 @@ class AssistantFileUploadSerializer(serializers.ModelSerializer, SubscriptionVal
         if not assistant.ai_enabled:
             raise_validation_error(message=_("Assistant AI sizda yoqilmagan"))
 
-        # A file is mandatory when uploading, but not when editing an existing
-        # row: the detail view reuses this serializer, and requiring a file
-        # there made it impossible to rename a document without re-uploading it.
         if not files and self.instance is None:
             raise_validation_error(message=_("Fayl yuklanmadi"))
 
@@ -337,47 +327,18 @@ class AssistantFileUploadSerializer(serializers.ModelSerializer, SubscriptionVal
                 continue
             if not hasattr(file, "size") or not hasattr(file, "name"):
                 raise_validation_error(message=_("Yaroqsiz fayl obyekti"))
-            # Size *and* extension. The old check was size-only, so any file type
-            # at all could be stored and served back from the API's own origin.
             validate_document(file)
         return attrs
 
     def create(self, validated_data):
-        request = self.context.get("request")
         files = self.context.get('files')
         assistant = self.context.get("assistant")
-        
+
         if not assistant:
             raise_validation_error(message=_("Assistant kerak"))
 
-        uploaded_files = []
-
-        if files:
-            if not isinstance(files, (list, tuple)):
-                files = [files]
-
-            for file in files:
-                if not file:
-                    continue
-                filename = file.name
-                upload = AssistantFileUpload.objects.create(
-                    assistant=assistant,
-                    file=file,
-                    filename=filename
-                )
-                try:
-                    file_url = request.build_absolute_uri(upload.file.url) if request else upload.file.url
-                    store_id = knowledge_base.ensure_store(assistant)
-                    file_id = knowledge_base.add_file(store_id, file_url)
-                    if file_id:
-                        upload.file_id = file_id
-                        upload.save(update_fields=["file_id"])
-                except Exception as exc:
-                    logger.exception("Failed to index %s for assistant %s: %s", filename, assistant.id, exc)
-                uploaded_files.append(upload)
-
-
-        return uploaded_files[0] if len(uploaded_files) == 1 else uploaded_files
+        self.uploaded_files = queue_file_uploads(assistant, files)
+        return self.uploaded_files[0]
 
     def to_representation(self, instance):
         assistant = getattr(instance, "assistant", None)
@@ -399,10 +360,7 @@ class UpdateFileUploadSerializer(serializers.ModelSerializer, SubscriptionValida
             "created_time",
             "updated_time",
         ]
-        read_only_fields = ["created_time", "updated_time"]
-        extra_kwargs = {
-            "assistant": {"required": False},
-        }
+        read_only_fields = ["assistant", "created_time", "updated_time"]
 
     def validate(self, attrs):
         request = self.context.get("request")
@@ -425,55 +383,20 @@ class UpdateFileUploadSerializer(serializers.ModelSerializer, SubscriptionValida
                 continue
             if not hasattr(file, 'size') or not hasattr(file, 'name'):
                 raise_validation_error(message=_("Yaroqsiz fayl obyekti"))
-            # Same rules as the create path — this serializer's create() stores
-            # new rows, so a size-only check here bypassed the allowlist.
             validate_document(file)
         return attrs
 
     def create(self, validated_data):
-        # `validated_data` is unused — the files come off the request via the
-        # context, because DRF cannot bind a multi-file upload to a single
-        # model field. The parameter is still required: DRF always calls
-        # `create(validated_data)`, and the old zero-argument signature raised
-        # TypeError the moment this path was reached.
-        request = self.context.get("request")
-        if not request:
+        if not self.context.get("request"):
             raise_validation_error(message=_("Request obyekt kerak"))
         files = self.context.get('files')
         assistant = self.context.get("assistant")
-        
+
         if not files or not assistant:
             raise_validation_error(message=_("Fayl va assistant kerak"))
 
-        if not isinstance(files, (list, tuple)):
-            files = [files]
-
-        uploaded_files = []
-        for file in files:
-            if not file:
-                continue
-            filename = file.name
-            upload = AssistantFileUpload.objects.create(
-                assistant=assistant,
-                file=file,
-                filename=filename
-            )
-            try:
-                file_url = request.build_absolute_uri(upload.file.url)
-                store_id = knowledge_base.ensure_store(assistant)
-                file_id = knowledge_base.add_file(store_id, file_url)
-                if file_id:
-                    upload.file_id = file_id
-                    upload.save(update_fields=["file_id"])
-            except Exception as exc:
-                logger.exception("Failed to index %s for assistant %s: %s", filename, assistant.id, exc)
-            uploaded_files.append(upload)
-
-        # Keep the full set available to the view, but return a single instance:
-        # returning a list from `create()` breaks `serializer.data`, which
-        # expects one object on a non-`many` serializer.
-        self.uploaded_files = uploaded_files
-        return uploaded_files[0]
+        self.uploaded_files = queue_file_uploads(assistant, files)
+        return self.uploaded_files[0]
 
 
 class MessageBulkReadSerializer(serializers.Serializer):
@@ -487,40 +410,6 @@ class MessageBulkReadSerializer(serializers.Serializer):
         if not message_ids:
             raise_validation_error(message=_("Xabar ID lari kiritilmagan"))
         return attrs
-
-class AssistantFileGoogleDocSerializer(serializers.Serializer):
-    sheet_doc_url = serializers.CharField(required=True)
-    assistant_id = serializers.UUIDField(required=True)
-    file_type = serializers.CharField(read_only=True)
-
-    def validate(self, attrs):
-        sheet_doc_url = attrs.get('sheet_doc_url')
-        assistant_id = attrs.get('assistant_id')
-        if not sheet_doc_url:
-            raise_validation_error(message=_("Sheet URL kiritilmagan"))
-        if not assistant_id:
-            raise_validation_error(message=_("Assistant ID kiritilmagan"))
-        try:
-            assistant = Assistant.objects.get(id=assistant_id)
-        except Assistant.DoesNotExist:
-            raise_validation_error(message=_("Assistant topilmadi"))
-
-        attrs['sheet_doc_url'] = sheet_doc_url
-        attrs['assistant'] = assistant
-        return attrs
-
-    def create(self, validated_data):
-        sheet_doc_url = validated_data.get('sheet_doc_url')
-        assistant = validated_data.get('assistant')
-        response = process_google_doc(sheet_doc_url, assistant)
-        file_url = response.get("file_url")
-        if assistant and file_url:
-            store_id = knowledge_base.ensure_store(assistant)
-            knowledge_base.add_file(store_id, file_url)
-
-        validated_data["file_type"] = response.get("file_type")
-        return validated_data
-
 
 class LeadSerializer(serializers.ModelSerializer):
     class Meta:
@@ -540,22 +429,11 @@ class LeadSerializer(serializers.ModelSerializer):
             "created_time",
             "updated_time",
         ]
-        # `assistant` is set from the URL, never from the body — a writable
-        # field here let a caller attach a lead to somebody else's assistant,
-        # bypassing the ownership check the view had already performed.
         read_only_fields = ["assistant", "created_time", "updated_time"]
 
-    
+
 class LeadExportSerializer(serializers.Serializer):
     def export_leads(self, assistant_id):
-        """Build the leads workbook in memory.
-
-        Returns (filename, BytesIO). This used to write
-        `leads_export_<date>.xlsx` into the process working directory — one
-        path shared by *every* assistant and every tenant on a given day, so
-        two concurrent exports raced and one caller could be handed the other's
-        leads. Nothing ever deleted the files either.
-        """
         leads = Lead.objects.filter(assistant_id=assistant_id).select_related('assistant').only(
             'full_name', 'phone_number', 'email', 'product', 'status', 'contacted', 'created_time', 'assistant__name', 'metadata'
         ).iterator(chunk_size=1000)

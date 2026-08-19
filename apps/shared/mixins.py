@@ -1,33 +1,31 @@
-from django.utils.translation import gettext_lazy as _
 from django.utils import timezone
+from django.utils.translation import gettext_lazy as _
 
-from apps.shared.addons.validations import raise_validation_error
 from apps.shared.addons.enums import IntegrationTypes, SubscriptionStatuses
+from apps.shared.addons.validations import raise_validation_error
+
 
 class SubscriptionValidationMixin:
-    """
-    Mixin to handle subscription validation across different serializers
-    """
     def validate_subscription(self, subscription):
-        """
-        Validates user's subscription status
-        Returns the subscription object if valid
-        """
         if not subscription:
             raise_validation_error(message=_("Sizda obuna paketi yo'q. Iltimos, avval obuna paketini tanlang."))
 
-        if subscription.remained_request_count <= 0:
-            raise_validation_error(message=_("Sizning obunangiz tokeni tugagan. Iltimos, obunangizni yangilang."))
-        
-        # Check if subscription is active
-        if  subscription.status == SubscriptionStatuses.INACTIVE.value:
+        if subscription.status == SubscriptionStatuses.CANCELLED.value:
+            raise_validation_error(message=_("Sizning obunangiz bekor qilingan. Iltimos, yangi obuna tanlang."))
+
+        if subscription.status != SubscriptionStatuses.ACTIVE.value:
+            if not subscription.last_payment_date:
+                raise_validation_error(message=_("To'lov hali amalga oshirilmagan. Iltimos, to'lovni yakunlang."))
             raise_validation_error(message=_("Sizning obunangiz faol emas. Iltimos, obunangizni faollashtiring."))
 
-        if subscription.next_payment_date < timezone.now().date() if subscription.next_payment_date else False:
+        if subscription.remained_request_count <= 0:
+            raise_validation_error(message=_("Sizning obunangiz tokeni tugagan. Iltimos, obunangizni yangilang."))
+
+        if subscription.next_payment_date and subscription.next_payment_date < timezone.now().date():
             raise_validation_error(message=_("Sizning obunangiz muddati tugagan. Iltimos, obunangizni yangilang."))
-        
+
         return subscription
-            
+
 
     def validate_assistant_count(self, subscription):
         assistants = subscription.assistants.count()

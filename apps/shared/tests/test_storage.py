@@ -1,11 +1,3 @@
-"""Storage layer: key generation, presigned URLs, and the guards around them.
-
-Media moved from AWS S3 to self-hosted MinIO. Most of what is asserted here is
-not "does the backend work" — django-storages handles that — but the specific
-ways the previous configuration was wrong, so that a future edit reintroducing
-one of them fails loudly.
-"""
-
 from unittest import mock
 
 from django.conf import settings
@@ -35,13 +27,6 @@ def make_storage(**overrides):
 
 class BuildMediaKeyTests(SimpleTestCase):
     def test_two_uploads_of_the_same_name_get_different_keys(self):
-        """The regression that mattered most: colliding keys shared one object.
-
-        `assistant/<id>/files/catalog.pdf` was generated verbatim from the client
-        filename, so a second upload of catalog.pdf produced a second DB row
-        pointing at the *same* object. Deleting either row deleted the file out
-        from under the other.
-        """
         first = build_media_key("assistant/42/files", "catalog.pdf")
         second = build_media_key("assistant/42/files", "catalog.pdf")
 
@@ -50,7 +35,6 @@ class BuildMediaKeyTests(SimpleTestCase):
         self.assertTrue(first.endswith("catalog.pdf"))
 
     def test_a_very_long_filename_still_fits_the_column(self):
-        """Both FileFields are varchar(255); the key must never exceed it."""
         key = build_media_key("assistant/42/files", "x" * 500 + ".pdf")
 
         self.assertLessEqual(len(key), MAX_KEY_LENGTH)
@@ -74,7 +58,6 @@ class BuildMediaKeyTests(SimpleTestCase):
 
 class MediaStorageURLTests(SimpleTestCase):
     def test_url_is_presigned_against_the_public_origin(self):
-        """Signing with the internal host would produce links no browser can use."""
         url = make_storage().url("assistant/42/files/report.pdf")
 
         self.assertTrue(url.startswith("https://api.aylo.uz/aylo-media/"))
@@ -93,11 +76,6 @@ class MediaStorageURLTests(SimpleTestCase):
         self.assertIn("X-Amz-Expires=60", url)
 
     def test_custom_domain_is_refused(self):
-        """S3Boto3Storage.url() returns an UNSIGNED url when custom_domain is set.
-
-        Against a private bucket that is a 403 on every media link, and the
-        failure is silent at configuration time. Refuse the combination instead.
-        """
         with self.assertRaises(ImproperlyConfigured):
             make_storage(custom_domain="cdn.aylo.uz")
 
@@ -107,12 +85,6 @@ class MediaStorageURLTests(SimpleTestCase):
 
 class StorageSettingsTests(SimpleTestCase):
     def test_tests_do_not_use_a_network_backend(self):
-        """Regression: the suite used to issue real PutObject calls.
-
-        `AssistantFileUploadSerializer` tests save a FileField, which reached
-        S3Boto3Storage.save(). It only looked green because this checkout had no
-        credentials — with them, tests wrote into the live bucket.
-        """
         self.assertEqual(
             settings.STORAGES["default"]["BACKEND"],
             "django.core.files.storage.InMemoryStorage",
@@ -120,20 +92,18 @@ class StorageSettingsTests(SimpleTestCase):
         self.assertEqual(type(storages["default"]).__name__, "InMemoryStorage")
 
     def test_media_url_is_not_defined_twice(self):
-        """It was set at two places in settings.py with different intent."""
         source = (settings.BASE_DIR / "config" / "settings.py").read_text()
 
         self.assertEqual(source.count("\nMEDIA_URL"), 1)
 
 
 class FileCleanupTests(TestCase):
-    """Deleting a row must delete its object, including on cascade."""
-
     def setUp(self):
         from apps.assistant.models import Assistant, Conversation
         from apps.payment.models import Subscription
         from apps.shared.addons.enums import (
-            ConversationStatuses, SubscriptionStatuses,
+            ConversationStatuses,
+            SubscriptionStatuses,
         )
         from apps.user.models import User
 
@@ -176,7 +146,6 @@ class FileCleanupTests(TestCase):
         self.assertFalse(default_storage.exists(key))
 
     def test_cascading_a_conversation_delete_deletes_the_audio(self):
-        """A Model.delete() override never saw this path — post_delete does."""
         _, key = self.make_message_with_audio()
         self.assertTrue(default_storage.exists(key))
 
@@ -196,19 +165,12 @@ class FileCleanupTests(TestCase):
         self.assertFalse(default_storage.exists(key))
 
     def test_a_rolled_back_delete_leaves_the_file_alone(self):
-        """The reason deletion is deferred to commit.
-
-        ATOMIC_REQUESTS wraps every view in a transaction, so post_delete fires
-        *before* commit. Deleting eagerly there meant a rollback restored the row
-        while its file was already gone from storage — a live row pointing at
-        nothing, which is strictly worse than the orphan it replaced.
-        """
         from django.db import transaction
 
         from apps.assistant.models import Message
 
         message, key = self.make_message_with_audio()
-        pk = message.pk  # Model.delete() sets instance.pk to None
+        pk = message.pk
 
         class Rollback(Exception):
             pass
@@ -224,15 +186,13 @@ class FileCleanupTests(TestCase):
         self.assertTrue(default_storage.exists(key), "file must survive the rollback")
 
     def test_a_storage_failure_does_not_break_the_row_delete(self):
-        """Cleanup runs after commit — an object-storage error must not propagate."""
         message, _ = self.make_message_with_audio()
 
-        # default_storage is a lazy proxy; patch the concrete backend class.
         with mock.patch.object(
             type(storages["default"]), "delete", side_effect=OSError("minio down")
         ):
             with self.captureOnCommitCallbacks(execute=True):
-                message.delete()  # must not raise
+                message.delete()
 
         from apps.assistant.models import Message
 
@@ -249,14 +209,12 @@ class FileCleanupTests(TestCase):
         )
 
         with self.captureOnCommitCallbacks(execute=True):
-            message.delete()  # must not raise
+            message.delete()
 
         self.assertFalse(Message.objects.filter(pk=message.pk).exists())
 
 
 class StepImageTests(TestCase):
-    """Flow-step images: the field that was missed when keys got longer."""
-
     def make_step(self):
         from apps.integration.models import Flow, Step
 
@@ -264,13 +222,6 @@ class StepImageTests(TestCase):
         return Step.objects.create(flow=flow)
 
     def test_an_image_upload_fits_the_column(self):
-        """Regression: the new key prefix overflowed varchar(100).
-
-        `integration/flows/<uuid>/steps/<uuid>/image/<uuid>/<name>` came to 146
-        characters against a 100-char column, so Storage.get_available_name
-        truncated the stem away and raised SuspiciousFileOperation — a 500 on
-        every flow-step image upload, for every filename.
-        """
         from apps.integration.models import Step
 
         step = self.make_step()

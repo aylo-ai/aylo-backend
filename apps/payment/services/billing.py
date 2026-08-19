@@ -1,19 +1,22 @@
 import logging
 import random
-from datetime import timedelta, datetime
-
-from apps.shared import http
+from datetime import datetime, timedelta
 
 from apps.payment.models import Balance, Transaction
+from apps.shared import http
+from apps.shared.addons.enums import (
+    NotificationTypes,
+    PaymentStatuses,
+    SubscriptionStatuses,
+    TransactionTypes,
+)
 from apps.user.models import Notification
 from config import settings
-from apps.shared.addons.enums import TransactionTypes, PaymentStatuses, SubscriptionStatuses, NotificationTypes
 
 logger = logging.getLogger(__name__)
 
 
 def _json_body(response):
-    """The decoded JSON of a reply, or `{}` when there isn't any."""
     try:
         body = response.json()
     except ValueError:
@@ -22,12 +25,6 @@ def _json_body(response):
 
 
 def _payme_body(response, method):
-    """Return the JSON-RPC body of a Payme reply, or `None` if it failed.
-
-    Payme is JSON-RPC over HTTP: a refusal comes back as HTTP 200 with an
-    `error` member, so the status code on its own says nothing about whether
-    the call succeeded.
-    """
     body = _json_body(response)
     if response.status_code != 200:
         logger.error("Payme %s returned HTTP %s", method, response.status_code)
@@ -39,12 +36,6 @@ def _payme_body(response, method):
 
 
 def payme_error_message(body, default="Payme bilan bog'lanishda xatolik yuz berdi"):
-    """Extract a readable message from a Payme JSON-RPC error body.
-
-    Payme localises `error.message`: it is sometimes a plain string and
-    sometimes `{"ru": ..., "uz": ..., "en": ...}`. Falls back to `default`
-    rather than raising when the body has no usable error at all.
-    """
     message = (body.get("error") or {}).get("message") if isinstance(body, dict) else None
     if isinstance(message, dict):
         message = message.get("uz") or message.get("en") or next(iter(message.values()), None)
@@ -52,7 +43,6 @@ def payme_error_message(body, default="Payme bilan bog'lanishda xatolik yuz berd
 
 
 def check_payme_card_token(token):
-    """Call Payme API to verify card token."""
     param_data = {"method": "cards.check", "params": {"token": token}}
     headers = {"X-Auth": f"{settings.PAYME_ID}:{settings.PAYME_KEY}"}
     response = http.post(
@@ -62,12 +52,6 @@ def check_payme_card_token(token):
 
 
 def remove_payme_card(card_token):
-    """Call Payme API to remove a card.
-
-    Returns the response only when Payme actually removed the card. Trusting
-    the HTTP status alone used to let the caller delete the local row while the
-    recurrent token stayed live and chargeable on Payme's side.
-    """
     param_data = {
         "method": "cards.remove",
         "params": {"token": card_token},
@@ -80,7 +64,6 @@ def remove_payme_card(card_token):
 
 
 def create_payme_receipt(amount):
-    """Create a receipt in Payme."""
     payload = {
         "method": "receipts.create",
         "params": {
@@ -101,12 +84,11 @@ def create_payme_receipt(amount):
 
 
 def send_create_card_request(card_number, card_expiry):
-    """Create a card token in Payme."""
     payload = {
         "method": "cards.create",
         "params": {
             "card":{
-                "number": card_number, 
+                "number": card_number,
                 "expire": card_expiry},
             "save": True,
         }
@@ -117,9 +99,8 @@ def send_create_card_request(card_number, card_expiry):
     )
     return _json_body(response)
 
-    
+
 def send_verify_code_request(card_token):
-    """Verify a card code in Payme."""
     payload = {
         "method": "cards.get_verify_code",
         "params": {"token": card_token}
@@ -129,9 +110,8 @@ def send_verify_code_request(card_token):
         settings.PAYME_API_URL, json=payload, headers=headers
     )
     return _json_body(response)
-    
+
 def verify_payme_card_token(card_token, verify_code):
-    """Verify a card in Payme."""
     payload = {
         "method": "cards.verify",
         "params": {"token": card_token, "code": verify_code}
@@ -141,10 +121,9 @@ def verify_payme_card_token(card_token, verify_code):
         settings.PAYME_API_URL, json=payload, headers=headers
     )
     return _json_body(response)
-    
+
 
 def commit_payme_receipt(card_token, receipt_id):
-    """Commit a receipt in Payme."""
     payload = {
         "method": "receipts.pay",
         "params": {
@@ -165,7 +144,6 @@ def commit_payme_receipt(card_token, receipt_id):
 
 
 def update_user_balance(user, amount):
-    """Update the user's balance."""
     balance, _ = Balance.objects.get_or_create(user=user)
     balance.amount += amount
     balance.save()
@@ -173,7 +151,6 @@ def update_user_balance(user, amount):
 
 
 def process_subscription_payment(user):
-    """Process subscription payment for the user."""
     pricing_package = user.subscription.pricing_package
     if not pricing_package:
         return False, "No pricing package assigned."
@@ -182,17 +159,14 @@ def process_subscription_payment(user):
     if not card:
         return False, "No valid card available for payment."
 
-    # Step 1: Create Payme receipt
     success, message, receipt_id = create_payme_receipt(pricing_package.price)
     if not success:
         return False, message
 
-    # Step 2: Commit Payme receipt
     success, message, _ = commit_payme_receipt(card.card_token, receipt_id)
     if not success:
         return False, message
 
-    # Step 3: Log transaction
     transaction = Transaction.objects.create(
         user=user,
         amount=pricing_package.price,
@@ -202,7 +176,6 @@ def process_subscription_payment(user):
     )
     transaction.save()
 
-    # Step 4: Reset retry count and set next payment date
     subscription = transaction.user.subscription
     subscription.status = SubscriptionStatuses.ACTIVE.value
     subscription.remained_request_count += pricing_package.request_count
@@ -215,9 +188,7 @@ def process_subscription_payment(user):
     return True, "Payment successful."
 
 
-
 def create_notification(user, message):
-    """Create a notification for the user."""
     Notification.objects.create(
         user=user,
         title="Obuna tarifingiz tugadi. Iltimos, platformaga kirib, to'lovni qo'lda kiriting.",

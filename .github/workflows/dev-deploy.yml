@@ -25,6 +25,21 @@ jobs:
       - name: Checkout the repo
         uses: actions/checkout@v4
 
+      - name: Backup current deployment
+        uses: appleboy/ssh-action@master
+        with:
+          host: ${{ secrets.SSH_HOST_DEV }}
+          username: ${{ secrets.SSH_HOST_DEV_USERNAME }}
+          key: ${{ secrets.SSH_HOST_PRIVATE_KEY }}
+          port: 22
+          script: |
+            set -e
+            cd /opt/aylo
+            rm -rf backend.bak
+            if [ -d backend ]; then
+              cp -al backend backend.bak
+            fi
+
       - name: Copy repo to dev server
         uses: appleboy/scp-action@master
         with:
@@ -47,20 +62,15 @@ jobs:
           script: |
             set -e
             cd ${{ env.DEPLOY_DIR }}
-
-            # Env file lives outside the repo tree and is never committed.
             cp ${{ env.SECRETS_DIR }}/backend.env .env
-
-            # Host-sized overlay (1 vCPU / 2 GB): trims worker counts.
             cp deployment/compose.dev-host.yml compose.override.yml
-
-            # Deploy with green profile (matching prod)
             docker compose --profile green up --build -d
             docker image prune -f || true
-
             echo "Backend dev deployment complete"
 
       - name: Health check
+        id: health
+        continue-on-error: true
         uses: appleboy/ssh-action@master
         with:
           host: ${{ secrets.SSH_HOST_DEV }}
@@ -79,3 +89,56 @@ jobs:
             echo "Health check FAILED — recent web logs:"
             cd ${{ env.DEPLOY_DIR }} && docker compose --profile green logs --tail=50 web-green
             exit 1
+
+      - name: Rollback to previous deployment
+        if: steps.health.outcome == 'failure'
+        uses: appleboy/ssh-action@master
+        with:
+          host: ${{ secrets.SSH_HOST_DEV }}
+          username: ${{ secrets.SSH_HOST_DEV_USERNAME }}
+          key: ${{ secrets.SSH_HOST_PRIVATE_KEY }}
+          port: 22
+          command_timeout: 30m
+          script: |
+            set -e
+            cd /opt/aylo
+            if [ ! -d backend.bak ]; then
+              echo "No backup found — nothing to roll back to. Manual fix required."
+              exit 1
+            fi
+            echo "Rolling back to previous working deployment..."
+            cd backend
+            docker compose --profile green down || true
+            cd /opt/aylo
+            rm -rf backend
+            mv backend.bak backend
+            cd backend
+            cp ${{ env.SECRETS_DIR }}/backend.env .env
+            cp deployment/compose.dev-host.yml compose.override.yml
+            docker compose --profile green up --build -d
+            echo "Rollback deployment complete"
+
+      - name: Verify rollback health
+        if: steps.health.outcome == 'failure'
+        uses: appleboy/ssh-action@master
+        with:
+          host: ${{ secrets.SSH_HOST_DEV }}
+          username: ${{ secrets.SSH_HOST_DEV_USERNAME }}
+          key: ${{ secrets.SSH_HOST_PRIVATE_KEY }}
+          port: 22
+          script: |
+            for i in $(seq 1 20); do
+              if curl -sf http://localhost:8002/health/ > /dev/null; then
+                echo "Rollback verified healthy"
+                exit 0
+              fi
+              sleep 5
+            done
+            echo "Rollback ALSO unhealthy — needs manual intervention"
+            exit 1
+
+      - name: Fail job (deployment was rolled back)
+        if: steps.health.outcome == 'failure'
+        run: |
+          echo "New deployment failed health check and was rolled back to the previous version."
+          exit 1

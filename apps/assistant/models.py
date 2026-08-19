@@ -2,21 +2,25 @@ from django.contrib.postgres.fields import ArrayField
 from django.db import models
 from django.utils import timezone
 from django.utils.timezone import now
-from apps.shared.models import BaseModel
-from apps.shared.storages import build_media_key
+
 from apps.integration.models import Integration
 from apps.shared.addons.enums import (
     AssistantLanguages,
+    ConversationPlatforms,
+    ConversationStatuses,
+    FileIndexStatuses,
+    FileTypes,
+    FollowUpLogStatus,
+    LeadStatuses,
+    MessageStatuses,
+    MessageTypes,
     PersonalityStyles,
     SenderTypes,
-    MessageStatuses,
-    ConversationStatuses,
-    MessageTypes,
-    ConversationPlatforms,
-    FileTypes,
-    LeadStatuses,
-    FollowUpLogStatus,
 )
+from apps.shared.fields import EncryptedCharField, EncryptedTextField
+from apps.shared.models import BaseModel
+from apps.shared.storages import build_media_key
+
 
 def assistant_file_path(instance, filename):
     return build_media_key(f"assistant/{instance.assistant_id}/files", filename)
@@ -99,11 +103,6 @@ class Assistant(BaseModel):
 
     @property
     def resolved_prompt_template(self):
-        """This assistant's template, falling back to the system default.
-
-        Resolving here rather than in `shared.ai_service.prompts` keeps the AI
-        layer from having to import an assistant model.
-        """
         if self.prompt_template is not None:
             return self.prompt_template
         return PromptTemplate.objects.filter(is_default=True, is_active=True).first()
@@ -133,22 +132,16 @@ class Conversation(BaseModel):
     username = models.CharField(max_length=255, null=True, blank=True)
     token = models.CharField(max_length=255, null=True, blank=True)
     thread_id = models.CharField(max_length=255, null=True, blank=True)
-    # Agent state. previous_response_id continues the OpenAI response chain;
-    # instructions_version records the assistant's updated_time when the chain
-    # started, so editing the prompt restarts it on the next message.
     previous_response_id = models.CharField(max_length=255, null=True, blank=True)
     instructions_version = models.DateTimeField(null=True, blank=True)
     start_time = models.DateTimeField(default=timezone.now)
     end_time = models.DateTimeField(null=True, blank=True)
-    client_full_name = models.CharField(max_length=255, null=True, blank=True)
-    client_phone_email = models.CharField(max_length=255, null=True, blank=True)
+    client_full_name = EncryptedCharField(max_length=255, null=True, blank=True)
+    client_phone_email = EncryptedCharField(max_length=255, null=True, blank=True)
 
     class Meta:
         db_table = "conversation"
         indexes = [
-            # Every inbound message resolves the conversation with exactly this
-            # filter (see ConversationService.get_or_create_conversation), so it
-            # is the single hottest read in the system.
             models.Index(
                 fields=["assistant", "user_id", "token"],
                 name="conv_assistant_user_token_idx",
@@ -164,7 +157,7 @@ class Message(BaseModel):
         Conversation, on_delete=models.CASCADE, related_name="messages"
     )
     sender = models.CharField(max_length=10, choices=SenderTypes.choices())
-    message_content = models.TextField()
+    message_content = EncryptedTextField()
     audio_file = models.FileField(
         upload_to=assistant_audio_path, null=True, blank=True, max_length=255
     )
@@ -194,11 +187,10 @@ class Message(BaseModel):
         return f"Message from {self.sender} in conversation {self.conversation.id}"
 
     def save(self, *args, **kwargs):
-        from apps.user.services.notifications import notify_user_about_low_tokens
         from apps.payment.models import Subscription
+        from apps.user.services.notifications import notify_user_about_low_tokens
 
         if self.conversation:
-            # Bump conversation activity with a single UPDATE, no full save.
             Conversation.objects.filter(pk=self.conversation.pk).update(updated_time=now())
 
         assistant_user = (
@@ -206,22 +198,17 @@ class Message(BaseModel):
             if self.conversation
             else None
         )
-        # Charge the owner's quota only when a NEW assistant reply is inserted:
-        # edits/re-saves must not charge again, and an owner without a
-        # subscription must not crash the reply.
         subscription = getattr(assistant_user, "subscription", None)
         if (
             self._state.adding
             and subscription is not None
             and self.sender == SenderTypes.ASSISTANT.value
         ):
-            # Race-free decrement that can never go negative.
             charged = Subscription.objects.filter(
                 pk=subscription.pk, remained_request_count__gt=0
             ).update(remained_request_count=models.F("remained_request_count") - 1)
             if charged:
                 subscription.refresh_from_db(fields=["remained_request_count"])
-                # Warn the owner only when a request was actually consumed.
                 if subscription.remained_request_count in [0, 10, 20]:
                     notify_user_about_low_tokens(
                         assistant_user, subscription.remained_request_count
@@ -247,15 +234,11 @@ class Settings(BaseModel):
 
 class AssistantFileUpload(BaseModel):
     assistant = models.ForeignKey(
-        "Assistant", 
-        on_delete=models.CASCADE, 
+        "Assistant",
+        on_delete=models.CASCADE,
         related_name="files"
     )
     website_url = models.URLField(max_length=255, null=True, blank=True)
-    # max_length matches Message.audio_file. Left at Django's default of 100 this
-    # column could not hold its own key prefix (10 + 36-char UUID + 7 = 53 chars
-    # before the filename), which silently truncated long names onto colliding
-    # keys and raised SuspiciousFileOperation on the longest ones.
     file = models.FileField(upload_to=assistant_file_path, max_length=255)
     filename = models.CharField(max_length=255, null=True, blank=True)
     google_sheet_doc_id = models.CharField(max_length=255, null=True, blank=True)
@@ -263,6 +246,11 @@ class AssistantFileUpload(BaseModel):
         max_length=255, null=True, blank=True, choices=FileTypes.choices()
     )
     file_id = models.CharField(max_length=355, null=True, blank=True)
+    index_status = models.CharField(
+        max_length=20,
+        choices=FileIndexStatuses.choices(),
+        default=FileIndexStatuses.PENDING.value,
+    )
 
     def __str__(self):
         return self.filename

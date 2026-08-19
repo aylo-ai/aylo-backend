@@ -1,15 +1,20 @@
 from django_filters import rest_framework as filters
 
-from apps.user.models import User
-from apps.payment.models import Subscription, Transaction
 from apps.assistant.models import Assistant, Conversation, Lead
-from apps.integration.models import Integration
 from apps.dashboard.models import AuditLog
+from apps.integration.models import Integration
+from apps.payment.models import Subscription, Transaction
 from apps.shared.addons.enums import (
-    PaymentMethods, PaymentStatuses, UserRoles,
-    ConversationStatuses, ConversationPlatforms, IntegrationTypes,
-    LeadStatuses, SubscriptionStatuses,
+    ConversationPlatforms,
+    ConversationStatuses,
+    IntegrationTypes,
+    LeadStatuses,
+    PaymentMethods,
+    PaymentStatuses,
+    SubscriptionStatuses,
+    UserRoles,
 )
+from apps.user.models import User
 
 
 class UserFilter(filters.FilterSet):

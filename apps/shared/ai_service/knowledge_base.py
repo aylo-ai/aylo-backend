@@ -1,16 +1,8 @@
-"""Knowledge base management on OpenAI vector stores.
-
-The agent reads these through the native `file_search` tool, so all this module
-does is get files in and out of a store and keep `Assistant.vector_id` accurate.
-"""
 import logging
-import mimetypes
+import os
 import time
 from io import BytesIO
-from typing import Iterable, List, Optional, Tuple
-
-import requests
-from apps.shared import http
+from typing import Optional
 
 from .client import get_client
 from .tools import is_openai_store
@@ -60,11 +52,24 @@ def delete_file(store_id: str, file_id: str) -> bool:
         return False
 
 
-def add_file(store_id: str, file_url: str) -> Optional[str]:
-    """Download a file and index it. Returns the file id, or None on failure."""
-    content, filename = _download(file_url)
-    if content is None:
+def add_stored_file(store_id: str, fieldfile, filename: Optional[str] = None) -> Optional[str]:
+    filename = os.path.basename(filename or fieldfile.name or "") or "file"
+
+    if not is_supported(filename):
+        logger.info("Skipping unsupported file %s", filename)
         return None
+
+    try:
+        with fieldfile.open("rb") as handle:
+            content = handle.read()
+    except Exception as exc:
+        logger.error("Could not read %s from storage: %s", filename, exc)
+        return None
+
+    if not content:
+        logger.info("File %s is empty; skipping", filename)
+        return None
+
     return _upload(store_id, content, filename)
 
 
@@ -74,13 +79,13 @@ def add_text(store_id: str, text: str, filename: str = "knowledge_base.txt") -> 
     return _upload(store_id, text.encode("utf-8"), filename)
 
 
-def ensure_store(assistant, name_hint: Optional[str] = None) -> str:
-    """Return the assistant's store id, creating and saving one if needed.
+def has_knowledge_base(assistant) -> bool:
+    if assistant.vector_id:
+        return True
+    return assistant.files.exists()
 
-    A legacy Gemini id (`fileSearchStores/...`) is not a usable OpenAI store, so
-    it is replaced with a fresh one instead of being uploaded into — OpenAI 404s
-    on those names.
-    """
+
+def ensure_store(assistant, name_hint: Optional[str] = None) -> str:
     if is_openai_store(assistant.vector_id):
         return assistant.vector_id
 
@@ -90,71 +95,22 @@ def ensure_store(assistant, name_hint: Optional[str] = None) -> str:
     return store_id
 
 
-def replace_files(assistant, file_urls: Iterable[str]) -> Tuple[str, List[str]]:
-    """Point the assistant at a brand new store built from `file_urls`.
-
-    A new store is built first and only swapped in once it is ready, so a failed
-    rebuild leaves the assistant's current knowledge base intact.
-    """
-    old_store_id = assistant.vector_id
-    new_store_id = create_store(f"kb-{assistant.id}")
-
-    file_ids = []
-    for url in file_urls:
-        file_id = add_file(new_store_id, url)
-        if file_id:
-            file_ids.append(file_id)
-
-    if not file_ids:
-        logger.warning("No files indexed for assistant %s; keeping the old store", assistant.id)
-        delete_store(new_store_id)
-        return old_store_id, []
-
-    assistant.vector_id = new_store_id
-    assistant.save(update_fields=["vector_id", "updated_time"])
-
-    if old_store_id:
-        delete_store(old_store_id)
-
-    return new_store_id, file_ids
-
-
-# --------------------------------------------------------------------------
-
-def _download(file_url: str) -> Tuple[Optional[bytes], str]:
-    filename = file_url.split("?")[0].split("/")[-1] or "file"
-
-    if not is_supported(filename):
-        guessed = mimetypes.guess_type(filename)[0]
-        logger.info("Skipping unsupported file %s (%s)", filename, guessed)
-        return None, filename
-
-    try:
-        response = http.get(file_url, timeout=30)
-        response.raise_for_status()
-    except requests.RequestException as exc:
-        # Never the URL: it is a presigned, time-limited capability for this
-        # object, and these logs are exposed through the log viewer.
-        logger.error("Could not download %s: %s", filename, exc)
-        return None, filename
-
-    if not response.content:
-        logger.info("File %s is empty; skipping", filename)
-        return None, filename
-
-    return response.content, filename
-
-
 def _upload(store_id: str, content: bytes, filename: str) -> Optional[str]:
     buffer = BytesIO(content)
     buffer.name = filename
 
+    client = get_client()
+
     try:
-        indexed = get_client().vector_stores.files.upload_and_poll(
+        indexed = client.vector_stores.files.upload(
             vector_store_id=store_id, file=buffer
         )
+        indexed = _poll(client, store_id, indexed, filename)
     except Exception as exc:
         logger.error("Failed to index %s into %s: %s", filename, store_id, exc)
+        return None
+
+    if indexed is None:
         return None
 
     if getattr(indexed, "status", None) != "completed":
@@ -167,3 +123,21 @@ def _upload(store_id: str, content: bytes, filename: str) -> Optional[str]:
 
     logger.info("Indexed %s into %s as %s", filename, store_id, indexed.id)
     return indexed.id
+
+
+def _poll(client, store_id: str, indexed, filename: str):
+    deadline = time.monotonic() + INDEX_TIMEOUT_SECONDS
+
+    while getattr(indexed, "status", None) == "in_progress":
+        if time.monotonic() >= deadline:
+            logger.error(
+                "Gave up waiting for %s to index into %s after %ss",
+                filename, store_id, INDEX_TIMEOUT_SECONDS,
+            )
+            return None
+        time.sleep(INDEX_POLL_SECONDS)
+        indexed = client.vector_stores.files.retrieve(
+            indexed.id, vector_store_id=store_id
+        )
+
+    return indexed
