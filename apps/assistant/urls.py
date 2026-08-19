@@ -15,7 +15,6 @@ urlpatterns = [
     path("lead/<uuid:pk>/", views.LeadRetrieveView.as_view()),
     path("assistant/<uuid:pk>/export-leads/", views.ExportLeadsView.as_view()),
 
-    # file upload for assistant
     path("assistant/<uuid:pk>/upload-file/", views.AssistantFileUploadListCreateView.as_view()),
     path("assistant/<uuid:pk>/update-file/", views.AssistantFileUploadUpdateView.as_view()),
     path("assistant-files/<uuid:pk>/", views.AssistantFileUploadRetrieveView.as_view()),
@@ -23,7 +22,6 @@ urlpatterns = [
     path('conversation/<uuid:pk>/messages/bulk-read/', views.MessageBulkReadView.as_view(), name='message-bulk-read'),
     path('prompt-templates/', views.PromptTemplateListView.as_view(), name='prompt-template-list'),
 
-    # Follow-up configuration
     path("assistant/<uuid:pk>/follow-up/", views.FollowUpConfigView.as_view(), name='follow-up-config'),
     path("assistant/<uuid:pk>/follow-up/stages/", views.FollowUpStageListCreateView.as_view(), name='follow-up-stages'),
     path("follow-up/stage/<uuid:pk>/", views.FollowUpStageDetailView.as_view(), name='follow-up-stage-detail'),

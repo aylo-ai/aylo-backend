@@ -1,8 +1,3 @@
-"""Tests for the dashboard chat and knowledge-base file upload.
-
-Both paths used to raise AttributeError against methods that no longer existed on
-`assistant_service`; the first test in each class is the regression for that.
-"""
 from unittest import mock
 
 from django.core.files.uploadedfile import SimpleUploadedFile
@@ -28,8 +23,6 @@ from apps.shared.addons.enums import (
 )
 from apps.shared.ai_service.agent import AgentResult
 
-# The project stores uploads on S3. Tests run offline, so file-writing paths get
-# an in-memory backend instead of a bucket that isn't there.
 IN_MEMORY_STORAGE = override_settings(
     STORAGES={
         "default": {"BACKEND": "django.core.files.storage.InMemoryStorage"},
@@ -41,7 +34,6 @@ IN_MEMORY_STORAGE = override_settings(
 
 
 def make_subscribed_user(username="owner", email="owner@example.com"):
-    """A user with an active subscription — the serializers validate one."""
     from apps.payment.models import Subscription
     from apps.user.models import User
 
@@ -55,8 +47,6 @@ def make_subscribed_user(username="owner", email="owner@example.com"):
 
 
 class MessageSerializerTests(TestCase):
-    """POST conversations/<id>/messages/ — the dashboard / website chat."""
-
     def setUp(self):
         self.assistant = Assistant.objects.create(
             name="Aylo Bot", company_name="Aylo",
@@ -138,8 +128,6 @@ class ConversationCreateTests(TestCase):
 
 
 class MessageQuotaTests(TestCase):
-    """Message.save() charges the owner's request quota — safely (finding C1)."""
-
     def _assistant(self, remained=None):
         from apps.payment.models import Subscription
         from apps.user.models import User
@@ -199,22 +187,13 @@ class MessageQuotaTests(TestCase):
     def test_hitting_the_threshold_notifies_the_owner(self):
         from apps.user.models import Notification
 
-        assistant = self._assistant(remained=11)  # 11 -> 10 triggers the warning
+        assistant = self._assistant(remained=11)
         self._reply(self._conversation(assistant))
         self.assertEqual(Notification.objects.filter(user=assistant.user).count(), 1)
 
 
 @IN_MEMORY_STORAGE
 class FileUploadTests(TestCase):
-    """POST assistant/<id>/upload-file/ — the knowledge-base upload.
-
-    Indexing is no longer part of this request. It used to be: the serializer
-    saved to MinIO, presigned a URL, downloaded the whole file back over HTTP and
-    then waited on an OpenAI vector-store index, all inside the request and
-    inside the `ATOMIC_REQUESTS` transaction. These tests pin the request down to
-    "store the bytes, queue a task".
-    """
-
     def setUp(self):
         self.assistant = Assistant.objects.create(
             name="Aylo Bot", company_name="Aylo", user=make_subscribed_user(),
@@ -241,7 +220,6 @@ class FileUploadTests(TestCase):
             },
         )
         serializer.is_valid(raise_exception=True)
-        # `on_commit` callbacks never fire under TestCase's wrapping transaction.
         with self.captureOnCommitCallbacks(execute=True):
             saved = serializer.save()
         return serializer, saved
@@ -262,23 +240,18 @@ class FileUploadTests(TestCase):
         http_get.assert_not_called()
 
     def test_every_file_in_a_multi_file_upload_is_stored_and_queued(self):
-        """Regression: `create()` returned a list, and the view then asked that
-        list for `.id` — so posting two files was an unconditional 500."""
         serializer, saved = self.upload("catalogue.txt", "prices.csv")
 
         self.assertEqual(AssistantFileUpload.objects.count(), 2)
         self.assertEqual(len(serializer.uploaded_files), 2)
-        # `serializer.instance` must stay a single object for `serializer.data`.
         self.assertEqual(serializer.instance, saved)
         self.assertEqual(self.delay.call_count, 2)
-        # Serialising the set is what the view does; it must not raise.
         self.assertEqual(
             len(AssistantFileUploadSerializer(serializer.uploaded_files, many=True).data),
             2,
         )
 
     def test_a_queued_task_that_never_runs_leaves_the_row_pending(self):
-        """The document is stored either way — indexing is not a precondition."""
         serializer, saved = self.upload()
 
         saved.refresh_from_db()
@@ -286,10 +259,6 @@ class FileUploadTests(TestCase):
         self.assertIsNone(saved.file_id)
 
     def test_a_conversation_can_start_before_the_indexing_task_has_run(self):
-        """Regression: the gate tested `assistant.vector_id`, which the upload
-        request used to set inline. With indexing queued it is still null for a
-        moment, so uploading a file and immediately starting a conversation was
-        answered with "Assistant uchun fayl yuklash kerak"."""
         self.upload()
         self.assertIsNone(self.assistant.vector_id)
 
@@ -303,8 +272,6 @@ class FileUploadTests(TestCase):
 
 @IN_MEMORY_STORAGE
 class IndexAssistantFileTaskTests(TestCase):
-    """`index_assistant_file` — the indexing that used to block the upload."""
-
     def setUp(self):
         self.assistant = Assistant.objects.create(
             name="Aylo Bot", company_name="Aylo", user=make_subscribed_user(),
@@ -380,13 +347,6 @@ class IndexAssistantFileTaskTests(TestCase):
 
 
 class EndpointScopingTests(TestCase):
-    """A1/A2 (2026-07-22) — chat endpoints require auth and are tenant-scoped.
-
-    Message create/list used to be AllowAny (anyone could run the agent on the
-    owner's quota and read any history), and conversation/lead detail views
-    fetched by pk with no ownership filter.
-    """
-
     def setUp(self):
         from rest_framework.test import APIClient
 
@@ -457,13 +417,6 @@ class EndpointScopingTests(TestCase):
 
 
 class ChatEndpointRegressionTests(TestCase):
-    """Regressions for the 2026-07-25 endpoint sweep.
-
-    Each of these reproduced a live defect: an endpoint that answered 400 to
-    every request, one that succeeded while discarding what it was given, and
-    one that wrote a file every tenant shared.
-    """
-
     def setUp(self):
         from rest_framework.test import APIClient
 
@@ -481,23 +434,15 @@ class ChatEndpointRegressionTests(TestCase):
         )
         self.client = APIClient()
         self.client.force_authenticate(self.owner)
-        # Conversation creation publishes to the websocket relay; there is no
-        # Redis in an offline test run.
         mock.patch("apps.assistant.serializers.publish_message_to_ws_assistant").start()
         self.addCleanup(mock.patch.stopall)
 
-        # Creating a conversation publishes it to the websocket channel. Redis is
-        # infrastructure, not behaviour under test, and CLAUDE.md §5 requires the
-        # suite to run offline — without this the test needs a live Redis.
         mock.patch(
             "apps.assistant.serializers.publish_message_to_ws_assistant"
         ).start()
         self.addCleanup(mock.patch.stopall)
 
     def test_a_message_can_be_edited(self):
-        """`MessageSerializer.validate` resolved the conversation only from the
-        create view's context, so every update 400'd with "Conversation
-        topilmadi" — the endpoint was unusable."""
         response = self.client.patch(
             f"/api/v1/chat/message/{self.message.id}/",
             {"message_content": "edited"}, format="json",
@@ -508,8 +453,6 @@ class ChatEndpointRegressionTests(TestCase):
         self.assertEqual(self.message.message_content, "edited")
 
     def test_a_lead_is_attached_to_the_assistant_from_the_url(self):
-        """The lead used to be saved with `assistant=NULL`, which made it
-        invisible to the list endpoint and unreachable by id forever."""
         response = self.client.post(
             f"/api/v1/chat/assistant/{self.assistant.id}/leads/",
             {"full_name": "Ali"}, format="json",
@@ -520,8 +463,6 @@ class ChatEndpointRegressionTests(TestCase):
         self.assertEqual(lead.assistant, self.assistant)
 
     def test_a_lead_cannot_be_pointed_at_someone_elses_assistant(self):
-        """`assistant` was writable, so the body could override the URL and
-        bypass the ownership check the view had just performed."""
         from apps.user.models import User
 
         other = User.objects.create(username="other", auth_type="email")
@@ -536,8 +477,6 @@ class ChatEndpointRegressionTests(TestCase):
         self.assertEqual(Lead.objects.get(full_name="Redirected").assistant, self.assistant)
 
     def test_creating_a_conversation_keeps_the_fields_it_was_given(self):
-        """`create()` hard-coded platform=website and dropped every other
-        validated field, so the caller's data silently vanished."""
         response = self.client.post(
             f"/api/v1/chat/assistant/{self.assistant.id}/conversation/",
             {"platform": "telegram", "username": "visitor", "user_id": "tg-1"},
@@ -550,8 +489,6 @@ class ChatEndpointRegressionTests(TestCase):
         self.assertEqual(created.username, "visitor")
 
     def test_exporting_leads_writes_no_file_to_disk(self):
-        """The workbook was saved as `leads_export_<date>.xlsx` in the process
-        CWD — one path shared by every tenant, so concurrent exports raced."""
         import os
 
         Lead.objects.create(assistant=self.assistant, full_name="Ali")
@@ -568,8 +505,6 @@ class ChatEndpointRegressionTests(TestCase):
         )
 
     def test_put_requires_the_whole_object(self):
-        """Every `update()` override hard-coded `partial=True`, so PUT silently
-        behaved as PATCH and never enforced required fields."""
         response = self.client.put(
             f"/api/v1/chat/assistant/{self.assistant.id}/",
             {"name": "Only a name"}, format="json",
@@ -589,13 +524,6 @@ class ChatEndpointRegressionTests(TestCase):
 
 
 class MassAssignmentTenancyTests(TestCase):
-    """Tenancy columns were writable through the customer-facing serializers.
-
-    Each of these had passed the view's ownership check on the row the caller
-    *did* own — the escalation was in the body, re-pointing that row at another
-    tenant afterwards.
-    """
-
     def setUp(self):
         from rest_framework.test import APIClient
 
@@ -633,9 +561,6 @@ class MassAssignmentTenancyTests(TestCase):
         self.client.force_authenticate(self.owner)
 
     def test_an_assistant_cannot_be_handed_to_another_account(self):
-        """`user` was writable, so a PATCH moved the assistant into the
-        victim's account: it then counted against their assistant quota and
-        every integration hung off it billed their subscription."""
         response = self.client.patch(
             f"/api/v1/chat/assistant/{self.assistant.id}/",
             {"user": str(self.victim.id)}, format="json",
@@ -645,8 +570,6 @@ class MassAssignmentTenancyTests(TestCase):
         self.assistant.refresh_from_db()
         self.assertEqual(self.assistant.user_id, self.owner.id)
 
-        # The rest of the same PATCH still applies — this is a read-only field,
-        # not a rejected request.
         renamed = self.client.patch(
             f"/api/v1/chat/assistant/{self.assistant.id}/",
             {"name": "Renamed"}, format="json",
@@ -666,7 +589,6 @@ class MassAssignmentTenancyTests(TestCase):
         self.assertEqual(response.status_code, 200, response.data)
         self.conversation.refresh_from_db()
         self.assertEqual(self.conversation.assistant_id, self.assistant.id)
-        # …and the legitimate half of the same request went through.
         self.assertEqual(self.conversation.status, ConversationStatuses.CLOSED.value)
 
     def test_a_message_cannot_be_moved_into_another_tenants_thread(self):
@@ -685,11 +607,6 @@ class MassAssignmentTenancyTests(TestCase):
 
 
 class FollowUpStageOwnershipTests(TestCase):
-    """`FollowUpStageListCreateView.create` filtered on
-    `Q(user=request.user) | Q(user=request.user.created_by)`; with `created_by`
-    unset the second leg is `Q(user=None)` and matches every ownerless
-    assistant."""
-
     def setUp(self):
         from rest_framework.test import APIClient
 
@@ -728,27 +645,15 @@ class FollowUpStageOwnershipTests(TestCase):
 
 
 class MessageCreateWithoutRequestTests(TestCase):
-    """`create()` bound `_` as a local (`transcribed_text, _, _ = ...`), which
-    made the `_("Request obyekti kerak")` guard above it raise
-    UnboundLocalError — a 500 where a 400 was intended."""
-
     def test_a_missing_request_raises_the_validation_error(self):
         from apps.shared.addons.validations import CustomValidationError
 
         serializer = MessageSerializer()
         with self.assertRaises(CustomValidationError):
             serializer.create({"sender": SenderTypes.USER.value})
-# ---------------------------------------------------------------------------
-# Tenant isolation (IDOR) and mass assignment
-# ---------------------------------------------------------------------------
 
 
 def _row_ids(response):
-    """Ids out of a list response, whatever wrapper the view happens to use.
-
-    Some list views return DRF's bare array, others wrap it in
-    `success_response(data=[...])`. Tests should not care which.
-    """
     payload = response.json()
     if isinstance(payload, dict):
         payload = payload.get("data") or []
@@ -758,13 +663,6 @@ def _row_ids(response):
 
 
 class TenantFixtureMixin:
-    """Two unrelated tenants, each with a full object graph.
-
-    `victim` owns everything the tests try to reach; `intruder` is a perfectly
-    ordinary paying customer of the same platform, which is exactly the threat
-    model — not an anonymous stranger, but the account next door.
-    """
-
     def build_tenants(self):
         from django.core.files.uploadedfile import SimpleUploadedFile
         from django.utils.timezone import now
@@ -807,8 +705,6 @@ class TenantFixtureMixin:
             conversation=self.conversation, stage=self.stage, scheduled_at=now(),
         )
 
-        # The intruder's own, legitimate objects — used to prove that a
-        # correctly scoped *parent* does not launder access to a foreign child.
         self.intruder_assistant = Assistant.objects.create(
             name="Intruder Bot", company_name="Intruder Co", user=self.intruder,
             vector_id="vs_intruder",
@@ -823,17 +719,6 @@ class TenantFixtureMixin:
 
 @IN_MEMORY_STORAGE
 class TenantIsolationTests(TenantFixtureMixin, TestCase):
-    """Every `/api/v1/chat/…` object is reachable only by its own tenant.
-
-    The recurring bug class in this app (see `EndpointScopingTests`) is a
-    `get_queryset` that returns `Model.objects.all()` while the view looks the
-    object up by URL pk. Partial fixes that scope only list/retrieve are common,
-    so update *and* delete are asserted explicitly for every resource.
-
-    404, never 403: a 403 on an object the caller cannot see still confirms that
-    the id exists.
-    """
-
     def setUp(self):
         self.build_tenants()
         self.client.force_authenticate(self.intruder)
@@ -845,7 +730,6 @@ class TenantIsolationTests(TenantFixtureMixin, TestCase):
         ).start()
         self.addCleanup(mock.patch.stopall)
 
-    # --- Assistant ---------------------------------------------------------
 
     def test_assistant_list_hides_other_tenants(self):
         response = self.client.get("/api/v1/chat/assistant/")
@@ -881,7 +765,6 @@ class TenantIsolationTests(TenantFixtureMixin, TestCase):
         returned = {row["assistant_id"] for row in response.json()["data"]}
         self.assertEqual(returned, {str(self.intruder_assistant.id)})
 
-    # --- Conversation ------------------------------------------------------
 
     def test_conversation_list_under_a_foreign_assistant_is_empty(self):
         response = self.client.get(
@@ -924,7 +807,6 @@ class TenantIsolationTests(TenantFixtureMixin, TestCase):
         self.assertEqual(response.status_code, 404)
         self.assertTrue(Conversation.objects.filter(pk=self.conversation.pk).exists())
 
-    # --- Message -----------------------------------------------------------
 
     def test_message_list_for_a_foreign_conversation_is_empty(self):
         for suffix in ("message", "messages"):
@@ -966,9 +848,6 @@ class TenantIsolationTests(TenantFixtureMixin, TestCase):
         self.assertTrue(Message.objects.filter(pk=self.message.pk).exists())
 
     def test_bulk_read_through_an_owned_conversation_cannot_reach_foreign_messages(self):
-        """Nested route, own parent, foreign child: the intruder owns the
-        conversation in the URL and supplies the victim's message id in the
-        body. The `conversation__id` leg of the UPDATE has to hold."""
         with mock.patch("apps.assistant.views.publish_new_message_to_ws"):
             response = self.client.patch(
                 f"/api/v1/chat/conversation/{self.intruder_conversation.id}/messages/bulk-read/",
@@ -990,7 +869,6 @@ class TenantIsolationTests(TenantFixtureMixin, TestCase):
         self.message.refresh_from_db()
         self.assertFalse(self.message.is_read)
 
-    # --- Lead --------------------------------------------------------------
 
     def test_lead_list_under_a_foreign_assistant_is_empty(self):
         response = self.client.get(
@@ -1034,7 +912,6 @@ class TenantIsolationTests(TenantFixtureMixin, TestCase):
         )
         self.assertEqual(response.status_code, 404)
 
-    # --- Knowledge base ----------------------------------------------------
 
     def test_file_list_under_a_foreign_assistant_is_empty(self):
         response = self.client.get(
@@ -1087,11 +964,8 @@ class TenantIsolationTests(TenantFixtureMixin, TestCase):
 
         self.assertEqual(response.status_code, 404)
         self.assertTrue(AssistantFileUpload.objects.filter(pk=self.file.pk).exists())
-        # A 404 that still purged the document from the victim's vector store
-        # would be a destructive IDOR wearing a 404 costume.
         self.delete_file.assert_not_called()
 
-    # --- Follow-ups --------------------------------------------------------
 
     def test_follow_up_config_retrieve_is_404(self):
         response = self.client.get(
@@ -1128,10 +1002,6 @@ class TenantIsolationTests(TenantFixtureMixin, TestCase):
         self.assertEqual(self.config.stages.count(), 1)
 
     def test_follow_up_stage_create_on_an_ownerless_assistant_is_404(self):
-        """`Assistant.user` is nullable. The create handler used a hand-rolled
-        `Q(user=request.user) | Q(user=request.user.created_by)`, and
-        `created_by` is None for every ordinary customer — so the second leg
-        collapsed to `user IS NULL` and matched every ownerless assistant."""
         from apps.assistant.models import FollowUpConfig
 
         orphan = Assistant.objects.create(
@@ -1191,13 +1061,6 @@ class TenantIsolationTests(TenantFixtureMixin, TestCase):
 
 @IN_MEMORY_STORAGE
 class MassAssignmentTests(TenantFixtureMixin, TestCase):
-    """A caller may not repoint an object at another tenant through the body.
-
-    Each test is authenticated as the *owner* of the object it edits — the
-    ownership check passes, and the only thing standing between the request and
-    a cross-tenant write is the serializer's `read_only_fields`.
-    """
-
     def setUp(self):
         self.build_tenants()
         self.client.force_authenticate(self.intruder)
@@ -1276,11 +1139,6 @@ class MassAssignmentTests(TenantFixtureMixin, TestCase):
         self.assertEqual(own_lead.assistant, self.intruder_assistant)
 
     def test_knowledge_base_file_cannot_be_moved_to_another_tenant(self):
-        """`AssistantFileUpload.assistant` was writable and the detail view
-        hands the body straight to `ModelSerializer.update()`, so a PATCH filed
-        the intruder's document under the victim's assistant — and the next
-        DELETE would have called `knowledge_base.delete_file()` against the
-        victim's vector store."""
         from django.core.files.uploadedfile import SimpleUploadedFile
 
         own_file = AssistantFileUpload.objects.create(
@@ -1349,12 +1207,6 @@ class MassAssignmentTests(TenantFixtureMixin, TestCase):
 
 @IN_MEMORY_STORAGE
 class OwnerAccessTests(TenantFixtureMixin, TestCase):
-    """The other half of the isolation contract: over-scoping is also a bug.
-
-    Every resource the intruder is locked out of above must still be fully
-    usable by the tenant it belongs to — including DELETE.
-    """
-
     def setUp(self):
         self.build_tenants()
         self.client.force_authenticate(self.victim)
@@ -1461,12 +1313,6 @@ class OwnerAccessTests(TenantFixtureMixin, TestCase):
 
 @IN_MEMORY_STORAGE
 class StaffTenantAccessTests(TenantFixtureMixin, TestCase):
-    """A customer's staff account works inside that customer's tenant only.
-
-    `owned_assistants()` adds the `created_by` leg for staff; these assert it
-    grants exactly one tenant and not, via `Q(user=None)`, the ownerless ones.
-    """
-
     def setUp(self):
         from apps.shared.addons.enums import UserRoles
         from apps.user.models import User

@@ -61,7 +61,7 @@ class MessageInline(admin.TabularInline):
 
     def get_queryset(self, request):
         qs = super().get_queryset(request)
-        return qs.order_by("created_time")  # eng boshidan boshlab ketadi
+        return qs.order_by("created_time")
 
 
 @admin.register(Conversation)
@@ -78,12 +78,9 @@ class ConversationAdmin(admin.ModelAdmin):
     actions_on_bottom = True
     date_hierarchy = 'start_time'
     readonly_fields = ('start_time', 'end_time', 'bot_token_masked')
-    inlines = [MessageInline]  # 👉 Shu yerga qo‘shiladi
+    inlines = [MessageInline]
 
     fieldsets = (
-        # `token` is the Telegram bot token, copied onto every conversation. It
-        # was an editable input here, so the change form handed the credential
-        # to anyone with conversation access; it is masked and read-only now.
         (None, {
             'fields': ('assistant', 'status', 'thread_id', 'user_id',
             'username', 'bot_token_masked', 'client_full_name', 'client_phone_email', 'platform',)
@@ -97,7 +94,6 @@ class ConversationAdmin(admin.ModelAdmin):
     @admin.display(description="Bot token")
     def bot_token_masked(self, obj):
         return mask_secret(obj.token)
-
 
 
 @admin.register(Message)

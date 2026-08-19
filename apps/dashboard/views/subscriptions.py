@@ -1,4 +1,3 @@
-"""Dashboard subscription endpoints."""
 from datetime import timedelta
 
 from django.utils import timezone
@@ -61,10 +60,6 @@ class DashboardSubscriptionDetail(DashboardRetrieveMixin, generics.RetrieveUpdat
     retrieve_message = "Subscription retrieved successfully"
 
     def get_permissions(self):
-        # PUT/PATCH/DELETE mutate billing state (package, dates, request
-        # counter, auto-renew) or destroy the subscription outright — the
-        # same ground the CanManageFinance-gated cancel/extend endpoints
-        # cover, so it must not be reachable by every dashboard role.
         if self.request.method in ("PUT", "PATCH", "DELETE"):
             return [CanManageFinance()]
         return super().get_permissions()
@@ -83,8 +78,6 @@ class DashboardSubscriptionDetail(DashboardRetrieveMixin, generics.RetrieveUpdat
         instance = self.get_object()
         old_data = self._audit_snapshot(instance)
 
-        # Every field goes through the serializer: a bad UUID, an unknown
-        # package or a non-numeric counter is a 400, never a stored value.
         write_serializer = DashboardSubscriptionUpdateSerializer(
             instance, data=request.data, partial=True,
         )

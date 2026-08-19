@@ -1,12 +1,3 @@
-"""Response-contract guard for the dashboard views package.
-
-`views.py` was split into `views/` and the copy-pasted list/retrieve/create/
-update/destroy bodies were collapsed into the mixins in
-`apps.dashboard.views.mixins`. Those mixins now decide the status code, the
-envelope shape and the message text of ~25 endpoints at once, so a slip in one
-of them is a silent contract change across the whole dashboard. These tests pin
-the exact strings and shapes the API answered with before the split.
-"""
 from django.test import TestCase
 from rest_framework.test import APIClient
 
@@ -45,7 +36,6 @@ class DashboardSmokeTests(TestCase):
         self.assertEqual(r.status_code, 200, f"{path} -> {r.status_code} {r.content[:300]}")
         return r.json()
 
-    # ---- plain paginated lists (DashboardListMixin) ----
     def test_plain_lists_paginated_envelope(self):
         for path in [
             "/leads/", "/audit-logs/", "/messages/", "/notifications/",
@@ -56,7 +46,6 @@ class DashboardSmokeTests(TestCase):
             self.assertIn("results", body, path)
             self.assertIn("count", body, path)
 
-    # ---- stats lists (DashboardStatsListMixin) ----
     def test_stats_lists_carry_stats_block(self):
         expected = {
             "/conversations/": {"total", "open", "escalated", "total_messages"},
@@ -71,7 +60,6 @@ class DashboardSmokeTests(TestCase):
             self.assertEqual(set(body["stats"]), keys, path)
             self.assertIn("results", body, path)
 
-    # ---- retrieve messages ----
     def test_retrieve_messages(self):
         cases = [
             (f"/users/{self.admin.id}/", "User retrieved successfully"),
@@ -88,7 +76,6 @@ class DashboardSmokeTests(TestCase):
             self.assertEqual(body.get("message"), message, path)
             self.assertIn("data", body, path)
 
-    # ---- update messages (partial) ----
     def test_update_messages(self):
         cases = [
             (f"/transactions/{self.txn.id}/", {"payment_method": "click"}, "Transaction updated successfully"),
@@ -102,7 +89,6 @@ class DashboardSmokeTests(TestCase):
             self.assertEqual(r.status_code, 200, f"{path} -> {r.content[:300]}")
             self.assertEqual(r.json().get("message"), message, path)
 
-    # ---- create messages ----
     def test_create_messages(self):
         cases = [
             ("/features/", {"name": "NF"}, "Feature created"),
@@ -115,7 +101,6 @@ class DashboardSmokeTests(TestCase):
             self.assertEqual(r.status_code, 201, f"{path} -> {r.content[:300]}")
             self.assertEqual(r.json().get("message"), message, path)
 
-    # ---- destroy messages ----
     def test_destroy_messages(self):
         feature = Feature.objects.create(name="DelF")
         template = PromptTemplate.objects.create(name="DelT", content="c")
@@ -136,7 +121,6 @@ class DashboardSmokeTests(TestCase):
             self.assertEqual(r.status_code, 200, f"{path} -> {r.content[:300]}")
             self.assertEqual(r.json().get("message"), message, path)
 
-    # ---- bespoke endpoints that were NOT converted ----
     def test_untouched_endpoints_still_answer(self):
         for path in ["/dashboard/", "/dashboard/enhanced/", "/statistics/",
                      "/statistics/ai-costs/", "/search/?q=sm", "/users/",
@@ -153,7 +137,6 @@ class DashboardSmokeTests(TestCase):
         self.assertIn("subscribers_count", body["data"])
 
     def test_conversation_detail_get_is_unwrapped(self):
-        """This view never had a retrieve() override — DRF's bare body is the contract."""
         r = self.client.get(f"{BASE}/conversations/{self.conversation.id}/")
         self.assertEqual(r.status_code, 200)
         self.assertIn("thread_id", r.json())

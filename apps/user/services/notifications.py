@@ -1,15 +1,9 @@
-"""User notification helpers.
-
-This module used to also hold the Assistants-API chat pipeline. That has been
-replaced by `shared.ai_service.agent`; only the notification helpers remain.
-"""
 import logging
 
 from django.conf import settings
 from django.core.mail import send_mail
 from django.utils.translation import gettext_lazy as _
 
-# Re-exported: several modules import send_telegram_message from here.
 from apps.integration.gateways.telegram import send_telegram_message  # noqa: F401
 from apps.shared.addons.enums import NotificationTypes, SubscriptionStatuses
 from apps.shared.addons.verification import send_playmobile_sms
@@ -62,7 +56,6 @@ def send_email_message(email, user):
 
 
 def restrict_user_account(user):
-    """Restrict user's account due to failed payments."""
     subscription = user.subscription
     subscription.status = SubscriptionStatuses.INACTIVE.value
     subscription.save()

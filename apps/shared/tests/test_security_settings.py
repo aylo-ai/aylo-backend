@@ -1,13 +1,3 @@
-"""Transport, CORS and token-lifetime settings are security controls.
-
-They live in `config/settings.py`, where a well-meaning edit ("add the tunnel so
-I can demo", "bump the access token so people stop getting logged out") silently
-removes a boundary and nothing fails. These tests fail that edit.
-
-The `if not DEBUG:` block is exercised by re-importing the settings module with
-`DEBUG` unset, so the assertions describe *production* rather than whatever the
-developer's `.env` happens to say.
-"""
 import importlib
 import os
 import re
@@ -19,7 +9,6 @@ from django.test import SimpleTestCase
 
 
 def production_settings():
-    """`config.settings` as it evaluates with DEBUG off."""
     env = dict(os.environ)
     env["DEBUG"] = "False"
     env.setdefault("SECRET_KEY", "test-only-secret-key-for-settings-import")
@@ -31,8 +20,6 @@ def production_settings():
 
 
 class ProductionSecurityHeaderTests(SimpleTestCase):
-    """`manage.py check --deploy` in test form."""
-
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
@@ -40,8 +27,6 @@ class ProductionSecurityHeaderTests(SimpleTestCase):
 
     @classmethod
     def tearDownClass(cls):
-        # Leave the imported module matching the running configuration again,
-        # otherwise every later test in the process sees DEBUG-off values.
         importlib.reload(importlib.import_module("config.settings"))
         super().tearDownClass()
 
@@ -54,8 +39,6 @@ class ProductionSecurityHeaderTests(SimpleTestCase):
         self.assertTrue(self.prod.CSRF_COOKIE_HTTPONLY)
 
     def test_hsts_is_long_enough_to_matter(self):
-        # Under a year browsers ignore it for preloading, and `check --deploy`
-        # flags anything shorter.
         self.assertGreaterEqual(self.prod.SECURE_HSTS_SECONDS, 31536000)
         self.assertTrue(self.prod.SECURE_HSTS_INCLUDE_SUBDOMAINS)
         self.assertTrue(self.prod.SECURE_HSTS_PRELOAD)
@@ -76,8 +59,6 @@ class ProductionSecurityHeaderTests(SimpleTestCase):
 
 
 class CorsTests(SimpleTestCase):
-    """`CORS_ALLOW_CREDENTIALS` makes the origin list an authorisation list."""
-
     def test_credentials_are_only_shared_with_an_explicit_list(self):
         self.assertTrue(settings.CORS_ALLOW_CREDENTIALS)
         self.assertFalse(settings.CORS_ORIGIN_ALLOW_ALL)
@@ -88,9 +69,6 @@ class CorsTests(SimpleTestCase):
             self.assertNotIn("*", origin, msg=origin)
 
     def test_no_public_tunnel_host_is_trusted(self):
-        """ngrok/loca.lt/trycloudflare subdomains are recycled to whoever asks
-        next, so trusting one hands a stranger credentialed cross-origin reads
-        (and, in CSRF_TRUSTED_ORIGINS, a working CSRF origin)."""
         tunnels = re.compile(
             r"(ngrok[-.]|loca\.lt|trycloudflare\.com|serveo\.net|localtunnel)",
             re.IGNORECASE,
@@ -100,8 +78,6 @@ class CorsTests(SimpleTestCase):
 
 
 class TokenLifetimeTests(SimpleTestCase):
-    """Nothing can revoke an access token, so its lifetime is the blast radius."""
-
     def test_access_tokens_are_short_lived(self):
         self.assertLessEqual(
             settings.SIMPLE_JWT["ACCESS_TOKEN_LIFETIME"], timedelta(hours=24)
@@ -112,8 +88,6 @@ class TokenLifetimeTests(SimpleTestCase):
         self.assertTrue(settings.SIMPLE_JWT["BLACKLIST_AFTER_ROTATION"])
 
     def test_blacklisting_is_actually_installed(self):
-        """Rotation without this app is a no-op: `token.blacklist()` needs the
-        tables, so logout and rotation would silently revoke nothing."""
         self.assertIn(
             "rest_framework_simplejwt.token_blacklist", settings.INSTALLED_APPS
         )
@@ -124,8 +98,6 @@ class TokenLifetimeTests(SimpleTestCase):
 
 
 class OtpThrottleRateTests(SimpleTestCase):
-    """A six-digit code is only safe if guesses are bounded."""
-
     def test_both_the_ip_and_the_identifier_scopes_are_configured(self):
         rates = settings.REST_FRAMEWORK["DEFAULT_THROTTLE_RATES"]
         for scope in (

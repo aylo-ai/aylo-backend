@@ -1,4 +1,3 @@
-"""Dashboard billing-catalog endpoints: features, pricing packages, balances, cards."""
 from rest_framework import generics
 
 from apps.dashboard.models import AuditLog
@@ -85,8 +84,6 @@ class DashboardPricingPackageDetail(
     destroy_message = "Pricing package deleted"
 
     def update(self, request, *args, **kwargs):
-        # Writes go through the plain package serializer; the response is the
-        # read serializer, which carries the subscriber-stats block.
         instance = self.get_object()
         serializer = PricingPackageSerializer(instance, data=request.data, partial=True)
         serializer.is_valid(raise_exception=True)

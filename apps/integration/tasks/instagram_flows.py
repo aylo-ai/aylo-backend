@@ -1,4 +1,3 @@
-"""Instagram button-flow tasks: postback handling and step delivery."""
 import logging
 
 from celery import shared_task
@@ -13,11 +12,6 @@ logger = logging.getLogger(__name__)
 
 @shared_task(name="apps.integration.tasks.handle_postback_event_task")
 def handle_postback_event_task(msg, access_token):
-    """Advance a user through a flow when they press an inline button.
-
-    The next step is chosen by the pressed button AND whether the user follows
-    the business account (transitions can branch on subscription status).
-    """
     sender_id = msg.get("sender", {}).get("id")
     account_id = msg.get("recipient", {}).get("id")
     postback = msg.get("postback", {}) or {}
@@ -29,7 +23,6 @@ def handle_postback_event_task(msg, access_token):
         logger.warning("Missing payload or sender_id")
         return
 
-    # Payload format: "inline_button:<button_id>" (see build_button_payload).
     inline_button_id = payload.split(":")[1]
     logger.info("incoming inline_button %s", inline_button_id)
 
@@ -38,7 +31,6 @@ def handle_postback_event_task(msg, access_token):
         logger.warning("User state was not initialized yet")
         return
 
-    # Branch on whether the user follows the business account.
     status_subscription = instagram_service.checking_followers(
         access_token=access_token, recipient_id=sender_id
     )
@@ -56,7 +48,6 @@ def handle_postback_event_task(msg, access_token):
 
     try:
         with transaction.atomic():
-            # Count users reaching this step, and total interactions in the flow.
             transition.to_step.count += 1
             transition.to_step.save()
             transition.to_step.flow.total_count += 1
@@ -69,8 +60,6 @@ def handle_postback_event_task(msg, access_token):
 
 @shared_task(name="apps.integration.tasks.send_step_message_task")
 def send_step_message_task(step_id, account_id, recipient_id, access_token):
-    """Deliver a flow step to a user: a button template, or plain text when
-    the step has no buttons. On success, move the user's state to this step."""
     try:
         step = Step.objects.get(id=step_id)
     except Step.DoesNotExist:
@@ -84,7 +73,6 @@ def send_step_message_task(step_id, account_id, recipient_id, access_token):
             resp = instagram_service.send_step_template(
                 access_token=access_token, recipient_id=recipient_id, step=step
             )
-            # The HTTP client is state-free — persisting the flow position is done here.
             if resp is not None and resp.status_code == 200:
                 InstagramUserState.objects.filter(
                     account_id=account_id, user_id=recipient_id

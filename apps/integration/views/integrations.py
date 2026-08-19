@@ -1,4 +1,3 @@
-"""Integration CRUD and outbound message dispatch."""
 import functools
 
 from django.db import transaction
@@ -25,20 +24,10 @@ from apps.shared.permissions import IsCustomer
 
 
 def _discard_billz_catalogue(integration):
-    """Remove the synced Billz product file from the assistant's vector store.
-
-    The file id only ever lived in `Integration.metadata`, so deleting the row
-    without this leaves the catalogue indexed and searchable forever: the agent
-    would keep quoting prices from a POS the merchant has disconnected, and
-    nothing left in the database could identify the file to clean it up.
-
-    Fail-soft — a store that OpenAI no longer has must not block the disconnect.
-    """
     file_id = (integration.metadata or {}).get('billz_products_file_id')
     store_id = getattr(integration.assistant, 'vector_id', None)
     if not file_id or not store_id:
         return
-    # `delete_file` already logs and swallows its own failures.
     knowledge_base.delete_file(store_id, file_id)
 
 
@@ -64,9 +53,6 @@ class IntegrationListCreateView(IntegrationOwnedQuerysetMixin, generics.ListCrea
         return IntegrationSerializer
 
     def get_queryset(self):
-        # Filtering by the URL's assistant alone let any authenticated user
-        # list another tenant's integrations — including their Telegram bot
-        # `api_token`, i.e. full takeover of the victim's bot.
         return super().get_queryset().filter(assistant_id=self.kwargs.get('pk'))
 
     def create(self, request, *args, **kwargs):
@@ -85,12 +71,6 @@ class IntegrationListCreateView(IntegrationOwnedQuerysetMixin, generics.ListCrea
 
 class IntegrationRetrieveUpdateDestroyView(IntegrationOwnedQuerysetMixin,
                                            generics.RetrieveUpdateDestroyAPIView):
-    # Scoped at the queryset (see the mixin) so retrieve/update/destroy all 404
-    # on another tenant's integration. The previous `get_object` *returned* an
-    # `error_response(...)` — a DRF `Response` — which the handlers then used as
-    # if it were a model instance, so every cross-tenant request blew up with a
-    # 500 (`'Response' object has no attribute 'delete'`) rather than being
-    # refused.
     queryset = Integration.objects.all()
     serializer_class = IntegrationCreateSerializer
     permission_classes = [permissions.IsAuthenticated]
@@ -115,8 +95,6 @@ class IntegrationRetrieveUpdateDestroyView(IntegrationOwnedQuerysetMixin,
 
     def destroy(self, request, *args, **kwargs):
         instance = self.get_object()
-        # Drop the Meta subscription first, otherwise Instagram keeps delivering
-        # webhooks for an account that no longer resolves to an integration.
         if instance.integration_type == IntegrationTypes.INSTAGRAM.value:
             instagram_service.unsubscribe_webhooks(instance.api_token)
         elif instance.integration_type == IntegrationTypes.BILLZ.value:
@@ -147,9 +125,6 @@ class SendIntegrationMessageView(generics.CreateAPIView):
             return error_response(message=_("Xabar mavjud emas"), code=400)
         if not integration_id:
             return error_response(message=_("Integration ID mavjud emas"), code=400)
-        # One owner-scoped lookup. The old `integration.assistant.user` check
-        # ignored integrations held through `Integration.user` and raised
-        # AttributeError — a 500, not a refusal — whenever `assistant` was NULL.
         if not owned_integrations(request.user).filter(id=integration_id).exists():
             return error_response(message=_("Sizda bu integration mavjud emas"), code=400)
         transaction.on_commit(functools.partial(

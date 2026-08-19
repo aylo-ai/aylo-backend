@@ -1,5 +1,3 @@
-"""Comment-response conversation flows: flows, steps, transitions and buttons."""
-
 from django.utils.translation import gettext_lazy as _
 from rest_framework import generics, permissions
 from rest_framework.exceptions import NotFound
@@ -26,10 +24,6 @@ from apps.shared.addons.validations import error_response, success_response
 
 class InstagramCommentResponseFlowListCreateView(IntegrationOwnedQuerysetMixin,
                                                  generics.ListCreateAPIView):
-    # Keyed off the URL's comment-response id alone: GET listed another
-    # tenant's flows and POST grafted a new flow onto their comment response
-    # (the serializer's `get_object_or_404` was equally unscoped), rewriting
-    # what their Instagram account replies to commenters.
     owner_path = "comment_response__integration"
     queryset = Flow.objects.all()
     serializer_class = InstagramCommentResponseFlowSerializer
@@ -39,7 +33,6 @@ class InstagramCommentResponseFlowListCreateView(IntegrationOwnedQuerysetMixin,
         return super().get_queryset().filter(comment_response_id=self.kwargs.get('pk'))
 
     def get_serializer_context(self):
-        """Pass pk to serializer context for linking"""
         context = super().get_serializer_context()
         context["comment_response_id"] = self.kwargs.get("pk")
         return context
@@ -67,31 +60,22 @@ class InstagramFlowTransitionListCreateView(IntegrationOwnedQuerysetMixin,
         ).first()
 
     def get_queryset(self):
-        # Was `self.queryset.all()` whenever the flow id merely existed — every
-        # Transition row in the database, for every tenant. Now: the caller's
-        # own transitions, in the flow the URL names.
         return super().get_queryset().filter(from_to__flow_id=self.kwargs.get("pk"))
 
     def create(self, request, *args, **kwargs):
         flow_id = self.kwargs.get("pk")
-        # The step checks below only prove the steps sit in *this* flow — they
-        # never asked whose flow it is, so transitions could be written into
-        # another tenant's automation.
         if self._owned_flow() is None:
             raise NotFound()
-        # Support both single object and list payloads (do not hard-fail on single)
         is_many = isinstance(request.data, list)
         serializer = self.get_serializer(data=request.data, many=is_many)
         serializer.is_valid(raise_exception=True)
 
-        # Validate that transitions belong to the provided flow
         def _validate_transition(datum):
             from_step = datum.get("from_to")
             to_step = datum.get("to_step")
             from_step_id = getattr(from_step, "id", from_step)
             to_step_id = getattr(to_step, "id", to_step)
 
-            # Steps must belong to the same flow
             if from_step:
                 if not Step.objects.filter(id=from_step_id, flow_id=flow_id).exists():
                     raise ValueError("from_to step does not belong to this flow")
@@ -122,7 +106,6 @@ class TransitionRetrieveUpdateDestroyView(IntegrationOwnedQuerysetMixin, generic
         instance = self.get_object()
         serializer = self.get_serializer(instance, data=request.data, partial=True)
         serializer.is_valid(raise_exception=True)
-        # Optional: ensure steps remain in the same flow
         from_to = serializer.validated_data.get("from_to") or instance.from_to
         to_step = serializer.validated_data.get("to_step") or instance.to_step
         if to_step and from_to.flow_id != to_step.flow_id:
@@ -179,7 +162,6 @@ class StepRetrieveUpdateDestroyView(IntegrationOwnedQuerysetMixin, generics.Retr
         serializer = self.get_serializer(instance, data=request.data, partial=True)
         serializer.is_valid(raise_exception=True)
         self.perform_update(serializer)
-        # Replace buttons if provided
         if extra_buttons is not None:
             instance.extra_button.clear()
             for btn in extra_buttons:
@@ -194,11 +176,6 @@ class StepRetrieveUpdateDestroyView(IntegrationOwnedQuerysetMixin, generics.Retr
 
 
 class CommentResponseButtonListCreateView(generics.ListCreateAPIView):
-    # DEAD: no URL route points here (verified against the resolver and against
-    # the full history of urls.py). Kept only because deleting it orphans two
-    # msgids in locale/*/LC_MESSAGES/django.po, which another workstream owns.
-    # See docs/reports/2026-08-01-ws2-integration-structure.md — delete this
-    # class and those two catalog entries together.
     queryset = CommentResponseButton.objects.all()
     serializer_class = CommentResponseButtonSerializer
     permission_classes = [permissions.IsAuthenticated]

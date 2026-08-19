@@ -1,10 +1,3 @@
-"""Authentication tests.
-
-These run offline: Redis, SMS/email delivery and Google's token endpoint are all
-faked, so the tests exercise the auth *logic* — OTP brute-force limits, the
-verification gate on registration, token revocation, role separation, request
-scoping and OAuth CSRF — without touching the network.
-"""
 from unittest import mock
 
 from django.core import mail
@@ -16,14 +9,10 @@ from apps.shared.addons import verification
 from apps.shared.addons.enums import NotificationTypes, UserRoles
 from apps.user.models import Notification, User
 
-# Throttling stores its history in the default cache; DummyCache makes every
-# request pass so rate limits never make these tests flaky.
 NO_THROTTLE = override_settings(
     CACHES={"default": {"BACKEND": "django.core.cache.backends.dummy.DummyCache"}}
 )
 
-# The opposite: a real per-process cache, so the throttle tests can actually
-# count requests. Each class gets its own LOCATION to stay isolated.
 def local_cache(location):
     return override_settings(
         CACHES={
@@ -36,8 +25,6 @@ def local_cache(location):
 
 
 class FakeRedis:
-    """Just enough of the redis API for the verification helpers."""
-
     def __init__(self):
         self.store = {}
 
@@ -71,8 +58,6 @@ class FakeRedis:
 
 
 class OtpAttemptTests(TestCase):
-    """The OTP must be unusable after a handful of wrong guesses."""
-
     def setUp(self):
         self.redis = FakeRedis()
         patch = mock.patch.object(verification, "redis_connection", self.redis)
@@ -86,13 +71,11 @@ class OtpAttemptTests(TestCase):
             ok, _msg = verification.verify_code_cache("+998901112233", "000000")
             self.assertFalse(ok)
 
-        # The attempt that hits the cap must burn the code.
         ok, message = verification.verify_code_cache("+998901112233", "000000")
         self.assertFalse(ok)
         self.assertIn("Too many", message)
         self.assertIsNone(self.redis.get("+998901112233"))
 
-        # Even the correct code no longer works once it has been discarded.
         ok, _msg = verification.verify_code_cache("+998901112233", "123456")
         self.assertFalse(ok)
 
@@ -105,8 +88,6 @@ class OtpAttemptTests(TestCase):
         self.assertEqual(self.redis.get("+998901112233_verified"), b"True")
 
     def test_a_correct_code_cannot_be_replayed(self):
-        """The code is burned on success — a second use of the same digits, by
-        anyone who saw them, must fail."""
         self.redis.set("+998901112233", 123456)
 
         self.assertTrue(verification.verify_code_cache("+998901112233", "123456")[0])
@@ -116,14 +97,12 @@ class OtpAttemptTests(TestCase):
         self.assertIn("expired", message)
 
     def test_an_expired_code_is_rejected(self):
-        """Nothing in Redis means the TTL ran out — no code, no verification."""
         ok, message = verification.verify_code_cache("+998901112233", "123456")
 
         self.assertFalse(ok)
         self.assertIn("expired", message)
 
     def test_the_stored_code_is_compared_in_constant_time(self):
-        """A digit-by-digit `==` leaks the code's prefix through response time."""
         self.redis.set("+998901112233", 123456)
 
         with mock.patch.object(
@@ -174,8 +153,6 @@ LOCMEM_EMAIL = override_settings(
 
 @LOCMEM_EMAIL
 class EmailCodeDeliveryTests(TestCase):
-    """Sign-up by email: the code must only exist once the mail is out."""
-
     def setUp(self):
         self.redis = FakeRedis()
         patch = mock.patch.object(verification, "redis_connection", self.redis)
@@ -191,7 +168,6 @@ class EmailCodeDeliveryTests(TestCase):
         self.assertEqual(mail.outbox[0].to, ["signup@example.com"])
 
         stored = self.redis.get("signup@example.com").decode()
-        # The code the user was emailed is the code the cache will accept.
         self.assertIn(stored, mail.outbox[0].body)
         self.assertEqual(len(stored), 6)
 
@@ -206,8 +182,6 @@ class EmailCodeDeliveryTests(TestCase):
 
         self.assertFalse(ok)
         self.assertNotIn("smtppro", str(message))
-        # The previously issued code survives — a failed send must not replace
-        # a code the user is still holding with one they never received.
         self.assertEqual(self.redis.get("signup@example.com").decode(), "111111")
 
     def test_correct_code_verifies_and_is_burned(self):
@@ -218,7 +192,6 @@ class EmailCodeDeliveryTests(TestCase):
         self.assertTrue(ok)
         self.assertEqual(self.redis.get("signup@example.com_verified"), b"true")
         self.assertIsNone(self.redis.get("signup@example.com"))
-        # Replaying the same code now fails.
         self.assertFalse(verification.verify_email_code("signup@example.com", "654321")[0])
 
     def test_wrong_email_code_is_thrown_away_after_the_attempt_cap(self):
@@ -234,14 +207,11 @@ class EmailCodeDeliveryTests(TestCase):
         self.assertFalse(ok)
         self.assertIn("Too many", str(message))
         self.assertIsNone(self.redis.get("signup@example.com"))
-        # Even the right code is dead once the cap burned it.
         self.assertFalse(verification.verify_email_code("signup@example.com", "654321")[0])
 
 
 @NO_THROTTLE
 class EmailSignUpFlowTests(TestCase):
-    """The two endpoints the email sign-up screen calls, end to end."""
-
     def setUp(self):
         self.client = APIClient()
 
@@ -293,8 +263,6 @@ class EmailSignUpFlowTests(TestCase):
         self.assertFalse(User.objects.filter(email="new@example.com").exists())
 
     def test_a_brand_new_account_starts_with_no_name_and_no_subscription(self):
-        """What the frontend keys the 'complete profile' and 'choose a plan'
-        onboarding steps off — both must be empty for a first-time sign-up."""
         with mock.patch("apps.user.views.verify_email_code", return_value=(True, "ok")):
             self.client.post(
                 "/api/v1/user/auth/verify-otp/",
@@ -379,7 +347,7 @@ class GoogleOAuthCsrfTests(TestCase):
 
     def test_callback_with_an_unknown_state_is_rejected(self):
         redis = mock.MagicMock()
-        redis.delete.return_value = 0  # state not found → forged/expired
+        redis.delete.return_value = 0
         with mock.patch("apps.user.views.redis_connection", redis):
             response = self.client.get(
                 "/api/v1/user/accounts/google/login/callback/?code=abc&state=forged"
@@ -388,9 +356,6 @@ class GoogleOAuthCsrfTests(TestCase):
 
 
 class GoogleOAuthEmailVerificationTests(TestCase):
-    """H1 (2026-07-22) — an unverified Google email claim must not match or
-    link to an existing account with that email (account-takeover vector)."""
-
     def setUp(self):
         self.client = APIClient()
         self.victim = User.objects.create(
@@ -399,7 +364,7 @@ class GoogleOAuthEmailVerificationTests(TestCase):
 
     def callback(self, claims):
         redis = mock.MagicMock()
-        redis.delete.return_value = 1  # state found and consumed
+        redis.delete.return_value = 1
         token_response = mock.Mock()
         token_response.json.return_value = {"id_token": "raw-token"}
         with mock.patch("apps.user.views.redis_connection", redis), \
@@ -434,12 +399,6 @@ class GoogleOAuthEmailVerificationTests(TestCase):
 
 @NO_THROTTLE
 class StaffRoleEscalationTests(TestCase):
-    """`POST /user/add-staff/` is a *customer* feature — "add my employee" —
-    and it hands the caller the new account's JWT in its own 201 body. While
-    `UserRoles.STAFF` was also a member of `DASHBOARD_ROLES`, that made
-    customer → platform-admin escalation a two-request operation.
-    """
-
     DASHBOARD_USERS = "/api/v1/dashboard/users/"
 
     def setUp(self):
@@ -490,8 +449,6 @@ class StaffRoleEscalationTests(TestCase):
         self.assertEqual(response.status_code, 200)
 
     def test_a_rejected_id_token_leaks_no_verification_detail(self):
-        """The reason a token failed (wrong audience, expired, bad issuer) tells
-        an attacker how to fix their forgery — it belongs in the log only."""
         redis = mock.MagicMock()
         redis.delete.return_value = 1
         token_response = mock.Mock()
@@ -510,13 +467,6 @@ class StaffRoleEscalationTests(TestCase):
 
 @local_cache("otp-identifier-throttle")
 class OtpIdentifierThrottleTests(TestCase):
-    """The OTP limit has to follow the *account*, not the network.
-
-    DRF's ScopedRateThrottle keys anonymous traffic by IP, which is wrong twice
-    over: an attacker rotating addresses gets an unlimited budget against one
-    phone number, and one office behind a NAT shares a single bucket.
-    """
-
     def setUp(self):
         from django.core.cache import cache
 
@@ -537,8 +487,6 @@ class OtpIdentifierThrottleTests(TestCase):
                 for i in range(1, 25)
             ]
 
-        # A fresh IP per request, so only the per-identifier throttle can stop
-        # this. Without it every one of them would be a 400.
         self.assertIn(429, statuses)
 
     def test_one_number_being_attacked_does_not_lock_out_another(self):
@@ -577,8 +525,6 @@ class OtpIdentifierThrottleTests(TestCase):
         )
 
     def test_the_identifier_never_appears_in_the_cache_key(self):
-        """Cache keys end up in Redis, in dumps and in monitoring — a phone
-        number is PII and must not be one of them."""
         from apps.user.services.throttles import OtpSendIdentifierThrottle
 
         key = OtpSendIdentifierThrottle().get_cache_key(
@@ -588,8 +534,6 @@ class OtpIdentifierThrottleTests(TestCase):
 
 
 class EmailOtpResendCooldownTests(TestCase):
-    """A code request costs the victim an inbox entry and us an email."""
-
     def setUp(self):
         self.redis = FakeRedis()
         patch = mock.patch.object(verification, "redis_connection", self.redis)
@@ -608,8 +552,6 @@ class EmailOtpResendCooldownTests(TestCase):
 
 
 class LogoutRevocationTests(TestCase):
-    """Logout has to *revoke*, not just answer 200."""
-
     def setUp(self):
         self.client = APIClient()
         self.user = User.objects.create(
@@ -638,7 +580,6 @@ class LogoutRevocationTests(TestCase):
         self.assertEqual(response.status_code, 400)
 
     def test_a_refresh_token_is_single_use(self):
-        """Rotation blacklists the token it was handed, so replaying it fails."""
         refresh = RefreshToken.for_user(self.user)
 
         first = self.client.post(
@@ -654,14 +595,11 @@ class LogoutRevocationTests(TestCase):
         self.assertEqual(second.status_code, 400)
 
     def test_one_user_cannot_log_another_one_out(self):
-        """A refresh token is a bearer credential; blacklisting somebody else's
-        is a denial of service, so ownership is checked before revoking."""
         victim_refresh = RefreshToken.for_user(self.other)
 
         response = self.logout(self.user, victim_refresh)
 
         self.assertEqual(response.status_code, 400)
-        # Still usable by its real owner.
         self.client.force_authenticate(None)
         refreshed = self.client.post(
             "/api/v1/user/auth/login/refresh/", {"refresh_token": str(victim_refresh)},
@@ -670,7 +608,6 @@ class LogoutRevocationTests(TestCase):
         self.assertEqual(refreshed.status_code, 200)
 
     def test_a_deactivated_user_cannot_refresh(self):
-        """Deactivation must end the session, not wait out the refresh TTL."""
         refresh = RefreshToken.for_user(self.user)
         self.user.is_active = False
         self.user.save(update_fields=["is_active"])
@@ -694,9 +631,6 @@ class LogoutRevocationTests(TestCase):
 
 
 class ProfileMassAssignmentTests(TestCase):
-    """`PATCH /auth/update-user/` writes to the caller's own row — so every
-    privileged column on it is a mass-assignment target."""
-
     def setUp(self):
         self.client = APIClient()
         self.user = User.objects.create(
@@ -737,8 +671,6 @@ class ProfileMassAssignmentTests(TestCase):
         self.assertIsNone(self.user.subscription)
 
     def test_the_phone_number_is_not_writable_and_leaks_no_account(self):
-        """A writable unique field answers "already registered" for any number
-        that exists — a free account-enumeration oracle."""
         User.objects.create(phone_number="+998900000021", first_name="X", last_name="Y")
 
         response = self.patch({
@@ -773,8 +705,6 @@ class NotificationMassAssignmentTests(TestCase):
         self.client.force_authenticate(self.user)
 
     def test_only_the_read_flag_can_be_written(self):
-        """The endpoint exists so a client can mark a notice read; rewriting the
-        platform's own message text is not part of that."""
         response = self.client.patch(
             f"/api/v1/user/notification/{self.note.id}/",
             {"is_read": True, "title": "Rewritten", "content": "Rewritten"},
@@ -801,13 +731,6 @@ class NotificationMassAssignmentTests(TestCase):
 
 
 class DashboardRoleSeparationTests(TestCase):
-    """A `staff` account is a *customer's* employee, not platform staff.
-
-    Any customer can mint one through `/user/add-staff/`, which hands back a
-    token pair. While `staff` counted as a dashboard role that endpoint was a
-    self-service escalation to every tenant's users, conversations and money.
-    """
-
     def setUp(self):
         self.client = APIClient()
         self.customer = User.objects.create(
@@ -850,9 +773,6 @@ class DashboardRoleSeparationTests(TestCase):
 
 
 class StaffScopingTests(TestCase):
-    """`/user/staff/` is per-customer; one tenant must not see or delete
-    another tenant's employees."""
-
     def setUp(self):
         self.client = APIClient()
         self.customer = User.objects.create(
@@ -883,8 +803,6 @@ class StaffScopingTests(TestCase):
         self.assertTrue(User.objects.filter(pk=self.employee.pk).exists())
 
     def test_an_employee_cannot_create_further_employees(self):
-        """Only the account at the top of a tenant may add staff — otherwise a
-        staff token grows its own tree of tokens."""
         self.client.force_authenticate(self.employee)
         response = self.client.post(
             "/api/v1/user/add-staff/",

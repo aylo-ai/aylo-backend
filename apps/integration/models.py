@@ -20,9 +20,6 @@ from apps.shared.storages import build_media_key
 
 
 class Integration(BaseModel):
-    #: `api_token` is encrypted, so it cannot be matched in SQL. Every lookup by
-    #: bot token is rewritten onto this deterministic digest column by
-    #: `EncryptedLookupQuerySet` — see apps/shared/fields.py.
     ENCRYPTED_HASH_LOOKUPS = {"api_token": "api_token_hash"}
 
     assistant = models.ForeignKey(
@@ -40,9 +37,6 @@ class Integration(BaseModel):
     name = models.CharField(max_length=255)
     description = models.TextField(null=True, blank=True)
     is_active = models.BooleanField(default=True)
-    # Credentials — Telegram bot tokens and Instagram / amoCRM / Billz OAuth
-    # tokens. Encrypted at rest; a database dump no longer hands an attacker
-    # full control of every customer's bot.
     api_token = EncryptedTextField(null=True, blank=True)
     refresh_token = EncryptedTextField(null=True, blank=True)
     api_token_hash = models.CharField(
@@ -51,13 +45,9 @@ class Integration(BaseModel):
     integration_type = models.CharField(max_length=50, choices=IntegrationTypes.choices())
     is_comment_response = models.BooleanField(default=False)
 
-    # Instagram-specific fields. Both columns are indexed via Meta.indexes below
-    # rather than db_index=True, so the migration can build them CONCURRENTLY.
-    instagram_user_id = models.CharField(max_length=50, null=True, blank=True)  # IG user ID
-    instagram_account_id = models.CharField(max_length=50, null=True, blank=True)  # IG account ID
-    instagram_username = models.CharField(max_length=100, null=True, blank=True)  # IG username
-    # Holds the amoCRM refresh token, client_id and the account's user_info
-    # payload, so it is as sensitive as `api_token` itself.
+    instagram_user_id = models.CharField(max_length=50, null=True, blank=True)
+    instagram_account_id = models.CharField(max_length=50, null=True, blank=True)
+    instagram_username = models.CharField(max_length=100, null=True, blank=True)
     metadata = EncryptedJSONField(null=True, blank=True)
 
     objects = EncryptedLookupQuerySet.as_manager()
@@ -66,7 +56,6 @@ class Integration(BaseModel):
         return self.name
 
     def save(self, *args, **kwargs):
-        """Keep `api_token_hash` in step with `api_token` on every write."""
         self.api_token_hash = crypto.hash_secret(self.api_token)
         update_fields = kwargs.get("update_fields")
         if update_fields is not None and "api_token" in update_fields:
@@ -75,12 +64,6 @@ class Integration(BaseModel):
 
     @classmethod
     def assistant_for_bot_token(cls, bot_token):
-        """Assistant behind a Telegram bot token, or ``None``.
-
-        Replaces `Assistant.objects.filter(integrations__api_token=...)`: a
-        joined lookup starts from `Assistant.objects`, which does not carry the
-        encrypted-column rewrite, so it has to resolve the integration first.
-        """
         integration = (
             cls.objects.filter(api_token=bot_token)
             .select_related("assistant")
@@ -90,13 +73,6 @@ class Integration(BaseModel):
 
     @classmethod
     def instagram_by_id(cls, instagram_id):
-        """Instagram integrations matching ``instagram_id`` on either ID column.
-
-        OAuth stores two distinct identifiers: ``/me.id`` in ``instagram_user_id``
-        and ``/me.user_id`` in ``instagram_account_id``. Webhook payloads carry
-        one or the other in ``entry.id`` depending on the event, so matching a
-        single column silently drops traffic for accounts where the two differ.
-        """
         if not instagram_id:
             return cls.objects.none()
         return cls.objects.filter(
@@ -106,19 +82,14 @@ class Integration(BaseModel):
 
     @property
     def instagram_send_id(self):
-        """Account ID to address in outbound Graph calls."""
         return self.instagram_account_id or self.instagram_user_id
 
     class Meta:
         db_table = 'integration'
         ordering = ['-created_time']
         indexes = [
-            # ``instagram_by_id`` ORs across both columns on every inbound
-            # webhook; Postgres needs one index per branch of the OR.
             models.Index(fields=["instagram_user_id"], name="integration_ig_user_idx"),
             models.Index(fields=["instagram_account_id"], name="integration_ig_acct_idx"),
-            # Every inbound Telegram webhook resolves the integration by bot
-            # token, which now means a lookup on the digest column.
             models.Index(fields=["api_token_hash"], name="integration_token_hash_idx"),
         ]
 
@@ -156,14 +127,6 @@ class InstagramMedia(BaseModel):
         ordering = ['-created_time']
 
 def comment_response_image_path(instance, filename):
-    # The old prefix was the misspelled "integrtion/<step id>/image/", flat and
-    # with no flow in the path — nothing a per-tenant bucket policy or lifecycle
-    # rule could match on. Existing rows keep their stored keys; only new
-    # uploads use this layout.
-    #
-    # The step id is deliberately NOT in the key: build_media_key already
-    # guarantees uniqueness, and two UUIDs plus this prefix came to 137 chars of
-    # overhead — enough to overflow the column on its own.
     return build_media_key(f"integration/flows/{instance.flow_id}/image", filename)
 
 class InstagramCommentResponse(BaseModel):
@@ -226,9 +189,6 @@ class Step(BaseModel):
     action = models.CharField(max_length=255, choices=ActionType.choices(), default=ActionType.MESSAGE.value)
     condition_type = models.CharField(max_length=255, choices=ConditionType.choices(), default=ConditionType.SUBSCRIBED.value)
     extra_button = models.ManyToManyField(CommentResponseButton, related_name='steps')
-    # max_length=255 like the other media fields. At Django's default of 100 the
-    # key prefix alone overflowed the column and every image upload raised
-    # SuspiciousFileOperation — a 500 on the flow-create endpoint.
     message_image = models.ImageField(
         upload_to=comment_response_image_path, null=True, blank=True, max_length=255
     )

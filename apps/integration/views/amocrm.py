@@ -1,8 +1,3 @@
-"""amoCRM OAuth install/callback, token refresh and pipeline selection.
-
-`AmoCRMOAuthHandlerView` is the redirect target registered with amoCRM — its
-path and query contract are frozen.
-"""
 import json
 import logging
 import secrets
@@ -25,21 +20,10 @@ from apps.shared.addons.validations import error_response, success_response
 
 logger = logging.getLogger(__name__)
 
-# Hosts the OAuth callback is allowed to talk to. `referer` arrives in the
-# query string of an AllowAny endpoint and is interpolated straight into two
-# outbound URLs, the second of which has its JSON body echoed back to the
-# caller — an unrestricted server-side request forgery unless it is pinned to
-# amoCRM's own domains.
 AMOCRM_ALLOWED_DOMAINS = ("amocrm.ru", "amocrm.com")
 
 
 def is_amocrm_host(host):
-    """True when ``host`` is a bare amoCRM hostname and nothing else.
-
-    Anything carrying a scheme, port, credentials, path or query is rejected
-    outright rather than parsed — those are the shapes used to smuggle a
-    different authority past a suffix check.
-    """
     host = (host or "").strip().lower()
     if not host or any(char in host for char in "/\\@:?#"):
         return False
@@ -50,11 +34,6 @@ def is_amocrm_host(host):
 
 
 def owned_amocrm_integration(user, integration_id):
-    """The caller's amoCRM integration, or None.
-
-    Both the refresh and the set-pipeline endpoints looked their integration up
-    by id alone.
-    """
     if not integration_id:
         return None
     try:
@@ -62,7 +41,6 @@ def owned_amocrm_integration(user, integration_id):
             id=integration_id, integration_type=IntegrationTypes.AMOCRM.value,
         ).first()
     except (DjangoValidationError, ValueError):
-        # A malformed id is "not yours", not a 500.
         return None
 
 
@@ -71,7 +49,6 @@ class AmoCRMOAuthInstallView(APIView):
 
     def get(self, request):
         try:
-            # Get parameters from request
             subdomain = 'repli'
             user_id = request.user.id
 
@@ -81,7 +58,6 @@ class AmoCRMOAuthInstallView(APIView):
                     code=400
                 )
 
-            # Use credentials from settings
             client_id = getattr(settings, 'AMOCRM_CLIENT_ID', None)
             client_secret = getattr(settings, 'AMOCRM_SECRET_KEY', None)
 
@@ -91,24 +67,18 @@ class AmoCRMOAuthInstallView(APIView):
                     code=500
                 )
 
-            # Generate state parameter for security
             state = secrets.token_urlsafe(32)
 
-            # Store state and user info in session/redis for verification.
-            # The client secret is deliberately NOT stored: the callback reads
-            # it from settings, and a copy per in-flight install turned one
-            # env var into an app credential sitting in Redis.
             redis_client.setex(
                 f"amocrm_oauth_state:{state}",
-                300,  # 5 minutes expiry
+                300,
                 json.dumps({
-                    'user_id': str(user_id),  # Convert UUID to string
+                    'user_id': str(user_id),
                     'subdomain': subdomain,
                     'client_id': client_id,
                 })
             )
 
-            # Build OAuth authorization URL
             redirect_uri = f"{settings.BASE_URL}/api/v1/integration/amocrm/"
             auth_params = {
                 'response_type': 'code',
@@ -138,15 +108,14 @@ class AmoCRMOAuthInstallView(APIView):
 
 
 class AmoCRMOAuthHandlerView(APIView):
-    permission_classes = [permissions.AllowAny]  # amoCRM will call this directly
+    permission_classes = [permissions.AllowAny]
     throttle_classes = [OAuthCallbackThrottle]
 
     def get(self, request):
         try:
-            # Get OAuth parameters
             code = request.GET.get('code')
             state = request.GET.get('state')
-            referer = request.GET.get('referer')  # amoCRM subdomain
+            referer = request.GET.get('referer')
             error = request.GET.get('error')
 
             if error:
@@ -161,9 +130,6 @@ class AmoCRMOAuthHandlerView(APIView):
                     code=400
                 )
 
-            # `referer` decides which host this server is about to POST an
-            # authorization code to and then read JSON back from. Pin it before
-            # anything else touches it.
             if not is_amocrm_host(referer):
                 logger.warning("amoCRM callback rejected an off-domain referer")
                 return error_response(
@@ -171,7 +137,6 @@ class AmoCRMOAuthHandlerView(APIView):
                     code=400
                 )
 
-            # Verify state parameter
             stored_state = redis_client.get(f"amocrm_oauth_state:{state}")
             if not stored_state:
                 return error_response(
@@ -190,7 +155,6 @@ class AmoCRMOAuthHandlerView(APIView):
                     code=500
                 )
 
-            # Exchange authorization code for access token
             token_url = f"https://{referer}/oauth2/access_token"
             token_data = {
                 'grant_type': 'authorization_code',
@@ -220,7 +184,6 @@ class AmoCRMOAuthHandlerView(APIView):
                     message="No access token received from amoCRM",
                     code=400
                 )
-            # Get user info from amoCRM
             user_info_url = f"https://{referer}/api/v4/account"
             headers = {
                 'Authorization': f'Bearer {access_token}',
@@ -235,7 +198,6 @@ class AmoCRMOAuthHandlerView(APIView):
 
             user_info = user_response.json()
             account_id = user_info.get('id')
-            # Create or update integration
             assistant = Assistant.objects.filter(user_id=user_id).first()
 
             if not assistant:
@@ -262,7 +224,6 @@ class AmoCRMOAuthHandlerView(APIView):
             )
 
             if not created:
-                # Update existing integration
                 integration.api_token = access_token
                 integration.metadata.update({
                     'subdomain': referer,
@@ -274,7 +235,6 @@ class AmoCRMOAuthHandlerView(APIView):
                 })
                 integration.save()
 
-            # Clean up state
             redis_client.delete(f"amocrm_oauth_state:{state}")
 
             return success_response(
@@ -335,7 +295,6 @@ class AmoCRMTokenRefreshView(APIView):
                     code=400
                 )
 
-            # Refresh the token
             token_url = f"https://{subdomain}/oauth2/access_token"
             token_data = {
                 'grant_type': 'refresh_token',
@@ -357,7 +316,6 @@ class AmoCRMTokenRefreshView(APIView):
             new_refresh_token = token_info.get('refresh_token')
             new_expires_in = token_info.get('expires_in')
 
-            # Update integration with new tokens
             integration.api_token = new_access_token
             integration.metadata.update({
                 'refresh_token': new_refresh_token,
@@ -366,11 +324,6 @@ class AmoCRMTokenRefreshView(APIView):
             })
             integration.save()
 
-            # The access token is NOT returned. It is a bearer credential for
-            # the customer's whole CRM; the server stores it and uses it on the
-            # caller's behalf, so nothing outside needs a copy. Handing it back
-            # is what turned the missing ownership check above into a
-            # one-request CRM takeover.
             return success_response(
                 data={
                     'integration_id': str(integration.id),
@@ -401,8 +354,6 @@ class AmoCRMSetPipelineView(APIView):
                     code=400
                 )
 
-            # amoCRM pipeline ids are integers; anything else would be
-            # interpolated into the request path below.
             if not str(pipeline_id).isdigit():
                 return error_response(
                     message="Pipeline ID must be numeric",
@@ -417,7 +368,6 @@ class AmoCRMSetPipelineView(APIView):
                     code=404
                 )
 
-            # Get pipeline info from amoCRM
             subdomain = integration.metadata.get('subdomain') if integration.metadata else 'repli.amocrm.ru'
             if not is_amocrm_host(subdomain):
                 logger.warning("amoCRM set-pipeline refused a stored off-domain subdomain")
@@ -427,7 +377,6 @@ class AmoCRMSetPipelineView(APIView):
                 )
             access_token = integration.api_token
 
-            # Get pipeline details
             pipeline_url = f"https://{subdomain}/api/v4/leads/pipelines/{pipeline_id}"
             headers = {
                 'Authorization': f'Bearer {access_token}',
@@ -445,7 +394,6 @@ class AmoCRMSetPipelineView(APIView):
             pipeline_info = pipeline_response.json()
             pipeline_name = pipeline_info.get('name', f'Pipeline {pipeline_id}')
 
-            # Update integration metadata
             integration.metadata.update({
                 'pipeline_id': pipeline_id,
                 'pipeline_name': pipeline_name,

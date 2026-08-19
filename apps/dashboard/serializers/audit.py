@@ -1,4 +1,3 @@
-"""Audit-log serializers for the dashboard."""
 from rest_framework import serializers
 
 from apps.dashboard.models import AuditLog

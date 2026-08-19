@@ -1,13 +1,3 @@
-"""Regression tests for `SubscriptionValidationMixin.validate_subscription`.
-
-2026-08-01: the check order put "tokens remaining" ahead of "is the
-subscription active", so an inactive/unpaid subscription (which starts with a
-*full* token count until it's ever consumed) could report the wrong reason —
-and `status == INACTIVE` was the only status ever blocked, so a subscription
-cancelled via the dashboard (`DashboardSubscriptionCancel`, which sets
-`CANCELLED`, not `INACTIVE`) sailed straight through and kept working until
-its tokens or date ran out on their own.
-"""
 from datetime import timedelta
 
 from django.test import TestCase
@@ -45,7 +35,7 @@ class SubscriptionValidationMixinTests(TestCase):
     def test_inactive_never_paid_reports_payment_not_processed(self):
         subscription = Subscription.objects.create(
             status=SubscriptionStatuses.INACTIVE.value,
-            remained_request_count=1000,  # full count — set at plan selection, before payment
+            remained_request_count=1000,
             last_payment_date=None,
         )
         with self.assertRaises(CustomValidationError) as ctx:
@@ -95,7 +85,6 @@ class SubscriptionValidationMixinTests(TestCase):
         self.assertEqual(result, subscription)
 
     def test_active_with_no_next_payment_date_passes(self):
-        # Free-tier packages (price == 0) never set next_payment_date.
         subscription = Subscription.objects.create(
             status=SubscriptionStatuses.ACTIVE.value,
             remained_request_count=50,

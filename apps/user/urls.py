@@ -21,7 +21,6 @@ urlpatterns = [
     path("notifications/", views.NotificationListView.as_view()),
     path("notification/<uuid:pk>/", views.NotificationUpdateView.as_view()),
 
-    #oauth2 google
     path("accounts/google/login/", views.GoogleLoginView.as_view()),
     path("accounts/google/login/callback/", views.GoogleAuthCallbackView.as_view()),
 

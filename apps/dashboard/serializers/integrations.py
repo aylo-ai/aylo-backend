@@ -1,4 +1,3 @@
-"""Integration serializers for the dashboard."""
 from rest_framework import serializers
 
 from apps.assistant.models import Conversation, Lead, Message
@@ -7,7 +6,6 @@ from apps.shared.addons.enums import ConversationPlatforms, IntegrationTypes
 
 
 class DashboardIntegrationListSerializer(serializers.ModelSerializer):
-    """Rich integration serializer with all operational data."""
     assistant_name = serializers.SerializerMethodField()
     owner_name = serializers.SerializerMethodField()
     integration_type_display = serializers.SerializerMethodField()
@@ -29,9 +27,6 @@ class DashboardIntegrationListSerializer(serializers.ModelSerializer):
             'created_time', 'updated_time',
         ]
 
-    # An integration type maps to a conversation platform only when the channel
-    # actually carries conversations; the CRM connectors do not, so their
-    # counts are not platform-scoped.
     PLATFORM_MAP = {
         IntegrationTypes.TELEGRAM.value: ConversationPlatforms.TELEGRAM.value,
         IntegrationTypes.INSTAGRAM.value: ConversationPlatforms.INSTAGRAM.value,

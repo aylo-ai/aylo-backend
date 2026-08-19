@@ -1,4 +1,3 @@
-"""Dashboard notification endpoints."""
 from rest_framework import filters, generics
 from rest_framework.views import APIView
 

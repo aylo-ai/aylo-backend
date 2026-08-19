@@ -1,4 +1,3 @@
-"""Notification serializers for the dashboard."""
 from rest_framework import serializers
 
 from apps.dashboard.serializers.common import StrictCharField
@@ -6,7 +5,6 @@ from apps.shared.addons.enums import NotificationTypes
 
 
 class NotificationSendSerializer(serializers.Serializer):
-    """Validates `notifications/send/` — types are checked, not coerced."""
     user_id = serializers.UUIDField()
     title = StrictCharField(max_length=255)
     content = StrictCharField()

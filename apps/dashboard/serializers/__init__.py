@@ -1,9 +1,3 @@
-"""Dashboard serializers, split by domain.
-
-Every public name is re-exported here so `from apps.dashboard.serializers
-import X` keeps resolving exactly as it did when this package was a single
-module.
-"""
 from apps.dashboard.serializers.assistants import (
     AssistantFileFilterSerializer,
     DashboardAssistantCreateSerializer,

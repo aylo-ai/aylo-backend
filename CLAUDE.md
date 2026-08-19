@@ -31,8 +31,9 @@ platform integrated with Telegram and Instagram, with subscription billing.
 
 A task is **not complete** until all of the following are done, in order:
 
-1. **Implement** the change following the conventions in §3.
-2. **Delete dead and unused code** touched by or adjacent to the change (§4).
+1. **Implement** the change following the conventions in §3, with **no comments
+   and no docstrings** (§4).
+2. **Delete dead and unused code** touched by or adjacent to the change (§4b).
 3. **Write tests** covering the new behaviour and any bug being fixed (§5).
 4. **Run the tests and confirm they pass** — paste the result. Never claim success
    without a green run.
@@ -55,16 +56,57 @@ A task is **not complete** until all of the following are done, in order:
 - **External calls & handlers:** fail soft where a user turn depends on it — catch,
   log, and degrade rather than raising (see `ai_service/agent.py`, `tools.py`).
 
-## 4. Always remove dead and unused code
+## 4. No comments, no docstrings
+
+**Write zero comments and zero docstrings.** The code is the documentation. This
+is not a style preference to be weighed against others — it is the rule, and it
+is enforced by `apps/shared/tests/test_no_prose.py`, which fails the build on any
+new comment or docstring under `apps/` or `config/`.
+
+Agents kept adding explanatory prose every session until 11% of `apps/` was
+comments and docstrings — 4,430 lines, some files over 40% prose — and every one
+of those lines was a line that could go stale, contradict the code, and be
+believed anyway. They were all deleted.
+
+**Never write:**
+
+- Docstrings. Not on modules, classes, functions, methods or tests.
+- Any comment restating what the code does (`# fetch the user`, `# increment`).
+- Any comment narrating history — `used to`, `previously`, `the old X`, `this was
+  a bug`, `changed because`. **Git is the archive.** `git log -p` and `git blame`
+  answer this better than a comment can, and never go stale.
+- Any comment justifying a past fix, or explaining what a change is *not*.
+- Section banners, separator bars, TODO/FIXME/XXX notes.
+- Commented-out code (see §4b).
+
+**The only comments allowed** are machine-read directives — `# noqa`,
+`# type:`, `# pragma: no cover`, `# fmt: off` / `# fmt: on`, `# nosec`,
+`# coding:`. These are instructions to other tools, not prose.
+
+If something is genuinely hard to follow, that is a signal to **rename it or
+split it**, not to annotate it. Reach for an intention-revealing name, a named
+constant instead of a literal, an early return instead of a nested branch, or a
+small well-named helper. A reader who needs the reasoning behind a decision goes
+to the change report (§6) or the commit — which is where reasoning belongs and
+where it stays accurate.
+
+Both allowed places for prose are already required by this file: the commit
+message and `docs/reports/YYYY-MM-DD-<topic>.md`. Put it there. Be as thorough
+as you like there. Just not in the source.
+
+## 4b. Always remove dead and unused code
 
 As part of every change, leave the tree cleaner than you found it:
 
 - Delete functions, classes, methods, and branches with no callers.
 - Remove unused imports, variables, parameters, and settings.
-- Remove commented-out code and leftover debug `print()` / `traceback` statements.
+- Remove leftover debug `print()` / `traceback` statements.
 - **Verify before deleting:** `grep -rn <name> apps/` to confirm there is no
   dynamic or string-based caller.
 - Prefer deletion over commenting out — git history is the archive.
+- Watch for a module shadowed by a same-named package (`views.py` beside
+  `views/`): Python imports the package, so the module is dead no matter how
+  live it looks.
 
 ## 5. Testing
 

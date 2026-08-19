@@ -1,11 +1,3 @@
-"""`fetch_external` — the guard on URLs that arrive from outside.
-
-Instagram webhook payloads carry an attachment URL that a Celery worker then
-downloads. Fetching that with a plain `requests.get` pointed the worker's own
-network at whatever the URL said: Postgres, Redis, MinIO, and the cloud metadata
-endpoint at 169.254.169.254. Every test here is a way that used to work.
-"""
-
 from unittest import mock
 
 import requests
@@ -37,7 +29,6 @@ class AssertPublicURLTests(SimpleTestCase):
                 http.assert_public_url(address)
 
     def test_the_internal_minio_hostname_is_refused(self):
-        """The migration put a service holding every document on the worker's network."""
         with mock.patch("socket.getaddrinfo", fake_addrinfo("172.18.0.4")):
             with self.assertRaises(http.UnsafeURLError):
                 http.assert_public_url("http://minio:9000/aylo-media/")
@@ -83,11 +74,6 @@ class FetchExternalTests(SimpleTestCase):
             )
 
     def test_redirects_are_revalidated_not_followed_blindly(self):
-        """The original bug: requests followed redirects with no second check.
-
-        A signature-verified CDN URL that 302s to an internal address was a free
-        SSRF, because only the first URL was ever looked at.
-        """
         redirect = make_response(
             status=302,
             headers={"Location": "http://169.254.169.254/latest/meta-data/"},

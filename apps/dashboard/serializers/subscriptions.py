@@ -1,4 +1,3 @@
-"""Subscription serializers for the dashboard."""
 from rest_framework import serializers
 
 from apps.payment.models import PricingPackage, Subscription
@@ -46,11 +45,6 @@ class SubscriptionExtendSerializer(serializers.Serializer):
 
 
 class DashboardSubscriptionUpdateSerializer(serializers.ModelSerializer):
-    """Write serializer for `subscriptions/<id>/` — every field is validated.
-
-    `pricing_package` is a real relation field, so a bad UUID or an unknown id
-    becomes a 400 instead of an unhandled ORM error.
-    """
     pricing_package = serializers.PrimaryKeyRelatedField(
         queryset=PricingPackage.objects.all(), required=False, allow_null=True,
     )

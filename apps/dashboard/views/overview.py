@@ -1,4 +1,3 @@
-"""Dashboard overview, statistics, AI-cost breakdown and global search."""
 from django.db.models import Count, F, Q, Sum
 from django.utils import timezone
 from rest_framework.views import APIView
@@ -27,7 +26,6 @@ class DashboardView(APIView):
 
 
 class DashboardEnhancedStatsView(APIView):
-    """Enhanced dashboard stats with period comparison, alerts, and recent activity."""
     permission_classes = [IsDashboardUser]
 
     def get(self, request, *args, **kwargs):
@@ -56,7 +54,6 @@ class DashboardStatisticsView(APIView):
 
 
 class DashboardAICostBreakdownView(APIView):
-    """AI cost breakdown by assistant and model."""
     permission_classes = [IsDashboardUser]
 
     def get(self, request, *args, **kwargs):
@@ -122,7 +119,6 @@ class DashboardAICostBreakdownView(APIView):
 
 
 class DashboardGlobalSearch(APIView):
-    """Search across users, assistants, conversations, transactions."""
     permission_classes = [IsDashboardUser]
 
     def get(self, request):
@@ -132,7 +128,6 @@ class DashboardGlobalSearch(APIView):
 
         results = []
 
-        # Users
         users = User.objects.filter(
             Q(username__icontains=q) | Q(first_name__icontains=q) |
             Q(last_name__icontains=q) | Q(email__icontains=q) |
@@ -147,7 +142,6 @@ class DashboardGlobalSearch(APIView):
                 'url': f'/users/{u.id}',
             })
 
-        # Assistants
         assistants = Assistant.objects.filter(
             Q(name__icontains=q) | Q(company_name__icontains=q)
         )[:5]
@@ -160,7 +154,6 @@ class DashboardGlobalSearch(APIView):
                 'url': f'/assistants/{a.id}',
             })
 
-        # Conversations
         conversations = Conversation.objects.filter(
             Q(client_full_name__icontains=q) | Q(username__icontains=q) |
             Q(assistant__name__icontains=q)
@@ -174,7 +167,6 @@ class DashboardGlobalSearch(APIView):
                 'url': f'/conversations/{c.id}',
             })
 
-        # Transactions (by user name or amount)
         transactions = Transaction.objects.filter(
             Q(user__first_name__icontains=q) | Q(user__last_name__icontains=q) |
             Q(user__email__icontains=q) | Q(transaction_id__icontains=q)

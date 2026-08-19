@@ -1,13 +1,3 @@
-"""Tests for the field-encryption core.
-
-Covers the cipher itself (`apps.shared.addons.crypto`) and the model-field
-plumbing (`apps.shared.fields`): round trips, key rotation, failing closed on a
-tampered value, reading legacy plaintext rows written before the column was
-encrypted, the deterministic-hash lookup rewrite, and the chunked helpers the
-data migrations use.
-
-Everything runs offline — the only external dependency is the local database.
-"""
 import logging
 from unittest import mock
 
@@ -26,7 +16,6 @@ BOT_TOKEN = "8012345678:AAH-super-secret-telegram-bot-token"
 
 
 def raw_column(table, column, pk):
-    """The bytes actually stored in ``table.column`` — no field conversion."""
     with connection.cursor() as cursor:
         cursor.execute(
             f'SELECT {connection.ops.quote_name(column)} '
@@ -37,10 +26,6 @@ def raw_column(table, column, pk):
 
 
 def write_raw_column(table, column, pk, value):
-    """Write ``value`` straight into the column, bypassing the encrypted field.
-
-    Simulates a row written before the column was encrypted.
-    """
     with connection.cursor() as cursor:
         cursor.execute(
             f'UPDATE {connection.ops.quote_name(table)} '
@@ -60,7 +45,6 @@ class EncryptDecryptTests(TestCase):
         self.assertTrue(token.startswith(crypto.VERSION_PREFIX))
 
     def test_same_plaintext_encrypts_differently_every_time(self):
-        """Fernet randomises the IV — equal ciphertexts would leak equal secrets."""
         self.assertNotEqual(crypto.encrypt(BOT_TOKEN), crypto.encrypt(BOT_TOKEN))
 
     def test_empty_and_null_pass_through(self):
@@ -74,7 +58,6 @@ class EncryptDecryptTests(TestCase):
         self.assertEqual(crypto.decrypt(crypto.encrypt(value)), value)
 
     def test_legacy_plaintext_is_returned_unchanged(self):
-        """Rows written before encryption have no version prefix."""
         self.assertEqual(crypto.decrypt(BOT_TOKEN), BOT_TOKEN)
         self.assertFalse(crypto.is_encrypted(BOT_TOKEN))
 
@@ -94,7 +77,6 @@ class EncryptDecryptTests(TestCase):
                     crypto.decrypt(token[:-cut])
 
     def test_decryption_failure_never_logs_the_token(self):
-        # settings.TESTING silences logging; re-enable it just for this check.
         logging.disable(logging.NOTSET)
         self.addCleanup(logging.disable, logging.CRITICAL)
 
@@ -106,22 +88,6 @@ class EncryptDecryptTests(TestCase):
 
 
 class CiphertextOrPlaintextBoundaryTests(TestCase):
-    """Where `is_encrypted` draws the line, pinned case by case.
-
-    Two failure modes pull in opposite directions and both are real:
-
-    * ``message_content`` and ``client_full_name`` are free-form user input, so
-      a customer can send ``"v1:hello"``. Calling that ciphertext makes the
-      data migration skip the row and makes every later read raise — a
-      permanent 500 on that conversation.
-    * A genuine ciphertext damaged in storage must **not** be handed back
-      verbatim; that would push ciphertext into an outbound API call or render
-      it to a customer as if it were the secret.
-
-    The discriminator is the shape of the remainder: >= 100 characters (the
-    shortest possible Fernet token) of pure urlsafe-base64.
-    """
-
     def setUp(self):
         self.token = crypto.encrypt(BOT_TOKEN)
 
@@ -138,7 +104,6 @@ class CiphertextOrPlaintextBoundaryTests(TestCase):
             crypto.decrypt(tampered)
 
     def test_truncated_ciphertext_fails_loud_not_open(self):
-        """Regression: a broken base64 tail used to be read as legacy plaintext."""
         truncated = self.token[:-6]
 
         self.assertTrue(crypto.is_encrypted(truncated))
@@ -146,13 +111,11 @@ class CiphertextOrPlaintextBoundaryTests(TestCase):
             crypto.decrypt(truncated)
 
     def test_prefixed_human_text_is_plaintext(self):
-        """A customer typing ``v1:`` must not break their own conversation."""
         for value in ("v1:", "v1:notbase64!!", "v1:hello world", "v1:Ivan",
                       "v1:gAAAAA-but-not-really"):
             with self.subTest(value=value):
                 self.assertFalse(crypto.is_encrypted(value))
                 self.assertEqual(crypto.decrypt(value), value)
-                # …and it still encrypts and round-trips like any other text.
                 self.assertEqual(crypto.decrypt(crypto.encrypt(value)), value)
 
     def test_a_token_under_a_retired_key_fails_loud(self):
@@ -163,13 +126,6 @@ class CiphertextOrPlaintextBoundaryTests(TestCase):
             crypto.decrypt(foreign)
 
     def test_severe_damage_is_indistinguishable_from_plaintext(self):
-        """Documented residual risk, pinned so a change to it is deliberate.
-
-        A ciphertext damaged below the 100-character Fernet minimum cannot be
-        told apart from a legacy row and is returned verbatim. Every encrypted
-        column is `text`, so the database itself cannot truncate a value —
-        reaching this state takes manual corruption.
-        """
         wrecked = self.token[: len(self.token) // 2]
 
         self.assertFalse(crypto.is_encrypted(wrecked))
@@ -183,12 +139,10 @@ class CiphertextOrPlaintextBoundaryTests(TestCase):
     def test_dev_key_derived_from_secret_key_is_a_valid_fernet_key(self):
         key = crypto.derive_key_from_secret("some-secret")
         self.assertEqual(key, crypto.derive_key_from_secret("some-secret"))
-        Fernet(key)  # raises if the key is malformed
+        Fernet(key)
 
 
 class KeyRotationTests(TestCase):
-    """MultiFernet: the first key encrypts, every key decrypts."""
-
     def setUp(self):
         self.old_key = Fernet.generate_key().decode()
         self.new_key = Fernet.generate_key().decode()
@@ -204,7 +158,6 @@ class KeyRotationTests(TestCase):
         with override_settings(FIELD_ENCRYPTION_KEYS=[self.new_key, self.old_key]):
             token = crypto.encrypt(BOT_TOKEN)
 
-        # Retiring the old key must not break the value just written.
         with override_settings(FIELD_ENCRYPTION_KEYS=[self.new_key]):
             self.assertEqual(crypto.decrypt(token), BOT_TOKEN)
 
@@ -287,7 +240,6 @@ class EncryptedFieldTests(TestCase):
         )
 
     def test_legacy_plaintext_row_reads_back_unchanged(self):
-        """Mid-rollout the table holds both shapes; both must be readable."""
         write_raw_column("integration", "api_token", self.integration.id, "legacy-plain-token")
 
         reloaded = Integration.objects.get(pk=self.integration.pk)
@@ -311,7 +263,6 @@ class EncryptedFieldTests(TestCase):
         self.assertIsNone(Integration.objects.get(pk=integration.pk).api_token)
 
     def test_undecryptable_row_raises_instead_of_returning_ciphertext(self):
-        """A real token under a key we no longer hold must fail closed."""
         foreign = crypto.VERSION_PREFIX + Fernet(Fernet.generate_key()).encrypt(b"x").decode()
         write_raw_column("integration", "api_token", self.integration.id, foreign)
 
@@ -319,7 +270,6 @@ class EncryptedFieldTests(TestCase):
             Integration.objects.get(pk=self.integration.pk)
 
     def test_plaintext_token_starting_with_the_prefix_still_reads(self):
-        """A legacy value that merely looks prefixed is plaintext, not corruption."""
         write_raw_column("integration", "api_token", self.integration.id, "v1:legacy-token")
 
         reloaded = Integration.objects.get(pk=self.integration.pk)
@@ -341,7 +291,6 @@ class EncryptedFieldTests(TestCase):
         self.assertEqual(Integration.objects.get(pk=self.integration.pk).metadata, {"subdomain": "acme"})
 
     def test_char_field_column_is_text_so_ciphertext_fits(self):
-        """A Fernet token of a 255-char value overflows varchar(255)."""
         field = Conversation._meta.get_field("client_full_name")
         self.assertIsInstance(field, EncryptedCharField)
         self.assertEqual(field.db_type(connection), "text")
@@ -393,7 +342,6 @@ class EncryptedLookupTests(TestCase):
         self.assertIsNone(Integration.assistant_for_bot_token("nope"))
 
     def test_encrypted_column_without_a_hash_refuses_to_be_queried(self):
-        """Silently returning nothing would hide the bug; raise instead."""
         with self.assertRaises(FieldError):
             list(Message.objects.filter(message_content="hello"))
 
@@ -411,8 +359,6 @@ class EncryptedLookupTests(TestCase):
 
 
 class DataMigrationHelperTests(TestCase):
-    """The chunked rewrites the data migrations run."""
-
     def setUp(self):
         self.assistant = Assistant.objects.create(name="A", company_name="C")
         self.conversation = Conversation.objects.create(assistant=self.assistant)
@@ -500,13 +446,10 @@ class DataMigrationHelperTests(TestCase):
         ) as cursor:
             crypto.encrypt_table_columns(connection, "messages", ["message_content"], batch_size=2)
 
-        # 3 selects (2 + 2 + 1 + the empty page) and one update per non-empty page.
         self.assertGreaterEqual(cursor.call_count, 6)
 
 
 class EncryptedFieldDefinitionTests(TestCase):
-    """The columns this change was meant to protect are actually encrypted."""
-
     def test_expected_columns_use_encrypted_fields(self):
         from apps.payment.models import Card
 

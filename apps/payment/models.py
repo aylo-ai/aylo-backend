@@ -60,24 +60,10 @@ class PricingPackage(BaseModel):
 
     @property
     def is_custom(self):
-        """The "for companies" tier — priced per customer, not off the shelf.
-
-        There is no number to charge, so the self-service paths refuse it
-        (`SubscriptionSerializer` / `SubscriptionUpdateSerializer`) and the
-        pricing page renders a "contact us" call to action instead of a price.
-        The interested company posts to `pricing-packages/<id>/request/`, which
-        stores a `CustomPackageRequest` for sales.
-        """
         return self.type == PricingPackageType.CUSTOM.value
 
 
 class CustomPackageRequest(BaseModel):
-    """A company asking for a quote on the custom pricing tier.
-
-    Deliberately open to anonymous callers: the pricing page is public and the
-    people who fill this in have usually not signed up yet. `user` is filled
-    only when the request arrives with a token.
-    """
     pricing_package = models.ForeignKey(
         PricingPackage, on_delete=models.SET_NULL,
         related_name="custom_requests", null=True, blank=True,
@@ -137,8 +123,6 @@ class Transaction(BaseModel):
 
 class Card(BaseModel):
     name = models.CharField(max_length=50, null=True, blank=True)
-    # Payme card token — a bearer credential that can charge the customer's
-    # card. Encrypted at rest.
     card_token = EncryptedTextField()
     card_number = models.CharField(max_length=16)
     expiry_date = models.CharField(max_length=10)
@@ -149,7 +133,6 @@ class Card(BaseModel):
 
     def save(self, *args, **kwargs):
         self.card_number = self.card_number[:4] + '*' * 8 + self.card_number[-4:]
-        # undefault user's other cards
         if self.is_default:
             Card.objects.filter(user=self.user).exclude(id=self.id).update(is_default=False)
         if not self.name:
@@ -194,18 +177,16 @@ class Subscription(BaseModel):
     auto_renew = models.BooleanField(default=True)
     cancellation_reason = models.TextField(null=True, blank=True)
     last_payment_date = models.DateField(null=True, blank=True)
-    grace_period_days = models.IntegerField(default=0)  # for late payments
+    grace_period_days = models.IntegerField(default=0)
     subscription_id = models.CharField(
         max_length=255, unique=True, null=True, blank=True
-    )  # for external payment systems
+    )
 
     class Meta:
         db_table = "subscription"
         ordering = ["-created_time"]
 
     def __str__(self):
-        # `pricing_package` is SET_NULL, so it can legitimately be missing —
-        # don't let that raise in the admin or in any log line.
         package = self.pricing_package.name if self.pricing_package else "No package"
         return f"{package} - {self.start_date} - {self.end_date}"
 

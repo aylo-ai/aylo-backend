@@ -1,4 +1,3 @@
-"""Lead serializers for the dashboard."""
 from rest_framework import serializers
 
 from apps.assistant.models import Lead

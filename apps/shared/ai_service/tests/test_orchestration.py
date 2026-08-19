@@ -1,10 +1,3 @@
-"""Routing, escalation, cost accounting and run telemetry.
-
-The behaviour under test is the thing that makes tiering safe: a wrong routing
-guess must cost one cheap call, never a bad answer to a customer. So the
-escalation tests assert both halves -- that a struggling cheap tier is retried on
-a stronger model, and that a *working* cheap tier is left alone.
-"""
 from decimal import Decimal
 from unittest import mock
 
@@ -25,7 +18,6 @@ DISTINCT_TIERS = {"fast": "gpt-4o-mini", "standard": "gpt-4o", "deep": "o3-deep"
 
 class PricingTests(TestCase):
     def test_cost_uses_separate_input_and_output_rates(self):
-        # 1M input + 1M output on gpt-4o = 2.50 + 10.00
         self.assertAlmostEqual(
             pricing.cost_usd("gpt-4o", 1_000_000, 1_000_000), 12.50, places=6
         )
@@ -36,7 +28,6 @@ class PricingTests(TestCase):
         self.assertGreater(cost, 0, "cached tokens are discounted, not free")
 
     def test_an_unknown_model_costs_none_not_zero(self):
-        """Zero would make a typo'd model look like the cheapest option."""
         self.assertIsNone(pricing.cost_usd("not-a-real-model", 1000, 1000))
 
     def test_an_unknown_leg_makes_the_whole_total_unknown(self):
@@ -44,7 +35,6 @@ class PricingTests(TestCase):
         self.assertAlmostEqual(pricing.add_costs(0.5, 0.25), 0.75, places=6)
 
     def test_the_cheap_tier_is_actually_cheaper(self):
-        """Guards the table itself: tiering is pointless if fast costs more."""
         fast = pricing.cost_usd(TIERS["fast"], 10_000, 1_000)
         standard = pricing.cost_usd(TIERS["standard"], 10_000, 1_000)
         self.assertLess(fast, standard)
@@ -76,8 +66,6 @@ class RoutingTests(TestCase):
 
     @override_settings(AI_TIER_MODELS=TIERS)
     def test_escalation_skips_a_tier_pointing_at_the_same_model(self):
-        """standard and deep are both gpt-4o here: retrying it would pay twice
-        for an identical call."""
         self.assertIsNone(routing.escalate(routing.Tier.STANDARD, "empty reply"))
 
     @override_settings(AI_TIER_ROUTING_ENABLED=False)
@@ -93,7 +81,6 @@ class RoutingTests(TestCase):
 @override_settings(AI_TIER_MODELS=DISTINCT_TIERS, AI_TIER_ROUTING_ENABLED=True)
 class EscalationTests(AgentTestCase):
     def test_a_good_cheap_answer_is_not_escalated(self):
-        """The expensive half of the trade: never pay when the cheap tier worked."""
         self.set_responses(make_response(response_id="r1", text="Ish vaqtimiz 9:00-18:00."))
 
         result = self.run_turn("ish vaqti")
@@ -116,10 +103,6 @@ class EscalationTests(AgentTestCase):
         self.assertEqual(self.kwargs_at(1)["model"], DISTINCT_TIERS["standard"])
 
     def test_the_retry_abandons_the_failed_branch(self):
-        """It restarts from the original chain, not from the empty response.
-
-        Otherwise the stronger model inherits the weak attempt and continues it.
-        """
         self.set_responses(
             make_response(response_id="r1", text=""),
             make_response(response_id="r2", text="Better."),
@@ -141,8 +124,6 @@ class EscalationTests(AgentTestCase):
         self.assertTrue(result.used_fallback)
 
     def test_the_tool_cap_does_not_escalate_by_default(self):
-        """Re-running a turn that already burned five tool rounds is the wrong
-        trade for a chat product; the forced answer is kept."""
         looping = [
             make_response(
                 response_id=f"r{i}",
@@ -231,7 +212,6 @@ class RunTelemetryTests(AgentTestCase):
         self.assertEqual(run.api_calls, 3, "triage + the failed act + the escalated act")
 
     def test_a_crashed_turn_is_still_recorded(self):
-        """A run that blew up is exactly the one you want in the data."""
         self.client.responses.create.side_effect = RuntimeError("boom")
 
         self.run_turn("salom")
@@ -259,7 +239,6 @@ class RunTelemetryTests(AgentTestCase):
         self.assertGreater(run.cost_usd, Decimal("0"))
 
     def test_telemetry_failure_never_breaks_the_turn(self):
-        """Observability that can take the product down is worse than none."""
         self.set_responses(make_response(response_id="r1", text="Salom!"))
 
         with mock.patch.object(
@@ -272,8 +251,6 @@ class RunTelemetryTests(AgentTestCase):
 
 
 class RecorderSummaryTests(TestCase):
-    """The structured log payload -- what shows up in Dozzle."""
-
     def test_the_summary_carries_timing_cost_and_routing(self):
         recorder = RunRecorder(
             conversation_id="c1", assistant_id="a1",
@@ -311,15 +288,6 @@ class RecorderSummaryTests(TestCase):
 
 @override_settings(AI_TIER_MODELS=DISTINCT_TIERS, AI_TIER_ROUTING_ENABLED=True)
 class OrderFlowTests(AgentTestCase):
-    """The steps the operator configured before the assistant went live.
-
-    `Assistant.steps` is the order flow a business fills in during setup, and
-    `prompts.build_instructions` folds it into the developer message. It is the
-    difference between an assistant that follows the business's process and one
-    that improvises, so these assert it actually reaches the model -- including
-    on the paths added by tiering, where a turn can now be run twice.
-    """
-
     FLOW = {"1": "Ask which model", "2": "Ask the quantity", "3": "Collect the phone number"}
 
     def setUp(self):
@@ -351,7 +319,6 @@ class OrderFlowTests(AgentTestCase):
         self.assertNotIn("Order flow to follow", self._instructions_at(0))
 
     def test_the_flow_survives_escalation(self):
-        """The stronger model must inherit the process, not start improvising."""
         self.set_responses(
             make_response(response_id="r1", text=""),
             make_response(response_id="r2", text="Qaysi model?"),
@@ -363,17 +330,12 @@ class OrderFlowTests(AgentTestCase):
         self.assertIn("Collect the phone number", self._instructions_at(1))
 
     def test_editing_the_flow_restarts_the_chain_so_it_takes_effect(self):
-        """A flow edited after the conversation started must apply immediately.
-
-        Otherwise the business changes its process and the live conversations
-        keep running the old one until they happen to end.
-        """
         self.conversation.previous_response_id = "old-response"
         self.conversation.instructions_version = self.assistant.updated_time
         self.conversation.save()
 
         self.assistant.steps = {"1": "Ask for the delivery address first"}
-        self.assistant.save()  # bumps updated_time
+        self.assistant.save()
 
         self.set_responses(make_response(response_id="r1", text="Manzilingiz?"))
         self.run_turn("salom")
@@ -383,8 +345,6 @@ class OrderFlowTests(AgentTestCase):
         self.assertNotIn("previous_response_id", self.kwargs_at(0))
 
     def test_a_warm_chain_does_not_resend_the_flow(self):
-        """It is already in the chain server-side; resending it every turn would
-        pay for those tokens again on every single message."""
         self.conversation.previous_response_id = "warm"
         self.conversation.instructions_version = self.assistant.updated_time
         self.conversation.save()
@@ -398,13 +358,6 @@ class OrderFlowTests(AgentTestCase):
 
 
 class ConfiguredModelsTests(TestCase):
-    """Guards the seam between settings and the price table.
-
-    These are two files that must agree, edited at different times by different
-    people. A tier pointing at a model with no price silently records NULL cost
-    for every turn it handles, and nobody notices until the dashboard is empty.
-    """
-
     def test_every_configured_tier_model_has_a_price(self):
         for tier, model in routing.tier_models().items():
             with self.subTest(tier=tier):
@@ -428,9 +381,6 @@ PLAN_NOTHING = '{"intent":"question","needs_knowledge":false,"needs_tools":false
 
 
 class PlanParsingTests(TestCase):
-    """Triage is a cheap model guessing. Every way it can fail must land on the
-    permissive plan -- the behaviour the loop had before the pipeline existed."""
-
     def _parse(self, text):
         step = pipeline.RunStepStub() if hasattr(pipeline, "RunStepStub") else _Step()
         return pipeline._parse_plan(make_response(text=text), step)
@@ -457,7 +407,6 @@ class PlanParsingTests(TestCase):
         self.assertTrue(self._parse('["nope"]').needs_tools)
 
     def test_a_missing_flag_defaults_to_on_not_off(self):
-        """Absent means "triage did not say", which is not the same as false."""
         plan = self._parse('{"intent":"question","complexity":"normal"}')
         self.assertTrue(plan.needs_knowledge)
         self.assertTrue(plan.needs_tools)
@@ -466,8 +415,6 @@ class PlanParsingTests(TestCase):
         self.assertEqual(self._parse('{"complexity":"apocalyptic"}').complexity, "normal")
 
     def test_a_direct_reply_on_a_non_trivial_turn_is_discarded(self):
-        """The cheap model answering a hard question is the failure this
-        guards: it was told to answer only greetings."""
         plan = self._parse(
             '{"complexity":"hard","direct_reply":"Your refund is approved."}'
         )
@@ -481,7 +428,6 @@ class PlanParsingTests(TestCase):
 
 
 class _Step:
-    """Minimal stand-in for a StepRecord."""
     input_tokens = output_tokens = 0
     stage = "triage"
     error = ""
@@ -500,8 +446,6 @@ class ToolScopingTests(TestCase):
         self.assertEqual([s.get("type") for s in kept], ["web_search"])
 
     def test_successful_retrieval_removes_file_search(self):
-        """The passages are already in the prompt; the tool would buy a second
-        model call to fetch what the turn already has."""
         plan = pipeline.Plan(needs_knowledge=True, needs_tools=True)
         kept = pipeline.scope_tools(self.SCHEMAS, plan, retrieved=True)
         self.assertNotIn("file_search", [s.get("type") for s in kept])
@@ -519,7 +463,6 @@ class ToolScopingTests(TestCase):
 @override_settings(AI_TIER_MODELS=DISTINCT_TIERS, AI_TIER_ROUTING_ENABLED=True)
 class PipelineEndToEndTests(AgentTestCase):
     def test_a_greeting_is_answered_by_triage_alone(self):
-        """The headline saving: one cheap call, no tool schemas, no retrieval."""
         self.set_responses(plan=PLAN_TRIVIAL)
 
         result = self.run_turn("salom")
@@ -585,7 +528,6 @@ class PipelineEndToEndTests(AgentTestCase):
         self.client.vector_stores.search.assert_not_called()
 
     def test_a_triage_crash_degrades_to_the_old_behaviour(self):
-        """A broken router must cost one call, not the turn."""
         self.client.responses.create.side_effect = [
             RuntimeError("triage exploded"),
             make_response(response_id="r1", text="Baribir javob."),

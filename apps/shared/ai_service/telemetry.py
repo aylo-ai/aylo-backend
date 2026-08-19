@@ -1,19 +1,3 @@
-"""Recording what a turn did, how long it took, and what it cost.
-
-Two consumers, one recorder. The structured log line is for watching production
-in Dozzle right now; the database rows are for asking, next week, whether the
-routing change actually saved money. They are written from the same object so
-they cannot disagree.
-
-**Telemetry never breaks a turn.** Every persistence path is wrapped: if the
-database is down, or a column is missing because a migration has not run yet,
-the customer still gets an answer and the failure is logged. An observability
-layer that can take the product down is worse than no observability layer, and
-the agent's whole design (see agent.py) is to degrade rather than raise.
-
-Timing uses `time.perf_counter`, not `time.time`: it is monotonic, so an NTP
-correction mid-turn cannot produce a negative duration.
-"""
 import logging
 import time
 from dataclasses import dataclass, field
@@ -26,9 +10,6 @@ from . import pricing
 
 logger = logging.getLogger(__name__)
 
-# Decimal places on the cost columns. A single cheap call can cost well under a
-# millionth of a dollar, and rounding that to zero would make the cheap tier look
-# free rather than cheap.
 COST_EXPONENT = Decimal("0.00000001")
 
 
@@ -38,14 +19,9 @@ def _ms(seconds: float) -> int:
 
 @dataclass
 class StepRecord:
-    """One model call."""
-
     sequence: int
     tier: str
     model: str
-    # Which pipeline stage this call belongs to. A turn that is slow because
-    # retrieval is slow looks identical to one slowed by the model until this
-    # column tells them apart.
     stage: str = "act"
     duration_ms: int = 0
     input_tokens: int = 0
@@ -57,14 +33,6 @@ class StepRecord:
 
     @property
     def cost_usd(self) -> Optional[float]:
-        """Cost of this step, or None when the model's price is unknown.
-
-        A step that spent no tokens costs nothing regardless of what produced
-        it. Without this the `retrieve` stage -- a vector-store query, not a
-        model call, and never in the price table -- would return None and drag
-        the *whole run* to NULL through `add_costs`, hiding the cost of every
-        turn that used the knowledge base.
-        """
         if not (self.input_tokens or self.output_tokens or self.cached_input_tokens):
             return 0.0
         return pricing.cost_usd(
@@ -73,13 +41,6 @@ class StepRecord:
 
 
 class RunRecorder:
-    """Collects one turn's timeline, then writes it once at the end.
-
-    Buffered rather than written step-by-step on purpose: a turn makes up to six
-    API calls, and six extra round trips to Postgres inside the request path
-    would make the thing we are measuring slower.
-    """
-
     def __init__(self, conversation_id, assistant_id, initial_tier: str, routing_reason: str):
         self.conversation_id = conversation_id
         self.assistant_id = assistant_id
@@ -90,9 +51,6 @@ class RunRecorder:
         self.final_model = ""
         self.escalated = False
         self.escalation_reason = ""
-        # What triage decided this turn needed. Recorded whether or not the
-        # plan turned out to be right -- a plan that keeps being wrong is only
-        # visible if the wrong ones are kept too.
         self.plan: Optional[Dict[str, Any]] = None
         self.outcome = AgentRunOutcomes.OK.value
         self.error = ""
@@ -100,7 +58,6 @@ class RunRecorder:
         self.steps: List[StepRecord] = []
         self._started = time.perf_counter()
 
-    # -- collection --------------------------------------------------------
 
     def start_step(self, tier: str, model: str) -> StepRecord:
         step = StepRecord(sequence=len(self.steps) + 1, tier=tier, model=model)
@@ -121,7 +78,6 @@ class RunRecorder:
         self.outcome = outcome
         self.error = error
 
-    # -- derived ----------------------------------------------------------
 
     @property
     def duration_ms(self) -> int:
@@ -141,13 +97,6 @@ class RunRecorder:
 
     @property
     def model_calls(self) -> int:
-        """Steps that were actually a call to a model.
-
-        `retrieve` is a vector-store query, not an inference: counting it as an
-        API call would inflate the number the cost review looks at and make
-        pre-retrieval -- which exists to *remove* a model call -- look like it
-        added one.
-        """
         return sum(1 for step in self.steps if step.stage != "retrieve")
 
     @property
@@ -159,7 +108,6 @@ class RunRecorder:
         return pricing.add_costs(*(step.cost_usd for step in self.steps))
 
     def summary(self) -> Dict[str, Any]:
-        """The structured log payload. Also what the tests assert on."""
         return {
             "event": "agent_run",
             "conversation_id": str(self.conversation_id),
@@ -196,14 +144,10 @@ class RunRecorder:
             ],
         }
 
-    # -- output ------------------------------------------------------------
 
     def finish(self) -> None:
-        """Emit the log line and persist. Never raises."""
         summary = self.summary()
 
-        # One line, one turn. Lazy %s formatting per the project logging rules;
-        # the dict is the message so a log pipeline can parse it whole.
         logger.info("agent_run %s", summary)
 
         self._persist(summary)
@@ -259,7 +203,6 @@ class RunRecorder:
 
 
 def _as_decimal(value: Optional[float]) -> Optional[Decimal]:
-    """None stays None -- an unpriced model is not a free one."""
     if value is None:
         return None
     try:

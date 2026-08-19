@@ -1,4 +1,3 @@
-"""Dashboard lead endpoints."""
 import csv
 from datetime import timedelta
 
@@ -73,7 +72,6 @@ class DashboardLeadStats(APIView):
             created_time__lt=month_start,
         ).count()
 
-        # Growth percentage
         if prev_month_count > 0:
             month_growth = round(((month_count - prev_month_count) / prev_month_count) * 100, 1)
         else:
@@ -101,7 +99,6 @@ class DashboardLeadExport(APIView):
     def get(self, request):
         qs = Lead.objects.select_related('assistant').all().order_by('-created_time')
 
-        # Apply filters
         lead_status = request.query_params.get('status')
         if lead_status:
             qs = qs.filter(status=lead_status)

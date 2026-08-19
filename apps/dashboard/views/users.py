@@ -1,4 +1,3 @@
-"""Dashboard user administration endpoints."""
 import csv
 
 from django.db.models import Q
@@ -65,11 +64,6 @@ class DashboardUserDetail(DashboardRetrieveMixin, generics.RetrieveUpdateDestroy
     retrieve_message = "User retrieved successfully"
 
     def get_permissions(self):
-        # PUT/PATCH can write `user_role` and `is_active` — the same fields the
-        # dedicated CanManageUsers-gated toggle-active/change-role endpoints
-        # protect — and DELETE removes the account outright, so any
-        # IsDashboardUser role (support_agent, staff, manager) must not reach
-        # them through this generic view.
         if self.request.method in ("PUT", "PATCH", "DELETE"):
             return [CanManageUsers()]
         return super().get_permissions()
@@ -167,15 +161,11 @@ class DashboardUserExport(APIView):
     def get(self, request):
         qs = User.objects.all().order_by('-created_time')
 
-        # Apply filters from query params. An invalid filter must fail loudly:
-        # silently dropping it would export every user instead of the subset
-        # the operator asked for.
         filterset = UserFilter(request.query_params, queryset=qs)
         if not filterset.is_valid():
             return error_response(data=filterset.errors, message="Invalid filter parameters", code=400)
         qs = filterset.qs
 
-        # Apply search
         search = request.query_params.get('search', '')
         if search:
             qs = qs.filter(

@@ -1,10 +1,3 @@
-"""Celery tasks for the integration app, split by domain.
-
-Every task pins ``name="apps.integration.tasks.<func>"`` so the queue routing in
-``config/celery.py`` and the beat schedule in ``config/settings.py`` keep working,
-and so in-flight queued messages resolve across deploys. This module re-exports
-all public names so ``from apps.integration.tasks import X`` works as before.
-"""
 from .billz import (
     fetch_and_save_billz_products,
     update_billz_products_hourly,

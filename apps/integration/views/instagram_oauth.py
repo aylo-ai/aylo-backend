@@ -1,8 +1,3 @@
-"""Instagram OAuth callback and the Meta-mandated deauthorize / data-deletion
-endpoints.
-
-All three are called by Meta, so their paths and payload shapes are frozen.
-"""
 import base64
 import hashlib
 import hmac
@@ -40,11 +35,9 @@ class InstagramCallbackView(APIView):
         try:
             return owned_assistants(user).filter(id=assistant_id).exists()
         except (DjangoValidationError, ValueError):
-            # A malformed id is "not yours", not a 500.
             return False
 
     def get(self, request, *args, **kwargs):
-        # Get the authorization code from the query parameters
         user = request.user if request.user.is_authenticated else None
         code = request.query_params.get("code")
         assistant_id = request.query_params.get("assistant_id", None)
@@ -54,19 +47,10 @@ class InstagramCallbackView(APIView):
         if not code:
             return error_response(message=_("Authorization code topilmadi"), code=400)
 
-        # `assistant_id` arrives in the query string of an unauthenticated
-        # endpoint and used to be written straight onto the new integration, so
-        # anyone completing this flow with their own Instagram account could
-        # bind it to another tenant's assistant: their DMs would then be
-        # answered by the victim's agent, spending the victim's request quota
-        # and reading back the victim's knowledge base. Bind it only when the
-        # caller is authenticated and owns it; 404 rather than 403 so the
-        # endpoint stays useless as an assistant-id oracle.
         if assistant_id:
             if user is None or not self._owns_assistant(user, assistant_id):
                 return error_response(message=_("Assistant topilmadi"), code=404)
 
-        # Exchange the authorization code for an access token
         token_url = "https://api.instagram.com/oauth/access_token"
         data = {
             "client_id": self.CLIENT_ID,
@@ -82,11 +66,9 @@ class InstagramCallbackView(APIView):
         if response.status_code == 200:
             token_data = response.json()
             short_lived_access_token = token_data.get("access_token")
-            # Fetch Instagram Business Accounts
             access_token = instagram_service.get_long_lived_access_token(short_lived_access_token)
         else:
             return error_response(message=_("Access token topilmadi"), code=400)
-        # get instagram user profile
         user_profile = instagram_service.get_user_profile(access_token)
         if not user_profile:
             return error_response(message=_("Foydalanuvchi profili topilmadi"), code=400)
@@ -97,10 +79,6 @@ class InstagramCallbackView(APIView):
             logger.warning("Instagram profile returned no user_id; refusing to create an unroutable integration")
             return error_response(message=_("Foydalanuvchi profili topilmadi"), code=400)
 
-        # A row for this identity may already exist. Matched explicitly rather
-        # than with update_or_create, which raises MultipleObjectsReturned when
-        # instagram_user_id and user are both NULL on more than one row — the
-        # callback runs unauthenticated, so user is regularly NULL.
         existing = None
         if instagram_user_id:
             existing = Integration.objects.filter(
@@ -113,7 +91,6 @@ class InstagramCallbackView(APIView):
             logger.info("Instagram integration already exists for account %s", instagram_account_id)
             return error_response(message=_("Instagram integratsiyasi sizda mavjud"), code=400)
 
-        # Any *other* row holding either identifier is a genuine duplicate.
         duplicates = Integration.instagram_by_id(instagram_account_id)
         if instagram_user_id:
             duplicates = duplicates | Integration.instagram_by_id(instagram_user_id)
@@ -131,9 +108,6 @@ class InstagramCallbackView(APIView):
             "instagram_account_id": instagram_account_id,
             "instagram_username": user_profile.get("instagram_username"),
         }
-        # Repair rather than get_or_create: a row left behind by an earlier failed
-        # attempt keeps its blank identity columns (get_or_create skips its defaults
-        # on a match), staying invisible to every webhook lookup.
         if existing:
             for field, value in fields.items():
                 setattr(existing, field, value)
@@ -149,7 +123,6 @@ class InstagramCallbackView(APIView):
             )
             logger.info("Instagram integration %s created", integration.id)
 
-        # enable webhook for the integration
         url = f"https://graph.instagram.com/v22.0/me/subscribed_apps?access_token={access_token}&subscribed_fields=messages,comments"
         response = http.post(url)
         if response.status_code != 200:
@@ -161,35 +134,23 @@ class InstagramCallbackView(APIView):
 
 
 def parse_signed_request(signed_request: str, app_secret: str):
-    """Parse and validate a `signed_request` from Instagram/Facebook.
-
-    Args:
-        signed_request: The signed request string from Meta.
-        app_secret: The Instagram app's secret key.
-
-    Returns:
-        dict or None: The decoded payload when the signature verifies, else None.
-    """
     try:
         def base64_url_decode(input_str):
-            input_str += '=' * ((4 - len(input_str) % 4) % 4)  # Proper padding
+            input_str += '=' * ((4 - len(input_str) % 4) % 4)
             return base64.urlsafe_b64decode(input_str.encode())
 
         encoded_sig, payload = signed_request.split('.', 1)
 
-        # Decode the payload and signature
         decoded_sig = base64_url_decode(encoded_sig)
         decoded_payload = base64_url_decode(payload)
         data = json.loads(decoded_payload)
 
-        # Generate expected signature
         expected_sig = hmac.new(
             app_secret.encode(),
             msg=payload.encode(),
             digestmod=hashlib.sha256
         ).digest()
 
-        # Validate signature
         if not hmac.compare_digest(decoded_sig, expected_sig):
             logger.warning("Instagram signed request carried an invalid signature")
             return None
@@ -205,7 +166,6 @@ class InstagramDeauthorizeView(APIView):
     throttle_classes = [MetaDataRequestThrottle]
 
     def post(self, request, *args, **kwargs): # noqa
-        # Facebook sends a signed request
         signed_request = request.data.get("signed_request")
         if not signed_request:
             return error_response(message="Signed request not found", code=400)
@@ -216,20 +176,15 @@ class InstagramDeauthorizeView(APIView):
 
         user_id = data.get("user_id")
         if user_id:
-            # Find and remove the user's Instagram integration
             try:
-                # The signed request carries the app-scoped ID, which OAuth
-                # stores in instagram_user_id — match either column.
                 integration = Integration.instagram_by_id(user_id).first()
                 if integration:
-                    # Delete all related InstagramCommentResponse and their InstagramMedia
                     comment_responses = InstagramCommentResponse.objects.filter(integration=integration)
                     for response in comment_responses:
                         old_media = list(response.instagram_media.all())
                         for media in old_media:
                             media.delete()
                         response.delete()
-                    # Delete the integration itself
                     integration.delete()
                     logger.info("Instagram user %s deauthorized the app; integration removed", user_id)
                 else:
@@ -257,7 +212,6 @@ class InstagramDataDeletionView(APIView):
 
         user_id = data.get("user_id")
         if user_id:
-            # Process data deletion for the user
             logger.info("Instagram data deletion requested for user %s", user_id)
             return success_response(data={
                 "url": "https://api.repli.uz/integration/instagram/data-deletion-status/",

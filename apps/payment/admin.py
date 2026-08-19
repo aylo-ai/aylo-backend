@@ -49,12 +49,6 @@ class TransactionAdmin(admin.ModelAdmin):
 
 @admin.register(Card)
 class CardAdmin(admin.ModelAdmin):
-    """`card_token` is a Payme bearer credential that can charge the card.
-
-    With no `fields`/`exclude` declared, the change form rendered every editable
-    field — including the raw token. It is masked and read-only now.
-    """
-
     list_display = ('name', 'user', 'card_number', 'expiry_date', 'is_verified', 'created_time')
     search_fields = ('user__first_name', 'user__last_name', 'user__phone_number', 'user__username')
     list_filter = ('is_default', 'is_verified')
@@ -80,10 +74,10 @@ class SubscriptionAdmin(admin.ModelAdmin):
     readonly_fields = ('created_time', 'updated_time')
 
     def get_username(self, obj):
-        user = obj.users.first()  # Get the first user from the related users
+        user = obj.users.first()
         return user.username if user else '-'
-    get_username.short_description = 'Username'  # Column header
-    get_username.admin_order_field = 'users__username'  # Enable sorting
+    get_username.short_description = 'Username'
+    get_username.admin_order_field = 'users__username'
 
 @admin.register(RetryPayment)
 class RetryPaymentAdmin(admin.ModelAdmin):

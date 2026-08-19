@@ -1,4 +1,3 @@
-"""Dashboard assistant, assistant-file and prompt-template endpoints."""
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework import filters, generics
 from rest_framework.views import APIView
@@ -47,7 +46,6 @@ class DashboardAssistantList(DashboardStatsListMixin, generics.ListCreateAPIView
         return DashboardAssistantListSerializer
 
     def get_list_stats(self, queryset):
-        # Global stats (independent of pagination/filters)
         all_assistants = Assistant.objects.all()
         return {
             'total': all_assistants.count(),
@@ -150,7 +148,6 @@ class DashboardAssistantFileUploadList(DashboardListMixin, generics.ListCreateAP
         queryset = super().get_queryset()
         assistant_id = self.request.query_params.get('assistant')
         if assistant_id:
-            # A raw, unvalidated UUID reaching the ORM is a 500, not a 400.
             filter_serializer = AssistantFileFilterSerializer(data={'assistant': assistant_id})
             filter_serializer.is_valid(raise_exception=True)
             queryset = queryset.filter(assistant_id=filter_serializer.validated_data['assistant'])

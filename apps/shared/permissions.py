@@ -3,15 +3,6 @@ from rest_framework.request import Request
 
 from apps.shared.addons.enums import UserRoles
 
-# Roles that may use the *internal* admin dashboard (`/api/v1/dashboard/…`):
-# every user, assistant, conversation, transaction and subscription on the
-# platform, across all tenants.
-#
-# `UserRoles.STAFF` must never appear here. A staff account is a *customer's*
-# employee — any customer can mint one through `/api/v1/user/add-staff/`, which
-# returns a ready-to-use token pair. While STAFF was a dashboard role, that
-# endpoint was a self-service privilege escalation from "one tenant" to "read
-# and write the whole platform".
 DASHBOARD_ROLES = [
     UserRoles.SUPER_ADMIN.value,
     UserRoles.ADMIN.value,
@@ -46,7 +37,6 @@ class IsAdmin(IsAuthenticated):
 
 
 class IsDashboardUser(IsAuthenticated):
-    """Allows access to any user with a dashboard-eligible role."""
     message = "Sizda dashboard huquqi yo'q!"
 
     def has_permission(self, request: Request, view):
@@ -77,7 +67,6 @@ class IsAdminOrCustomer(IsAuthenticated):
 
 
 class CanManageUsers(IsAuthenticated):
-    """Super admin and admin can manage users."""
     message = "Sizda foydalanuvchilarni boshqarish huquqi yo'q!"
 
     def has_permission(self, request: Request, view):
@@ -88,7 +77,6 @@ class CanManageUsers(IsAuthenticated):
 
 
 class CanManageFinance(IsAuthenticated):
-    """Super admin and admin can manage finance."""
     message = "Sizda moliya boshqarish huquqi yo'q!"
 
     def has_permission(self, request: Request, view):

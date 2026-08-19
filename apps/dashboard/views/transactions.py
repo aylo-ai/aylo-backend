@@ -1,4 +1,3 @@
-"""Dashboard transaction endpoints."""
 import csv
 
 from django.db.models import Q, Sum
@@ -65,9 +64,6 @@ class DashboardTransactionDetail(
     destroy_message = "Transaction deleted successfully"
 
     def get_permissions(self):
-        # PUT/PATCH/DELETE rewrite or erase a financial record — the same
-        # ground the CanManageFinance-gated refund endpoint covers — so it
-        # must not be reachable by every dashboard role.
         if self.request.method in ("PUT", "PATCH", "DELETE"):
             return [CanManageFinance()]
         return super().get_permissions()
@@ -115,7 +111,6 @@ class DashboardTransactionExport(APIView):
     def get(self, request):
         qs = Transaction.objects.select_related('user').all().order_by('-created_time')
 
-        # Same filter + search contract as the transactions list endpoint.
         filterset = TransactionFilter(request.query_params, queryset=qs)
         if not filterset.is_valid():
             return error_response(data=filterset.errors, message="Invalid filter parameters", code=400)

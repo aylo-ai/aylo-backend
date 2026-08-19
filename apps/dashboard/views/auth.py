@@ -1,4 +1,3 @@
-"""Dashboard OTP login endpoints."""
 from rest_framework.throttling import AnonRateThrottle
 from rest_framework.views import APIView
 

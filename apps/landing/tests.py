@@ -1,14 +1,3 @@
-"""Landing-page endpoint tests.
-
-Both endpoints are `AllowAny` and both run offline here: the Telegram lead bot
-is mocked at `apps.landing.views.http`.
-
-The lead-bot webhook is the sharp edge. It registers Telegram groups that then
-receive every landing lead's name, phone number and Telegram handle, and it used
-to accept any POST from anyone — guarded only by a password with a default value
-committed to this repository. Forging one `/verify` update was enough to
-subscribe an attacker's own group to the whole lead pipeline.
-"""
 from unittest import mock
 
 from django.core.cache import cache
@@ -25,7 +14,7 @@ class LeadBotWebhookTests(TestCase):
     URL = "/api/v1/landing/lead-bot/webhook/"
 
     def setUp(self):
-        cache.clear()  # throttle history lives in the cache
+        cache.clear()
         self.client = APIClient()
         self.http = mock.patch("apps.landing.views.http").start()
         mock.patch("apps.landing.views.LEAD_BOT_TOKEN", "lead-bot-token").start()
@@ -57,8 +46,6 @@ class LeadBotWebhookTests(TestCase):
         )
 
     def test_a_missing_secret_header_is_rejected(self):
-        """The classic fail-open bug — and here it hands an attacker the whole
-        lead feed."""
         response = self.post(self.verify_update(), secret=None)
 
         self.assertEqual(response.status_code, 403)
@@ -83,8 +70,6 @@ class LeadBotWebhookTests(TestCase):
         self.assertFalse(LeadNotificationGroup.objects.exists())
 
     def test_an_unconfigured_password_refuses_every_verification(self):
-        """No default password: unset must reject, not accept the empty
-        string."""
         with mock.patch("apps.landing.views.LEAD_BOT_PASSWORD", ""):
             response = self.post(self.verify_update(password=""))
 
@@ -114,7 +99,6 @@ class LeadBotWebhookTests(TestCase):
         )
 
     def test_a_handler_error_is_acknowledged_not_500ed(self):
-        """Telegram backs a webhook off after repeated failures."""
         with mock.patch(
             "apps.landing.views.LeadNotificationGroup.objects.get_or_create",
             side_effect=RuntimeError("boom"),
@@ -141,10 +125,6 @@ class LandingLeadCreateTests(TestCase):
     def setUp(self):
         cache.clear()
         self.client = APIClient()
-        # The send loop itself lives in `apps.landing.notifications` — it is
-        # shared with the custom-package request in `apps.payment`. The view
-        # still guards on its own token before composing the message, so both
-        # constants have to be patched.
         self.http = mock.patch("apps.landing.notifications.http").start()
         mock.patch("apps.landing.views.LEAD_BOT_TOKEN", "lead-bot-token").start()
         mock.patch("apps.landing.notifications.LEAD_BOT_TOKEN", "lead-bot-token").start()
@@ -166,7 +146,6 @@ class LandingLeadCreateTests(TestCase):
         self.assertEqual(response.status_code, 201)
         lead = LandingLead.objects.get()
         self.assertEqual(lead.full_name, "Ali Valiyev")
-        # The serializer normalises the phone number before it is stored.
         self.assertEqual(lead.phone_number, "+998901234567")
 
     def test_a_short_phone_number_is_rejected(self):
@@ -185,8 +164,6 @@ class LandingLeadCreateTests(TestCase):
         self.assertEqual(response.status_code, 405)
 
     def test_the_telegram_notification_escapes_the_lead_supplied_text(self):
-        """The notification is sent with parse_mode=HTML, and every field in it
-        comes from an anonymous public form."""
         LeadNotificationGroup.objects.create(group_id="-100123", is_active=True)
 
         response = self.client.post(

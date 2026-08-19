@@ -1,4 +1,3 @@
-"""Dashboard OTP login serializers."""
 from rest_framework import serializers
 
 from apps.user.models import User
@@ -44,7 +43,6 @@ class DashboardVerifyOtpLoginSerializer(serializers.Serializer):
     def to_representation(self, instance):
         data = super().to_representation(instance)
         data['tokens'] = self.get_tokens()
-        # Include user info for frontend
         phone_number = self.validated_data.get('phone_number')
         user = User.objects.filter(phone_number=phone_number).first()
         if user:

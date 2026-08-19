@@ -17,7 +17,6 @@ logger = logging.getLogger(__name__)
 
 @shared_task
 def process_monthly_subscriptions():
-    """Process subscription payments for all active users."""
     users = User.objects.filter(Q(subscription__next_payment_date__lte=timezone.now().date()))
     logger.info(f"Found {len(users)} users to process monthly subscriptions")
 
@@ -59,4 +58,3 @@ def process_monthly_subscriptions():
                         create_notification(user, "Obuna tarifingiz muvaffaqiyatli amalga oshirildi.")
         except Exception as e:
             logger.error(f"Error processing subscription for user {user.id}: {e}", exc_info=True)
-            # Optionally, notify admin or log error

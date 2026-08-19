@@ -10,8 +10,6 @@ class BlogPostListView(generics.ListAPIView):
     queryset = BlogPost.objects.filter(is_published=True)
     serializer_class = serializers.BlogPostListSerializer
     permission_classes = [permissions.AllowAny]
-    # Anonymous and search-backed, so it needs a bound: ScopedRateThrottle is
-    # the only global throttle class and it is inert without a scope.
     throttle_scope = "public_read"
     filter_backends = [filters.SearchFilter, filters.OrderingFilter, DjangoFilterBackend]
     search_fields = ["title", "excerpt", "tags"]

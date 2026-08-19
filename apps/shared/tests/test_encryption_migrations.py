@@ -1,35 +1,3 @@
-"""End-to-end regression tests for the encryption **data migrations**.
-
-`apps/shared/tests/test_crypto.py` proves the cipher and the model fields work.
-That is not the same thing as proving that the migrations correctly convert a
-table which *already contains plaintext rows* — the one-shot, irreversible step
-that runs against production data.
-
-These tests therefore drive the real migration callables
-(``0052_encrypt_conversation_and_message_data.encrypt_rows`` and friends), and
-one of them drives the real :class:`~django.db.migrations.executor.MigrationExecutor`
-over the ``assistant`` migration graph, against rows seeded as raw plaintext.
-
-What is asserted
-----------------
-======================  ====================================================
-Forward                 every seeded row becomes ``v1:…`` in the raw column
-                        and decrypts back to the byte-exact original
-Reverse                 ``reverse_code`` restores the byte-exact plaintext
-Idempotency             a second forward run does not touch a single byte
-Batching                a table larger than ``batch_size`` is walked in
-                        chunks; no statement selects the whole table
-Awkward values          NULL, empty string, Cyrillic / Uzbek text, emoji,
-                        embedded quotes and newlines, a 300 KB body, and
-                        plaintext that itself starts with ``v1:``
-Degradation             a row encrypted under a key we no longer hold is
-                        skipped with a warning instead of aborting the run
-======================  ====================================================
-
-The ``v1:`` case is the reason this file exists: ``message_content`` is
-free-form user input, and a prefix-only "is this already encrypted?" test made
-the migration skip those rows and then made every read of them raise.
-"""
 import uuid
 from importlib import import_module
 
@@ -63,11 +31,9 @@ PAYMENT_MIGRATION = import_module(
     "apps.payment.migrations.0022_encrypt_card_token_data"
 )
 
-#: State the `assistant` graph is rewound to — the commit before encryption.
 ASSISTANT_BEFORE = "0050_conversation_conv_assistant_user_token_idx"
 ASSISTANT_AFTER = "0052_encrypt_conversation_and_message_data"
 
-#: The values that break naive implementations, keyed by a readable label.
 AWKWARD_TEXT = {
     "empty": "",
     "plain": "Salom, narxlar qanday?",
@@ -83,8 +49,6 @@ AWKWARD_TEXT = {
 
 
 class _MigrationFixtureMixin:
-    """Seeds the encrypted tables with raw plaintext, bypassing the fields."""
-
     def raw(self, table, column, pk):
         quote = connection.ops.quote_name
         with connection.cursor() as cursor:
@@ -106,7 +70,6 @@ class _MigrationFixtureMixin:
             cursor.execute(sql, params or [])
 
     def seed_assistant(self):
-        """An `assistant` row, created with raw SQL so it survives a rewind."""
         assistant_id = uuid.uuid4()
         self.execute(
             "INSERT INTO assistant (id, created_time, updated_time, name, company_name,"
@@ -152,18 +115,6 @@ class _MigrationFixtureMixin:
 
 
 class MigrationExecutorRoundTripTests(_MigrationFixtureMixin, TransactionTestCase):
-    """Drive the real migration graph over rows that already hold plaintext.
-
-    The `assistant` graph is rewound to the state before encryption, seeded
-    with plaintext through raw SQL, then migrated forward and backward with
-    :class:`MigrationExecutor` — the same code path a deploy runs.
-
-    Rewinding also unapplies `integration.0044/0045`, which drops
-    `integration.api_token_hash`. Nothing in this class may touch the
-    `Integration` model while the graph is rewound; the cleanup puts the whole
-    graph back before anything else runs.
-    """
-
     available_apps = None
 
     def setUp(self):
@@ -193,7 +144,6 @@ class MigrationExecutorRoundTripTests(_MigrationFixtureMixin, TransactionTestCas
             full_name="Аҳмадов Жасурбек Ўткирович",
             contact="v1:+998900000000",
         )
-        # NULL and empty must survive untouched.
         null_conversation = self.seed_conversation(assistant_id)
         empty_conversation = self.seed_conversation(assistant_id, full_name="", contact="")
         messages = {
@@ -201,7 +151,6 @@ class MigrationExecutorRoundTripTests(_MigrationFixtureMixin, TransactionTestCas
             for label, value in AWKWARD_TEXT.items()
         }
 
-        # --- forward -----------------------------------------------------
         self.migrate([("assistant", ASSISTANT_AFTER)])
 
         self.assertTrue(
@@ -230,7 +179,6 @@ class MigrationExecutorRoundTripTests(_MigrationFixtureMixin, TransactionTestCas
         self.assertEqual(reloaded.client_full_name, "Аҳмадов Жасурбек Ўткирович")
         self.assertEqual(reloaded.client_phone_email, "v1:+998900000000")
 
-        # --- idempotency: a re-run must not touch a byte -------------------
         snapshot = {
             label: self.raw("messages", "message_content", pk) for label, pk in messages.items()
         }
@@ -239,7 +187,6 @@ class MigrationExecutorRoundTripTests(_MigrationFixtureMixin, TransactionTestCas
             with self.subTest(label=label):
                 self.assertEqual(self.raw("messages", "message_content", pk), snapshot[label])
 
-        # --- reverse: byte-for-byte plaintext ------------------------------
         self.migrate([("assistant", ASSISTANT_BEFORE)])
 
         self.assertEqual(
@@ -255,7 +202,6 @@ class MigrationExecutorRoundTripTests(_MigrationFixtureMixin, TransactionTestCas
                 self.assertEqual(self.raw("messages", "message_content", messages[label]), value)
 
     def test_char_columns_become_text_so_ciphertext_cannot_be_truncated(self):
-        """A 255-char name encrypts to ~460 chars; varchar(255) would truncate."""
         self.migrate([("assistant", ASSISTANT_BEFORE)])
         assistant_id = self.seed_assistant()
         long_name = "Ж" * 255
@@ -275,17 +221,9 @@ class MigrationExecutorRoundTripTests(_MigrationFixtureMixin, TransactionTestCas
 
 
 class DataMigrationCallableTests(_MigrationFixtureMixin, TransactionTestCase):
-    """The `RunPython` callables themselves, run against seeded plaintext.
-
-    Cheaper than rewinding the graph, so this is where the per-table detail
-    (jsonb, the hash backfill, the Payme card token, batching, degradation)
-    lives.
-    """
-
     def schema_editor(self):
         return connection.schema_editor()
 
-    # -- integration -------------------------------------------------------
 
     def _seed_integration(self, **columns):
         integration_id = uuid.uuid4()
@@ -324,8 +262,6 @@ class DataMigrationCallableTests(_MigrationFixtureMixin, TransactionTestCase):
         self.assertIsNone(self.raw("integration", "api_token", rows["null"]))
         self.assertEqual(self.raw("integration", "api_token", rows["empty"]), "")
 
-        # Every row must still read back exactly, including the two that only
-        # look like ciphertext.
         self.assertEqual(Integration.objects.get(pk=rows["normal"]).api_token, token)
         self.assertEqual(Integration.objects.get(pk=rows["normal"]).metadata, {"subdomain": "acme"})
         self.assertEqual(
@@ -339,7 +275,6 @@ class DataMigrationCallableTests(_MigrationFixtureMixin, TransactionTestCase):
             Integration.objects.get(pk=rows["unicode"]).api_token, "токен-Ўзбекистон-🇺🇿"
         )
 
-        # The hash backfill is what keeps inbound Telegram webhooks resolving.
         self.assertEqual(
             self.raw("integration", "api_token_hash", rows["normal"]), crypto.hash_secret(token)
         )
@@ -355,7 +290,6 @@ class DataMigrationCallableTests(_MigrationFixtureMixin, TransactionTestCase):
         self.assertEqual(self.raw_json("integration", "metadata", rows["json_null"]), "null")
 
     def test_a_row_encrypted_under_a_lost_key_is_skipped_not_fatal(self):
-        """One unreadable row must not abort the rewrite of a million others."""
         foreign = crypto.VERSION_PREFIX + Fernet(Fernet.generate_key()).encrypt(b"x").decode()
         poisoned = self._seed_integration(api_token=foreign)
         healthy = self._seed_integration(api_token="plain-token")
@@ -369,7 +303,6 @@ class DataMigrationCallableTests(_MigrationFixtureMixin, TransactionTestCase):
             self.raw("integration", "api_token_hash", healthy), crypto.hash_secret("plain-token")
         )
 
-    # -- payment -----------------------------------------------------------
 
     def test_card_tokens_round_trip(self):
         from django.contrib.auth import get_user_model
@@ -409,10 +342,8 @@ class DataMigrationCallableTests(_MigrationFixtureMixin, TransactionTestCase):
             with self.subTest(label=label):
                 self.assertEqual(self.raw("Card", "card_token", rows[label]), value)
 
-    # -- batching ----------------------------------------------------------
 
     def test_the_table_is_walked_in_chunks_never_loaded_whole(self):
-        """`messages` holds every conversation turn — one big SELECT is not an option."""
         assistant_id = self.seed_assistant()
         conversation_id = self.seed_conversation(assistant_id)
         for index in range(7):
@@ -424,7 +355,6 @@ class DataMigrationCallableTests(_MigrationFixtureMixin, TransactionTestCase):
             )
 
         selects = [q["sql"] for q in captured.captured_queries if q["sql"].startswith("SELECT")]
-        # 7 rows / 2 per batch = 4 pages, plus the empty page that ends the walk.
         self.assertEqual(len(selects), 5)
         for sql in selects:
             self.assertIn("LIMIT", sql)
@@ -467,7 +397,6 @@ class DataMigrationCallableTests(_MigrationFixtureMixin, TransactionTestCase):
         self.assertEqual(self.raw("messages", "message_content", message_id), body)
 
     def test_migrations_declare_themselves_non_atomic_and_reversible(self):
-        """`atomic = False` is what makes a long run resumable and lock-friendly."""
         for module in (ASSISTANT_MIGRATION, INTEGRATION_MIGRATION, PAYMENT_MIGRATION):
             with self.subTest(module=module.__name__):
                 self.assertFalse(module.Migration.atomic)
@@ -476,8 +405,6 @@ class DataMigrationCallableTests(_MigrationFixtureMixin, TransactionTestCase):
 
 
 class OrmWriteAfterMigrationTests(_MigrationFixtureMixin, TransactionTestCase):
-    """The application must keep serving while the table is half converted."""
-
     def test_mixed_plaintext_and_ciphertext_rows_all_read(self):
         assistant = Assistant.objects.create(name="A", company_name="C")
         conversation = Conversation.objects.create(assistant=assistant)

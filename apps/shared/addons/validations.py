@@ -21,8 +21,6 @@ class CustomValidationError(APIException):
         if code is None:
             code = self.default_code
 
-        # For validation failures, we may collect many errors together,
-        # so the details should always be coerced to a list if not already.
         if isinstance(detail, tuple):
             detail = dict(detail)
         elif not isinstance(detail, dict) and not isinstance(detail, list):
@@ -66,12 +64,6 @@ def check_number(phone_number):
         return False
 
 def check_email_phone_number(email_phone_number):
-    """
-    Check if the provided email or phone number is valid.
-    """
-    # `re.match` raises TypeError on None, so an omitted identifier used to
-    # crash the caller with a 500 instead of being reported as invalid input.
-    # Anything that isn't a string is simply not a valid email or phone.
     if not isinstance(email_phone_number, str):
         return {
             "message": "Invalid email or phone number format."
@@ -86,14 +78,11 @@ def check_email_phone_number(email_phone_number):
         }
 
 
-
 def phone_number_validation(value):  # noqa
     if not value:
         raise_validation_error(message=_("Telefon raqamni kiritish majburiy"))
     if not check_number(value):
         raise_validation_error(message=_("Noto'g'ri telefon raqami kiritildi"))
-    # Resolved lazily: importing the model here would make this shared module
-    # depend on the user app, which is the cycle Phase 1 removes.
     from django.contrib.auth import get_user_model
 
     if get_user_model().objects.filter(phone_number=value).exists():

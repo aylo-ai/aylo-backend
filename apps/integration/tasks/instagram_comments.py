@@ -1,11 +1,3 @@
-"""Instagram comment tasks: template/flow replies and AI-powered comment answers.
-
-Two modes exist per integration:
-- Template mode: an ``InstagramCommentResponse`` decides whether to reply publicly,
-  by private DM, or by starting a button flow (postback).
-- AI mode (``integration.is_comment_response``): the comment is answered by the
-  assistant through ``process_instagram_comment_message``.
-"""
 import logging
 from datetime import datetime
 
@@ -23,7 +15,6 @@ logger = logging.getLogger(__name__)
 
 
 def _matches_trigger(response, comment_text):
-    """True when the comment text exactly matches one of the configured trigger words."""
     trigger_words = [tw.trigger_word.lower() for tw in response.trigger_words.all()]
     matched = comment_text.strip().lower() in trigger_words
     if matched:
@@ -32,12 +23,6 @@ def _matches_trigger(response, comment_text):
 
 
 def _dispatch_comment_response(integration, response, account_id, comment_id, commenter_id):
-    """Send the configured reactions for one comment: public reply, private DM, or flow.
-
-    Rules (kept from the original inline logic):
-    - Public comment reply only when the integration is NOT in AI comment mode.
-    - When a flow exists, the flow postback replaces the plain private DM.
-    """
     flow = Flow.objects.filter(comment_response=response)
 
     if response.comment_message_template and not integration.is_comment_response:
@@ -60,7 +45,6 @@ def _dispatch_comment_response(integration, response, account_id, comment_id, co
 
 
 def _fetch_latest_media(access_token):
-    """Fetch the account's most recent media item from the Instagram API, or None."""
     url = "https://graph.instagram.com/v23.0/me/media"
     params = {
         "access_token": access_token,
@@ -75,12 +59,6 @@ def _fetch_latest_media(access_token):
 
 
 def _handle_new_media_comment(integration, account_id, comment_id, comment_text, commenter_id):
-    """Comment on a post we haven't recorded yet.
-
-    If the latest comment-response config has no media attached, it is meant for
-    the *next* post — so if the account's newest post is newer than the config,
-    apply the config to it and record the post as ``InstagramMedia``.
-    """
     latest_response = InstagramCommentResponse.objects.filter(
         integration=integration
     ).order_by("-created_time").first()
@@ -93,7 +71,6 @@ def _handle_new_media_comment(integration, account_id, comment_id, comment_text,
     if not media_first:
         return
 
-    # The config only applies to posts published after it was created.
     media_ts = datetime.strptime(media_first["timestamp"], "%Y-%m-%dT%H:%M:%S%z")
     media_ts_tashkent = media_ts.astimezone(pytz.timezone("Asia/Tashkent"))
     logger.info("Time %s and %s", media_ts_tashkent, latest_response.created_time)
@@ -103,7 +80,6 @@ def _handle_new_media_comment(integration, account_id, comment_id, comment_text,
     if latest_response.is_respond_to_all_comments or _matches_trigger(latest_response, comment_text):
         _dispatch_comment_response(integration, latest_response, account_id, comment_id, commenter_id)
 
-    # Record the post and attach it so future comments hit the fast path.
     media_data = InstagramMedia.objects.create(
         media_id=media_first.get('id'),
         media_type=media_first.get('media_type', None),
@@ -121,7 +97,6 @@ def _handle_new_media_comment(integration, account_id, comment_id, comment_text,
 @shared_task(bind=True, max_retries=2, default_retry_delay=10,
              name="apps.integration.tasks.process_instagram_comment")
 def process_instagram_comment(self, account_id, comment_data):
-    """Entry point for Instagram comment webhooks."""
     logger.info("[+] Processing Instagram comment for account_id: %s", account_id)
 
     integration = Integration.instagram_by_id(account_id).first()
@@ -139,14 +114,12 @@ def process_instagram_comment(self, account_id, comment_data):
         logger.warning("[-] Missing required comment data")
         return
 
-    # Replies to comments (threaded) are ignored — only top-level comments react.
     if parent_id is not None:
         logger.info("Media %s has parent_id: %s — skipping reply comment", media_id, parent_id)
         return
 
     media_record = InstagramMedia.objects.filter(media_id=media_id).first()
     if media_record:
-        # Known post: use its configured comment response, if any.
         response = InstagramCommentResponse.objects.filter(instagram_media=media_record).first()
         if response is None:
             logger.info("No comment response configured for media %s", media_id)
@@ -159,7 +132,6 @@ def process_instagram_comment(self, account_id, comment_data):
         _handle_new_media_comment(integration, account_id, comment_id, comment_text, commenter_id)
 
     if integration.is_comment_response:
-        # AI comment mode: the assistant writes the reply.
         logger.info("Integration is in AI comment mode — handing off to the assistant")
         process_instagram_comment_message.delay(
             account_id=account_id, message=comment_text, comment_id=comment_id,
@@ -169,7 +141,6 @@ def process_instagram_comment(self, account_id, comment_data):
 
 @shared_task(name="apps.integration.tasks.process_instagram_comment_message")
 def process_instagram_comment_message(account_id, message, comment_id, integration_id, media_id=None):
-    """Answer a comment with the AI assistant via private reply (AI comment mode)."""
     logger.info("Process instagram comment message")
     integration = Integration.objects.filter(id=integration_id).first()
     if not integration:
@@ -182,7 +153,6 @@ def process_instagram_comment_message(account_id, message, comment_id, integrati
             logger.warning("No assistant found for integration")
             return
 
-        # Each comment thread gets its own conversation keyed by the comment id.
         conversation = conversation_service.get_or_create_conversation(
             user_id=comment_id,
             assistant=assistant,
@@ -190,7 +160,6 @@ def process_instagram_comment_message(account_id, message, comment_id, integrati
             chat_username=None
         )
 
-        # Public template reply still applies in AI mode when one is configured.
         if media_id:
             comment_response = InstagramCommentResponse.objects.filter(
                 instagram_media__media_id=media_id

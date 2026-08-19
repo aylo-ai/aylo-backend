@@ -31,7 +31,6 @@ class User(AbstractUser, BaseModel):
         related_name='users'
     )
     sub = models.CharField(max_length=255, null=True, blank=True, unique=True)
-    # created_by user
     created_by = models.ForeignKey(
         'self',
         on_delete=models.SET_NULL,
@@ -44,8 +43,6 @@ class User(AbstractUser, BaseModel):
     class Meta:
         db_table = "user"
         constraints = [
-            # One account per email. NULL/blank emails (OAuth users, phone-only
-            # accounts) are excluded so they don't collide with each other.
             models.UniqueConstraint(
                 fields=["email"],
                 condition=Q(email__isnull=False) & ~Q(email=""),

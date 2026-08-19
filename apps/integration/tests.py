@@ -1,8 +1,3 @@
-"""End-to-end tests for the channel tasks: Telegram, Instagram and voice/photo.
-
-OpenAI, Telegram and Instagram are all mocked, so these run offline. They test the
-wiring — that the right things get stored, sent and skipped — rather than the model.
-"""
 from unittest import mock
 
 from django.test import SimpleTestCase, TestCase
@@ -45,8 +40,6 @@ class ChannelTestCase(TestCase):
             instagram_account_id=ACCOUNT_ID,
         )
 
-        # The tasks package is split by domain, so shared collaborators must be
-        # patched in every submodule that holds its own reference to them.
         self.respond = mock.MagicMock(return_value="Hello from the agent!")
         for module in (telegram_tasks, instagram_tasks, comment_tasks):
             mock.patch.object(module, "respond", self.respond).start()
@@ -54,11 +47,6 @@ class ChannelTestCase(TestCase):
 
         self.send_telegram = mock.patch.object(telegram_tasks, "send_telegram_message").start()
         mock.patch.object(telegram_tasks, "send_telegram_action").start()
-        # handle_start_command sends through its own import, so patch that too —
-        # otherwise a real request escapes to Telegram during the tests. Note the
-        # `apps.` prefix: this codebase can import the same module under both
-        # `shared.x` and `apps.shared.x`, which produces two distinct module
-        # objects. Patch the one the task actually holds.
         self.send_greeting = mock.patch(
             "apps.assistant.services.conversation.send_telegram_message"
         ).start()
@@ -110,8 +98,6 @@ class TelegramTests(ChannelTestCase):
         self.assertEqual(self.send_greeting.call_args.args[1], "Welcome!")
 
     def test_start_command_resets_an_existing_conversation(self):
-        """`/start` must wipe the agent chain and reopen a closed chat, so the
-        next message begins fresh instead of continuing the old context."""
         conversation = Conversation.objects.create(
             assistant=self.assistant, user_id="123", token=BOT_TOKEN,
             status=ConversationStatuses.CLOSED.value, platform="telegram",
@@ -251,8 +237,6 @@ class InstagramTests(ChannelTestCase):
         self.instagram.send_private_reply.assert_called_once()
 
     def test_comment_on_known_media_without_configured_response_is_ignored(self):
-        """Regression: a comment on a recorded post with no InstagramCommentResponse
-        used to crash with AttributeError on None — it must be a quiet no-op."""
         from apps.integration.models import InstagramMedia
 
         InstagramMedia.objects.create(media_id="m1")
@@ -268,14 +252,6 @@ class InstagramTests(ChannelTestCase):
 
 
 class InstagramAccountResolutionTests(ChannelTestCase):
-    """Regression: "Integration not found for Instagram account <id>".
-
-    OAuth stores `/me.id` in instagram_user_id and `/me.user_id` in
-    instagram_account_id. Every webhook path matched instagram_account_id only,
-    so on accounts where the two identifiers differ, Meta's `entry.id` resolved
-    to nothing and all traffic for that account was dropped.
-    """
-
     URL = "/api/v1/integration/instagram/webhook/"
     APP_SECRET = "app-secret"
 
@@ -341,8 +317,6 @@ class InstagramAccountResolutionTests(ChannelTestCase):
                               "from": {"id": "u1"}},
             )
 
-        # Resolution succeeded, so the task ran to the AI hand-off instead of
-        # bailing out at "Integration not found".
         ai_reply.delay.assert_called_once()
 
     def test_webhook_resolves_an_account_held_in_the_other_id_column(self):
@@ -355,9 +329,7 @@ class InstagramAccountResolutionTests(ChannelTestCase):
 
         with mock.patch("apps.integration.views.instagram_webhook.redis_client") as redis, \
                 mock.patch("apps.integration.views.instagram_webhook.process_collected_messages") as collector:
-            redis.get.return_value = None  # not a duplicate delivery
-            # Dispatch is deferred to transaction commit, which a TestCase never
-            # reaches on its own.
+            redis.get.return_value = None
             with self.captureOnCommitCallbacks(execute=True):
                 response = self.post_webhook({
                     "entry": [{
@@ -370,15 +342,9 @@ class InstagramAccountResolutionTests(ChannelTestCase):
                 })
 
         self.assertEqual(response.status_code, 200)
-        # Resolution succeeded, so the message was handed to the collector
-        # instead of being dropped as an unknown account.
         collector.apply_async.assert_called_once()
 
     def test_a_dm_delivered_as_a_changes_entry_is_processed(self):
-        """Regression: the Instagram-Login product delivers DMs as
-        changes[field="messages"] rather than messaging[], with entry.id "0".
-        The view only understood messaging[], so every DM fell through to the
-        generic 200 and no reply was ever produced."""
         with mock.patch("apps.integration.views.instagram_webhook.redis_client") as redis, \
                 mock.patch("apps.integration.views.instagram_webhook.process_collected_messages") as collector:
             redis.get.return_value = None
@@ -400,7 +366,6 @@ class InstagramAccountResolutionTests(ChannelTestCase):
 
         self.assertEqual(response.status_code, 200)
         collector.apply_async.assert_called_once()
-        # The account must come off the recipient, not the placeholder entry.id.
         self.assertEqual(collector.apply_async.call_args.args[0][5], ACCOUNT_ID)
 
     def test_an_echo_in_a_changes_entry_is_not_answered(self):
@@ -425,8 +390,6 @@ class InstagramAccountResolutionTests(ChannelTestCase):
         collector.apply_async.assert_not_called()
 
     def test_unknown_account_is_acknowledged_not_404ed(self):
-        """Meta throttles and eventually disables a subscription that keeps
-        returning non-2xx, so an unroutable account must still be ack'd."""
         with mock.patch("apps.integration.views.instagram_webhook.redis_client"):
             response = self.post_webhook({
                 "entry": [{
@@ -442,18 +405,12 @@ class InstagramAccountResolutionTests(ChannelTestCase):
 
 
 class InstagramWebhookFallThroughTests(ChannelTestCase):
-    """A delivery no branch claims used to answer 200 with the same generic body
-    as a handled one, and log nothing — indistinguishable in production."""
-
     URL = "/api/v1/integration/instagram/webhook/"
     APP_SECRET = "app-secret"
     LOGGER = "apps.integration.views"
 
     def setUp(self):
         super().setUp()
-        # settings.py disables logging under `manage.py test` so a green run
-        # reads green; these assertions are *about* the log output, so lift it
-        # for the duration of each test.
         import logging
 
         logging.disable(logging.NOTSET)
@@ -525,7 +482,6 @@ class InstagramWebhookFallThroughTests(ChannelTestCase):
         self.assertIn("only the first is processed", "".join(logs.output))
 
     def test_an_empty_entry_list_does_not_500(self):
-        """`data["entry"][0]` used to raise IndexError on an entry-less payload."""
         with self.assertLogs(self.LOGGER, level="WARNING") as logs:
             response = self.post_webhook({"entry": []})
 
@@ -534,13 +490,9 @@ class InstagramWebhookFallThroughTests(ChannelTestCase):
 
 
 class InstagramIntegrationLifecycleTests(TestCase):
-    """The OAuth callback must always land both identifiers, and deleting an
-    integration must drop the Meta subscription that feeds it."""
-
     CALLBACK_URL = "/api/v1/integration/instagram/callback/"
 
     def call_callback(self, profile):
-        """Drive InstagramCallbackView with Meta's side of the exchange faked."""
         token_response = mock.MagicMock(status_code=200)
         token_response.json.return_value = {"access_token": "short-lived"}
 
@@ -554,9 +506,6 @@ class InstagramIntegrationLifecycleTests(TestCase):
             )
 
     def test_callback_survives_several_rows_with_null_identifiers(self):
-        """The callback runs unauthenticated (user=None). Keying an
-        update_or_create on two NULL columns matches every such row and raises
-        MultipleObjectsReturned — a 500 on the OAuth callback."""
         for name in ("orphan-1", "orphan-2"):
             Integration.objects.create(
                 user=None, name=name,
@@ -574,8 +523,6 @@ class InstagramIntegrationLifecycleTests(TestCase):
         self.assertTrue(Integration.instagram_by_id("17841400375124995").exists())
 
     def test_callback_relinks_a_row_that_lost_its_account_id(self):
-        """get_or_create skipped its defaults when a row from an earlier failed
-        attempt already matched, leaving instagram_account_id NULL forever."""
         Integration.objects.create(
             user=None, name="half-written",
             integration_type=IntegrationTypes.INSTAGRAM.value,
@@ -595,7 +542,6 @@ class InstagramIntegrationLifecycleTests(TestCase):
         )
 
     def test_callback_refuses_a_profile_without_an_account_id(self):
-        """A row with no account ID can never be reached by a webhook."""
         response = self.call_callback({
             "instagram_user_id": "app-scoped-1",
             "instagram_account_id": None,
@@ -636,9 +582,6 @@ class InstagramIntegrationLifecycleTests(TestCase):
 
 
 class TaskRegistrationTests(TestCase):
-    """The queue routing and beat schedule address tasks by their registered
-    names — the tasks/ package split must keep every name stable."""
-
     def test_all_routed_integration_tasks_are_registered(self):
         from config.celery import app as celery_app
 
@@ -656,8 +599,6 @@ class TaskRegistrationTests(TestCase):
 
 class InstagramUserInfoTests(TestCase):
     def test_get_user_info_returns_empty_dict_on_network_error(self):
-        """The profile lookup must fail soft — a network error should not kill
-        the message-processing task that calls it."""
         import requests as requests_lib
 
         from apps.integration.gateways.instagram import InstagramService
@@ -670,9 +611,6 @@ class InstagramUserInfoTests(TestCase):
 
 
 class BillzClientTests(SimpleTestCase):
-    """No database: this is a pure HTTP-client test. See `tests_billz.py` for the
-    auth-expiry behaviour and the sync-status state machine."""
-
     def test_fetch_all_products_simplifies_and_stops_after_last_page(self):
         from apps.integration.gateways import billz
 
@@ -693,7 +631,6 @@ class BillzClientTests(SimpleTestCase):
         with mock.patch("apps.integration.gateways.billz.http.get", return_value=response) as get:
             products = billz.fetch_all_products("token")
 
-        # Fewer products than the page limit → exactly one request.
         self.assertEqual(get.call_count, 1)
         self.assertEqual(len(products), 1)
         self.assertEqual(products[0]["name"], "T-shirt")
@@ -714,11 +651,6 @@ class BillzClientTests(SimpleTestCase):
 
 
 class InstagramWebhookSignatureTests(TestCase):
-    """H3 (2026-07-22) — the webhook must fail closed.
-
-    With no INSTAGRAM_APP_SECRET configured it used to skip verification and
-    accept forged events (driving the AI and burning tokens)."""
-
     URL = "/api/v1/integration/instagram/webhook/"
 
     def post(self, body: str, **extra):
@@ -761,16 +693,6 @@ class InstagramWebhookSignatureTests(TestCase):
 
 
 class IntegrationTenancyTests(TestCase):
-    """Regressions for the 2026-07-25 endpoint sweep.
-
-    Every automation detail view was `objects.all()` + `IsAuthenticated`, so any
-    logged-in user could read, edit and DELETE another tenant's flows, steps,
-    transitions, buttons, comment responses and media. `IntegrationRetrieve...`
-    was worse: its `get_object` *returned* an `error_response(...)` — a DRF
-    Response — which the handlers then used as a model instance, turning every
-    cross-tenant request into a 500.
-    """
-
     def setUp(self):
         from rest_framework.test import APIClient
 
@@ -824,7 +746,6 @@ class IntegrationTenancyTests(TestCase):
         for url in self.detail_urls():
             with self.subTest(url=url):
                 self.assertEqual(self.client.delete(url).status_code, 404)
-        # and nothing was actually removed
         from apps.integration.models import Flow
 
         self.assertTrue(Integration.objects.filter(id=self.integration.id).exists())
@@ -845,8 +766,6 @@ class IntegrationTenancyTests(TestCase):
         self.assertEqual(list(response.data), [])
 
     def test_the_bot_token_is_never_returned(self):
-        """`api_token` is a credential — write-only, or a leaked list response
-        hands an attacker control of the victim's Telegram bot."""
         self.client.force_authenticate(self.owner)
         response = self.client.get(
             f"/api/v1/integration/integration/{self.integration.id}/",
@@ -856,18 +775,6 @@ class IntegrationTenancyTests(TestCase):
 
 
 class CommentResponseUpdateTests(TestCase):
-    """Regressions for `InstagramCommentResponseSerializer.update`.
-
-    The old implementation ran `instance.instagram_media.all().delete()` — a hard
-    delete of the `InstagramMedia` **rows**, not just the M2M links — and then
-    re-created each incoming media with `objects.create()`. Because `media_id` is
-    `unique=True`, editing a trigger that referenced a post another trigger also
-    used raised an uncaught `IntegrityError` (HTTP 500). The same delete also
-    destroyed that other trigger's media, ran before `current_media_ids` was
-    read from the relation (making the update-in-place branch dead code), and
-    fired even when the request never mentioned media at all.
-    """
-
     MEDIA_ID = "shared-media-1"
 
     def setUp(self):
@@ -923,7 +830,6 @@ class CommentResponseUpdateTests(TestCase):
         )
 
     def test_editing_a_trigger_whose_media_another_trigger_holds(self):
-        """This is the case that used to be a 500 `UniqueViolation`."""
         from apps.integration.models import InstagramCommentResponse, InstagramMedia
 
         other = self.create_trigger("beta", self.media_payload())
@@ -936,7 +842,6 @@ class CommentResponseUpdateTests(TestCase):
         })
         self.assertEqual(response.status_code, 200, response.data)
 
-        # One row, shared by both triggers — not duplicated, not re-created.
         self.assertEqual(InstagramMedia.objects.filter(media_id=self.MEDIA_ID).count(), 1)
         for trigger_id in (mine, other):
             trigger = InstagramCommentResponse.objects.get(id=trigger_id)
@@ -979,7 +884,6 @@ class CommentResponseUpdateTests(TestCase):
         self.assertEqual(
             InstagramCommentResponse.objects.get(id=mine).instagram_media.count(), 0,
         )
-        # The row survives because the other trigger still points at it.
         self.assertTrue(InstagramMedia.objects.filter(media_id=self.MEDIA_ID).exists())
         self.assertEqual(
             InstagramCommentResponse.objects.get(id=other).instagram_media.count(), 1,
@@ -1018,15 +922,6 @@ class CommentResponseUpdateTests(TestCase):
 
 
 class DeferredTaskDispatchTests(TestCase):
-    """Regression: work queued mid-request must wait for the transaction.
-
-    ``ATOMIC_REQUESTS`` keeps everything a view writes uncommitted until the
-    response is returned. Dispatching a Celery task inline therefore races the
-    commit — the worker can look the row up before it exists. Both tasks below
-    swallow that miss (``DoesNotExist`` / ``not found``) and return, so the
-    customer got a 201 and the work silently never happened.
-    """
-
     def setUp(self):
         from rest_framework.test import APIClient
 
@@ -1040,7 +935,6 @@ class DeferredTaskDispatchTests(TestCase):
             assistant=self.assistant, user=self.owner, name="tg-b",
             integration_type=IntegrationTypes.TELEGRAM.value, api_token="tok-b",
         )
-        # A broadcast needs at least one recipient or the view refuses it.
         Conversation.objects.create(
             assistant=self.assistant, user_id="chat-1", token="tok-b",
             status=ConversationStatuses.OPEN.value,
@@ -1060,11 +954,9 @@ class DeferredTaskDispatchTests(TestCase):
                 )
 
             self.assertEqual(response.status_code, 201, response.data)
-            # Nothing queued yet — the dispatch is parked on the commit hook.
             task.delay.assert_not_called()
             self.assertEqual(len(callbacks), 1)
 
-            # Running the hook is what queues it, and by then the row is real.
             callbacks[0]()
             task.delay.assert_called_once()
             queued_id = task.delay.call_args.args[0]
@@ -1073,13 +965,6 @@ class DeferredTaskDispatchTests(TestCase):
 
 
 class TenancyFixture(TestCase):
-    """Two tenants and one fully populated automation tree for the first.
-
-    Every subclass asserts the same two halves: the stranger is refused, and
-    the owner — in the same test — still gets through. A denial test without
-    the positive half only proves the endpoint is broken.
-    """
-
     def setUp(self):
         from rest_framework.test import APIClient
 
@@ -1114,8 +999,6 @@ class TenancyFixture(TestCase):
             integration_type=IntegrationTypes.INSTAGRAM.value,
             api_token="OWNER-IG-TOKEN", instagram_account_id="ig-owner",
         )
-        # Held through `Integration.user` only — assistant is NULL. This is the
-        # shape every `integration.assistant.user` check silently skipped.
         self.userless_integration = Integration.objects.create(
             assistant=None, user=self.owner, name="Owned TG",
             integration_type=IntegrationTypes.TELEGRAM.value,
@@ -1141,12 +1024,6 @@ class TenancyFixture(TestCase):
 
 
 class TelegramGroupTenancyTests(TenancyFixture):
-    """`TelegramGroupUpdateDestroyView` guarded only
-    `integration.assistant.user`, so a group hanging off an integration held
-    through `Integration.user` alone (assistant NULL) was unguarded: any
-    authenticated user could approve or DELETE it. `TelegramGroupListView`
-    filtered on the URL id alone."""
-
     def detail_url(self):
         return f"/api/v1/integration/telegram-group/{self.group.id}/"
 
@@ -1167,7 +1044,6 @@ class TelegramGroupTenancyTests(TenancyFixture):
         self.group.refresh_from_db()
         self.assertFalse(self.group.is_approved)
 
-        # …and the owner still can.
         self.as_owner()
         self.assertEqual(self.client.get(self.detail_url()).status_code, 200)
 
@@ -1184,10 +1060,6 @@ class TelegramGroupTenancyTests(TenancyFixture):
 
 
 class CommentAutomationTenancyTests(TenancyFixture):
-    """Comment responses, flows and transitions were keyed off the URL id
-    only: reading another tenant's automation, and — worse — writing new
-    auto-replies onto their verified Instagram account."""
-
     def responses_url(self, integration):
         return f"/api/v1/integration/{integration.id}/instagram/comment-responses/"
 
@@ -1246,8 +1118,6 @@ class CommentAutomationTenancyTests(TenancyFixture):
         self.assertEqual(self.client.post(url, payload, format="json").status_code, 201)
 
     def test_the_transition_list_no_longer_returns_every_tenants_rows(self):
-        """It used to `return self.queryset.all()` — every Transition in the
-        database — as soon as the flow id existed."""
         from apps.integration.models import Flow, Step, Transition
 
         other_flow = Flow.objects.create(title="theirs")
@@ -1282,10 +1152,6 @@ class CommentAutomationTenancyTests(TenancyFixture):
 
 
 class InstagramPostListTenancyTests(TenancyFixture):
-    """`/integration/<pk>/instagram/posts/` spends the integration's own access
-    token, so an id-only lookup paged another tenant's media with that
-    tenant's credentials."""
-
     def url(self):
         return f"/api/v1/integration/integration/{self.integration.id}/instagram/posts/"
 
@@ -1308,10 +1174,6 @@ class InstagramPostListTenancyTests(TenancyFixture):
 
 
 class SendIntegrationMessageTenancyTests(TenancyFixture):
-    """The ownership check read `integration.assistant.user`, which ignored
-    `Integration.user` and raised AttributeError — a 500, not a refusal — when
-    `assistant` was NULL."""
-
     def url(self, integration):
         return f"/api/v1/integration/send/integration/{integration.id}/"
 
@@ -1337,10 +1199,6 @@ class SendIntegrationMessageTenancyTests(TenancyFixture):
 
 
 class IntegrationCreateTenancyTests(TenancyFixture):
-    """`IntegrationCreateSerializer` resolved the URL's assistant by id alone,
-    so a subscribed user could bind their own Telegram bot to another tenant's
-    assistant and then chat with that tenant's agent."""
-
     def url(self, assistant):
         return f"/api/v1/integration/assistant/{assistant.id}/integration/"
 
@@ -1362,7 +1220,6 @@ class IntegrationCreateTenancyTests(TenancyFixture):
                 Integration.objects.filter(assistant=self.assistant, name="mine").exists()
             )
 
-            # The same request against their own assistant still works.
             allowed = self.client.post(
                 self.url(self.stranger_assistant), self.payload(), format="json",
             )
@@ -1370,16 +1227,10 @@ class IntegrationCreateTenancyTests(TenancyFixture):
 
 
 class BillzTenancyTests(TenancyFixture):
-    """The Billz handler checked only that the assistant *existed*, and
-    `IntegrationSerializer.assistant` is writable behind a bare
-    `serializer.save()` — two ways to graft a catalogue onto a victim."""
-
     def url(self, assistant):
         return f"/api/v1/integration/assistant/{assistant.id}/billz/"
 
     def test_only_the_owner_can_onboard_and_the_body_cannot_redirect_it(self):
-        # The token exchange now lives in the gateway, so that is where it is
-        # stubbed; the view calls `billz_client.login`.
         with mock.patch(
             "apps.integration.gateways.billz.login", return_value="billz-access",
         ), mock.patch("apps.integration.tasks.fetch_and_save_billz_products"):
@@ -1398,8 +1249,6 @@ class BillzTenancyTests(TenancyFixture):
                 ).exists()
             )
 
-            # Owner onboards their own assistant while naming the victim's in
-            # the body: the URL's (owned) assistant wins.
             self.as_owner()
             allowed = self.client.post(
                 self.url(self.assistant),
@@ -1415,11 +1264,6 @@ class BillzTenancyTests(TenancyFixture):
 
 
 class AmoCRMTenancyTests(TenancyFixture):
-    """`/amocrm/refresh/` looked its integration up by id alone and returned
-    the freshly minted access token in the response body — one request from
-    any authenticated account to a bearer credential for another tenant's
-    whole CRM."""
-
     def setUp(self):
         super().setUp()
         self.amocrm = Integration.objects.create(
@@ -1490,10 +1334,6 @@ class AmoCRMTenancyTests(TenancyFixture):
 
 
 class AmoCRMCallbackHostTests(TestCase):
-    """`referer` decides which host the AllowAny callback POSTs an
-    authorization code to and reads JSON back from — an SSRF primitive until
-    it is pinned to amoCRM's own domains."""
-
     URL = "/api/v1/integration/amocrm/"
 
     def test_an_off_domain_referer_is_refused_before_any_request_leaves(self):
@@ -1539,16 +1379,11 @@ class AmoCRMCallbackHostTests(TestCase):
                 self.URL, {"code": "c", "state": "s", "referer": "repli.amocrm.ru"},
             )
 
-        # It got past the host check and tried the exchange (which the fake
-        # refuses) rather than being turned away at the door.
         self.assertEqual(response.status_code, 400)
         http_mock.post.assert_called_once()
 
 
 class InstagramCallbackAssistantBindingTests(TestCase):
-    """`assistant_id` came off the query string of an unauthenticated endpoint
-    and was written straight onto the new integration."""
-
     URL = "/api/v1/integration/instagram/callback/"
 
     def setUp(self):
@@ -1604,9 +1439,6 @@ class InstagramCallbackAssistantBindingTests(TestCase):
 
 
 class TelegramWebhookSecretHandlingTests(TestCase):
-    """The bot token in the path is this endpoint's only credential, and the
-    log line used to carry a slice of it."""
-
     def url(self, token):
         return f"/api/v1/integration/telegram/webhook/{token}/"
 
@@ -1631,10 +1463,6 @@ class TelegramWebhookSecretHandlingTests(TestCase):
         self.assertEqual(response.status_code, 403)
 
     def test_the_known_token_is_accepted_and_never_logged(self):
-        """It used to log `bot_token[-6:]`. A slice of a credential is still a
-        credential leak into a log viewer, and it identified nothing useful."""
-        # settings.py disables logging under `manage.py test`; this assertion is
-        # *about* the log output, so lift it for the duration of the test.
         import logging
 
         logging.disable(logging.NOTSET)
@@ -1651,23 +1479,11 @@ class TelegramWebhookSecretHandlingTests(TestCase):
         self.assertEqual(response.status_code, 200)
         joined = "\n".join(logs.output)
         self.assertNotIn("SUPER-SECRET-BOT-TOKEN", joined)
-        self.assertNotIn("BOT-TOKEN", joined)  # not even a suffix
+        self.assertNotIn("BOT-TOKEN", joined)
         self.assertIn(str(self.integration.id), joined)
 
 
-# ──────────────────────────────────────────────────────────────────────────
-# Webhook authenticity, replay suppression and fail-soft degradation
-# (2026-08-04 hardening sweep)
-# ──────────────────────────────────────────────────────────────────────────
-
 class FakeRedis:
-    """Stateful stand-in for the Redis client the webhook views hold.
-
-    The dedup tests need `get` to actually see what a previous `setex` wrote —
-    a bare MagicMock returns the same sentinel for every call and would make a
-    broken replay guard look like a working one.
-    """
-
     def __init__(self, fail=False):
         self.fail = fail
         self.values = {}
@@ -1695,16 +1511,6 @@ class FakeRedis:
 
 
 class TelegramWebhookSecretTokenTests(TestCase):
-    """H (2026-08-04) — Telegram signs nothing.
-
-    Authenticity rested entirely on the bot token in the URL path, and that
-    token travels in plain sight through every proxy and access log. Anyone who
-    read one could inject conversations into a customer's assistant, burning
-    their AI quota and poisoning their leads. The webhook now demands the
-    `secret_token` registered with `setWebhook`, echoed back in
-    `X-Telegram-Bot-Api-Secret-Token`.
-    """
-
     SERVER_KEY = "telegram-server-key"
 
     def setUp(self):
@@ -1754,8 +1560,6 @@ class TelegramWebhookSecretTokenTests(TestCase):
         collector.apply_async.assert_called_once()
 
     def test_a_missing_header_is_rejected(self):
-        """The classic fail-open bug: checking the value only when the header
-        happens to be present."""
         with mock.patch("apps.integration.views.redis_client", self.redis), \
                 mock.patch("apps.integration.views.process_collected_messages") as collector:
             with self.captureOnCommitCallbacks(execute=True):
@@ -1774,8 +1578,6 @@ class TelegramWebhookSecretTokenTests(TestCase):
         collector.apply_async.assert_not_called()
 
     def test_a_secret_minted_for_another_bot_is_rejected(self):
-        """The per-bot derivation must actually bind: one customer's leaked
-        secret cannot be used against another customer's bot."""
         with mock.patch("apps.integration.views.redis_client", self.redis), \
                 mock.patch("apps.integration.views.process_collected_messages") as collector:
             with self.captureOnCommitCallbacks(execute=True):
@@ -1808,8 +1610,6 @@ class TelegramWebhookSecretTokenTests(TestCase):
         collector.apply_async.assert_called_once()
 
     def test_two_bots_may_share_an_update_id(self):
-        """Telegram's update_id counter is per bot. A global dedup key made two
-        bots with overlapping counters swallow each other's updates."""
         other_token = "second-bot-token"
         other_url = f"/api/v1/integration/telegram/webhook/{other_token}/"
 
@@ -1827,23 +1627,16 @@ class TelegramWebhookSecretTokenTests(TestCase):
         self.assertEqual(collector.apply_async.call_count, 2)
 
     def test_a_redis_outage_still_delivers_the_update(self):
-        """Replay suppression is best-effort: Redis being down must degrade to
-        at-least-once delivery, not drop a real customer message."""
         broken = FakeRedis(fail=True)
         with mock.patch("apps.integration.views.redis_client", broken), \
                 mock.patch("apps.integration.views.process_collected_messages") as collector:
             with self.captureOnCommitCallbacks(execute=True):
                 response = self.post(self.update(update_id=99))
 
-        # rpush/set/setex are inside the handler and blow up on a dead Redis, so
-        # the message cannot be queued — but the endpoint must not 500 and must
-        # not tell Telegram to retry forever.
         self.assertEqual(response.status_code, 200)
         collector.apply_async.assert_not_called()
 
     def test_a_handler_error_is_acknowledged_but_not_processed(self):
-        """Telegram backs a webhook off after repeated failures, so a bug in the
-        routing must not cost the customer their channel."""
         with mock.patch("apps.integration.views.redis_client", self.redis), \
                 mock.patch("apps.integration.views.process_collected_messages") as collector, \
                 mock.patch(
@@ -1867,8 +1660,6 @@ class TelegramWebhookSecretTokenTests(TestCase):
 
 
 class InstagramWebhookHardeningTests(TestCase):
-    """H (2026-08-04) — X-Hub-Signature-256, replay suppression, fail-soft."""
-
     URL = "/api/v1/integration/instagram/webhook/"
     APP_SECRET = "app-secret"
 
@@ -1963,14 +1754,6 @@ class InstagramWebhookHardeningTests(TestCase):
         collector.apply_async.assert_not_called()
 
     def test_the_signature_is_computed_over_the_raw_body_not_reserialized_json(self):
-        """Meta signs the exact bytes it sent.
-
-        Re-serialising `request.data` with `json.dumps` before hashing — the
-        usual mistake — changes separators, key order and non-ASCII escaping, so
-        every genuine delivery whose formatting differs from Python's would be
-        rejected (and, worse, invites a "just skip the check" fix). This body is
-        deliberately formatted the way Python never would.
-        """
         raw = (
             '{"entry":[{"id":"' + ACCOUNT_ID + '",'
             '"messaging":[{"sender":{"id":"ig-user-1"},'
@@ -1979,8 +1762,6 @@ class InstagramWebhookHardeningTests(TestCase):
         )
         import json as json_lib
 
-        # Guard the premise: Python's own serialisation of the same object is a
-        # different byte string, so the two HMACs cannot coincide.
         self.assertNotEqual(json_lib.dumps(json_lib.loads(raw)), raw)
 
         with mock.patch("apps.integration.views.redis_client", self.redis), \
@@ -2043,9 +1824,6 @@ class InstagramWebhookHardeningTests(TestCase):
         task.delay.assert_called_once()
 
     def test_a_redis_outage_still_delivers_the_comment(self):
-        """The comment path never touches Redis outside the replay check, so a
-        dead Redis must degrade to at-least-once rather than dropping the
-        customer's comment."""
         broken = FakeRedis(fail=True)
         payload = {"entry": [{
             "id": ACCOUNT_ID,
@@ -2065,8 +1843,6 @@ class InstagramWebhookHardeningTests(TestCase):
         task.delay.assert_called_once()
 
     def test_a_handler_error_is_acknowledged_but_not_processed(self):
-        """Meta throttles and eventually disables a subscription that keeps
-        answering non-2xx, so a routing bug must not take the channel down."""
         with mock.patch("apps.integration.views.redis_client", self.redis), \
                 mock.patch("apps.integration.views.process_collected_messages") as collector, \
                 mock.patch(
@@ -2091,10 +1867,6 @@ class InstagramWebhookHardeningTests(TestCase):
 
 
 class MetaSignedRequestTests(TestCase):
-    """Deauthorize and data-deletion callbacks delete a customer's integration
-    on nothing but a `signed_request` body parameter — it must be verified, and
-    it must fail closed when the app secret is missing."""
-
     DEAUTH_URL = "/api/v1/integration/instagram/deauthorize/"
     DELETION_URL = "/api/v1/integration/instagram/data-deletion/"
     APP_SECRET = "meta-app-secret"
@@ -2121,8 +1893,6 @@ class MetaSignedRequestTests(TestCase):
         return b64.urlsafe_b64encode(signature).decode().rstrip("=") + "." + encoded_payload
 
     def test_a_valid_signed_request_removes_the_integration(self):
-        # The view reads the secret through a module-level import of
-        # config.settings, so `self.settings(...)` would not reach it.
         with mock.patch("apps.integration.views.INSTAGRAM_CLIENT_SECRET", self.APP_SECRET):
             response = self.client.post(
                 self.DEAUTH_URL,
@@ -2165,10 +1935,6 @@ class MetaSignedRequestTests(TestCase):
         self.assertEqual(response.status_code, 400)
 
 class TelegramGatewaySecretHandlingTests(TestCase):
-    """`handle_bot_added_to_group` used `print(f"... {bot_token}")`, putting the
-    customer's full bot token — total control of their bot — into the container
-    log that the deployed log viewer serves."""
-
     def test_an_unmatched_bot_token_is_never_written_out(self):
         import logging
 
@@ -2213,8 +1979,6 @@ class TelegramGatewaySecretHandlingTests(TestCase):
 
 
 class WebhookReplayHelperTests(TestCase):
-    """`webhook_replay_seen` is the shared replay guard for every provider."""
-
     def test_the_first_sighting_is_not_a_replay_and_the_second_is(self):
         from apps.integration.views import webhook_replay_seen
 
@@ -2251,14 +2015,6 @@ class WebhookReplayHelperTests(TestCase):
 
 
 class AmoCRMCallbackTests(TestCase):
-    """The amoCRM OAuth callback is `AllowAny` — amoCRM redirects the installing
-    user's browser to it, so no JWT is present.
-
-    Its `referer` query parameter names the host that then receives the amoCRM
-    `client_id` / `client_secret`. Unconstrained, that is an SSRF with
-    credential exfiltration.
-    """
-
     URL = "/api/v1/integration/amocrm/"
 
     def setUp(self):
@@ -2305,18 +2061,6 @@ class AmoCRMCallbackTests(TestCase):
 
 
 class AmoCRMLegacyTenancyTests(TestCase):
-    """`amocrm/refresh/` handed back a freshly minted access token for any
-    integration id, and `amocrm/set-pipeline/` rewrote any tenant's pipeline
-    configuration.
-
-    Renamed out of the way of `AmoCRMTenancyTests` above, which a bad merge left
-    it shadowing — same class name, so the earlier (and correctly targeted) copy
-    silently never ran. This copy predates the `views.py` -> `views/` package
-    split and still patches `apps.integration.views.http`, which now lives in
-    `views/amocrm.py`; only `test_a_stored_non_amocrm_subdomain_is_refused` is
-    not already covered above. See the report: a human should re-point or drop it.
-    """
-
     def setUp(self):
         from rest_framework.test import APIClient
 
@@ -2358,8 +2102,6 @@ class AmoCRMLegacyTenancyTests(TestCase):
         self.assertNotIn("pipeline_id", self.integration.metadata)
 
     def test_a_stored_non_amocrm_subdomain_is_refused(self):
-        """Defence in depth: rows written before the callback's allow-list can
-        still point the credentials at an arbitrary host."""
         self.integration.metadata = {**self.integration.metadata,
                                      "subdomain": "attacker.example"}
         self.integration.save()

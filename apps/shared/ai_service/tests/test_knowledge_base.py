@@ -1,15 +1,3 @@
-"""Vector-store indexing — reads from storage, and never waits forever.
-
-Both properties here are regressions for the 2026-08-19 upload work:
-
-* `add_file(store_id, url)` presigned the object and fetched the whole file back
-  over HTTP before handing it to OpenAI. On a 6 MB document that was a full
-  network round trip plus three resident copies of the file inside the gunicorn
-  worker that was already holding the upload.
-* `upload_and_poll()` polls until OpenAI stops saying `in_progress`, with no
-  deadline. `INDEX_TIMEOUT_SECONDS` and `INDEX_POLL_SECONDS` were declared in
-  this module and read by nothing, so a stuck file parked a worker indefinitely.
-"""
 from unittest import mock
 
 from django.core.files.base import ContentFile
@@ -33,7 +21,6 @@ class AddStoredFileTests(SimpleTestCase):
         self.addCleanup(mock.patch.stopall)
 
     def field_file(self, content=b"iPhone 15 Pro - 12,500,000 UZS", name="catalogue.txt"):
-        """A stand-in for a model FileField whose object lives in storage."""
         handle = ContentFile(content, name=name)
         fieldfile = mock.MagicMock()
         fieldfile.name = f"assistant/1/files/abc/{name}"
@@ -83,18 +70,10 @@ class AddStoredFileTests(SimpleTestCase):
 
 
 class HasKnowledgeBaseTests(SimpleTestCase):
-    """The gate on conversations and integrations, once indexing went async.
-
-    `vector_id` is created by `index_assistant_file`, not by the upload request,
-    so for a second or two after the first upload it is still null. Testing it
-    alone told a user who had just uploaded a document to upload a document.
-    """
-
     def test_an_existing_store_counts(self):
         assistant = mock.Mock(vector_id="vs_1")
 
         self.assertTrue(knowledge_base.has_knowledge_base(assistant))
-        # No need to touch the database when the store is already there.
         assistant.files.exists.assert_not_called()
 
     def test_an_upload_whose_indexing_has_not_run_yet_counts(self):
@@ -111,8 +90,6 @@ class HasKnowledgeBaseTests(SimpleTestCase):
 
 
 class PollDeadlineTests(SimpleTestCase):
-    """`_poll` must return rather than loop forever on a stuck file."""
-
     def setUp(self):
         self.client = mock.Mock()
         self.slept = []
@@ -145,7 +122,6 @@ class PollDeadlineTests(SimpleTestCase):
         self.assertEqual(self.slept, [])
 
     def test_it_gives_up_at_the_timeout_instead_of_looping_forever(self):
-        # Always in_progress: with the old `upload_and_poll` this never returned.
         self.client.vector_stores.files.retrieve.return_value = fake_store_file(
             "in_progress"
         )

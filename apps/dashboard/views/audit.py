@@ -1,4 +1,3 @@
-"""Dashboard audit-log endpoints."""
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework import filters, generics
 

@@ -21,14 +21,8 @@ PLAY_MOBILE_LOGIN: str = os.environ['PLAY_MOBILE_LOGIN']
 PLAY_MOBILE_PASSWORD: str = os.environ['PLAY_MOBILE_PASSWORD']
 originator: str = os.environ['PLAY_MOBILE_ORIGINATOR']
 
-# After this many wrong guesses the code is thrown away, so a leaked or
-# brute-forced OTP cannot be tried indefinitely within its validity window.
 MAX_VERIFY_ATTEMPTS = 5
 
-# Minimum gap between two codes sent to the same identifier. The SMS path is
-# already covered by its 60s code TTL; email codes live for 5 minutes, so
-# without this an attacker could flood a victim's inbox (and our sending
-# reputation) with one request per second.
 RESEND_COOLDOWN = 60
 
 
@@ -37,7 +31,6 @@ def generate_code():
 
 
 def _codes_match(stored, supplied):
-    """Compare an OTP without leaking its contents through timing."""
     if stored is None:
         return False
     if isinstance(stored, bytes):
@@ -46,14 +39,9 @@ def _codes_match(stored, supplied):
 
 
 def _register_failed_attempt(key):
-    """Count a wrong guess; drop the code once too many have piled up.
-
-    Returns True if the code is still live, False if this attempt exhausted it.
-    """
     attempts_key = f"{key}_attempts"
     attempts = redis_connection.incr(attempts_key)
     if attempts == 1:
-        # Tie the counter's lifetime to the code so it cannot outlive it.
         redis_connection.expire(attempts_key, time=300)
     if attempts >= MAX_VERIFY_ATTEMPTS:
         redis_connection.delete(key)
@@ -67,7 +55,6 @@ def _clear_attempts(key):
 
 
 def send_playmobile_sms(phone_number, message):
-    # Send SMS
     message_id = f"aylo_{randint(100000, 999999)}"
     payload = get_playmobile_payload(phone_number, message_id, originator, message)
     try:
@@ -75,7 +62,7 @@ def send_playmobile_sms(phone_number, message):
             PLAY_MOBILE_URL,
             json=payload,
             auth=(PLAY_MOBILE_LOGIN, PLAY_MOBILE_PASSWORD),
-            timeout=(30, 60)  # 10s connect timeout, 30s read timeout
+            timeout=(30, 60)
         )
         logger.info("SMS provider responded with status %s", response.status_code)
         if response.status_code == 200:
@@ -94,7 +81,6 @@ def send_code(phone_number):
     code = generate_code()
     message = f"Aylo.uz! Sizning tasdiqlash kodingiz - {code}\n"
     success, message = send_playmobile_sms(phone_number, message)
-    # success, message = True, "Code sent successfully"
     if not success:
         return False, message
     redis_connection.set(phone_number, code)
@@ -138,15 +124,10 @@ def send_sms_text(phone_number, text):
     return response if response.status_code == 200 else None
 
 
-EMAIL_CODE_TTL = 300  # seconds the emailed code stays valid
+EMAIL_CODE_TTL = 300
 
 
 def send_email_code(email):
-    """Email a fresh OTP. Returns (ok, user-facing message).
-
-    The code is only stored once delivery has succeeded, so a failed send never
-    replaces a code the user already holds with one they will never receive.
-    """
     cooldown_key = f"{email}_cooldown"
     if redis_connection.get(cooldown_key):
         return False, _("Verification code already sent")
@@ -172,8 +153,6 @@ def send_email_code(email):
             fail_silently=False,
         )
     except Exception:
-        # The exception text can carry SMTP host/credential detail, so it is
-        # logged rather than returned to the caller.
         logger.exception("Failed to send the verification email")
         return False, _("Failed to send verification code")
 
@@ -190,8 +169,6 @@ def verify_email_code(email, code):
             return False, _("Verification code expired or not found")
 
         if _codes_match(stored_code, code):
-            # Mark the address verified for as long as the code would have lived,
-            # then burn the code so it cannot be replayed.
             redis_connection.setex(f"{email}_verified", EMAIL_CODE_TTL, "true")
             redis_connection.delete(email)
             _clear_attempts(email)

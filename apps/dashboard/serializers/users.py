@@ -1,4 +1,3 @@
-"""User serializers for the dashboard."""
 from django.utils.translation import gettext_lazy as _
 from rest_framework import serializers
 
@@ -75,8 +74,6 @@ class DashboardUserListSerializer(serializers.ModelSerializer):
 
     def get_total_used_token_count(self, obj):
         subscription = obj.subscription
-        # `pricing_package` is a nullable FK (SET_NULL) — a subscription can
-        # outlive the package it was bought on.
         if subscription and subscription.pricing_package:
             return subscription.pricing_package.request_count - subscription.remained_request_count
         return 0
@@ -90,7 +87,6 @@ class ChangeRoleSerializer(serializers.Serializer):
 
 
 class UserBulkActionSerializer(serializers.Serializer):
-    """Validates `users/bulk-action/` — ids must be real UUIDs before they reach the ORM."""
     ACTIONS = ('activate', 'deactivate', 'delete', 'change_role')
 
     action = serializers.ChoiceField(choices=ACTIONS)
