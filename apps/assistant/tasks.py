@@ -9,6 +9,7 @@ from django.utils.timezone import now
 
 from apps.assistant.models import (
     Assistant,
+    AssistantFileUpload,
     Conversation,
     FollowUpConfig,
     FollowUpLog,
@@ -20,6 +21,7 @@ from apps.integration.gateways.telegram import send_telegram_message
 from apps.integration.models import TelegramGroupIntegration
 from apps.shared.addons.enums import (
     ConversationPlatforms,
+    FileIndexStatuses,
     FollowUpLogStatus,
     IntegrationTypes,
     LeadStatuses,
@@ -27,8 +29,83 @@ from apps.shared.addons.enums import (
     SenderTypes,
 )
 from apps.shared.addons.redis import publish_message_to_ws
+from apps.shared.ai_service import knowledge_base
 
 logger = logging.getLogger(__name__)
+
+
+@shared_task(
+    bind=True,
+    max_retries=3,
+    # OpenAI being down or slow is the expected failure here, so back off rather
+    # than hammering it: 1 min, 4 min, 9 min.
+    retry_backoff=60,
+    retry_jitter=True,
+)
+def index_assistant_file(self, upload_id):
+    """Put an uploaded document into the assistant's vector store.
+
+    This used to run inline in the upload request: save to MinIO, presign a URL,
+    download the whole file back over HTTP, then upload it to OpenAI and poll
+    until it was chunked — with `ATOMIC_REQUESTS` holding a Postgres transaction
+    open the entire time. A 6 MB PDF therefore took as long as OpenAI took, held
+    three copies of itself in a gunicorn worker capped at a few hundred MB, and
+    turned any OpenAI slowness into a dead request. Uploads now return as soon
+    as the bytes are in MinIO and this runs behind them.
+    """
+    upload = (
+        AssistantFileUpload.objects
+        .select_related("assistant")
+        .filter(pk=upload_id)
+        .first()
+    )
+    if upload is None:
+        # Deleted between the upload response and this task. Nothing to do, and
+        # not a failure worth retrying.
+        logger.info("File upload %s no longer exists; skipping indexing", upload_id)
+        return
+
+    if not knowledge_base.is_supported(upload.filename or upload.file.name or ""):
+        AssistantFileUpload.objects.filter(pk=upload.pk).update(
+            index_status=FileIndexStatuses.SKIPPED.value, updated_time=now()
+        )
+        return
+
+    AssistantFileUpload.objects.filter(pk=upload.pk).update(
+        index_status=FileIndexStatuses.INDEXING.value, updated_time=now()
+    )
+
+    try:
+        store_id = knowledge_base.ensure_store(upload.assistant)
+        file_id = knowledge_base.add_stored_file(
+            store_id, upload.file, upload.filename
+        )
+    except Exception as exc:
+        logger.warning(
+            "Indexing %s for assistant %s failed: %s",
+            upload.filename, upload.assistant_id, exc,
+        )
+        AssistantFileUpload.objects.filter(pk=upload.pk).update(
+            index_status=FileIndexStatuses.FAILED.value, updated_time=now()
+        )
+        raise self.retry(exc=exc)
+
+    if not file_id:
+        # `add_stored_file` already logged why. It returns None for permanent
+        # problems (unreadable object, empty file) as well as for a timed-out
+        # index, so retry: the retry is bounded and the common case is transient.
+        AssistantFileUpload.objects.filter(pk=upload.pk).update(
+            index_status=FileIndexStatuses.FAILED.value, updated_time=now()
+        )
+        if self.request.retries < self.max_retries:
+            raise self.retry()
+        return
+
+    AssistantFileUpload.objects.filter(pk=upload.pk).update(
+        file_id=file_id,
+        index_status=FileIndexStatuses.INDEXED.value,
+        updated_time=now(),
+    )
 
 
 @shared_task
@@ -36,11 +113,10 @@ def daily_statistics_assistant():
     assistants = Assistant.objects.all()
     current_date = timezone.now().date()
     for assistant in assistants:
-        print(f"Assistant: {assistant.name}")
         telegram_integrations = assistant.integrations.filter(integration_type=IntegrationTypes.TELEGRAM.value)
 
         if not telegram_integrations.exists():
-            print(f"No Telegram integration found for assistant: {assistant.name}")
+            logger.debug("No Telegram integration for assistant %s", assistant.id)
             continue
         daily_lead_instagram, daily_lead_telegram, phone_number_leave = get_daily_lead_statistics(assistant.id, current_date)
         new_conversations, existing_conversations = get_daily_conversation_statistics(assistant.id, current_date)
@@ -61,21 +137,23 @@ def daily_statistics_assistant():
 
 📞 **Telefon qoldirganlar:** {phone_number_leave}
 """
-        print(f"Message: {message}")
 
         for telegram_integration in telegram_integrations:
             telegram_groups = TelegramGroupIntegration.objects.filter(integration=telegram_integration).all()
 
             if not telegram_groups.exists():
-                print(f"No Telegram groups found for integration: {telegram_integration.id}")
+                logger.debug("No Telegram groups for integration %s", telegram_integration.id)
                 continue
 
             for telegram_group in telegram_groups:
                 try:
                     send_telegram_message(telegram_group.group_id, message, telegram_integration.api_token)
-                    print(f"Message sent to telegram group: {telegram_group.group_id} (Group: {telegram_group.group_title})")
+                    logger.info("Daily statistics sent to group %s", telegram_group.group_id)
                 except Exception as e:
-                    print(f"Error sending message to group {telegram_group.group_id}: {e}")
+                    logger.warning(
+                        "Could not send daily statistics to group %s: %s",
+                        telegram_group.group_id, e,
+                    )
 
 def get_daily_lead_statistics(assistant_id, target_date):
     assistant = Assistant.objects.get(id=assistant_id)

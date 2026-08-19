@@ -8,6 +8,7 @@ from apps.shared.addons.enums import (
     AssistantLanguages,
     ConversationPlatforms,
     ConversationStatuses,
+    FileIndexStatuses,
     FileTypes,
     FollowUpLogStatus,
     LeadStatuses,
@@ -270,6 +271,13 @@ class AssistantFileUpload(BaseModel):
         max_length=255, null=True, blank=True, choices=FileTypes.choices()
     )
     file_id = models.CharField(max_length=355, null=True, blank=True)
+    # Vector-store indexing runs in Celery, so the upload response cannot say
+    # whether the document is searchable yet. The client polls this.
+    index_status = models.CharField(
+        max_length=20,
+        choices=FileIndexStatuses.choices(),
+        default=FileIndexStatuses.PENDING.value,
+    )
 
     def __str__(self):
         return self.filename

@@ -1,8 +1,11 @@
 """Assistant, assistant-file and prompt-template serializers for the dashboard."""
+from django.db import transaction
 from rest_framework import serializers
 
 from apps.assistant.models import Assistant, AssistantFileUpload, PromptTemplate
+from apps.assistant.tasks import index_assistant_file
 from apps.shared.addons.enums import IntegrationTypes
+from apps.shared.file_validation import validate_document
 
 
 class DashboardPromptTemplateSerializer(serializers.ModelSerializer):
@@ -67,15 +70,34 @@ class DashboardAssistantFileUploadSerializer(serializers.ModelSerializer):
         model = AssistantFileUpload
         fields = [
             'id', 'assistant', 'filename', 'file', 'file_type',
-            'website_url', 'created_time', 'updated_time',
+            'website_url', 'index_status', 'created_time', 'updated_time',
         ]
-        read_only_fields = ['created_time', 'updated_time']
+        # `index_status` belongs to the indexing task, not to the caller.
+        read_only_fields = ['index_status', 'created_time', 'updated_time']
 
     def validate(self, attrs):
         file = attrs.get('file')
-        if file and hasattr(file, 'size') and file.size > 30 * 1024 * 1024:
-            raise serializers.ValidationError("File exceeds the 30MB size limit.")
+        if file:
+            # Was a hand-rolled 30 MB size check and nothing else, so the
+            # dashboard could store extensions the customer-facing upload
+            # refuses — including ones that are stored-XSS payloads when served
+            # back from this origin. `validate_document` is the same size *and*
+            # allowlist check the other path uses.
+            validate_document(file)
         return attrs
+
+    def create(self, validated_data):
+        """Store the file, then queue the same indexing the customer path uses.
+
+        An admin upload never reached the vector store at all: the row was
+        written and nothing ever handed it to OpenAI, so a document uploaded here
+        was invisible to the assistant that was supposed to answer from it.
+        """
+        upload = super().create(validated_data)
+        transaction.on_commit(
+            lambda upload_id=str(upload.id): index_assistant_file.delay(upload_id)
+        )
+        return upload
 
 
 class DashboardAssistantCreateSerializer(serializers.ModelSerializer):

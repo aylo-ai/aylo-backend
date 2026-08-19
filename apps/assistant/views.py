@@ -276,13 +276,18 @@ class AssistantFileUploadListCreateView(generics.ListCreateAPIView):
         serializer.is_valid(raise_exception=True)
 
         serializer.save()
-        # The assistant's knowledge base (vector store) is created lazily on the
-        # first upload, inside the serializer.
+        uploads = getattr(serializer, "uploaded_files", [serializer.instance])
+        # A list, always — matching the sibling `update-file` endpoint. This used
+        # to be `serializer.data`, a single object, which meant posting more than
+        # one file crashed with `AttributeError: 'list' object has no attribute
+        # 'id'`. Each row carries `index_status`: the vector store is filled by
+        # `index_assistant_file` after the response, so a client that needs to
+        # know the document is searchable polls that field.
         return success_response(
             message=_("File muvaffaqiyatli yaratildi"),
             # Every other create in this app returns its payload; without it the
             # client never learns the new file's id.
-            data=serializer.data,
+            data=AssistantFileUploadSerializer(uploads, many=True).data,
             code=201,
         )
 

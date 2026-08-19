@@ -163,6 +163,22 @@ class FileTypes(EnumBaseModel):
     GOOGLE_SPREADSHEET = 'google_spreadsheet'
     GOOGLE_DOCUMENT = 'google_document'
 
+
+class FileIndexStatuses(EnumBaseModel):
+    """Where an uploaded document is in the vector-store indexing pipeline.
+
+    Indexing runs in Celery, not in the upload request, so the client needs a
+    field to poll: the upload responds `pending` and the row moves to `indexed`
+    or `failed` once the worker has been through OpenAI.
+    """
+    PENDING = 'pending'
+    INDEXING = 'indexing'
+    INDEXED = 'indexed'
+    FAILED = 'failed'
+    # The file is stored but the vector store will never accept it (unsupported
+    # extension). A terminal state, and not an error worth retrying.
+    SKIPPED = 'skipped'
+
 class LeadStatuses(EnumBaseModel):
     """Lifecycle of a captured lead.
 

@@ -83,7 +83,9 @@ class Command(BaseCommand):
 
         indexed = []
         for upload in files:
-            file_id = knowledge_base.add_file(store_id, upload.file.url)
+            file_id = knowledge_base.add_stored_file(
+                store_id, upload.file, upload.filename
+            )
             if file_id:
                 upload.file_id = file_id
                 upload.save(update_fields=["file_id", "updated_time"])
