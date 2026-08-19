@@ -1128,3 +1128,15 @@ msgstr "The number of conversations cannot be negative."
 #: apps/payment/serializers.py:139
 msgid "Telefon raqam kamida 9 ta raqamdan iborat bo'lishi kerak."
 msgstr "The phone number must contain at least 9 digits."
+
+#: apps/integration/views/billz.py:122
+msgid "Billz holati muvaffaqiyatli olindi"
+msgstr "Billz status retrieved successfully"
+
+#: apps/integration/views/billz.py:191
+msgid "Billz integration topilmadi"
+msgstr "Billz integration not found"
+
+#: apps/integration/views/billz.py:197
+msgid "Billz sinxronizatsiyasi boshlandi"
+msgstr "Billz synchronisation started"

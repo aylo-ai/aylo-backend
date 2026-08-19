@@ -5,6 +5,7 @@ from rest_framework import serializers
 from apps.assistant.models import Assistant, Conversation
 from apps.assistant.services.conversation import conversation_service
 from apps.assistant.utils import owned_assistants
+from apps.integration.gateways import billz as billz_client
 from apps.integration.gateways.telegram import (
     get_webhook_info,
     send_telegram_message,
@@ -100,21 +101,25 @@ class IntegrationCreateSerializer(serializers.ModelSerializer, SubscriptionValid
         return attrs
 
     def create(self, validated_data):
-        api_token = validated_data.get('api_token')
-        integration_type = validated_data.get('integration_type')
-        if integration_type == IntegrationTypes.BILLZ.value:
-            if not api_token:
+        if validated_data.get('integration_type') == IntegrationTypes.BILLZ.value:
+            # `api_token` carries the Billz *secret* token here, exactly as on the
+            # dedicated /billz/ endpoint. It buys nothing on its own: it is
+            # exchanged for the short-lived access token every other Billz call
+            # needs, and kept in `refresh_token` because it is the only credential
+            # that can mint a replacement once that access token expires.
+            #
+            # This branch used to inline the login call (a second copy of it) and
+            # store `data.refresh_token` from the response — a key Billz does not
+            # send — so the row was left with no way to re-authenticate and its
+            # catalogue went stale the moment the first access token aged out.
+            secret_token = validated_data.get('api_token')
+            if not secret_token:
                 raise_validation_error(message=_("Billz API token kerak"))
-            response = http.post("https://api-admin.billz.ai/v1/auth/login", json={"secret_token": api_token})
-            if response.status_code != 200:
-                raise_validation_error(message=_("Billz API token yaroqli emas"))
-
-            access_token = response.json().get('data').get('access_token')
+            access_token = billz_client.login(secret_token)
             if not access_token:
-                raise_validation_error(message=_("Billz access token topilmadi"))
+                raise_validation_error(message=_("Billz API token yaroqli emas"))
             validated_data['api_token'] = access_token
-            validated_data['refresh_token'] = response.json().get('data').get('refresh_token')
-            return super().create(validated_data)
+            validated_data['refresh_token'] = secret_token
         return super().create(validated_data)
 
 

@@ -1128,3 +1128,15 @@ msgstr "Suhbatlar soni manfiy bo'lishi mumkin emas."
 #: apps/payment/serializers.py:139
 msgid "Telefon raqam kamida 9 ta raqamdan iborat bo'lishi kerak."
 msgstr "Telefon raqam kamida 9 ta raqamdan iborat bo'lishi kerak."
+
+#: apps/integration/views/billz.py:122
+msgid "Billz holati muvaffaqiyatli olindi"
+msgstr "Billz holati muvaffaqiyatli olindi"
+
+#: apps/integration/views/billz.py:191
+msgid "Billz integration topilmadi"
+msgstr "Billz integration topilmadi"
+
+#: apps/integration/views/billz.py:197
+msgid "Billz sinxronizatsiyasi boshlandi"
+msgstr "Billz sinxronizatsiyasi boshlandi"

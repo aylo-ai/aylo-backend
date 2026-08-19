@@ -5,7 +5,7 @@ wiring — that the right things get stored, sent and skipped — rather than th
 """
 from unittest import mock
 
-from django.test import TestCase
+from django.test import SimpleTestCase, TestCase
 
 from apps.assistant.models import Assistant, Conversation, Message
 from apps.integration.models import Integration
@@ -669,7 +669,10 @@ class InstagramUserInfoTests(TestCase):
             self.assertEqual(InstagramService().get_user_info("tok", "u1"), {})
 
 
-class BillzClientTests(TestCase):
+class BillzClientTests(SimpleTestCase):
+    """No database: this is a pure HTTP-client test. See `tests_billz.py` for the
+    auth-expiry behaviour and the sync-status state machine."""
+
     def test_fetch_all_products_simplifies_and_stops_after_last_page(self):
         from apps.integration.gateways import billz
 
@@ -1374,16 +1377,12 @@ class BillzTenancyTests(TenancyFixture):
     def url(self, assistant):
         return f"/api/v1/integration/assistant/{assistant.id}/billz/"
 
-    def login_response(self):
-        response = mock.MagicMock(status_code=200)
-        response.json.return_value = {"data": {"access_token": "billz-access"}}
-        return response
-
     def test_only_the_owner_can_onboard_and_the_body_cannot_redirect_it(self):
-        with mock.patch("apps.integration.views.billz.http") as http_mock, \
-                mock.patch("apps.integration.tasks.fetch_and_save_billz_products"):
-            http_mock.post.return_value = self.login_response()
-
+        # The token exchange now lives in the gateway, so that is where it is
+        # stubbed; the view calls `billz_client.login`.
+        with mock.patch(
+            "apps.integration.gateways.billz.login", return_value="billz-access",
+        ), mock.patch("apps.integration.tasks.fetch_and_save_billz_products"):
             self.as_stranger()
             refused = self.client.post(
                 self.url(self.assistant),
@@ -1646,6 +1645,16 @@ class TelegramWebhookSecretHandlingTests(TestCase):
             response = self.client.post(
                 self.url(self.integration.api_token),
                 data={"message": {"chat": {"id": 1, "type": "private"}, "text": "hi"}},
+                content_type="application/json",
+            )
+
+        self.assertEqual(response.status_code, 200)
+        joined = "\n".join(logs.output)
+        self.assertNotIn("SUPER-SECRET-BOT-TOKEN", joined)
+        self.assertNotIn("BOT-TOKEN", joined)  # not even a suffix
+        self.assertIn(str(self.integration.id), joined)
+
+
 # ──────────────────────────────────────────────────────────────────────────
 # Webhook authenticity, replay suppression and fail-soft degradation
 # (2026-08-04 hardening sweep)
@@ -2122,11 +2131,38 @@ class MetaSignedRequestTests(TestCase):
             )
 
         self.assertEqual(response.status_code, 200)
-        joined = "\n".join(logs.output)
-        self.assertNotIn("SUPER-SECRET-BOT-TOKEN", joined)
-        self.assertNotIn("BOT-TOKEN", joined)  # not even a suffix
-        self.assertIn(str(self.integration.id), joined)
+        self.assertFalse(Integration.objects.filter(id=self.integration.id).exists())
 
+    def test_a_forged_signed_request_keeps_the_integration(self):
+        forged = self.signed_request({"user_id": "ig-user-9"}, secret="wrong-secret")
+        with mock.patch("apps.integration.views.INSTAGRAM_CLIENT_SECRET", self.APP_SECRET):
+            response = self.client.post(
+                self.DEAUTH_URL, {"signed_request": forged},
+                content_type="application/json",
+            )
+
+        self.assertEqual(response.status_code, 400)
+        self.assertTrue(Integration.objects.filter(id=self.integration.id).exists())
+
+    def test_an_unconfigured_app_secret_fails_closed(self):
+        with mock.patch("apps.integration.views.INSTAGRAM_CLIENT_SECRET", ""):
+            response = self.client.post(
+                self.DEAUTH_URL,
+                {"signed_request": self.signed_request({"user_id": "ig-user-9"})},
+                content_type="application/json",
+            )
+
+        self.assertEqual(response.status_code, 400)
+        self.assertTrue(Integration.objects.filter(id=self.integration.id).exists())
+
+    def test_data_deletion_rejects_an_unsigned_request(self):
+        with mock.patch("apps.integration.views.INSTAGRAM_CLIENT_SECRET", self.APP_SECRET):
+            response = self.client.post(
+                self.DELETION_URL, {"signed_request": "not.a.signed.request"},
+                content_type="application/json",
+            )
+
+        self.assertEqual(response.status_code, 400)
 
 class TelegramGatewaySecretHandlingTests(TestCase):
     """`handle_bot_added_to_group` used `print(f"... {bot_token}")`, putting the
@@ -2174,38 +2210,6 @@ class TelegramGatewaySecretHandlingTests(TestCase):
             ).exists()
         )
         self.assertNotIn("SUPER-SECRET-BOT-TOKEN", "\n".join(logs.output))
-        self.assertFalse(Integration.objects.filter(id=self.integration.id).exists())
-
-    def test_a_forged_signed_request_keeps_the_integration(self):
-        forged = self.signed_request({"user_id": "ig-user-9"}, secret="wrong-secret")
-        with mock.patch("apps.integration.views.INSTAGRAM_CLIENT_SECRET", self.APP_SECRET):
-            response = self.client.post(
-                self.DEAUTH_URL, {"signed_request": forged},
-                content_type="application/json",
-            )
-
-        self.assertEqual(response.status_code, 400)
-        self.assertTrue(Integration.objects.filter(id=self.integration.id).exists())
-
-    def test_an_unconfigured_app_secret_fails_closed(self):
-        with mock.patch("apps.integration.views.INSTAGRAM_CLIENT_SECRET", ""):
-            response = self.client.post(
-                self.DEAUTH_URL,
-                {"signed_request": self.signed_request({"user_id": "ig-user-9"})},
-                content_type="application/json",
-            )
-
-        self.assertEqual(response.status_code, 400)
-        self.assertTrue(Integration.objects.filter(id=self.integration.id).exists())
-
-    def test_data_deletion_rejects_an_unsigned_request(self):
-        with mock.patch("apps.integration.views.INSTAGRAM_CLIENT_SECRET", self.APP_SECRET):
-            response = self.client.post(
-                self.DELETION_URL, {"signed_request": "not.a.signed.request"},
-                content_type="application/json",
-            )
-
-        self.assertEqual(response.status_code, 400)
 
 
 class WebhookReplayHelperTests(TestCase):
@@ -2300,10 +2304,18 @@ class AmoCRMCallbackTests(TestCase):
         self.assertNotIn("script", str(response.data))
 
 
-class AmoCRMTenancyTests(TestCase):
+class AmoCRMLegacyTenancyTests(TestCase):
     """`amocrm/refresh/` handed back a freshly minted access token for any
     integration id, and `amocrm/set-pipeline/` rewrote any tenant's pipeline
-    configuration."""
+    configuration.
+
+    Renamed out of the way of `AmoCRMTenancyTests` above, which a bad merge left
+    it shadowing — same class name, so the earlier (and correctly targeted) copy
+    silently never ran. This copy predates the `views.py` -> `views/` package
+    split and still patches `apps.integration.views.http`, which now lives in
+    `views/amocrm.py`; only `test_a_stored_non_amocrm_subdomain_is_refused` is
+    not already covered above. See the report: a human should re-point or drop it.
+    """
 
     def setUp(self):
         from rest_framework.test import APIClient
