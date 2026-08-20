@@ -1,0 +1,29 @@
+name: Deploy backend (dev)
+
+on:
+  push:
+    branches:
+      - dev
+    paths-ignore:
+      - "README.md"
+      - "docs/**"
+  workflow_dispatch:
+
+concurrency:
+  group: backend-deploy-dev
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    uses: ./.github/workflows/deploy.yml
+    with:
+      environment: dev
+      deploy_dir: /opt/aylo/backend
+      secrets_dir: /opt/aylo/.secrets
+      compose_override: deployment/compose.dev-host.yml
+      profile: green
+      health_port: "8002"
+    secrets:
+      ssh_host: ${{ secrets.SSH_HOST_DEV }}
+      ssh_username: ${{ secrets.SSH_HOST_DEV_USERNAME }}
+      ssh_key: ${{ secrets.SSH_HOST_PRIVATE_KEY }}

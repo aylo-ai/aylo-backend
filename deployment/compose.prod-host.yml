@@ -1,0 +1,26 @@
+services:
+  web-green:
+    restart: unless-stopped
+
+  celery_worker:
+    restart: unless-stopped
+
+  celery_worker_low:
+    restart: unless-stopped
+
+  celery_beat:
+    restart: unless-stopped
+
+  postgres:
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  minio:
+    restart: unless-stopped
+
+  redis:
+    restart: unless-stopped

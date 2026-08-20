@@ -1,0 +1,188 @@
+name: Deploy backend
+
+on:
+  workflow_call:
+    inputs:
+      environment:
+        description: "GitHub environment to run in (production | dev)"
+        required: true
+        type: string
+      deploy_dir:
+        description: "Absolute checkout path on the target server"
+        required: false
+        type: string
+        default: /opt/aylo/backend
+      secrets_dir:
+        description: "Absolute directory holding backend.env on the target server"
+        required: false
+        type: string
+        default: /opt/aylo/.secrets
+      compose_override:
+        description: "Repo-relative compose override copied to compose.override.yml"
+        required: true
+        type: string
+      profile:
+        description: "Compose profile to run (blue | green) - must match the nginx upstream port"
+        required: false
+        type: string
+        default: green
+      health_port:
+        description: "Host port the profile publishes (blue=8001, green=8002)"
+        required: false
+        type: string
+        default: "8002"
+    secrets:
+      ssh_host:
+        required: true
+      ssh_username:
+        required: true
+      ssh_key:
+        required: true
+
+jobs:
+  deploy:
+    name: Deploy to ${{ inputs.environment }}
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.environment }}
+    timeout-minutes: 45
+
+    permissions:
+      contents: read
+
+    steps:
+      - name: Verify deploy secrets are configured
+        env:
+          SSH_HOST: ${{ secrets.ssh_host }}
+          SSH_USERNAME: ${{ secrets.ssh_username }}
+          SSH_KEY: ${{ secrets.ssh_key }}
+        run: |
+          set -euo pipefail
+          missing=""
+          [ -n "$SSH_HOST" ] || missing="$missing ssh_host"
+          [ -n "$SSH_USERNAME" ] || missing="$missing ssh_username"
+          [ -n "$SSH_KEY" ] || missing="$missing ssh_key"
+          if [ -n "$missing" ]; then
+            echo "::error::Missing repository secrets for the ${{ inputs.environment }} target:$missing"
+            exit 1
+          fi
+
+      - name: Checkout the repo
+        uses: actions/checkout@v4
+
+      - name: Backup current deployment
+        uses: appleboy/ssh-action@master
+        with:
+          host: ${{ secrets.ssh_host }}
+          username: ${{ secrets.ssh_username }}
+          key: ${{ secrets.ssh_key }}
+          port: 22
+          script: |
+            set -e
+            rm -rf "${{ inputs.deploy_dir }}.bak"
+            if [ -d "${{ inputs.deploy_dir }}" ]; then
+              cp -al "${{ inputs.deploy_dir }}" "${{ inputs.deploy_dir }}.bak"
+            fi
+
+      - name: Copy repo to the server
+        uses: appleboy/scp-action@master
+        with:
+          host: ${{ secrets.ssh_host }}
+          username: ${{ secrets.ssh_username }}
+          key: ${{ secrets.ssh_key }}
+          port: 22
+          source: "."
+          target: ${{ inputs.deploy_dir }}
+          overwrite: true
+
+      - name: Deploy using docker compose
+        uses: appleboy/ssh-action@master
+        with:
+          host: ${{ secrets.ssh_host }}
+          username: ${{ secrets.ssh_username }}
+          key: ${{ secrets.ssh_key }}
+          port: 22
+          command_timeout: 30m
+          script: |
+            set -e
+            cd "${{ inputs.deploy_dir }}"
+            cp "${{ inputs.secrets_dir }}/backend.env" .env
+            cp "${{ inputs.compose_override }}" compose.override.yml
+            docker compose --profile ${{ inputs.profile }} up --build -d
+            docker image prune -f || true
+            echo "Backend ${{ inputs.environment }} deployment complete"
+
+      - name: Health check
+        id: health
+        continue-on-error: true
+        uses: appleboy/ssh-action@master
+        with:
+          host: ${{ secrets.ssh_host }}
+          username: ${{ secrets.ssh_username }}
+          key: ${{ secrets.ssh_key }}
+          port: 22
+          command_timeout: 10m
+          script: |
+            for i in $(seq 1 30); do
+              if curl -sf http://localhost:${{ inputs.health_port }}/health/ > /dev/null; then
+                echo "Health check passed"
+                exit 0
+              fi
+              echo "waiting for app... ($i/30)"
+              sleep 5
+            done
+            echo "Health check FAILED - recent web logs:"
+            cd "${{ inputs.deploy_dir }}"
+            docker compose --profile ${{ inputs.profile }} logs --tail=50 web-${{ inputs.profile }}
+            exit 1
+
+      - name: Rollback to previous deployment
+        if: steps.health.outcome == 'failure'
+        uses: appleboy/ssh-action@master
+        with:
+          host: ${{ secrets.ssh_host }}
+          username: ${{ secrets.ssh_username }}
+          key: ${{ secrets.ssh_key }}
+          port: 22
+          command_timeout: 30m
+          script: |
+            set -e
+            if [ ! -d "${{ inputs.deploy_dir }}.bak" ]; then
+              echo "No backup found - nothing to roll back to. Manual fix required."
+              exit 1
+            fi
+            echo "Rolling back to previous working deployment..."
+            cd "${{ inputs.deploy_dir }}"
+            docker compose --profile ${{ inputs.profile }} down || true
+            rm -rf "${{ inputs.deploy_dir }}"
+            mv "${{ inputs.deploy_dir }}.bak" "${{ inputs.deploy_dir }}"
+            cd "${{ inputs.deploy_dir }}"
+            cp "${{ inputs.secrets_dir }}/backend.env" .env
+            cp "${{ inputs.compose_override }}" compose.override.yml
+            docker compose --profile ${{ inputs.profile }} up --build -d
+            echo "Rollback deployment complete"
+
+      - name: Verify rollback health
+        if: steps.health.outcome == 'failure'
+        uses: appleboy/ssh-action@master
+        with:
+          host: ${{ secrets.ssh_host }}
+          username: ${{ secrets.ssh_username }}
+          key: ${{ secrets.ssh_key }}
+          port: 22
+          command_timeout: 10m
+          script: |
+            for i in $(seq 1 20); do
+              if curl -sf http://localhost:${{ inputs.health_port }}/health/ > /dev/null; then
+                echo "Rollback verified healthy"
+                exit 0
+              fi
+              sleep 5
+            done
+            echo "Rollback ALSO unhealthy - needs manual intervention"
+            exit 1
+
+      - name: Fail job (deployment was rolled back)
+        if: steps.health.outcome == 'failure'
+        run: |
+          echo "::error::New ${{ inputs.environment }} deployment failed its health check and was rolled back to the previous version."
+          exit 1
