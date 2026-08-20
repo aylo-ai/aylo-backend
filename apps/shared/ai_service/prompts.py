@@ -46,6 +46,7 @@ def build_instructions(assistant) -> str:
                 web_search_tool=assistant.web_search_tool,
                 company_name=assistant.company_name or "",
                 assistant_name=assistant.name or "",
+                steps=assistant.steps or "",
             )
         except (KeyError, IndexError, AttributeError) as exc:
             logger.warning(
@@ -61,6 +62,7 @@ def default_instructions(assistant) -> str:
         f"You are {assistant.name or 'an assistant'}, "
         f"working for {assistant.company_name or 'the company'} "
         f"as {assistant.role or 'a sales and support agent'}."
+        f"strictly follow steps {assistant.steps}"
     )
     parts = [identity]
 

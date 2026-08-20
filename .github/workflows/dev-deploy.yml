@@ -3,7 +3,7 @@ name: Deploy Dev Backend
 on:
   push:
     branches:
-      - dev
+      - main
     paths-ignore:
       - "README.md"
       - "docs/**"
